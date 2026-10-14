@@ -7,6 +7,7 @@ import { functionErrorMessage } from './functionError'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
 import { fromDateKey } from './dateKey'
 import { minutesToTime, pad2, timeToMinutes } from './clockTime'
+import { forgetGoogleConnected } from './googleConnectedHint'
 
 type GoogleCalendarPayload = {
   ok?: boolean
@@ -164,6 +165,8 @@ export function shouldDisconnectAfterFetchError(message: string): boolean {
 }
 
 export async function disconnectGoogleCalendar(): Promise<void> {
+  // 次に開いたときは、いきなり予定を取りに行かずに確かめる
+  forgetGoogleConnected()
   const sb = getSupabase()
   if (!sb) return
   await invokeGoogleCalendar({ action: 'disconnect' })
@@ -247,7 +250,21 @@ export function googleWriteGeneration(): number {
   return writesInFlight > 0 ? -1 : writeGeneration
 }
 
-export async function fetchCalendarEvents(timeMin: Date, timeMax: Date): Promise<{ events: CalendarEvent[]; canWrite: boolean }> {
+type FetchedEvents = { events: CalendarEvent[]; canWrite: boolean }
+
+/** 取得中の範囲。同じ範囲を同時に何度も頼まれたら（画面に戻ったときの focus と visibilitychange など）、1 回の取得を分け合う */
+const fetchesInFlight = new Map<string, Promise<FetchedEvents>>()
+
+export function fetchCalendarEvents(timeMin: Date, timeMax: Date): Promise<FetchedEvents> {
+  const key = `${timeMin.getTime()}|${timeMax.getTime()}|${appTimeZone()}`
+  const running = fetchesInFlight.get(key)
+  if (running) return running
+  const fetching = loadCalendarEvents(timeMin, timeMax).finally(() => fetchesInFlight.delete(key))
+  fetchesInFlight.set(key, fetching)
+  return fetching
+}
+
+async function loadCalendarEvents(timeMin: Date, timeMax: Date): Promise<FetchedEvents> {
   const sb = getSupabase()
   if (!sb) throw new Error('Supabase is not configured')
 

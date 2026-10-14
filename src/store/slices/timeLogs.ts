@@ -63,7 +63,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       pushUndo()
       set((s) => completedRecordPatch(s, { title, dueDate, startTime, endTime, color }, logColorNames()))
     },
-    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color) => {
+    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color, sourceTaskId) => {
       const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
       const endDate = endDateArg !== undefined && endDateArg !== null && endDateArg !== date ? endDateArg : null
       const log = makeTask(
@@ -76,8 +76,9 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
           endTime,
           kind: 'log',
           completed: true,
-          tags: color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title),
+          tags: color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title, { taskId: sourceTaskId }),
           color: color ?? null,
+          sourceTaskId: sourceTaskId ?? null,
         },
         maxOrder + 1,
       )

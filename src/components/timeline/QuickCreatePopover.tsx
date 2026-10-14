@@ -8,6 +8,8 @@ import { unplannedListIds } from '../../lib/listKind'
 import { colorVars } from '../../lib/logCategoryColors'
 import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from './anchoredCard'
 import { TimeLogTagField } from '../TimeLogTagField'
+import { LogTitleInput } from '../LogTitleInput'
+import { useLogDraft } from '../../hooks/useLogDraft'
 import { addGoogleEvent } from '../../lib/googleEventEdit'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { appTimeZone, gmtLabel, zoneCityName, zoneLongName, zoneOptionLabel } from '../../lib/timeZone'
@@ -59,6 +61,9 @@ function saveChoice(choice: QuickCreateChoice) {
   }
 }
 
+const TITLE_INPUT =
+  'w-full border-b-2 border-zinc-200 bg-transparent pb-1.5 text-lg text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-accent-500 dark:border-zinc-600 dark:text-zinc-100'
+
 /**
  * 空き時間をクリック / ドラッグしたときの作成カード（Google カレンダーのクイック作成相当）。
  * 上で To-Do（完了の丸つき）か予定（バイト・授業など。完了の丸なし）かを選び、タイトルとリストだけ決めて保存。
@@ -93,12 +98,12 @@ export function QuickCreatePopover({
   const lists = useTaskStore((s) => s.lists)
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
-  const [title, setTitle] = useState('')
+  // 記録の列では、名前を打つと推定したラベルを先に選び、過去の記録を候補に出す
+  const { title, category, taskId, color, setTitle, setCategory, pick } = useLogDraft({ infer: asLog })
   const googleWritable = useTaskStore((s) => s.googleConnected && s.googleCanWrite)
   const [choice, setChoice] = useState<QuickCreateChoice>(readChoice)
   const asEvent = !asLog && choice.kind === 'event'
   const toGoogle = asEvent && googleWritable && choice.eventToGoogle
-  const [category, setCategory] = useState('')
   const [editingTime, setEditingTime] = useState(false)
   /** 別のタイムゾーンで作る（Google と同じく、時刻の数字はそのままでそのタイムゾーンの時刻になる）。記録はいつも手元の時刻 */
   const [zone, setZone] = useState<string | null>(null)
@@ -127,7 +132,7 @@ export function QuickCreatePopover({
     if (asLog) {
       // 空欄なら分類名で記録（記録の入力はどこでも同じ規則）
       const name = title.trim() || category.trim() || t('quickCreate.untitled')
-      addTimeLog(name, dateKey, startTime, endTime, category.trim() ? [category.trim()] : [])
+      addTimeLog(name, dateKey, startTime, endTime, category.trim() ? [category.trim()] : [], undefined, undefined, color, taskId)
       onClose()
       return
     }
@@ -190,8 +195,15 @@ export function QuickCreatePopover({
         }).split(FIT_TITLE)
       : []
 
+  const onTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isSubmitEnter(e)) {
+      e.preventDefault()
+      save(false)
+    }
+  }
+
   const df = useDateFormat()
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (!asLog ? 270 : 230) + (editingTime ? 30 : 0) + (showFit ? 32 : 0))
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 270 + (editingTime ? 30 : 0) + (showFit ? 32 : 0))
   const listColor = toGoogle ? DEFAULT_GOOGLE_EVENT_HEX : (plannable.find((l) => l.id === listId)?.color ?? '#7986CB')
 
   return (
@@ -223,20 +235,29 @@ export function QuickCreatePopover({
           className="mb-3"
         />
       )}
-      <input
-        ref={inputRef}
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        maxLength={TITLE_MAX_LENGTH}
-        onKeyDown={(e) => {
-          if (isSubmitEnter(e)) {
-            e.preventDefault()
-            save(false)
-          }
-        }}
-        placeholder={asLog ? t('quickCreate.logPlaceholder') : t('quickCreate.titlePlaceholder')}
-        className="w-full border-b-2 border-zinc-200 bg-transparent pb-1.5 text-lg text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-accent-500 dark:border-zinc-600 dark:text-zinc-100"
-      />
+      {asLog ? (
+        <LogTitleInput
+          inputRef={inputRef}
+          value={title}
+          onChange={setTitle}
+          onPick={pick}
+          // 置いた枠に重なる予定と、その時間帯にいつもやっていることを、書く前から出す
+          when={{ dateKey, start: startTime, end: endTime }}
+          onKeyDown={onTitleKeyDown}
+          placeholder={t('quickCreate.logPlaceholder')}
+          className={TITLE_INPUT}
+        />
+      ) : (
+        <input
+          ref={inputRef}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={TITLE_MAX_LENGTH}
+          onKeyDown={onTitleKeyDown}
+          placeholder={t('quickCreate.titlePlaceholder')}
+          className={TITLE_INPUT}
+        />
+      )}
       {showFit && fit.estimateMinutes != null && (
         // 既にある To-Do を枠の開始に見積もりの長さで置く（1 件だけ。選ぶ前に選択肢を並べない）
         <button

@@ -111,6 +111,22 @@ const SCREENS = [
     timer: { title: 'レポート', tags: ['課題'], startedAgo: 3 },
     click: ['[data-floating-timer] button:has-text("課題")', '[data-floating-timer] button:has-text("レポート")'],
   },
+  // 記録の名前を打つと過去の記録が候補に出る（#415）。後から記録と、記録中に題名を直すところ
+  {
+    name: 'record-suggest',
+    view: 'planner',
+    click: 'button:has-text("後から記録") >> visible=true',
+    steps: [{ fill: { selector: 'input[placeholder^="何をした"] >> visible=true', text: '課' } }],
+  },
+  // 空欄のまま、記録する時間に重なる予定（ゼミ 15:00–16:30）を出す（#416）
+  { name: 'record-suggest-plan', view: 'planner', at: '16:00', click: 'button:has-text("後から記録") >> visible=true' },
+  {
+    name: 'timer-suggest',
+    view: 'planner',
+    timer: { title: 'レポート', tags: ['課題'], startedAgo: 3 },
+    click: '[data-floating-timer] button:has-text("レポート")',
+    steps: [{ fill: { selector: '[data-floating-timer] input', text: '授' } }],
+  },
   // 「1 日を締める」のラベルなしの記録を開いて行のチップで付ける所（#390）と、設定のラベルの「直近 30 日でラベルなし」から開いた所
   {
     name: 'planner-untagged',
@@ -300,6 +316,14 @@ const SCREENS = [
   { name: 'calendar-early-done', view: 'calendar', doneNow: ['s4'] },
   // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）
   { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
+  // 日パネルの記録タブ（1 行の並び。#424）
+  {
+    name: 'calendar-day-panel-log',
+    view: 'calendar',
+    desktopOnly: true,
+    calendarMode: 'month',
+    click: '[role=tab]:has-text("記録") >> visible=true',
+  },
   // よく入れる予定（#311）: 見出しのボタンを押したところ・登録の画面・選んで日を続けて押しているところ
   {
     name: 'calendar-month-templates',

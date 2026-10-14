@@ -29,14 +29,20 @@ export function parseAllowedOrigins(raw: string | undefined, allowDev = false): 
   return allowDev ? [...DEV_ORIGINS, ...out] : out
 }
 
-/** そのオリジンに返す CORS ヘッダー。許可していないオリジンには Allow-Origin を付けない */
+/**
+ * そのオリジンに返す CORS ヘッダー。許可していないオリジンには Allow-Origin を付けない。
+ * 許可したオリジンには `Server-Timing`（関数の中の待ち時間の内訳）もページから読めるようにする
+ */
 export function corsHeadersFor(origin: string | null, allowed: string[]): Record<string, string> {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Headers': ALLOW_HEADERS,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     Vary: 'Origin',
   }
-  if (origin && allowed.includes(origin)) headers['Access-Control-Allow-Origin'] = origin
+  if (origin && allowed.includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin
+    headers['Timing-Allow-Origin'] = origin
+  }
   return headers
 }
 

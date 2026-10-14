@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { frequentLogs, inferLogCategory } from './logCategory'
+import { frequentLogs, inferLogCategory, logTitleSuggestions } from './logCategory'
 import { logLabelFromTask } from './logCategoryColors'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -78,5 +78,40 @@ describe('よく使う記録（ワンタップ再開）', () => {
       log('勉強', '2026-10-05'),
     ]
     expect(frequentLogs(tasks, 3, '2026-10-07').map((r) => r.title)).toEqual(['勉強', 'dev', '読書'])
+  })
+})
+
+describe('記録の名前の候補', () => {
+  const log = (title: string, dueDate: string, startTime = '10:00', endTime = '11:00', tags: string[] = []) =>
+    task({ kind: 'log', title, dueDate, startTime, endTime, tags, category: tags[0] ?? null })
+  const titles = (tasks: Task[], q: string) => logTitleSuggestions(tasks, q, 3, '2026-10-07').map((r) => r.title)
+
+  it('打った文字で始まるもの → 単語の頭 → 途中に含むもの。大文字・全角は区別しない', () => {
+    const tasks = [log('lab stat', '2026-10-06'), log('STAT 勉強', '2026-10-01'), log('ecstatic', '2026-10-06')]
+    expect(titles(tasks, 'ｓｔ')).toEqual(['STAT 勉強', 'lab stat', 'ecstatic'])
+  })
+
+  it('同じ段の中はよく使う順。空欄と、打ったものと同じタイトルは出さない', () => {
+    const tasks = [
+      log('STAT 演習', '2026-10-06'),
+      log('STAT 勉強', '2026-10-01'),
+      log('STAT 勉強', '2026-10-02'),
+      log('STAT', '2026-10-05'),
+    ]
+    expect(titles(tasks, 'stat')).toEqual(['STAT 勉強', 'STAT 演習'])
+    expect(titles(tasks, ' ')).toEqual([])
+  })
+
+  it('カタカナとひらがなは同じに見る', () => {
+    expect(titles([log('スタディ', '2026-10-06')], 'すた')).toEqual(['スタディ'])
+  })
+
+  it('ラベルといつもの長さ（新しい 10 件の中央値、5 分単位）を一緒に返す', () => {
+    const tasks = [
+      log('ES', '2026-10-01', '10:00', '11:30', ['就活']),
+      log('ES', '2026-10-02', '10:00', '11:00', ['就活']),
+      log('ES', '2026-10-03', '23:30', '01:02', ['就活']),
+    ]
+    expect(logTitleSuggestions(tasks, 'e', 3, '2026-10-07')).toEqual([{ title: 'ES', category: '就活', typicalMinutes: 90 }])
   })
 })

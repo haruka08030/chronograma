@@ -10,6 +10,7 @@ import i18n from '../i18n/config'
 import { isNetworkErrorMessage, otpRateLimit } from '../lib/errorMessages'
 import { setErrorReportUser } from '../lib/errorReport'
 import { markOAuthSignInStarted, pendingAuthLinkError } from '../lib/authLinkError'
+import { shouldReturnToEmailCode } from '../lib/pendingEmailCode'
 import {
   AUTH_TOKEN_KEY,
   getSupabase,
@@ -20,6 +21,7 @@ import {
   signOutThisDevice,
 } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
+import { rememberGoogleConnected, wasGoogleConnected } from '../lib/googleConnectedHint'
 import { clearDeletedAccount, clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { readFunctionErrorBody } from '../lib/functionError'
 import { detachWebPush } from '../lib/webPush'
@@ -28,7 +30,8 @@ export type AuthContextValue = {
   session: Session | null
   user: User | null
   loading: boolean
-  signInWithOtp: (email: string) => Promise<{ error?: string }>
+  /** `retryAfter` は送りすぎで待つ秒数（わかるとき） */
+  signInWithOtp: (email: string) => Promise<{ error?: string; retryAfter?: number }>
   verifyEmailOtp: (email: string, token: string) => Promise<{ error?: string }>
   /** Google の画面に移る。戻ってきたら Supabase がセッションを作る（同じメールのアカウントがあればそこに入る） */
   signInWithGoogle: () => Promise<{ error?: string }>
@@ -65,7 +68,13 @@ function enqueueGoogleSync(task: () => Promise<void>) {
   })
 }
 
-async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
+/**
+ * 連携しているかをもう確かめた人。起動時はセッションの読み出しと INITIAL_SESSION・SIGNED_IN の通知が続けて来るので、
+ * 同じ人には 1 回だけ確かめる（毎回聞くと、予定の取得がその分だけ遅れる）。ログアウトで空にする
+ */
+let googleCheckedFor: string | null = null
+
+async function handleGoogleAuthSideEffects(event: AuthChangeEvent, userId: string) {
   // 直接 Google OAuth の ?code= は、どの画面に戻ってきても必ず交換する。
   // （以前は plan-vs-actual が mount されたときだけ処理していたため取りこぼしていた）
   if (hasGoogleOAuthCallbackInUrl()) {
@@ -75,7 +84,11 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
         const connected = await isGoogleCalendarConnected()
         useTaskStore.getState().setGoogleConnected(connected)
         useTaskStore.getState().setGoogleConnectionError(connected ? null : useTaskStore.getState().googleConnectionError)
-        if (connected) return
+        if (connected) {
+          rememberGoogleConnected(userId)
+          googleCheckedFor = userId
+          return
+        }
       }
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Google OAuth callback failed'
@@ -90,6 +103,15 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
     return
   }
 
+  if (googleCheckedFor === userId) return
+  googleCheckedFor = userId
+
+  // この端末で前につながっていたなら、聞かずにすぐ予定を取りに行く（つながっていなければ予定の取得が断り、連携を外す）
+  if (wasGoogleConnected(userId)) {
+    useTaskStore.getState().setGoogleConnected(true)
+    return
+  }
+
   // Google でログインしただけではカレンダーはつながらない（連携は設定から別に許可する）。
   // ログインの方法によらず、サーバーに連携があるかだけを見る
   try {
@@ -97,6 +119,7 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
     useTaskStore.getState().setGoogleConnected(connected)
     if (connected) {
       useTaskStore.getState().setGoogleConnectionError(null)
+      rememberGoogleConnected(userId)
     }
   } catch {
     useTaskStore.getState().setGoogleConnected(false)
@@ -149,6 +172,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // ログイン用リンクが使えなかった（期限切れ・使用済み）。理由はアカウント欄に出す
     if (pendingAuthLinkError()) useTaskStore.getState().openSettingsWithScroll('account')
+    // メールのコードを見に行くあいだにアプリが閉じられた（読み込み直された）。開き直したらコードを打つ欄へ戻す
+    else if (needsSupabaseAtStart() ? shouldReturnToEmailCode('reauth') : shouldReturnToEmailCode('signIn')) {
+      useTaskStore.getState().openSettingsWithScroll('account')
+    }
 
     let unsubscribe: (() => void) | null = null
     /** 読み込んだクライアントのセッションを読み、変化を受ける（起動時・ログインを始めたとき・ほかのタブでログインしたとき） */
@@ -164,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           setSession(s)
           if (s) {
-            enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION'))
+            enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION', s.user.id))
           }
         })
         .catch((err) => {
@@ -183,10 +210,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (s && GOOGLE_AUTH_EVENTS.has(event)) {
-          enqueueGoogleSync(() => handleGoogleAuthSideEffects(event))
+          enqueueGoogleSync(() => handleGoogleAuthSideEffects(event, s.user.id))
         }
 
-        if (event === 'SIGNED_OUT') void onSignedOut(sb)
+        if (event === 'SIGNED_OUT') {
+          googleCheckedFor = null
+          void onSignedOut(sb)
+        }
       })
       unsubscribe = () => sub.subscription.unsubscribe()
     }
@@ -235,9 +265,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // 送りすぎは英語のまま出さず、待てば送れることを伝える
           const limit = otpRateLimit(error)
           if (limit) {
-            return {
-              error: limit.seconds != null ? i18n.t('account.otpWaitSeconds', { count: limit.seconds }) : i18n.t('account.otpRateLimited'),
-            }
+            if (limit.seconds != null)
+              return { error: i18n.t('account.otpWaitSeconds', { count: limit.seconds }), retryAfter: limit.seconds }
+            return { error: i18n.t('account.otpRateLimited') }
           }
           return { error: error.message }
         } catch (err) {

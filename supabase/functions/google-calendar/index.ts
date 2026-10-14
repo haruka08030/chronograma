@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
 import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
+import { withServerTiming } from '../_shared/serverTiming.ts'
 import { collectEventPages, type EventPage } from './pages.ts'
 import { classifyGoogleError, GoogleApiError, isRetryableGoogleError, parseGoogleErrorReasons } from './googleError.ts'
 import { needsReseal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
@@ -257,299 +258,306 @@ function hasWriteScope(scope: string | null | undefined): boolean {
   return (scope ?? '').split(/\s+/).some((s) => WRITE_SCOPES.includes(s))
 }
 
+// Server-Timing の名前: auth（ログイン確認）・rate（回数制限）・db（接続の読み込み）・token（Google のアクセストークン）・
+// events（予定の一覧）・color（カレンダーの色）・write（予定の書き込み）
 Deno.serve(
-  withCors(async (req) => {
-    try {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')
-      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
-      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  withCors(
+    withServerTiming(async (req, timing) => {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')
+        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+        const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-      if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-        return errorResponse(500, 'Server misconfigured')
-      }
-
-      const authHeader = req.headers.get('Authorization')
-      if (!authHeader) {
-        return errorResponse(401, 'Missing Authorization header')
-      }
-
-      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: authHeader } },
-      })
-
-      const {
-        data: { user },
-        error: userError,
-      } = await userClient.auth.getUser()
-
-      if (userError || !user) {
-        return errorResponse(401, 'Unauthorized')
-      }
-
-      const admin = createClient(supabaseUrl, serviceRoleKey)
-      if (!(await withinRateLimit(admin, user.id, RATE_LIMITS.google))) {
-        return errorResponse(429, 'Too many requests. Wait a moment, then try again.')
-      }
-      const body = await readJsonBody(req)
-      if (!body) return errorResponse(400, BAD_JSON)
-      const action = (body.action as string) ?? ''
-
-      const tokenContext = secretContext.google(user.id)
-      /**
-       * 保存してある接続（リフレッシュトークンは開いたもの）。前の鍵・前の形の行は、読んだついでに今の鍵で閉じ直す
-       */
-      const loadConnection = async (): Promise<{
-        row: { refresh_token: string; scope: string | null } | null
-        error: { message: string } | null
-      }> => {
-        const { data, error } = await admin.from('google_oauth').select('refresh_token, scope').eq('user_id', user.id).maybeSingle()
-        if (error || !data?.refresh_token) return { row: null, error }
-        const refreshToken = await openSecret(data.refresh_token as string, tokenContext)
-        if (await needsReseal(data.refresh_token as string)) {
-          await admin
-            .from('google_oauth')
-            .update({ refresh_token: await sealSecret(refreshToken, tokenContext) })
-            .eq('user_id', user.id)
-            .eq('refresh_token', data.refresh_token as string)
-        }
-        return { row: { refresh_token: refreshToken, scope: data.scope as string | null }, error: null }
-      }
-
-      if (action === 'exchange') {
-        const code = body.code as string | undefined
-        const redirectUri = body.redirect_uri as string | undefined
-        if (!code?.trim() || !redirectUri?.trim()) {
-          return errorResponse(400, 'code and redirect_uri are required')
+        if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+          return errorResponse(500, 'Server misconfigured')
         }
 
-        const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
-        const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
-        if (!clientId || !clientSecret) {
-          return errorResponse(500, 'Google OAuth secrets are not configured on the server')
+        const authHeader = req.headers.get('Authorization')
+        if (!authHeader) {
+          return errorResponse(401, 'Missing Authorization header')
         }
-        // コードは 1 回しか交換できないので、保存できないと分かっていれば交換する前に止める
-        requireSecretKey()
 
-        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            code: code.trim(),
-            client_id: clientId,
-            client_secret: clientSecret,
-            redirect_uri: redirectUri.trim(),
-            grant_type: 'authorization_code',
-          }),
+        const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+          global: { headers: { Authorization: authHeader } },
         })
 
-        if (!tokenRes.ok) {
-          // 応答の本文はログにだけ残す。クライアントが見分ける error（invalid_grant / redirect_uri_mismatch /
-          // invalid_client など）だけを返す
-          const bodyText = await tokenRes.text()
-          console.error('[google] code exchange failed', tokenRes.status, bodyText)
-          let code = ''
-          try {
-            const parsed = JSON.parse(bodyText) as { error?: unknown }
-            if (typeof parsed.error === 'string' && /^[a-z_]{1,64}$/.test(parsed.error)) code = parsed.error
-          } catch {
-            /* JSON でなければ code なし */
+        const {
+          data: { user },
+          error: userError,
+        } = await timing.time('auth', () => userClient.auth.getUser())
+
+        if (userError || !user) {
+          return errorResponse(401, 'Unauthorized')
+        }
+
+        const admin = createClient(supabaseUrl, serviceRoleKey)
+        if (!(await timing.time('rate', () => withinRateLimit(admin, user.id, RATE_LIMITS.google)))) {
+          return errorResponse(429, 'Too many requests. Wait a moment, then try again.')
+        }
+        const body = await readJsonBody(req)
+        if (!body) return errorResponse(400, BAD_JSON)
+        const action = (body.action as string) ?? ''
+
+        const tokenContext = secretContext.google(user.id)
+        /**
+         * 保存してある接続（リフレッシュトークンは開いたもの）。前の鍵・前の形の行は、読んだついでに今の鍵で閉じ直す
+         */
+        const loadConnection = (): Promise<{
+          row: { refresh_token: string; scope: string | null } | null
+          error: { message: string } | null
+        }> =>
+          timing.time('db', async () => {
+            const { data, error } = await admin.from('google_oauth').select('refresh_token, scope').eq('user_id', user.id).maybeSingle()
+            if (error || !data?.refresh_token) return { row: null, error }
+            const refreshToken = await openSecret(data.refresh_token as string, tokenContext)
+            if (await needsReseal(data.refresh_token as string)) {
+              await admin
+                .from('google_oauth')
+                .update({ refresh_token: await sealSecret(refreshToken, tokenContext) })
+                .eq('user_id', user.id)
+                .eq('refresh_token', data.refresh_token as string)
+            }
+            return { row: { refresh_token: refreshToken, scope: data.scope as string | null }, error: null }
+          })
+
+        if (action === 'exchange') {
+          const code = body.code as string | undefined
+          const redirectUri = body.redirect_uri as string | undefined
+          if (!code?.trim() || !redirectUri?.trim()) {
+            return errorResponse(400, 'code and redirect_uri are required')
           }
-          return errorResponse(502, `Google code exchange failed: ${code || tokenRes.status}`)
-        }
 
-        const tokenData = (await tokenRes.json()) as {
-          refresh_token?: string
-          access_token?: string
-          scope?: string
-        }
+          const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
+          const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
+          if (!clientId || !clientSecret) {
+            return errorResponse(500, 'Google OAuth secrets are not configured on the server')
+          }
+          // コードは 1 回しか交換できないので、保存できないと分かっていれば交換する前に止める
+          requireSecretKey()
 
-        const refreshToken = tokenData.refresh_token
-        if (!refreshToken) {
-          return errorResponse(502, 'Google did not return a refresh token. Revoke app access in your Google account, then reconnect.')
-        }
-
-        const { error } = await admin.from('google_oauth').upsert(
-          {
-            user_id: user.id,
-            refresh_token: await sealSecret(refreshToken, tokenContext),
-            // ユーザーが同意画面で書き込みを外すこともあるので、実際に許可された範囲を保存する
-            scope: tokenData.scope ?? SCOPES,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' },
-        )
-
-        if (error) {
-          console.error('[google] save token failed', error.message)
-          return errorResponse(500, 'Failed to save Google connection')
-        }
-        return jsonResponse({ ok: true })
-      }
-
-      if (action === 'disconnect') {
-        // 行を消すだけでは Google 側の許可が残るので、先に取り消す（失敗しても切断は進める）
-        const { row: current } = await loadConnection().catch(() => ({ row: null }))
-        if (current?.refresh_token) {
-          await fetch('https://oauth2.googleapis.com/revoke', {
+          const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ token: current.refresh_token }),
-          }).catch((err) => console.error('[google] revoke failed', err))
-        }
-        const { error } = await admin.from('google_oauth').delete().eq('user_id', user.id)
+            body: new URLSearchParams({
+              code: code.trim(),
+              client_id: clientId,
+              client_secret: clientSecret,
+              redirect_uri: redirectUri.trim(),
+              grant_type: 'authorization_code',
+            }),
+          })
 
-        if (error) {
-          console.error('[google] disconnect failed', error.message)
-          return errorResponse(500, 'Failed to disconnect')
-        }
-        return jsonResponse({ ok: true })
-      }
-
-      if (action === 'status') {
-        const { row, error: fetchError } = await loadConnection()
-
-        if (fetchError) {
-          console.error('[google] load connection failed', fetchError.message)
-          return errorResponse(500, 'Failed to load Google connection')
-        }
-        if (!row?.refresh_token) {
-          return jsonResponse({ connected: false })
-        }
-
-        try {
-          await refreshGoogleAccessToken(row.refresh_token)
-          return jsonResponse({ connected: true })
-        } catch (e) {
-          // 取り消された・期限切れのときだけ連携を外す。通信の失敗や Google の一時的なエラー、
-          // サーバーの設定ミスで全員の連携を外さない
-          const message = e instanceof Error ? e.message : String(e)
-          if (classifyGoogleError(e) === 'auth_expired') {
-            await admin.from('google_oauth').delete().eq('user_id', user.id)
-            return jsonResponse({ connected: false, stale: true })
-          }
-          console.error('[google] status refresh failed', message)
-          return jsonResponse({ connected: true, error: 'Google is temporarily unavailable' })
-        }
-      }
-
-      if (action === 'events') {
-        const timeMin = body.timeMin as string | undefined
-        const timeMax = body.timeMax as string | undefined
-        if (!timeMin || !timeMax) {
-          return errorResponse(400, 'timeMin and timeMax are required')
-        }
-
-        const { row, error: fetchError } = await loadConnection()
-
-        if (fetchError) {
-          console.error('[google] load connection failed', fetchError.message)
-          return errorResponse(500, 'Failed to load Google connection')
-        }
-        if (!row?.refresh_token) {
-          return jsonResponse(
-            { ok: false, events: [], connected: false, error: 'Google Calendar not connected. Reconnect in settings.' },
-            409,
-          )
-        }
-
-        try {
-          const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
-          const accessToken = await refreshGoogleAccessToken(row.refresh_token)
-          const { events, truncated } = await fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone)
-          // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（取れなくても予定は返す）
-          // colorId（1〜24）の方が確実に色を特定できるので両方返す
-          let calendarColor: string | null = null
-          let calendarColorId: string | null = null
-          try {
-            const res = await fetch(`${CALENDAR_API}/users/me/calendarList/primary`, {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            })
-            if (res.ok) {
-              const entry = (await res.json()) as { backgroundColor?: string; colorId?: string }
-              calendarColor = entry.backgroundColor ?? null
-              calendarColorId = entry.colorId ?? null
+          if (!tokenRes.ok) {
+            // 応答の本文はログにだけ残す。クライアントが見分ける error（invalid_grant / redirect_uri_mismatch /
+            // invalid_client など）だけを返す
+            const bodyText = await tokenRes.text()
+            console.error('[google] code exchange failed', tokenRes.status, bodyText)
+            let code = ''
+            try {
+              const parsed = JSON.parse(bodyText) as { error?: unknown }
+              if (typeof parsed.error === 'string' && /^[a-z_]{1,64}$/.test(parsed.error)) code = parsed.error
+            } catch {
+              /* JSON でなければ code なし */
             }
-          } catch {
-            /* ignore */
+            return errorResponse(502, `Google code exchange failed: ${code || tokenRes.status}`)
           }
-          // truncated: 上限までページをたどっても続きがあった（範囲の後ろの予定が欠けている）
-          return jsonResponse({ events, truncated, calendarColor, calendarColorId, connected: true, canWrite: hasWriteScope(row.scope) })
-        } catch (e) {
-          const kind = classifyGoogleError(e)
-          if (kind === 'rate_limited') return eventsError(429, true, RATE_LIMITED_CODE, RATE_LIMITED_MESSAGE)
-          if (kind === 'auth_expired') return eventsError(409, false, 'google_auth_expired', AUTH_EXPIRED_MESSAGE)
-          // 自分の primary を読めない 403 は許可（スコープ）の不足として扱う
-          if (kind === 'scope' || kind === 'forbidden') {
-            return eventsError(
-              409,
-              false,
-              'google_scope_missing',
-              'Google Calendar scope not granted. Reconnect and approve calendar access.',
-            )
-          }
-          console.error('[google] events failed', e instanceof Error ? e.message : String(e))
-          return eventsError(502, true, 'google_failed', 'Google Calendar request failed')
-        }
-      }
 
-      if (action === 'create' || action === 'update' || action === 'delete' || action === 'upsert') {
-        const { row, error: fetchError } = await loadConnection()
-        if (fetchError) {
-          console.error('[google] load connection failed', fetchError.message)
-          return errorResponse(500, 'Failed to load Google connection')
-        }
-        if (!row?.refresh_token) {
-          return errorResponse(409, 'Google Calendar not connected. Reconnect in settings.')
-        }
-        if (!hasWriteScope(row.scope)) {
-          return errorResponse(409, 'Google Calendar write scope not granted. Reconnect and approve calendar access.')
-        }
-        const eventId = (body.eventId as string | undefined)?.trim() || null
-        if (action !== 'create' && !eventId) return errorResponse(400, 'eventId is required')
-        // upsert の ID はアプリが決める（Google の ID に使える英小文字 a〜v と数字、5〜1024 文字）
-        if (action === 'upsert' && !/^[a-v0-9]{5,1024}$/.test(eventId!)) return errorResponse(400, 'eventId is invalid')
-        try {
-          const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
-          const accessToken = await refreshGoogleAccessToken(row.refresh_token)
-          const fields = action === 'delete' ? null : pickEventFields(body.fields)
-          if (action === 'upsert') {
-            const item = await upsertGoogleEvent(accessToken, eventId!, fields!)
-            return jsonResponse({ ok: true, event: normalizeEvents([item], timeZone)[0] })
+          const tokenData = (await tokenRes.json()) as {
+            refresh_token?: string
+            access_token?: string
+            scope?: string
           }
-          const item = await writeGoogleEvent(
-            accessToken,
-            action === 'create' ? 'POST' : action === 'update' ? 'PATCH' : 'DELETE',
-            action === 'create' ? null : eventId,
-            fields,
+
+          const refreshToken = tokenData.refresh_token
+          if (!refreshToken) {
+            return errorResponse(502, 'Google did not return a refresh token. Revoke app access in your Google account, then reconnect.')
+          }
+
+          const { error } = await admin.from('google_oauth').upsert(
+            {
+              user_id: user.id,
+              refresh_token: await sealSecret(refreshToken, tokenContext),
+              // ユーザーが同意画面で書き込みを外すこともあるので、実際に許可された範囲を保存する
+              scope: tokenData.scope ?? SCOPES,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id' },
           )
-          return jsonResponse({ ok: true, event: item ? normalizeEvents([item], timeZone)[0] : null })
-        } catch (e) {
-          const kind = classifyGoogleError(e)
-          if (kind === 'rate_limited') return errorResponse(429, RATE_LIMITED_MESSAGE, RATE_LIMITED_CODE)
-          if (kind === 'auth_expired') return errorResponse(409, AUTH_EXPIRED_MESSAGE, 'google_auth_expired')
-          // 権限（scope）不足と、他人の予定で変更できないのを分ける
-          if (kind === 'scope') {
-            return errorResponse(
+
+          if (error) {
+            console.error('[google] save token failed', error.message)
+            return errorResponse(500, 'Failed to save Google connection')
+          }
+          return jsonResponse({ ok: true })
+        }
+
+        if (action === 'disconnect') {
+          // 行を消すだけでは Google 側の許可が残るので、先に取り消す（失敗しても切断は進める）
+          const { row: current } = await loadConnection().catch(() => ({ row: null }))
+          if (current?.refresh_token) {
+            await fetch('https://oauth2.googleapis.com/revoke', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({ token: current.refresh_token }),
+            }).catch((err) => console.error('[google] revoke failed', err))
+          }
+          const { error } = await admin.from('google_oauth').delete().eq('user_id', user.id)
+
+          if (error) {
+            console.error('[google] disconnect failed', error.message)
+            return errorResponse(500, 'Failed to disconnect')
+          }
+          return jsonResponse({ ok: true })
+        }
+
+        if (action === 'status') {
+          const { row, error: fetchError } = await loadConnection()
+
+          if (fetchError) {
+            console.error('[google] load connection failed', fetchError.message)
+            return errorResponse(500, 'Failed to load Google connection')
+          }
+          if (!row?.refresh_token) {
+            return jsonResponse({ connected: false })
+          }
+
+          try {
+            await timing.time('token', () => refreshGoogleAccessToken(row.refresh_token))
+            return jsonResponse({ connected: true })
+          } catch (e) {
+            // 取り消された・期限切れのときだけ連携を外す。通信の失敗や Google の一時的なエラー、
+            // サーバーの設定ミスで全員の連携を外さない
+            const message = e instanceof Error ? e.message : String(e)
+            if (classifyGoogleError(e) === 'auth_expired') {
+              await admin.from('google_oauth').delete().eq('user_id', user.id)
+              return jsonResponse({ connected: false, stale: true })
+            }
+            console.error('[google] status refresh failed', message)
+            return jsonResponse({ connected: true, error: 'Google is temporarily unavailable' })
+          }
+        }
+
+        if (action === 'events') {
+          const timeMin = body.timeMin as string | undefined
+          const timeMax = body.timeMax as string | undefined
+          if (!timeMin || !timeMax) {
+            return errorResponse(400, 'timeMin and timeMax are required')
+          }
+
+          const { row, error: fetchError } = await loadConnection()
+
+          if (fetchError) {
+            console.error('[google] load connection failed', fetchError.message)
+            return errorResponse(500, 'Failed to load Google connection')
+          }
+          if (!row?.refresh_token) {
+            return jsonResponse(
+              { ok: false, events: [], connected: false, error: 'Google Calendar not connected. Reconnect in settings.' },
               409,
-              'Google Calendar write scope not granted. Reconnect and approve calendar access.',
-              'google_scope_missing',
             )
           }
-          if (kind === 'forbidden') return errorResponse(409, 'Google Calendar event is read-only for you.', 'google_read_only')
-          console.error('[google] write failed', e instanceof Error ? e.message : String(e))
-          return errorResponse(502, 'Google Calendar write failed', 'google_failed')
-        }
-      }
 
-      return errorResponse(400, 'Unknown action')
-    } catch (e) {
-      if (e instanceof SecretKeyMissingError) {
-        console.error('[google]', e.message)
-        return errorResponse(500, 'Server misconfigured')
+          try {
+            const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
+            const accessToken = await timing.time('token', () => refreshGoogleAccessToken(row.refresh_token))
+            const { events, truncated } = await timing.time('events', () => fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone))
+            // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（取れなくても予定は返す）
+            // colorId（1〜24）の方が確実に色を特定できるので両方返す
+            let calendarColor: string | null = null
+            let calendarColorId: string | null = null
+            try {
+              const res = await timing.time('color', () =>
+                fetch(`${CALENDAR_API}/users/me/calendarList/primary`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+              )
+              if (res.ok) {
+                const entry = (await res.json()) as { backgroundColor?: string; colorId?: string }
+                calendarColor = entry.backgroundColor ?? null
+                calendarColorId = entry.colorId ?? null
+              }
+            } catch {
+              /* ignore */
+            }
+            // truncated: 上限までページをたどっても続きがあった（範囲の後ろの予定が欠けている）
+            return jsonResponse({ events, truncated, calendarColor, calendarColorId, connected: true, canWrite: hasWriteScope(row.scope) })
+          } catch (e) {
+            const kind = classifyGoogleError(e)
+            if (kind === 'rate_limited') return eventsError(429, true, RATE_LIMITED_CODE, RATE_LIMITED_MESSAGE)
+            if (kind === 'auth_expired') return eventsError(409, false, 'google_auth_expired', AUTH_EXPIRED_MESSAGE)
+            // 自分の primary を読めない 403 は許可（スコープ）の不足として扱う
+            if (kind === 'scope' || kind === 'forbidden') {
+              return eventsError(
+                409,
+                false,
+                'google_scope_missing',
+                'Google Calendar scope not granted. Reconnect and approve calendar access.',
+              )
+            }
+            console.error('[google] events failed', e instanceof Error ? e.message : String(e))
+            return eventsError(502, true, 'google_failed', 'Google Calendar request failed')
+          }
+        }
+
+        if (action === 'create' || action === 'update' || action === 'delete' || action === 'upsert') {
+          const { row, error: fetchError } = await loadConnection()
+          if (fetchError) {
+            console.error('[google] load connection failed', fetchError.message)
+            return errorResponse(500, 'Failed to load Google connection')
+          }
+          if (!row?.refresh_token) {
+            return errorResponse(409, 'Google Calendar not connected. Reconnect in settings.')
+          }
+          if (!hasWriteScope(row.scope)) {
+            return errorResponse(409, 'Google Calendar write scope not granted. Reconnect and approve calendar access.')
+          }
+          const eventId = (body.eventId as string | undefined)?.trim() || null
+          if (action !== 'create' && !eventId) return errorResponse(400, 'eventId is required')
+          // upsert の ID はアプリが決める（Google の ID に使える英小文字 a〜v と数字、5〜1024 文字）
+          if (action === 'upsert' && !/^[a-v0-9]{5,1024}$/.test(eventId!)) return errorResponse(400, 'eventId is invalid')
+          try {
+            const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
+            const accessToken = await timing.time('token', () => refreshGoogleAccessToken(row.refresh_token))
+            const fields = action === 'delete' ? null : pickEventFields(body.fields)
+            if (action === 'upsert') {
+              const item = await timing.time('write', () => upsertGoogleEvent(accessToken, eventId!, fields!))
+              return jsonResponse({ ok: true, event: normalizeEvents([item], timeZone)[0] })
+            }
+            const item = await timing.time('write', () =>
+              writeGoogleEvent(
+                accessToken,
+                action === 'create' ? 'POST' : action === 'update' ? 'PATCH' : 'DELETE',
+                action === 'create' ? null : eventId,
+                fields,
+              ),
+            )
+            return jsonResponse({ ok: true, event: item ? normalizeEvents([item], timeZone)[0] : null })
+          } catch (e) {
+            const kind = classifyGoogleError(e)
+            if (kind === 'rate_limited') return errorResponse(429, RATE_LIMITED_MESSAGE, RATE_LIMITED_CODE)
+            if (kind === 'auth_expired') return errorResponse(409, AUTH_EXPIRED_MESSAGE, 'google_auth_expired')
+            // 権限（scope）不足と、他人の予定で変更できないのを分ける
+            if (kind === 'scope') {
+              return errorResponse(
+                409,
+                'Google Calendar write scope not granted. Reconnect and approve calendar access.',
+                'google_scope_missing',
+              )
+            }
+            if (kind === 'forbidden') return errorResponse(409, 'Google Calendar event is read-only for you.', 'google_read_only')
+            console.error('[google] write failed', e instanceof Error ? e.message : String(e))
+            return errorResponse(502, 'Google Calendar write failed', 'google_failed')
+          }
+        }
+
+        return errorResponse(400, 'Unknown action')
+      } catch (e) {
+        if (e instanceof SecretKeyMissingError) {
+          console.error('[google]', e.message)
+          return errorResponse(500, 'Server misconfigured')
+        }
+        // 内部のエラーは中身を返さず、サーバーのログにだけ残す
+        console.error('[google]', e)
+        return errorResponse(500, 'Internal error')
       }
-      // 内部のエラーは中身を返さず、サーバーのログにだけ残す
-      console.error('[google]', e)
-      return errorResponse(500, 'Internal error')
-    }
-  }),
+    }),
+  ),
 )

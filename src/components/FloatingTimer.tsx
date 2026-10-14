@@ -19,8 +19,8 @@ import { HINT_TEXT } from './ui/textClass'
 import { endsAfter, planEndFor, TIMER_LENGTH_CHOICES } from '../lib/timerLength'
 import { primeTimerChime } from '../lib/timerEndAlert'
 import { useTextEntry } from '../hooks/useTextEntry'
-import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 import { TimeLogTagField } from './TimeLogTagField'
+import { LogTitleInput } from './LogTitleInput'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -173,11 +173,24 @@ export function FloatingTimer() {
         <div className="flex-1 min-w-0">
           {/* 題名は押すと直せる（Enter・離れたで残し、Esc で戻す） */}
           {editingTitle ? (
-            <input
+            // 過去の記録を候補に出す。選ぶと名前とその記録のラベルに直す（ラベルの無い記録なら今のラベルのまま）
+            <LogTitleInput
               autoFocus
+              dropUp
+              // 始めた時刻〜今に重なる予定と、その時間帯にいつもやっていることも出す
+              when={{
+                dateKey: toDateKey(toAppWall(activeTimer.startedAt)),
+                start: clockOf(toAppWall(activeTimer.startedAt)),
+                end: clockOf(toAppWall(startMs + elapsed)),
+              }}
               value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              maxLength={TITLE_MAX_LENGTH}
+              onChange={setTitleDraft}
+              onPick={(s) => {
+                // 欄が閉じるときの「離れたら保存」も選んだ名前で
+                setTitleDraft(s.title)
+                editActiveTimer(s.category ? { taskTitle: s.title, tags: [s.category] } : { taskTitle: s.title })
+                setEditingTitle(false)
+              }}
               {...titleEntry}
               aria-label={t('floatingTimer.editTitle')}
               className={fieldClass({ size: 'sm' }, 'w-full font-medium')}

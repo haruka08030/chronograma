@@ -340,6 +340,8 @@ export interface TaskState {
     endDate?: string | null,
     /** 名前の無い色（To-Do の色を引き継ぐとき）。あれば分類は推定しない */
     color?: string | null,
+    /** 元の To-Do（記録の候補から To-Do を選んだとき）。統計の「見積もりと記録」に入る */
+    sourceTaskId?: string | null,
   ) => void
   /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
   logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void

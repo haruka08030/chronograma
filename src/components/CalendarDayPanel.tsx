@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
@@ -6,7 +6,7 @@ import { unplannedListIds } from '../lib/listKind'
 import { useTaskStore } from '../store/taskStore'
 import { TaskItem } from './TaskItem'
 import { formatDuration, timeToMinutes } from '../lib/timeGrid'
-import { isOvernightTimeLog, logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from '../lib/taskTimeRange'
+import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { colorVars, recordHex } from '../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
@@ -21,7 +21,9 @@ import { EmptyState } from './ui/EmptyState'
 import { CalendarIcon, ClockIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { useHolidayName } from '../hooks/useHolidayName'
-import { SectionLabel } from './ui/SectionLabel'
+import { DayRow } from './ui/DayRow'
+import { DisclosureButton } from './ui/Disclosure'
+import type { CalendarEvent } from '../types/calendarEvent'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { GoogleEventPopover } from './lazyOverlays'
 import { rectOf, type AnchorRect } from './timeline/anchoredCard'
@@ -29,6 +31,14 @@ import { META_TEXT } from './ui/textClass'
 import { compareByOrder } from '../lib/orderCompare'
 
 type DayPanelTab = 'planned' | 'log'
+
+type PlannedRow = { kind: 'task'; task: Task } | { kind: 'google'; event: CalendarEvent }
+
+/** 時刻のある行の開始（並べ替え用。時刻の無い行は並べる前に分けてある） */
+const rowStart = (row: PlannedRow) => (row.kind === 'task' ? row.task.startTime : row.event.startTime) ?? '00:00'
+
+/** 睡眠の記録の丸（タイムラインの睡眠の帯と同じ色） */
+const SLEEP_DOT_STYLE = { '--c': 'var(--color-sleep)' } as CSSProperties
 
 export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string }) {
   const { t } = useTranslation()
@@ -43,6 +53,7 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
   const [googleCard, setGoogleCard] = useState<{ eventId: string; anchor: AnchorRect } | null>(null)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const [adding, setAdding] = useState(false)
+  const [showDone, setShowDone] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const updateTask = useTaskStore((s) => s.updateTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
@@ -95,6 +106,16 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
         }),
     [calendarEvents, selectedDateKey],
   )
+
+  const plannedRows = useMemo<PlannedRow[]>(() => {
+    const untimed = plannedItems.filter((x) => !x.startTime).map((task): PlannedRow => ({ kind: 'task', task }))
+    const allDay = externalEvents.filter((e) => !e.startTime).map((event): PlannedRow => ({ kind: 'google', event }))
+    const timed = [
+      ...plannedItems.filter((x) => x.startTime).map((task): PlannedRow => ({ kind: 'task', task })),
+      ...externalEvents.filter((e) => e.startTime).map((event): PlannedRow => ({ kind: 'google', event })),
+    ].sort((a, b) => timeToMinutes(rowStart(a)) - timeToMinutes(rowStart(b)))
+    return [...untimed, ...allDay, ...timed]
+  }, [plannedItems, externalEvents])
 
   const executedItems = useMemo(
     () =>
@@ -189,88 +210,86 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
         </div>
 
         {tab === 'planned' ? (
-          <>
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
-              {externalEvents.length === 0 && plannedItems.length === 0 && executedItems.length === 0 ? (
-                <EmptyState size="sm" icon={<CalendarIcon strokeWidth={1} />} title={t('calendarDayPanel.noPlanned')} />
-              ) : (
-                <>
-                  {externalEvents.length > 0 && (
-                    <div className="mb-2 space-y-1.5 px-2">
-                      {/* カレンダー本体と同じく、色は予定ごと（無ければ Google の既定の色） */}
-                      {externalEvents.map((event) => (
-                        // 月・週と同じく、押すと小さなカード、右クリックでメニュー
-                        <button
-                          key={event.id}
-                          type="button"
-                          onClick={(e) => setGoogleCard({ eventId: event.id, anchor: rectOf(e.currentTarget)! })}
-                          onContextMenu={(e) => {
-                            e.preventDefault()
-                            openTaskMenu({ kind: 'google', x: e.clientX, y: e.clientY, eventId: event.id })
-                          }}
-                          className="gc-plan block w-full rounded-lg px-3 py-2 text-left"
-                          style={colorVars(event.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
-                        >
-                          <div className="truncate text-sm font-medium">{event.summary}</div>
-                          <div className="mt-0.5 text-xs opacity-70">
-                            {event.startTime && event.endTime ? `${event.startTime} – ${event.endTime}` : t('weekCalendar.allDay')}
-                          </div>
-                        </button>
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
+            {plannedRows.length === 0 && executedItems.length === 0 ? (
+              <EmptyState size="sm" icon={<CalendarIcon strokeWidth={1} />} title={t('calendarDayPanel.noPlanned')} />
+            ) : (
+              <>
+                {/* 1 件 1 行。時刻の無い To-Do → 終日 → 時刻順（右のタイムラインに箱があるので、ここは流し読みの一覧） */}
+                {plannedRows.map((row) =>
+                  row.kind === 'task' ? (
+                    <TaskItem
+                      key={row.task.id}
+                      task={row.task}
+                      compact
+                      dayKey={selectedDateKey}
+                      hideDueDatePicker
+                      onRowClick={() => openDetail(row.task.id)}
+                    />
+                  ) : (
+                    // 月・週と同じく、押すと小さなカード、右クリックでメニュー。色は予定ごと（無ければ Google の既定の色）
+                    <DayRow
+                      key={row.event.id}
+                      time={row.event.startTime ?? t('weekCalendar.allDay')}
+                      dotStyle={colorVars(row.event.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
+                      title={row.event.summary}
+                      onClick={(e) => setGoogleCard({ eventId: row.event.id, anchor: rectOf(e.currentTarget)! })}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        openTaskMenu({ kind: 'google', x: e.clientX, y: e.clientY, eventId: row.event.id })
+                      }}
+                    />
+                  ),
+                )}
+                {executedItems.length > 0 && (
+                  // 済んだものは数だけ。押すと開く
+                  <div className={plannedRows.length > 0 ? 'mt-2' : ''}>
+                    <DisclosureButton tone="muted" open={showDone} onToggle={() => setShowDone((v) => !v)}>
+                      {t('calendarDayPanel.executedSection', { count: executedItems.length })}
+                    </DisclosureButton>
+                    {showDone &&
+                      executedItems.map((task) => (
+                        <TaskItem
+                          key={task.id}
+                          task={task}
+                          compact
+                          dayKey={selectedDateKey}
+                          hideDueDatePicker
+                          onRowClick={() => openDetail(task.id)}
+                        />
                       ))}
-                    </div>
-                  )}
-                  {plannedItems.map((task) => (
-                    <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
-                  ))}
-                  {executedItems.length > 0 && (
-                    <div
-                      className={`${externalEvents.length > 0 || plannedItems.length > 0 ? 'mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-700' : ''}`}
-                    >
-                      <SectionLabel as="p" className="mb-2 px-2">
-                        {t('calendarDayPanel.executedSection', { count: executedItems.length })}
-                      </SectionLabel>
-                      {executedItems.map((task) => (
-                        <TaskItem key={task.id} task={task} hideDueDatePicker onRowClick={() => openDetail(task.id)} />
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-3">
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
             {logItems.length === 0 ? (
               <EmptyState size="sm" icon={<ClockIcon strokeWidth={1} />} title={t('calendarDayPanel.noLogs')} />
             ) : (
               <>
                 {totalLoggedMinutes > 0 && (
-                  <p className={`mb-2 px-1 ${META_TEXT}`}>
+                  <p className={`mb-1 px-2.5 ${META_TEXT}`}>
                     {t('calendarDayPanel.totalLogged')}{' '}
                     <span className="font-medium tabular-nums text-zinc-700 dark:text-zinc-300">{formatDuration(totalLoggedMinutes)}</span>
                   </p>
                 )}
-                <div className="space-y-1.5">
-                  {logItems.map((item) => (
-                    // タイムラインの記録と同じく、ラベルの色の薄い塗り＋枠（睡眠は睡眠の色）
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => openDetail(item.id)}
-                      className={`${isSleepTask(item) ? 'gc-sleep' : 'gc-plan'} block w-full rounded-lg px-3 py-2 text-left`}
-                      style={colorVars(recordHex(item, logCategoryColors))}
-                    >
-                      <div className="truncate text-sm font-medium">{item.title}</div>
-                      <div className="mt-0.5 text-xs opacity-70">
-                        {item.startTime && item.endTime
-                          ? `${item.startTime} – ${item.endTime}${
-                              isOvernightTimeLog(item) ? ` (${t('activityLog.spansNextDay', { time: item.endTime })})` : ''
-                            }`
-                          : t('calendarDayPanel.timeUnset')}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                {logItems.map((item) => (
+                  // 予定と同じ 1 行。色はラベルの色（睡眠は睡眠の色）、右に長さ
+                  <DayRow
+                    key={item.id}
+                    time={item.startTime}
+                    dotStyle={isSleepTask(item) ? SLEEP_DOT_STYLE : colorVars(recordHex(item, logCategoryColors))}
+                    title={item.title}
+                    trailing={
+                      <span className={`shrink-0 tabular-nums ${META_TEXT}`}>
+                        {formatDuration(minutesOfLogOnCalendarDay(item, selectedDateKey))}
+                      </span>
+                    }
+                    onClick={() => openDetail(item.id)}
+                  />
+                ))}
               </>
             )}
           </div>

@@ -6,6 +6,15 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { authLinkErrorKey, clearAuthLinkError, pendingAuthLinkError } from '../lib/authLinkError'
+import {
+  clearPendingEmailCode,
+  dismissPendingEmailCode,
+  pendingEmailCode,
+  RESEND_WAIT_MS,
+  savePendingEmailCode,
+  shouldReturnToEmailCode,
+} from '../lib/pendingEmailCode'
+import { isStandalone } from '../lib/pwa'
 import { isSupabaseConfigured, loadSupabase } from '../lib/supabase'
 import { flushPendingSync } from '../hooks/useSupabaseSync'
 import { buttonClass } from './ui/buttonClass'
@@ -19,16 +28,26 @@ import { useExitGhost } from '../hooks/useExitGhost'
 export function AccountMenu() {
   const { t } = useTranslation()
   const { user, loading, signInWithOtp, verifyEmailOtp, signInWithGoogle, signOut, deleteAccount } = useAuth()
-  // ログイン用リンクが使えずに戻ってきたときは、送り直せるよう入力欄を開いて始める
-  const [open, setOpen] = useState(() => pendingAuthLinkError() != null)
-  const [email, setEmail] = useState('')
-  const [codeSentTo, setCodeSentTo] = useState<string | null>(null)
+  // ログイン用リンクが使えずに戻ってきたときは、送り直せるよう入力欄を開いて始める。
+  // コードを送ったまま閉じられた（読み込み直された）ときは、コードを打つ欄を開いて始める
+  const [open, setOpen] = useState(() => pendingAuthLinkError() != null || shouldReturnToEmailCode('signIn'))
+  const [email, setEmail] = useState(() => pendingEmailCode('signIn')?.email ?? '')
+  const [codeSentTo, setCodeSentTo] = useState<string | null>(() => pendingEmailCode('signIn')?.email ?? null)
   const [code, setCode] = useState('')
+  /** この時刻までは送り直せない（Supabase が待たせる） */
+  const [resendAt, setResendAt] = useState(() => {
+    const sent = pendingEmailCode('signIn') ?? pendingEmailCode('reauth')
+    return sent ? sent.sentAt + RESEND_WAIT_MS : 0
+  })
+  // ホーム画面のアプリではメールのリンクがアプリに渡らない（Safari で開く）ので、コードだけを案内する
+  const codeOnly = isStandalone()
   const [pending, setPending] = useState(false)
   const [redirecting, setRedirecting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   /** 削除の前の本人確認（サーバーが最近のログインを求めたとき）。コードを送る前 / 送った後 */
-  const [reauth, setReauth] = useState<'needed' | 'codeSent' | null>(null)
+  const [reauth, setReauth] = useState<'needed' | 'codeSent' | null>(() =>
+    user?.email && pendingEmailCode('reauth')?.email === user.email ? 'codeSent' : null,
+  )
   const [reauthCode, setReauthCode] = useState('')
   const [error, setError] = useState<string | null>(() => {
     const linkError = pendingAuthLinkError()
@@ -41,6 +60,18 @@ export function AccountMenu() {
     return !googleSignIn || (linkError != null && authLinkErrorKey(linkError) !== 'account.googleFailed')
   })
   useEffect(() => clearAuthLinkError(), [])
+  // ほかの方法・ほかのタブでログインできたら、送ったコードはもう要らない。
+  // 本人確認のコードは、送った宛先でログインしている間だけ使う
+  const userEmail = user?.email
+  useEffect(() => {
+    if (user) clearPendingEmailCode('signIn')
+    else if (!loading) clearPendingEmailCode('reauth')
+    if (userEmail && pendingEmailCode('reauth')?.email !== userEmail) clearPendingEmailCode('reauth')
+  }, [user, userEmail, loading])
+  // 本人確認の途中で閉じられて戻ってきた（読み込み中は user が無いので、わかってから戻す）
+  useEffect(() => {
+    if (userEmail && pendingEmailCode('reauth')?.email === userEmail) setReauth('codeSent')
+  }, [userEmail])
   // ログインの欄を開いたら、押す前に Supabase を読んでおく（ログインしない人は起動時に読まない、#268）
   const signedOut = !user && !loading
   useEffect(() => {
@@ -56,7 +87,25 @@ export function AccountMenu() {
   }, [])
   const wrapRef = useRef<HTMLDivElement>(null)
   const panelExit = useExitGhost()
-  useDismiss({ open, onClose: () => setOpen(false), inside: [wrapRef] })
+  // 欄を自分で閉じた・設定から離れたら、開き直してもコードの欄へ連れ戻さない（コードは開けば打てる）
+  const closeSignIn = () => {
+    dismissPendingEmailCode('signIn')
+    setOpen(false)
+  }
+  useDismiss({ open, onClose: closeSignIn, inside: [wrapRef] })
+  const openRef = useRef(open)
+  const reauthRef = useRef(reauth)
+  useEffect(() => {
+    openRef.current = open
+    reauthRef.current = reauth
+  })
+  useEffect(
+    () => () => {
+      if (openRef.current) dismissPendingEmailCode('signIn')
+      if (reauthRef.current === 'codeSent') dismissPendingEmailCode('reauth')
+    },
+    [],
+  )
 
   if (!isSupabaseConfigured) return null
 
@@ -110,8 +159,11 @@ export function AccountMenu() {
     setPending(false)
     if (res.error) {
       setError(res.error)
+      if (res.retryAfter != null) setResendAt(Date.now() + res.retryAfter * 1000)
       return
     }
+    savePendingEmailCode('reauth', user.email)
+    setResendAt(Date.now() + RESEND_WAIT_MS)
     setReauth('codeSent')
     setReauthCode('')
     setMessage(t('account.reauthCodeSent'))
@@ -129,33 +181,45 @@ export function AccountMenu() {
       setError(res.error)
       return
     }
+    clearPendingEmailCode('reauth')
     setReauth(null)
     setReauthCode('')
     await runDelete()
   }
 
   const cancelReauth = () => {
+    clearPendingEmailCode('reauth')
     setReauth(null)
     setReauthCode('')
     setError(null)
     setMessage(null)
   }
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    setError(null)
-    setMessage(null)
     if (!email.trim()) {
       setError(t('account.emailRequired'))
+      setMessage(null)
       return
     }
+    return sendSignInCode(email.trim())
+  }
+
+  /** ログインのコードを送る（最初の送信と送り直し） */
+  const sendSignInCode = async (to: string) => {
+    setError(null)
+    setMessage(null)
     setPending(true)
     try {
-      const res = await signInWithOtp(email)
-      if (res.error) setError(res.error)
-      else {
-        setMessage(t('account.codeSent'))
-        setCodeSentTo(email.trim())
+      const res = await signInWithOtp(to)
+      if (res.error) {
+        setError(res.error)
+        if (res.retryAfter != null) setResendAt(Date.now() + res.retryAfter * 1000)
+      } else {
+        setMessage(t(codeOnly ? 'account.codeSentApp' : 'account.codeSent'))
+        setCodeSentTo(to)
+        savePendingEmailCode('signIn', to)
+        setResendAt(Date.now() + RESEND_WAIT_MS)
         setCode('')
       }
     } catch (err) {
@@ -175,6 +239,7 @@ export function AccountMenu() {
       const res = await verifyEmailOtp(codeSentTo, code)
       if (res.error) setError(res.error)
       else {
+        clearPendingEmailCode('signIn')
         setCodeSentTo(null)
         setCode('')
         setEmail('')
@@ -202,6 +267,7 @@ export function AccountMenu() {
   }
 
   const resetToEmail = () => {
+    clearPendingEmailCode('signIn')
     setCodeSentTo(null)
     setCode('')
     setError(null)
@@ -241,20 +307,7 @@ export function AccountMenu() {
           {reauth && user.email ? (
             <form onSubmit={(e) => void confirmReauth(e)} className="flex max-w-sm flex-col gap-2">
               <p className={`break-all ${HINT_TEXT}`}>{t('account.reauthNeeded', { email: user.email })}</p>
-              {reauth === 'codeSent' && (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="[0-9]*"
-                  maxLength={10}
-                  placeholder={t('account.codePlaceholder')}
-                  aria-label={t('account.codePlaceholder')}
-                  value={reauthCode}
-                  onChange={(e) => setReauthCode(e.target.value.replace(/\D/g, ''))}
-                  className={fieldClass({}, 'w-full tracking-widest')}
-                />
-              )}
+              {reauth === 'codeSent' && <CodeInput value={reauthCode} onChange={setReauthCode} />}
               {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
               <div className="flex flex-wrap gap-2">
                 {reauth === 'codeSent' ? (
@@ -262,18 +315,18 @@ export function AccountMenu() {
                     {pending ? t('account.deleting') : t('account.reauthConfirm')}
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => void sendReauthCode()}
-                  disabled={pending}
-                  className={buttonClass({ variant: reauth === 'codeSent' ? 'ghost' : 'secondary', size: 'sm' })}
-                >
-                  {pending && reauth === 'needed'
-                    ? t('account.sending')
-                    : reauth === 'codeSent'
-                      ? t('account.reauthResend')
-                      : t('account.reauthSend')}
-                </button>
+                {reauth === 'codeSent' ? (
+                  <ResendCodeButton key={resendAt} resendAt={resendAt} disabled={pending} onClick={() => void sendReauthCode()} />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void sendReauthCode()}
+                    disabled={pending}
+                    className={buttonClass({ variant: 'secondary', size: 'sm' })}
+                  >
+                    {pending ? t('account.sending') : t('account.reauthSend')}
+                  </button>
+                )}
                 <button type="button" onClick={cancelReauth} disabled={pending} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
                   {t('common.cancel')}
                 </button>
@@ -299,7 +352,7 @@ export function AccountMenu() {
     <div ref={wrapRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? closeSignIn() : setOpen(true))}
         aria-expanded={open}
         className={buttonClass({ variant: 'secondary', size: 'sm' })}
       >
@@ -324,22 +377,13 @@ export function AccountMenu() {
             {codeSentTo ? (
               <form onSubmit={(e) => void handleVerify(e)} className="flex flex-col gap-2">
                 <p className={`break-all ${HINT_TEXT}`}>{codeSentTo}</p>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="[0-9]*"
-                  maxLength={10}
-                  placeholder={t('account.codePlaceholder')}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                  className={fieldClass({}, 'w-full tracking-widest')}
-                />
+                <CodeInput value={code} onChange={setCode} />
                 {error && <p className={ERROR_TEXT}>{error}</p>}
                 {message && <p className="text-xs text-emerald-600 dark:text-emerald-400">{message}</p>}
                 <button type="submit" disabled={pending || !code.trim()} className={buttonClass({ variant: 'primary', size: 'md' })}>
                   {pending ? t('account.verifying') : t('account.verifyCode')}
                 </button>
+                <ResendCodeButton key={resendAt} resendAt={resendAt} disabled={pending} onClick={() => void sendSignInCode(codeSentTo)} />
                 <button type="button" onClick={resetToEmail} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
                   {t('account.changeEmail')}
                 </button>
@@ -367,7 +411,7 @@ export function AccountMenu() {
                   disabled={pending}
                   className={buttonClass({ variant: googleSignIn ? 'secondary' : 'primary', size: 'md' })}
                 >
-                  {pending ? t('account.sending') : t('account.sendLink')}
+                  {pending ? t('account.sending') : t(codeOnly ? 'account.sendCode' : 'account.sendLink')}
                 </button>
               </form>
             ) : (
@@ -395,5 +439,48 @@ export function AccountMenu() {
         </>
       )}
     </div>
+  )
+}
+
+/** メールに届いたコードの欄。出たらすぐ打てるようカーソルを入れる（スマホでもう一度押さなくていい） */
+function CodeInput({ value, onChange }: { value: string; onChange: (code: string) => void }) {
+  const { t } = useTranslation()
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      autoComplete="one-time-code"
+      pattern="[0-9]*"
+      maxLength={10}
+      placeholder={t('account.codePlaceholder')}
+      aria-label={t('account.codePlaceholder')}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
+      autoFocus
+      className={fieldClass({}, 'w-full tracking-widest')}
+    />
+  )
+}
+
+/**
+ * コードを送り直す。Supabase が待たせる間は残り秒数を出して押せない（押して断られる、にしない）。
+ * 送るたびに `key={resendAt}` で作り直して数え直す
+ */
+function ResendCodeButton({ resendAt, disabled, onClick }: { resendAt: number; disabled: boolean; onClick: () => void }) {
+  const { t } = useTranslation()
+  const [now, setNow] = useState(() => Date.now())
+  const waiting = resendAt > now
+  useEffect(() => {
+    if (resendAt <= Date.now()) return
+    const id = window.setInterval(() => {
+      setNow(Date.now())
+      if (Date.now() >= resendAt) window.clearInterval(id)
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [resendAt])
+  return (
+    <button type="button" onClick={onClick} disabled={disabled || waiting} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
+      {waiting ? t('account.resendCodeIn', { count: Math.ceil((resendAt - now) / 1000) }) : t('account.resendCode')}
+    </button>
   )
 }
