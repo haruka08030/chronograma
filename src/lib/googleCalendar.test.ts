@@ -55,6 +55,18 @@ describe('localizeGoogleError', () => {
 describe('fetchCalendarEvents', () => {
   beforeEach(() => invoke.mockReset())
 
+  it('同じ範囲を同時に頼まれたら 1 回だけ取りに行き、終わったら次はまた取りに行く', async () => {
+    invoke.mockResolvedValue({ data: { events: [], connected: true, canWrite: true }, error: null })
+    const from = new Date(2026, 9, 12)
+    const to = new Date(2026, 9, 18, 23, 59)
+    const [a, b] = await Promise.all([fetchCalendarEvents(from, to), fetchCalendarEvents(from, to)])
+    expect(a).toBe(b)
+    expect(invoke).toHaveBeenCalledTimes(1)
+    await fetchCalendarEvents(from, to)
+    await fetchCalendarEvents(from, new Date(2026, 9, 25))
+    expect(invoke).toHaveBeenCalledTimes(3)
+  })
+
   it('利用上限（429）では連携を外さない', async () => {
     invoke.mockResolvedValueOnce(
       failWith(429, {
