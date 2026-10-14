@@ -175,8 +175,10 @@ export function SlotCheck({
   const small = height < 20
   return (
     // 細いブロック（週表示の予定・記録の 2 列など）では出さない。題名を隠し、つかむ場所で完了になってしまう。完了はカード・メニューから
+    // 重なった予定は hStyle の zIndex が z-[31] を上書きするので、予定にカーソルが乗って z-30 で手前に来ても ✓ が隠れないよう、
+    // 予定と ✓ を包む `group/slot` に乗っている間は ✓ を z-[31] にする
     <div
-      className={`@container pointer-events-none absolute z-[31] flex justify-end ${small ? 'px-0.5' : 'p-0.5'}`}
+      className={`@container pointer-events-none absolute z-[31] group-hover/slot:z-[31]! flex justify-end ${small ? 'px-0.5' : 'p-0.5'}`}
       style={{ top, left: 2, right: 2, ...hStyle }}
     >
       <span className="pointer-events-auto hidden @[5.5rem]:block">
