@@ -85,7 +85,7 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     return container.querySelector<HTMLElement>(`[data-datekey="2026-10-07"] [data-block-id="${id}"]`)!
   }
 
-  it('PC の週表示では記録の無い時間帯の予定が列の全幅を使う（半分に分けない）', () => {
+  it('PC の週表示も記録の無い時間帯の予定は左半分に収める（全幅に広げない）', () => {
     // PC 幅（7 日の列を並べる）
     window.matchMedia = ((query: string) => ({
       matches: query.includes('min-width: 768px'),
@@ -96,9 +96,9 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     seedOverlap()
     const { container } = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />)
     expect(container.querySelectorAll('[data-datekey]').length).toBe(7)
-    expect(planBlock(container, 'shift').style.width).toBe('calc(100% - 4px)')
+    expect(planBlock(container, 'shift').style.width).toBe('calc(50% - 4px)')
     expect(planBlock(container, 'es').style.left).toBe('calc(0% + 16px)')
-    expect(planBlock(container, 'es').style.width).toBe('calc(100% - 18px)')
+    expect(planBlock(container, 'es').style.width).toBe('calc(50% - 18px)')
   })
 
   it('今日の計画（1 日表示）は 予定 / 記録 の 2 列のまま', () => {

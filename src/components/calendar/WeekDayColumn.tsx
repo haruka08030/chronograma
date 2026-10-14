@@ -160,9 +160,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const gapId = (g: { start: number }) => `gap-${g.start}`
   // 時間が重なるところだけ 予定=左 / ログ=右 に分け、同じ種類の重なりは列（週表示はずらし重ね）にする
   const mode = gridDays.length > 1 ? 'cascade' : 'columns'
-  // 1 日表示（今日の計画）は 予定 / 記録 の 2 列に固定。週表示は列が狭いので、記録と重なる塊だけ左右に分け、
-  // 記録の無い時間帯は予定に全幅を使う（半分＋ずらし重ねだと「E...」になって何の予定か読めない）
-  const fixedLanes = splitLanes && gridDays.length === 1
+  // 予定 / 記録 の 2 列に固定（週表示も。予定だけ・記録だけの時間帯も点線をまたいで広げない、#403）
+  const fixedLanes = splitLanes
   const blockStyles = layoutPlanAndLog(
     [
       ...dayTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
@@ -264,7 +263,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               hover:border-accent-400 hover:bg-accent-500/5 hover:text-accent-600
               focus-visible:border-accent-500 focus-visible:outline-none
               dark:border-zinc-600 dark:text-zinc-500 dark:hover:border-accent-400 dark:hover:text-accent-300"
-            // 記録だけの塊は全幅に広がるが、記録の無い時間は常に記録の列（右半分）に収める（週表示で目立たせない）
+            // 記録の無い時間は記録の列（右半分）に収める
             style={{
               left: 'calc(50% + 2px)',
               width: 'calc(50% - 4px)',
