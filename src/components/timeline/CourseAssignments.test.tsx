@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../../store/taskStore'
 import { makeTask } from '../../store/taskHelpers'
@@ -60,11 +60,17 @@ describe('授業の予定のカードの課題（#309）', () => {
     expect(onOpen).toHaveBeenCalledWith('canvas-school.instructure.com-assignment-2')
   })
 
-  it('名前が違う授業は科目を選ぶ欄だけ。選ぶと覚えて課題が出る', () => {
-    open([...tasks.slice(1), lecture('プログラミング基礎')])
+  it('名前もラベルも科目とつながらない予定（授業でない予定）には、科目を選ぶ欄も出さない', () => {
+    open([...tasks.slice(1), lecture('バイト')])
     expect(screen.queryByRole('region', { name: 'Assignments for this course' })).toBeNull()
-    fireEvent.change(screen.getByRole('combobox', { name: 'Course linked to “プログラミング基礎”' }), { target: { value: 'LIT-80' } })
-    expect(useTaskStore.getState().courseLinks).toEqual([{ title: 'プログラミング基礎', course: 'LIT-80' }])
+    expect(screen.queryByRole('combobox', { name: /^Course linked/ })).toBeNull()
+  })
+
+  it('前に選んだつながりは、名前が違っても課題を出す', () => {
+    open([...tasks.slice(1), lecture('プログラミング基礎')])
+    act(() => {
+      useTaskStore.setState({ courseLinks: [{ title: 'プログラミング基礎', course: 'LIT-80' }] })
+    })
     const section = screen.getByRole('region', { name: 'Assignments for this course' })
     expect(
       within(section)

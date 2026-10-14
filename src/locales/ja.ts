@@ -586,7 +586,6 @@ export default {
   },
   courseTasks: {
     heading: 'この科目の課題',
-    pick: 'LMS の科目とつなぐ…',
     none: 'つながない',
     selectAria: '「{{title}}」とつなぐ科目',
     more: 'ほか {{count}} 件',
