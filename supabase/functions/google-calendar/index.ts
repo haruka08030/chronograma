@@ -4,6 +4,7 @@ import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { withServerTiming } from '../_shared/serverTiming.ts'
 import { collectEventPages, type EventPage } from './pages.ts'
+import { withAccessToken, type AccessTokenDeps } from './accessToken.ts'
 import { classifyGoogleError, GoogleApiError, isRetryableGoogleError, parseGoogleErrorReasons } from './googleError.ts'
 import { needsReseal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
@@ -110,7 +111,7 @@ function normalizeEvents(items: GoogleEventItem[], timeZone: string): CalendarEv
   })
 }
 
-async function refreshGoogleAccessToken(refreshToken: string): Promise<string> {
+async function refreshGoogleAccessToken(refreshToken: string): Promise<{ accessToken: string; expiresIn: number }> {
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
   if (!clientId || !clientSecret) {
@@ -133,12 +134,34 @@ async function refreshGoogleAccessToken(refreshToken: string): Promise<string> {
     throw new GoogleApiError('token', res.status, parseGoogleErrorReasons(body), body)
   }
 
-  const data = (await res.json()) as { access_token?: string }
+  const data = (await res.json()) as { access_token?: string; expires_in?: number }
   if (!data.access_token) {
     throw new Error('Google token refresh returned no access_token')
   }
-  return data.access_token
+  return { accessToken: data.access_token, expiresIn: typeof data.expires_in === 'number' ? data.expires_in : 3600 }
 }
+
+/** カレンダー自体の色（予定に個別の色が無いときの色）。取れなくても予定は返すので、失敗は null */
+async function fetchCalendarColor(accessToken: string): Promise<{ calendarColor: string | null; calendarColorId: string | null }> {
+  try {
+    const res = await fetch(`${CALENDAR_API}/users/me/calendarList/primary`, { headers: { Authorization: `Bearer ${accessToken}` } })
+    if (!res.ok) return { calendarColor: null, calendarColorId: null }
+    const entry = (await res.json()) as { backgroundColor?: string; colorId?: string }
+    return { calendarColor: entry.backgroundColor ?? null, calendarColorId: entry.colorId ?? null }
+  } catch {
+    return { calendarColor: null, calendarColorId: null }
+  }
+}
+
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined
+
+/** 応答を返したあとも続ける（Supabase の EdgeRuntime.waitUntil）。無い環境ではそのまま流す */
+function runInBackground(p: Promise<unknown>): void {
+  if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(p)
+}
+
+/** 保存してある接続を読む操作（回数制限を数えるのと同時に読み始める） */
+const CONNECTION_ACTIONS = new Set(['status', 'events', 'create', 'update', 'delete', 'upsert'])
 
 async function fetchGoogleEvents(
   accessToken: string,
@@ -254,6 +277,15 @@ function eventsError(status: number, connected: boolean, code: string, error: st
   return jsonResponse({ ok: false, events: [], connected, code, error }, status)
 }
 
+/** 保存してある接続（`refresh_token` は開いたもの。`stored_refresh_token` は行にある暗号のまま） */
+type Connection = {
+  refresh_token: string
+  stored_refresh_token: string
+  scope: string | null
+  access_token: string | null
+  access_token_expires_at: string | null
+}
+
 function hasWriteScope(scope: string | null | undefined): boolean {
   return (scope ?? '').split(/\s+/).some((s) => WRITE_SCOPES.includes(s))
 }
@@ -291,34 +323,72 @@ Deno.serve(
         }
 
         const admin = createClient(supabaseUrl, serviceRoleKey)
-        if (!(await timing.time('rate', () => withinRateLimit(admin, user.id, RATE_LIMITS.google)))) {
-          return errorResponse(429, 'Too many requests. Wait a moment, then try again.')
-        }
         const body = await readJsonBody(req)
-        if (!body) return errorResponse(400, BAD_JSON)
-        const action = (body.action as string) ?? ''
+        const action = (body?.action as string | undefined) ?? ''
 
         const tokenContext = secretContext.google(user.id)
         /**
          * 保存してある接続（リフレッシュトークンは開いたもの）。前の鍵・前の形の行は、読んだついでに今の鍵で閉じ直す
          */
-        const loadConnection = (): Promise<{
-          row: { refresh_token: string; scope: string | null } | null
-          error: { message: string } | null
-        }> =>
+        const loadConnection = (): Promise<{ row: Connection | null; error: { message: string } | null }> =>
           timing.time('db', async () => {
-            const { data, error } = await admin.from('google_oauth').select('refresh_token, scope').eq('user_id', user.id).maybeSingle()
+            const { data, error } = await admin
+              .from('google_oauth')
+              .select('refresh_token, scope, access_token, access_token_expires_at')
+              .eq('user_id', user.id)
+              .maybeSingle()
             if (error || !data?.refresh_token) return { row: null, error }
-            const refreshToken = await openSecret(data.refresh_token as string, tokenContext)
-            if (await needsReseal(data.refresh_token as string)) {
-              await admin
+            let stored = data.refresh_token as string
+            const refreshToken = await openSecret(stored, tokenContext)
+            if (await needsReseal(stored)) {
+              const resealed = await sealSecret(refreshToken, tokenContext)
+              const { error: resealError } = await admin
                 .from('google_oauth')
-                .update({ refresh_token: await sealSecret(refreshToken, tokenContext) })
+                .update({ refresh_token: resealed })
                 .eq('user_id', user.id)
-                .eq('refresh_token', data.refresh_token as string)
+                .eq('refresh_token', stored)
+              if (!resealError) stored = resealed
             }
-            return { row: { refresh_token: refreshToken, scope: data.scope as string | null }, error: null }
+            return {
+              row: {
+                refresh_token: refreshToken,
+                stored_refresh_token: stored,
+                scope: data.scope as string | null,
+                access_token: (data.access_token as string | null) ?? null,
+                access_token_expires_at: (data.access_token_expires_at as string | null) ?? null,
+              },
+              error: null,
+            }
           })
+
+        // 回数制限を数えるのと、接続を読むのは互いに関係しないので同時に始める
+        const connection = CONNECTION_ACTIONS.has(action) ? loadConnection() : null
+        // 回数制限や本文の誤りで先に返したとき、読み込みの失敗が「誰も受け取らない失敗」にならないように
+        connection?.catch(() => {})
+        if (!(await timing.time('rate', () => withinRateLimit(admin, user.id, RATE_LIMITS.google)))) {
+          return errorResponse(429, 'Too many requests. Wait a moment, then try again.')
+        }
+        if (!body) return errorResponse(400, BAD_JSON)
+
+        const accessContext = secretContext.googleAccess(user.id)
+        /** アクセストークンを使い回す（`accessToken.ts`）。作り直したら行に保存する（応答は待たせない） */
+        const accessDeps = (row: Connection): AccessTokenDeps => ({
+          cached: { sealed: row.access_token, expiresAt: row.access_token_expires_at },
+          open: (sealed) => timing.time('token-cached', () => openSecret(sealed, accessContext)),
+          refresh: () => timing.time('token', () => refreshGoogleAccessToken(row.refresh_token)),
+          save: (accessToken, expiresAt) =>
+            runInBackground(
+              (async () => {
+                // つなぎ直しで替わった行には書かない（前の許可のトークンになる）
+                const { error } = await admin
+                  .from('google_oauth')
+                  .update({ access_token: await sealSecret(accessToken, accessContext), access_token_expires_at: expiresAt.toISOString() })
+                  .eq('user_id', user.id)
+                  .eq('refresh_token', row.stored_refresh_token)
+                if (error) console.error('[google] save access token failed', error.message)
+              })().catch((e) => console.error('[google] save access token failed', e instanceof Error ? e.message : String(e))),
+            ),
+        })
 
         if (action === 'exchange') {
           const code = body.code as string | undefined
@@ -377,6 +447,9 @@ Deno.serve(
             {
               user_id: user.id,
               refresh_token: await sealSecret(refreshToken, tokenContext),
+              // 前の許可のアクセストークンは使わない
+              access_token: null,
+              access_token_expires_at: null,
               // ユーザーが同意画面で書き込みを外すこともあるので、実際に許可された範囲を保存する
               scope: tokenData.scope ?? SCOPES,
               updated_at: new Date().toISOString(),
@@ -411,7 +484,7 @@ Deno.serve(
         }
 
         if (action === 'status') {
-          const { row, error: fetchError } = await loadConnection()
+          const { row, error: fetchError } = await connection!
 
           if (fetchError) {
             console.error('[google] load connection failed', fetchError.message)
@@ -444,7 +517,7 @@ Deno.serve(
             return errorResponse(400, 'timeMin and timeMax are required')
           }
 
-          const { row, error: fetchError } = await loadConnection()
+          const { row, error: fetchError } = await connection!
 
           if (fetchError) {
             console.error('[google] load connection failed', fetchError.message)
@@ -459,24 +532,14 @@ Deno.serve(
 
           try {
             const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
-            const accessToken = await timing.time('token', () => refreshGoogleAccessToken(row.refresh_token))
-            const { events, truncated } = await timing.time('events', () => fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone))
-            // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（取れなくても予定は返す）
-            // colorId（1〜24）の方が確実に色を特定できるので両方返す
-            let calendarColor: string | null = null
-            let calendarColorId: string | null = null
-            try {
-              const res = await timing.time('color', () =>
-                fetch(`${CALENDAR_API}/users/me/calendarList/primary`, { headers: { Authorization: `Bearer ${accessToken}` } }),
-              )
-              if (res.ok) {
-                const entry = (await res.json()) as { backgroundColor?: string; colorId?: string }
-                calendarColor = entry.backgroundColor ?? null
-                calendarColorId = entry.colorId ?? null
-              }
-            } catch {
-              /* ignore */
-            }
+            // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（colorId の方が確実に色を特定できるので両方）。
+            // 予定と色は互いに関係しないので同時に聞く
+            const [{ events, truncated }, { calendarColor, calendarColorId }] = await withAccessToken(accessDeps(row), (accessToken) =>
+              Promise.all([
+                timing.time('events', () => fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone)),
+                timing.time('color', () => fetchCalendarColor(accessToken)),
+              ]),
+            )
             // truncated: 上限までページをたどっても続きがあった（範囲の後ろの予定が欠けている）
             return jsonResponse({ events, truncated, calendarColor, calendarColorId, connected: true, canWrite: hasWriteScope(row.scope) })
           } catch (e) {
@@ -498,7 +561,7 @@ Deno.serve(
         }
 
         if (action === 'create' || action === 'update' || action === 'delete' || action === 'upsert') {
-          const { row, error: fetchError } = await loadConnection()
+          const { row, error: fetchError } = await connection!
           if (fetchError) {
             console.error('[google] load connection failed', fetchError.message)
             return errorResponse(500, 'Failed to load Google connection')
@@ -515,18 +578,18 @@ Deno.serve(
           if (action === 'upsert' && !/^[a-v0-9]{5,1024}$/.test(eventId!)) return errorResponse(400, 'eventId is invalid')
           try {
             const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
-            const accessToken = await timing.time('token', () => refreshGoogleAccessToken(row.refresh_token))
             const fields = action === 'delete' ? null : pickEventFields(body.fields)
-            if (action === 'upsert') {
-              const item = await timing.time('write', () => upsertGoogleEvent(accessToken, eventId!, fields!))
-              return jsonResponse({ ok: true, event: normalizeEvents([item], timeZone)[0] })
-            }
-            const item = await timing.time('write', () =>
-              writeGoogleEvent(
-                accessToken,
-                action === 'create' ? 'POST' : action === 'update' ? 'PATCH' : 'DELETE',
-                action === 'create' ? null : eventId,
-                fields,
+            // 断られた書き込みは何も変えていないので、トークンを作り直してやり直してよい
+            const item = await withAccessToken(accessDeps(row), (accessToken) =>
+              timing.time('write', () =>
+                action === 'upsert'
+                  ? upsertGoogleEvent(accessToken, eventId!, fields!)
+                  : writeGoogleEvent(
+                      accessToken,
+                      action === 'create' ? 'POST' : action === 'update' ? 'PATCH' : 'DELETE',
+                      action === 'create' ? null : eventId,
+                      fields,
+                    ),
               ),
             )
             return jsonResponse({ ok: true, event: item ? normalizeEvents([item], timeZone)[0] : null })
