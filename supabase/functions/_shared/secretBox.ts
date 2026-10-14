@@ -22,6 +22,7 @@ export type KeyRing = { current: string | undefined; previous: readonly string[]
 /** 暗号化の追加データ（表・列・利用者）。読み書きする関数どうしで同じものを使う */
 export const secretContext = {
   google: (userId: string) => `google_oauth.refresh_token:${userId}`,
+  googleAccess: (userId: string) => `google_oauth.access_token:${userId}`,
   notion: (userId: string) => `notion_connection.token:${userId}`,
   canvasToken: (userId: string, id: string) => `canvas_connection.token:${userId}:${id}`,
   canvasFeed: (userId: string, id: string) => `canvas_connection.feed_url:${userId}:${id}`,
