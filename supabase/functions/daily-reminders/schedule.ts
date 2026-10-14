@@ -209,6 +209,14 @@ export function remindersInWindow(tasks: readonly ReminderTask[], s: ReminderSet
   return out
 }
 
+/**
+ * 予定のあとの記録の確認のうち、もう記録のある予定（その予定から ▶・開始の通知の「記録を始める」で始めた記録がある・今その予定を計っている）の分を外す（#419）。
+ * `recorded` はその予定とその日に記録があるか
+ */
+export function dropRecordedPrompts(fired: readonly FiredReminder[], recorded: (taskId: string, date: string) => boolean): FiredReminder[] {
+  return fired.filter((r) => r.kind !== 'record' || !recorded(r.taskId, r.date))
+}
+
 function clock(time: string | null | undefined): string | null {
   return time ? time.slice(0, 5) : null
 }

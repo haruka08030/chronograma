@@ -78,6 +78,8 @@ export interface LaunchHandlers {
   record: (launch: RecordLaunch) => void
   openTask: (launch: TaskLaunch) => void
   stopTimer: (launch: TimerStopLaunch) => void
+  /** 開始の通知の「記録を始める」から: その予定のタイマーを始める（#419。通知から開いたときだけ） */
+  startTimer: (launch: TaskLaunch) => void
   /** 夜の締めの通知から: 今日の計画の「1 日を締める」の所を見せる（`?wrap-up=1`） */
   wrapUp: () => void
   /**
@@ -90,7 +92,7 @@ export interface LaunchHandlers {
 }
 
 /**
- * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>`・`?stop-timer=<開始時刻>`・`?wrap-up=1`、アイコン長押しの `?add=1` / `?start=last`、
+ * 通知タップの `?record=<id>&as=planned`・`?task=<id>&date=<日>`・`?start-timer=<id>`・`?stop-timer=<開始時刻>`・`?wrap-up=1`、アイコン長押しの `?add=1` / `?start=last`、
  * 共有の `?add=1&title=&text=&url=` のような起動 URL を読んで消す。読んだら `handlers` を呼ぶ。
  * 画面の指定（`?view=` / `?list=`）は `urlHistory.ts` が読む
  */
@@ -103,6 +105,7 @@ export function consumeLaunch(handlers: LaunchHandlers) {
   const task = url.searchParams.get('task')
   const date = url.searchParams.get('date')
   const stopTimer = url.searchParams.get('stop-timer')
+  const startTimer = url.searchParams.get('start-timer')
   const start = parseStartParam(url.searchParams.get('start'))
   const wrapUp = url.searchParams.get('wrap-up') === '1'
   // 共有の中身。`title` などはほかで使わない名前ではないので、`add=1` のときだけ読んで消す
@@ -110,12 +113,29 @@ export function consumeLaunch(handlers: LaunchHandlers) {
     ? sharedQuickAdd({ title: url.searchParams.get('title'), text: url.searchParams.get('text'), url: url.searchParams.get('url') })
     : null
   // 読んだら URL から消す（読み込み直しで同じ操作・同じ共有をもう一度しない）
-  const keys = ['source', 'record', 'as', 'launch', 'add', 'task', 'date', 'stop-timer', 'start', 'wrap-up', ...(add ? SHARE_PARAMS : [])]
+  const keys = [
+    'source',
+    'record',
+    'as',
+    'launch',
+    'add',
+    'task',
+    'date',
+    'stop-timer',
+    'start-timer',
+    'start',
+    'wrap-up',
+    ...(add ? SHARE_PARAMS : []),
+  ]
   const hadParams = keys.some((k) => url.searchParams.has(k))
   for (const k of keys) url.searchParams.delete(k)
   if (hadParams) window.history.replaceState(null, '', url.pathname + url.search + url.hash)
   if (add) handlers.add(shared)
-  if (task && !record) handlers.openTask({ taskId: task, date: launchDate(date) })
+  // 記録を始める: 通知から開いたときだけ始める。印が無ければ（ただのリンク）その予定の詳細を開くだけ
+  if (startTimer) {
+    const launch = { taskId: startTimer, date: launchDate(date) }
+    void consumeLaunchMark(nonce).then((ok) => (ok ? handlers.startTimer(launch) : handlers.openTask(launch)))
+  } else if (task && !record) handlers.openTask({ taskId: task, date: launchDate(date) })
   // 止める: 通知から開いたときだけ（ただのリンクではタイマーの見える今日の計画が開くだけ）
   if (stopTimer) {
     void consumeLaunchMark(nonce).then((ok) => ok && handlers.stopTimer({ startedAt: stopTimer === '1' ? null : stopTimer }))
@@ -184,6 +204,7 @@ export function setupPwa(handlers: LaunchHandlers) {
       const view = toSmartView(e.data?.view)
       if (e.data?.type === 'open-view' && view) handlers.openView(view)
       if (e.data?.type === 'wrap-up') handlers.wrapUp()
+      if (e.data?.type === 'start-timer' && e.data.taskId) handlers.startTimer({ taskId: e.data.taskId, date: launchDate(e.data.date) })
       if (e.data?.type === 'stop-timer') handlers.stopTimer({ startedAt: typeof e.data.startedAt === 'string' ? e.data.startedAt : null })
       if (e.data?.type === 'open-task' && e.data.taskId) handlers.openTask({ taskId: e.data.taskId, date: launchDate(e.data.date) })
       if (e.data?.type === 'record' && e.data.taskId) handlers.record({ taskId: e.data.taskId, asPlanned: e.data.asPlanned === true })

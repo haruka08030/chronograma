@@ -16,6 +16,7 @@ import {
   localNow,
   morningDigest,
   remindersInWindow,
+  dropRecordedPrompts,
   staleTimerDue,
   timerEndDue,
   wrapUpDue,
@@ -299,6 +300,35 @@ Deno.serve(async (req) => {
   }
 
   /** 1 つの端末へ、今送る通知を組み立てて並べて送り、送った印を 1 回で書く */
+  /**
+   * もう記録のある予定（`予定の id|日`）。その予定から始めた記録（`source_task_id`、その日の）と、今その予定を計っているタイマー（#419）。
+   * 読めなければ空（記録の確認は今までどおり送る）
+   */
+  const recordedPlans = async (userId: string, ids: string[], dates: string[]): Promise<Set<string>> => {
+    const out = new Set<string>()
+    try {
+      const [logs, timer] = await Promise.all([
+        admin
+          .from('tasks')
+          .select('source_task_id,due_date')
+          .eq('user_id', userId)
+          .is('is_time_log', true)
+          .is('deleted_at', null)
+          .in('source_task_id', ids)
+          .in('due_date', dates),
+        admin.from('user_active_timer').select('task_id,started_at').eq('user_id', userId).maybeSingle(),
+      ])
+      if (logs.error) throw new Error(logs.error.message)
+      if (timer.error) throw new Error(timer.error.message)
+      for (const r of (logs.data ?? []) as { source_task_id: string; due_date: string }[]) out.add(`${r.source_task_id}|${r.due_date}`)
+      const running = timer.data as { task_id: string | null; started_at: string | null } | null
+      if (running?.task_id && running.started_at) for (const d of dates) out.add(`${running.task_id}|${d}`)
+    } catch (err) {
+      console.error('[daily-reminders] load recorded plans failed', err)
+    }
+    return out
+  }
+
   const processSub = async (sub: Sub, tasks: ReminderTask[], digestOf: (sub: Sub, date: string) => Promise<WrapUpDigest | null>) => {
     const local = localNow(sub.timezone, now)
     const msg: Msg = sub.lang === 'en' ? MESSAGES.en : MESSAGES.ja
@@ -324,7 +354,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const fired = remindersInWindow(
+    let fired = remindersInWindow(
       tasks,
       {
         eventReminderMinutes: sub.event_reminder_minutes ?? null,
@@ -335,6 +365,16 @@ Deno.serve(async (req) => {
       nowWall - (now.getTime() - windowStartMs),
       nowWall,
     ).filter((r) => !sentSet.has(r.key))
+    // もう記録のある予定には、終わったあとの記録の確認を出さない（#419）
+    const prompts = fired.filter((r) => r.kind === 'record')
+    if (prompts.length > 0) {
+      const recorded = await recordedPlans(
+        sub.user_id,
+        [...new Set(prompts.map((r) => r.taskId))],
+        [...new Set(prompts.map((r) => r.date))],
+      )
+      fired = dropRecordedPrompts(fired, (taskId, date) => recorded.has(`${taskId}|${date}`))
+    }
     // 同じ時刻に重なった締切は 1 通にまとめる（1 件ずつ出すと通知が洪水になる）
     const dues = fired.filter((r) => r.kind === 'due')
     if (dues.length > 1) {
