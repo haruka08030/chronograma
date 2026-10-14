@@ -135,6 +135,8 @@ const SCREENS = [
     click: 'button:has-text("ラベルなしの記録") >> visible=true',
     scrollTo: '[data-wrap-up]',
   },
+  // 「1 日を締める」の記録の無い時間（最近の記録のチップ・ほかを記録・何もしていない、#418）
+  { name: 'planner-wrap-up-gaps', view: 'planner', at: '21:00', scrollTo: '[data-wrap-up-gaps]' },
   {
     name: 'settings-untagged',
     view: 'settings',

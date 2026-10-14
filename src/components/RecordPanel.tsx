@@ -20,6 +20,7 @@ import { addClockMinutes, clockOf, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
 import { ERROR_TEXT } from './ui/textClass'
 import { usePendingAction } from '../lib/pendingAction'
+import { OPEN_LOG_LATER_ACTION, takePendingLaterSpan } from '../lib/logLater'
 import { isLogTask, isSleepTask } from '../types/task'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
@@ -30,7 +31,6 @@ import { useLogDraft } from '../hooks/useLogDraft'
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
 export const OPEN_TIMER_ACTION = 'open-timer'
 /** 見出しの「記録なし」から「後から記録」を開く（直前の記録の終わり → 今） */
-export const OPEN_LOG_LATER_ACTION = 'open-log-later'
 
 /** 後から記録の「長さで入れる」チップ（終了＝今、開始＝今−長さ） */
 const LATER_LENGTHS_MIN = [30, 60, 120] as const
@@ -122,8 +122,17 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     }
     setMode('manual')
   }
+  const panelRef = useRef<HTMLDivElement>(null)
   usePendingAction(OPEN_LOG_LATER_ACTION, () => {
-    if (canLogLater) openManual()
+    const span = takePendingLaterSpan()
+    if (!canLogLater) return
+    openManual()
+    if (span) {
+      setStart(span.start)
+      setEnd(span.end)
+      // 下の締めから開いたとき、上のフォームまで連れていく（タップの端末は入力欄に自動でフォーカスしない）
+      requestAnimationFrame(() => panelRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
+    }
   })
 
   // 題名もラベルも空なら「記録」で始める（あとから題名・ラベルを付けられる。押せないボタンで止めない）
@@ -215,7 +224,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
 
   if (mode !== 'idle') {
     return (
-      <div className="space-y-3">
+      <div ref={panelRef} className="scroll-mt-4 space-y-3">
         {summary}
         <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
           <LogTitleInput

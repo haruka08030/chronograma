@@ -2,6 +2,8 @@ import type { ListSection } from '../types/section'
 
 /** セクション見出しの文字。To-Do 一覧・いつか・チェックリストで同じにする */
 export const SECTION_HEADING_TEXT = 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400'
+/** セクションを中に持つ塊の見出し（リスト横断のリスト名・いつかの段） */
+export const GROUP_HEADING_TEXT = 'text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200'
 
 /**
  * いつか・チェックリストのセクション見出し。押すと上の入力欄からこのセクションに追加する

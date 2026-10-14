@@ -10,6 +10,7 @@ const handlers = () =>
     start: vi.fn(),
     openTask: vi.fn(),
     stopTimer: vi.fn(),
+    startTimer: vi.fn(),
     wrapUp: vi.fn(),
     add: vi.fn(),
   }) satisfies LaunchHandlers
@@ -93,5 +94,26 @@ describe('consumeLaunch: 夜の締め', () => {
     expect(h.wrapUp).toHaveBeenCalledTimes(1)
     expect(h.openTask).not.toHaveBeenCalled()
     expect(window.location.search).toBe('?view=planner')
+  })
+})
+
+describe('consumeLaunch: 開始の通知の「記録を始める」（#419）', () => {
+  it('通知から開いた（印がある）ときだけ始め、URL から消す', async () => {
+    stubLaunchCache(['n1'])
+    launchAt('/?view=planner&task=t1&date=2026-10-14&start-timer=t1&launch=n1')
+    const h = handlers()
+    consumeLaunch(h)
+    await vi.waitFor(() => expect(h.startTimer).toHaveBeenCalledWith({ taskId: 't1', date: '2026-10-14' }))
+    expect(h.openTask).not.toHaveBeenCalled()
+    expect(window.location.search).toBe('?view=planner')
+  })
+
+  it('印が無い（ただのリンク）ときは始めず、その予定の詳細を開く', async () => {
+    stubLaunchCache([])
+    launchAt('/?task=t1&date=2026-10-14&start-timer=t1&launch=forged')
+    const h = handlers()
+    consumeLaunch(h)
+    await vi.waitFor(() => expect(h.openTask).toHaveBeenCalledWith({ taskId: 't1', date: '2026-10-14' }))
+    expect(h.startTimer).not.toHaveBeenCalled()
   })
 })

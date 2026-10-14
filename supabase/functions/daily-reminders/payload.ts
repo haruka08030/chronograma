@@ -24,6 +24,7 @@ export const MESSAGES = {
     timerTitle: 'タイマーが動いたままです',
     timerBody: (title: string) => `「${title}」を 3 時間以上記録しています`,
     stopTimer: '止める',
+    startTimer: '記録を始める',
     timerEndTitle: (title: string) => `「${title}」の時間です`,
     timerEndBody: '記録は止めずに続けています',
     wrapUpTitle: '1 日を締める',
@@ -55,6 +56,7 @@ export const MESSAGES = {
     timerTitle: 'Your timer is still running',
     timerBody: (title: string) => `"${title}" has been running for over 3 hours`,
     stopTimer: 'Stop',
+    startTimer: 'Start recording',
     timerEndTitle: (title: string) => `Time's up: "${title}"`,
     timerEndBody: 'The timer keeps running until you stop it.',
     wrapUpTitle: 'Wrap up the day',
@@ -142,6 +144,8 @@ export function reminderPayload(msg: Msg, r: FiredReminder, today: string): Payl
       body: msg.startBody(r.minutesBefore, range(r.startTime, r.endTime)),
       tag: `chronograma-start-${r.taskId}`,
       url: taskUrl(r.taskId, r.date),
+      // 「記録を始める」: その予定のタイマーを ▶ と同じく始める（#419。Service Worker が URL の `task` から読む）
+      actions: [{ action: 'start-timer', title: msg.startTimer }],
     }
   }
   if (r.kind === 'due') {

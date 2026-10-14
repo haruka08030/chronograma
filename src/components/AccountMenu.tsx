@@ -92,7 +92,8 @@ export function AccountMenu() {
     dismissPendingEmailCode('signIn')
     setOpen(false)
   }
-  useDismiss({ open, onClose: closeSignIn, inside: [wrapRef] })
+  // コードを待つ間は、外を押しても Esc でも閉じない（打つ前に閉じて最初から、にしない）。閉じるのは「ログイン」をもう一度押したとき
+  useDismiss({ open: open && !codeSentTo, onClose: closeSignIn, inside: [wrapRef] })
   const openRef = useRef(open)
   const reauthRef = useRef(reauth)
   useEffect(() => {

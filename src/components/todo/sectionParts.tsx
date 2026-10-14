@@ -1,7 +1,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { useTranslation } from 'react-i18next'
 import { sectionDropId } from '../../lib/mainListTasks'
-import { SECTION_HEADING_TEXT } from '../ListSectionHeading'
+import { GROUP_HEADING_TEXT, SECTION_HEADING_TEXT } from '../ListSectionHeading'
 import { useTextEntry } from '../../hooks/useTextEntry'
 import { NAME_MAX_LENGTH } from '../../lib/textLimits'
 import { TIER_DROP_PREFIX } from '../../lib/somedayTier'
@@ -18,14 +18,14 @@ export function SectionDropZone({ listId, sectionId, empty = false }: { listId: 
   )
 }
 
-/** いつかの段の見出し。ドラッグで行を落とすとその段へ移す（見出しの行そのものが落とし先） */
+/** いつかのやりたいの見出し。ドラッグで行を落とすとやりたいへ移す（見出しの行そのものが落とし先。夢はカードの場所が落とし先） */
 export function SomedayTierHeading({ tier, title, dropTarget }: { tier: 'dream' | 'wish'; title: string; dropTarget: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: `${TIER_DROP_PREFIX}${tier}`, disabled: !dropTarget })
   return (
     <div
       ref={setNodeRef}
       data-someday-tier={tier}
-      className={`relative z-10 mb-0.5 rounded-lg px-3 py-1.5 transition-colors ${SECTION_HEADING_TEXT} ${isOver ? 'bg-accent-500/15 ring-1 ring-accent-400/40' : ''}`}
+      className={`relative z-10 mb-0.5 rounded-lg px-3 py-1.5 transition-colors ${GROUP_HEADING_TEXT} ${isOver ? 'bg-accent-500/15 ring-1 ring-accent-400/40' : ''}`}
     >
       {title}
     </div>

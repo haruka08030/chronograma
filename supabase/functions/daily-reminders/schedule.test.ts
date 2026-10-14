@@ -6,6 +6,7 @@ import {
   minutesOfClock,
   morningDigest,
   remindersInWindow,
+  dropRecordedPrompts,
   staleTimerDue,
   timerEndDue,
   TIMER_END_LATE_MS,
@@ -156,5 +157,23 @@ describe('夜の締め（wrapUpDue）', () => {
 
   it('読めないタイムゾーンは UTC で数える', () => {
     expect(localNow('Not/AZone', new Date('2026-10-08T22:05:00Z'))).toEqual({ date: '2026-10-08', minutes: 22 * 60 + 5 })
+  })
+})
+
+describe('dropRecordedPrompts（#419）', () => {
+  const base = { title: 't', startTime: '10:00', endTime: '11:00', minutesBefore: 0 }
+  const fired = [
+    { ...base, key: 'a:record:d', kind: 'record' as const, taskId: 'a', date: '2026-10-14' },
+    { ...base, key: 'b:record:d', kind: 'record' as const, taskId: 'b', date: '2026-10-14' },
+    { ...base, key: 'a:start:10:d', kind: 'start' as const, taskId: 'a', date: '2026-10-14' },
+  ]
+
+  it('記録のある予定の記録の確認だけを外す（開始前の通知は残す）', () => {
+    const out = dropRecordedPrompts(fired, (id, date) => id === 'a' && date === '2026-10-14')
+    expect(out.map((r) => r.key)).toEqual(['b:record:d', 'a:start:10:d'])
+  })
+
+  it('別の日の記録では外さない', () => {
+    expect(dropRecordedPrompts(fired, (id, date) => id === 'a' && date === '2026-10-13')).toHaveLength(3)
   })
 })

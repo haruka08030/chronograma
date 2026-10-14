@@ -10,6 +10,7 @@ import {
   dailyDue,
   morningDigest,
   remindersInWindow,
+  dropRecordedPrompts,
   staleTimerDue,
   wrapUpDue,
   type FiredReminder,
@@ -92,6 +93,8 @@ type Shown = {
   url?: string
   /** 止め忘れ: どのタイマーか（開始時刻）。「止める」ボタンを付ける */
   timerStartedAt?: string
+  /** 開始の通知: 「記録を始める」ボタンを付ける（#419。`url` の `task` の予定を始める） */
+  startTimer?: boolean
 }
 
 async function show(n: Shown, onClick: () => void) {
@@ -117,7 +120,9 @@ async function show(n: Shown, onClick: () => void) {
           }
         : n.timerStartedAt
           ? { actions: [{ action: 'stop-timer', title: i18n.t('reminders.stopTimer') }] }
-          : {}),
+          : n.startTimer
+            ? { actions: [{ action: 'start-timer', title: i18n.t('reminders.startTimer') }] }
+            : {}),
     } as NotificationOptions)
     return
   }
@@ -150,6 +155,7 @@ function reminderMessage(r: FiredReminder, today: string): Shown {
       body: r.minutesBefore > 0 ? i18n.t('reminders.startBody', { count: r.minutesBefore, when }) : i18n.t('reminders.startNow', { when }),
       tag: `chronograma-start-${r.taskId}`,
       url: taskUrl(r.taskId, r.date),
+      startTimer: true,
     }
   }
   if (r.kind === 'due') {
@@ -272,7 +278,11 @@ export function checkLocalReminders(ctx: {
       state.wrapUp = today
     }
   }
-  for (const r of remindersInWindow(tasks, ctx.settings, from, nowWall)) {
+  // もう記録のある予定（その予定から始めた記録がその日にある・今その予定を計っている）には記録の確認を出さない（#419）
+  const recorded = (taskId: string, date: string) =>
+    ctx.activeTimer?.taskId === taskId ||
+    ctx.tasks.some((t) => isLogTask(t) && isActiveTask(t) && t.sourceTaskId === taskId && t.dueDate === date)
+  for (const r of dropRecordedPrompts(remindersInWindow(tasks, ctx.settings, from, nowWall), recorded)) {
     if (sent.has(r.key)) continue
     keys.push(r.key)
     const msg = reminderMessage(r, today)
