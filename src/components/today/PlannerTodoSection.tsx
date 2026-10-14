@@ -14,7 +14,10 @@ import { PlannerListStatus } from './PlannerListStatus'
 import { PlannerOnboarding } from './PlannerOnboarding'
 import { OnboardingNudges } from './OnboardingNudges'
 import { focusQuickAdd } from '../../lib/quickAddFocus'
-import { nowOrNextTask } from '../../lib/dayPlan'
+import type { NowNextPlan } from '../../lib/dayPlan'
+import { planHex } from '../../lib/planVisual'
+import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
+import { PlannerPlanRow } from './PlannerPlanRow'
 
 /**
  * 今日の計画の To-Do: 期限切れ → やり残し → 今日やる（時間未定 → 時間を決めた）→ 追加欄 → 一言。
@@ -35,6 +38,8 @@ export function PlannerTodoSection({
   totalCount,
   listboxProps,
   ownedGroupIds,
+  nowNext,
+  onOpenPlanCard,
 }: {
   env: PlannerRowEnv
   headingClass: string
@@ -46,6 +51,7 @@ export function PlannerTodoSection({
   showLeftOver: boolean
   onToggleLeftOver: () => void
   open: Task[]
+  /** 時間を決めた行（一番上の「今」「次」に出している To-Do は除いたもの） */
   timedOpen: Task[]
   untimedOpen: Task[]
   totalCount: number
@@ -53,6 +59,10 @@ export function PlannerTodoSection({
   listboxProps: HTMLAttributes<HTMLDivElement> & { ref: Ref<HTMLDivElement> }
   /** 追加欄より下にある候補・完了の行のまとまり（aria-owns でこの listbox に入れる） */
   ownedGroupIds: string[]
+  /** スマホの今日やる行の一番上の 1 件（PC・今日以外は null） */
+  nowNext: NowNextPlan | null
+  /** 予定（授業・バイト・Google の予定）の行を押したときのカード */
+  onOpenPlanCard: (plan: Exclude<NowNextPlan, { source: 'task' }>, el: HTMLElement) => void
 }) {
   const ids = useId()
   const { t } = useTranslation()
@@ -68,8 +78,12 @@ export function PlannerTodoSection({
   // 終わると持ち主（dataOwner）がこの人になる。アカウントにデータがあれば、その同期で案内は終わる
   const awaitingFirstSync = authLoading || (user !== null && dataOwner !== user.id)
   const showOnboarding = viewingToday && !onboardingDone && !awaitingFirstSync
-  // スマホは横にタイムラインが無いので、今日やる行の一番上に今・次の予定を 1 行（時間を決めた行にも残る）
-  const nowNext = viewingToday ? nowOrNextTask(timedOpen, day.now) : null
+  const timedAction = (task: Task) => (
+    <>
+      <TomorrowButton task={task} tomorrowKey={tomorrowKey} viewingToday={viewingToday} />
+      <TimerButton task={task} />
+    </>
+  )
   const moveHere = (task: Task) => <MoveHereButton task={task} dateKey={dateKey} viewingToday={viewingToday} />
 
   const moveAllLeftOver = () =>
@@ -169,14 +183,30 @@ export function PlannerTodoSection({
             </p>
           )}
           {nowNext && (
-            // 下の時間を決めた行と同じタスクなので、キー操作・選択の対象には入れない（PC は横のタイムラインにある）
-            <ul data-now-next={nowNext.kind} className="md:hidden" role="group" aria-label={t('planner.nowNextAria')}>
-              <PlannerTaskRow
-                task={nowNext.task}
-                env={{ ...env, rowIds: [] }}
-                lead={t(nowNext.kind === 'now' ? 'planner.nowRow' : 'planner.nextRow')}
-                dueMode="urgent"
-              />
+            // スマホだけ（横にタイムラインが無い）。To-Do ならキー操作の並びでもここが先頭（下の時間を決めた行からは外してある）
+            <ul data-now-next={nowNext.kind} role="group" aria-label={t('planner.nowNextAria')}>
+              {nowNext.source === 'task' ? (
+                <PlannerTaskRow
+                  task={nowNext.task}
+                  env={env}
+                  lead={t(nowNext.kind === 'now' ? 'planner.nowRow' : 'planner.nextRow')}
+                  action={timedAction(nowNext.task)}
+                  dueMode="urgent"
+                  hoverActions
+                />
+              ) : (
+                <PlannerPlanRow
+                  title={nowNext.source === 'google' ? nowNext.event.summary : nowNext.task.title}
+                  time={
+                    nowNext.source === 'google'
+                      ? `${nowNext.event.startTime}–${nowNext.event.endTime}`
+                      : `${nowNext.task.startTime}–${nowNext.task.endTime}`
+                  }
+                  colorHex={nowNext.source === 'google' ? (nowNext.event.color ?? DEFAULT_GOOGLE_EVENT_HEX) : planHex(nowNext.task)}
+                  lead={t(nowNext.kind === 'now' ? 'planner.nowRow' : 'planner.nextRow')}
+                  onOpen={(el) => onOpenPlanCard(nowNext, el)}
+                />
+              )}
             </ul>
           )}
           <ul role="group" aria-label={viewingToday ? t('planner.doToday') : t('planner.doThisDay')}>
@@ -205,19 +235,7 @@ export function PlannerTodoSection({
           )}
           <ul role="group" aria-label={t('planner.timedHeading')}>
             {timedOpen.map((task) => (
-              <PlannerTaskRow
-                key={task.id}
-                task={task}
-                env={env}
-                action={
-                  <>
-                    <TomorrowButton task={task} tomorrowKey={tomorrowKey} viewingToday={viewingToday} />
-                    <TimerButton task={task} />
-                  </>
-                }
-                dueMode="urgent"
-                hoverActions
-              />
+              <PlannerTaskRow key={task.id} task={task} env={env} action={timedAction(task)} dueMode="urgent" hoverActions />
             ))}
           </ul>
         </div>

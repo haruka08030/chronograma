@@ -7,6 +7,7 @@ import { appDayKeyOf } from './timeZone'
 import { compareByOrder } from './orderCompare'
 import { planTiming } from './planTiming'
 import { clockOf } from './clockTime'
+import type { CalendarEvent } from '../types/calendarEvent'
 
 export interface DayPlan {
   /** 締切（期限日）が過ぎた未完了タスク。どの日に置いたかに関係なく、今日のリストの先頭に出す */
@@ -184,15 +185,41 @@ export function groupCandidatesByDue(tasks: readonly Task[], dateKey: string): D
   return groups
 }
 
+/** スマホの今日やる行の一番上に出す 1 件（時間を決めた To-Do・予定・Google の予定）と、始まっているか（`now`）これからか（`next`） */
+export type NowNextPlan = { kind: 'now' | 'next' } & NowNextSource
+type NowNextSource = { source: 'task'; task: Task } | { source: 'event'; task: Task } | { source: 'google'; event: CalendarEvent }
+
 /**
- * スマホの今日やる行の一番上に出す 1 行: 始まっていて終わっていない予定（`now`）か、次の予定（`next`）。
- * `timed` は時刻順の時間を決めた行。どちらも無ければ null
+ * スマホの今日やる行の一番上に出す 1 件: 始まっていて終わっていないもの（`now`）か、次に始まるもの（`next`）。
+ * `timed` は時間を決めた今日やる行。予定（授業・バイト）は `tasks` からその日の時刻つきを、Google の予定は時刻つきを入れる。
+ * 始まりの早い順（同じなら To-Do を先）。どれも無ければ null
  */
-export function nowOrNextTask(timed: readonly Task[], now: Date): { task: Task; kind: 'now' | 'next' } | null {
+export function nowOrNextPlan(
+  { timed, tasks, events, dateKey }: { timed: readonly Task[]; tasks: readonly Task[]; events: readonly CalendarEvent[]; dateKey: string },
+  now: Date,
+): NowNextPlan | null {
   const nowHm = clockOf(now)
-  const task = timed.find((x) => x.startTime && x.endTime && !planTiming(x, now).ended)
-  if (!task) return null
-  return { task, kind: task.startTime! <= nowHm ? 'now' : 'next' }
+  type Candidate = { start: string; plan: NowNextSource }
+  const picks: Candidate[] = []
+  for (const task of timed) {
+    if (task.startTime && task.endTime && !planTiming(task, now).ended)
+      picks.push({ start: task.startTime, plan: { source: 'task', task } })
+  }
+  for (const task of tasks) {
+    if (!isActiveTask(task) || !isEventTask(task) || task.completed || !task.startTime || !task.endTime) continue
+    if (taskPlacementDate(task) !== dateKey || planTiming(task, now).ended) continue
+    picks.push({ start: task.startTime, plan: { source: 'event', task } })
+  }
+  for (const event of events) {
+    if (event.isAllDay || event.date !== dateKey || !event.startTime || !event.endTime) continue
+    // 0 時をまたぐ予定はその日のうちは終わらない
+    if (event.endTime > event.startTime && event.endTime <= nowHm) continue
+    picks.push({ start: event.startTime, plan: { source: 'google', event } })
+  }
+  // sort は同じ始まりなら入れた順（To-Do → 予定 → Google）のまま
+  const first = picks.sort((a, b) => a.start.localeCompare(b.start))[0]
+  if (!first) return null
+  return { ...first.plan, kind: first.start <= nowHm ? 'now' : 'next' }
 }
 
 /**
