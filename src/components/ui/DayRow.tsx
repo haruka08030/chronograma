@@ -1,6 +1,6 @@
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 
-/** 1 行の並び（カレンダーの日パネル）の左の時刻の列。To-Do の行（`TaskItem` の `compact`）と同じ幅にそろえる */
+/** 1 行の並び（カレンダーの日パネル）の左の時刻の列。To-Do の行（`TaskItem` の `compact`）と同じ幅にそろえる（To-Do は時刻のあるときだけ） */
 export const DAY_ROW_TIME_CLASS = 'w-10 shrink-0 text-xs tabular-nums text-zinc-500 dark:text-zinc-400'
 
 /** 1 行の並びの行の高さ・余白。To-Do の行と同じにする */
