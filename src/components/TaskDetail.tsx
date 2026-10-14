@@ -17,7 +17,7 @@ import { deleteTaskAsking } from '../lib/seriesScope'
 
 /**
  * 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる）。
- * 上から 題名 → メモ → 場所 → 予定の欄（`TaskPlanFields`、予定を立てるタスクだけ）か記録の時刻（`LogTimeFields`）→
+ * 上から 題名 → 予定の欄（`TaskPlanFields`、予定を立てるタスクだけ）か記録の時刻（`LogTimeFields`）→ 場所 → メモ →
  * タグ（記録は色＝ラベル）→ 色・セクション → サブタスク → 削除
  */
 export function TaskDetail({
@@ -47,10 +47,11 @@ export function TaskDetail({
       {/* 毎週の予定: ここで選んだ範囲（この予定のみ / 以降すべて / すべて）に、下の欄の変更を当てる */}
       <SeriesScopeField task={task} />
       <TaskTitleField task={task} onClose={onClose} />
-      <TaskMemoField task={task} isLog={isLog} />
-      <TaskLocationField task={task} />
+      {/* 日時は題名のすぐ下（Google カレンダー・右クリックのメニュー・追加欄のチップと同じ順） */}
       {!isLog && plannable && <TaskPlanFields task={task} />}
       {isLog && <LogTimeFields task={task} />}
+      <TaskLocationField task={task} />
+      <TaskMemoField task={task} isLog={isLog} />
 
       {isLog ? (
         // 見出しは付けない（ボタンに色とラベル名が出るので重ねない）

@@ -12,6 +12,7 @@
  */
 import { BASELINE_KEY_PREFIX, PULL_STATE_KEY_PREFIX, readStored, storedKeys, writeStored } from './dataStore'
 import { CANVAS_PULLED_PREFIX, NOTION_PULLED_PREFIX } from './externalFields'
+import { CANVAS_SUBMITTED_PREFIX } from './canvasSubmitted'
 import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
 
 export const UNREADABLE_COPY_PREFIX = `${PERSIST_STORAGE_KEY}-unreadable-`
@@ -115,10 +116,11 @@ export function clearStorageCopies(): boolean {
   return removed
 }
 
-/** 連携（Canvas・Notion）から前回取り込んだ値を、誰の分も消す */
+/** 連携（Canvas・Notion）から前回取り込んだ値・Canvas の提出済みの控えを、誰の分も消す */
 export function clearIntegrationMemos(): void {
   for (const key of localKeys()) {
-    if (key.startsWith(CANVAS_PULLED_PREFIX) || key.startsWith(NOTION_PULLED_PREFIX)) removeLocal(key)
+    if (key.startsWith(CANVAS_PULLED_PREFIX) || key.startsWith(NOTION_PULLED_PREFIX) || key.startsWith(CANVAS_SUBMITTED_PREFIX))
+      removeLocal(key)
   }
 }
 

@@ -10,7 +10,7 @@ import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { TimeLogTagField } from './TimeLogTagField'
-import { TimeInput } from './TimeInput'
+import { LogTimeRow } from './LogTimeRow'
 import { zonedNow } from '../lib/timeZone'
 import { ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
@@ -18,7 +18,6 @@ import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { addClockMinutes, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
-import { fieldClass } from './ui/fieldClass'
 import { ERROR_TEXT } from './ui/textClass'
 import { usePendingAction } from '../lib/pendingAction'
 import { isLogTask, isSleepTask } from '../types/task'
@@ -29,6 +28,8 @@ import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
 export const OPEN_TIMER_ACTION = 'open-timer'
+/** 見出しの「記録なし」から「後から記録」を開く（直前の記録の終わり → 今） */
+export const OPEN_LOG_LATER_ACTION = 'open-log-later'
 
 /** 後から記録の「長さで入れる」チップ（終了＝今、開始＝今−長さ） */
 const LATER_LENGTHS_MIN = [30, 60, 120] as const
@@ -108,8 +109,9 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     // 今日なら「直前の記録の終わり → 今」を初期値にして、空いた時間をそのまま埋められるように
     if (viewingToday) {
       const e = nowRounded()
+      // 夜から続く記録（睡眠など）も、今日終わったならその終わりから
       const prevEnd = dayLogs
-        .filter((x) => x.dueDate === dateKey && !x.endDate && x.endTime && timeToMinutes(x.endTime) < timeToMinutes(e))
+        .filter((x) => (x.endDate ?? x.dueDate) === dateKey && x.endTime && timeToMinutes(x.endTime) < timeToMinutes(e))
         .map((x) => x.endTime!)
         .sort()
         .at(-1)
@@ -121,6 +123,9 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     }
     setMode('manual')
   }
+  usePendingAction(OPEN_LOG_LATER_ACTION, () => {
+    if (canLogLater) openManual()
+  })
 
   // 題名もラベルも空なら「記録」で始める（あとから題名・ラベルを付けられる。押せないボタンで止めない）
   const name = title.trim() || category.trim() || t('quickLog.untitled')
@@ -219,21 +224,13 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
             className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
           />
           {mode === 'manual' && (
-            <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <TimeInput value={start} onChange={setStart} className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')} />
-              <span aria-hidden>–</span>
-              <TimeInput
-                value={end}
-                onChange={setEnd}
-                pickerDefault={start ? addClockMinutes(start, 60) : undefined}
-                className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
-              />
+            <LogTimeRow start={start} end={end} onStartChange={setStart} onEndChange={setEnd}>
               {inFuture ? (
                 <span className={ERROR_TEXT}>{t('records.noFuture')}</span>
               ) : (
                 overnight && <span className="text-xs">{t('records.nextDay')}</span>
               )}
-            </div>
+            </LogTimeRow>
           )}
           {/* 今日は「今まで◯分」で入れられる。日付をまたぐ長さ（0 時台の 2 時間など）は出さない */}
           {mode === 'manual' && viewingToday && (

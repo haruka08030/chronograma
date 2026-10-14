@@ -193,6 +193,22 @@ describe('TodayPlannerView: 親の下の子の締切（#308）', () => {
     expect(row).not.toBeNull()
     expect(row.querySelector('[data-parent-title]')!.textContent).toBe('A Inc.')
   })
+
+  it('子の締切は子の行で出し、親の行には重ねない', async () => {
+    const today = toDateKey(appToday())
+    const store = useTaskStore.getState()
+    store.setSelectedCalendarDateKey(today)
+    const parent = store.addTask('B Corp')!
+    const child = useTaskStore.getState().addTask('ES', undefined, parent)!
+    useTaskStore.getState().updateTask(child, { dueDate: toDateKey(addDays(appToday(), 2)) })
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const toggle = screen.getByRole('button', { name: /Add from to-dos|Due soon/ })
+    if (toggle.getAttribute('aria-expanded') === 'false') await user.click(toggle)
+    const row = document.querySelector(`[data-task-row="${parent}"]`)!
+    expect(row.querySelector('[data-child-due]')).toBeNull()
+    expect(document.querySelector(`[data-task-row="${child}"]`)).not.toBeNull()
+  })
 })
 
 describe('TodayPlannerView: 締切の見出しの「入りきらない」（#332）', () => {
@@ -240,5 +256,136 @@ describe('TodayPlannerView: 締切の見出しの「入りきらない」（#332
     // 空きが足りれば何も出さない
     act(() => void useTaskStore.setState({ dailyCapacityMinutes: 1440 }))
     expect(document.querySelectorAll('[data-due-fit]')).toHaveLength(0)
+  })
+
+  it('優先度順では見出しを足さず、入りきらない締切の行の締切を赤くして数字はツールチップ', async () => {
+    const inTwo = toDateKey(addDays(appToday(), 2))
+    const inFive = toDateKey(addDays(appToday(), 5))
+    useTaskStore.setState({
+      dailyCapacityMinutes: 120,
+      plannerCandidateView: { ...useTaskStore.getState().plannerCandidateView, sort: 'priority' },
+      tasks: [
+        todo('Report', { dueDate: inTwo, estimateMinutes: 600, priority: 'high' }),
+        todo('Memo', { dueDate: inTwo, order: 1 }),
+        todo('Essay', { dueDate: inFive, estimateMinutes: 60, order: 2 }),
+      ],
+    })
+    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const toggle = screen.getByRole('button', { name: /Add from to-dos|Due soon/ })
+    if (toggle.getAttribute('aria-expanded') === 'false') await user.click(toggle)
+    // 2 日後の締切: 見積もり 10 時間 / 空き 4 時間。見積もりの無い行も同じ締切なので赤。5 日後は 11 時間 / 10 時間で入りきらない
+    const overRows = [...document.querySelectorAll('[data-due-fit="over"]')].map((el) =>
+      el.closest('[data-task-row]')?.getAttribute('data-task-row'),
+    )
+    expect(overRows).toEqual(['Report', 'Memo', 'Essay'])
+    expect(document.querySelector('[data-task-row="Report"] [data-due-fit]')!.textContent).toMatch(/Estimated 10h/)
+    expect(screen.queryByText("won't fit")).toBeNull()
+    // 空きが足りれば元の色のまま
+    act(() => void useTaskStore.setState({ dailyCapacityMinutes: 1440 }))
+    expect(document.querySelectorAll('[data-due-fit]')).toHaveLength(0)
+  })
+})
+
+describe('TodayPlannerView: 候補は「さらに表示」で足す（#372）', () => {
+  it('10 件ずつ出し、残りの件数のボタンで足す', async () => {
+    const today = toDateKey(appToday())
+    useTaskStore.setState({
+      plannerCandidateView: { ...useTaskStore.getState().plannerCandidateView, sort: 'dueDate' },
+      tasks: Array.from(
+        { length: 13 },
+        (_, i) =>
+          ({
+            ...TASK_DEFAULTS,
+            id: `u${i}`,
+            title: `Undated ${i}`,
+            description: '',
+            completed: false,
+            completedAt: null,
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+            order: i,
+            listId: 'inbox',
+            sectionId: null,
+            parentId: null,
+            dueDate: null,
+            startTime: null,
+            endTime: null,
+            priority: 'none',
+            tags: [],
+            recurrence: null,
+          }) as Task,
+      ),
+    })
+    useTaskStore.getState().setSelectedCalendarDateKey(today)
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    await user.click(screen.getByRole('button', { name: /Add from to-dos/ }))
+    expect(document.querySelectorAll('[data-task-row^="u"]')).toHaveLength(10)
+    await user.click(screen.getByRole('button', { name: 'Show more (3 left)' }))
+    expect(document.querySelectorAll('[data-task-row^="u"]')).toHaveLength(13)
+    expect(screen.queryByRole('button', { name: /Show more/ })).toBeNull()
+  })
+})
+
+describe('TodayPlannerView: 締切切れの行の「今日やる」（#373）', () => {
+  it('押すと今日やる行に移る', async () => {
+    const today = toDateKey(appToday())
+    const yesterday = toDateKey(addDays(appToday(), -1))
+    const store = useTaskStore.getState()
+    store.setSelectedCalendarDateKey(today)
+    const id = store.addTask('Late report')!
+    useTaskStore.getState().updateTask(id, { dueDate: yesterday })
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const row = document.querySelector(`[data-task-row="${id}"]`) as HTMLElement
+    await user.click(within(row).getByRole('button', { name: 'Do today' }))
+    expect(useTaskStore.getState().tasks.find((x) => x.id === id)!.scheduledDate).toBe(today)
+  })
+})
+
+describe('TodayPlannerView: 候補の「すべて追加」（#375）', () => {
+  it('件数と「元に戻す」を出す', async () => {
+    const today = toDateKey(appToday())
+    const inTwo = toDateKey(addDays(appToday(), 2))
+    const inThree = toDateKey(addDays(appToday(), 3))
+    const store = useTaskStore.getState()
+    store.setSelectedCalendarDateKey(today)
+    useTaskStore.setState({ plannerCandidateView: { ...store.plannerCandidateView, sort: 'dueDate' } })
+    for (const title of ['Slides', 'Essay']) {
+      const id = useTaskStore.getState().addTask(title)!
+      useTaskStore.getState().updateTask(id, { scheduledDate: inThree, dueDate: inTwo })
+    }
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const toggle = screen.getByRole('button', { name: /Due soon/ })
+    if (toggle.getAttribute('aria-expanded') === 'false') await user.click(toggle)
+    await user.click(screen.getByRole('button', { name: 'Do these 2 today' }))
+    expect(useTaskStore.getState().undoBanner?.text).toBe('Moved 2 to today')
+  })
+})
+
+describe('TodayPlannerView: 完了の行もキーで（#377）', () => {
+  it('完了の欄を開くと ↓ で完了の行に行け、Space で完了を外す', async () => {
+    const today = toDateKey(appToday())
+    const store = useTaskStore.getState()
+    store.setSelectedCalendarDateKey(today)
+    const open = store.addTask('Open one')!
+    useTaskStore.getState().updateTask(open, { scheduledDate: today })
+    const done = useTaskStore.getState().addTask('Done one')!
+    useTaskStore.getState().updateTask(done, { scheduledDate: today })
+    useTaskStore.getState().toggleTask(done)
+    const user = userEvent.setup()
+    render(<TodayPlannerView />)
+    const list = screen.getByRole('listbox')
+    expect(within(list).getAllByRole('option')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: '1 done' }))
+    act(() => (document.activeElement as HTMLElement).blur())
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    const cursor = document.getElementById(list.getAttribute('aria-activedescendant')!)
+    expect(cursor?.getAttribute('data-task-row')).toBe(done)
+    await user.keyboard(' ')
+    expect(useTaskStore.getState().tasks.find((x) => x.id === done)!.completed).toBe(false)
   })
 })

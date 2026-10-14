@@ -38,5 +38,9 @@ describe('sort order per list and view', () => {
     expect(sortModeOf(byKey, 'canvas-list')).toBe('dueDate')
     expect(sortModeOf(byKey, '__inbox__')).toBe('manual')
     expect(sortModeOf(undefined, 'view:today')).toBe('manual')
+    // 締切で集めるビューは、選んだことが無ければ締切順。選べばそれを使う
+    expect(sortModeOf(undefined, 'view:upcoming')).toBe('dueDate')
+    expect(sortModeOf({}, 'view:overdue')).toBe('dueDate')
+    expect(sortModeOf({ 'view:upcoming': 'manual' }, 'view:upcoming')).toBe('manual')
   })
 })

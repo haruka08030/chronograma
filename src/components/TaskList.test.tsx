@@ -31,7 +31,7 @@ describe('TaskList（読み上げ）', () => {
     expect(options).toHaveLength(2)
     expect(within(list).getByRole('option', { name: 'Buy milk' })).toHaveAttribute('aria-selected', 'false')
     expect(screen.getByRole('checkbox', { name: 'Complete “Buy milk”' })).toHaveAttribute('aria-checked', 'false')
-    // タイトルは本物のボタン（押すと名前を変える）
+    // タイトルは本物のボタン（押すと行と同じく詳細）
     expect(screen.getByRole('button', { name: 'Buy milk' })).toBeInTheDocument()
   })
 

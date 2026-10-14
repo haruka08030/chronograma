@@ -22,6 +22,7 @@ type TimeLogsActions = Pick<
   | 'logSleep'
   | 'startTimer'
   | 'setTimerEnd'
+  | 'editActiveTimer'
   | 'resolveStaleTimer'
   | 'discardActiveTimer'
   | 'askComplete'
@@ -152,6 +153,19 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       const { endsAt: _drop, ...rest } = timer
       void _drop
       set({ activeTimer: next ? { ...rest, endsAt: next } : rest })
+    },
+    editActiveTimer: ({ taskTitle, tags }) => {
+      const timer = get().activeTimer
+      if (!timer) return
+      const next = { ...timer }
+      const title = taskTitle?.trim()
+      if (title && title !== timer.taskTitle) next.taskTitle = title
+      if (tags && tags.join('\n') !== timer.tags.join('\n')) {
+        next.tags = tags
+        next.color = null
+      }
+      if (next.taskTitle === timer.taskTitle && next.tags === timer.tags) return
+      set({ activeTimer: next })
     },
     /** 取り残したタイマーを、指定の終了時刻までの記録にして閉じる */
     resolveStaleTimer: (endedAt) => {

@@ -506,6 +506,20 @@ describe('続けて足す', () => {
   })
 })
 
+describe('今日の計画の追加欄（last、#376）', () => {
+  it('その日の行（ほかのリストも）とリストの行より後ろに入る', () => {
+    store.tasks = [
+      { id: 'a', title: 'A', listId: 'school', parentId: null, sectionId: null, order: 5, scheduledDate: TODAY } as unknown as Task,
+      { id: 'b', title: 'B', listId: '__inbox__', parentId: null, sectionId: null, order: 2, scheduledDate: null } as unknown as Task,
+      { id: 'c', title: 'C', listId: 'school', parentId: null, sectionId: null, order: 9, scheduledDate: '2026-10-01' } as unknown as Task,
+    ]
+    const first = added(addTaskFromQuickText('新しい', { defaultListId: '__inbox__', defaultDate: TODAY, last: true }))
+    expect(first.order).toBe(6)
+    const second = added(addTaskFromQuickText('次', { defaultListId: '__inbox__', defaultDate: TODAY, last: true }))
+    expect(second.order).toBe(7)
+  })
+})
+
 describe('追加欄の下のチップ（picks）', () => {
   it('選んだ値が書いた文より勝つ', () => {
     const t = added(

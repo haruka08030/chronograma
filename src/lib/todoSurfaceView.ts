@@ -22,9 +22,12 @@ export function sortKeyOf(selectedListId: string | null, selectedView: string | 
   return `view:${selectedView ?? 'all'}`
 }
 
-/** そのリスト・ビューの並び順。選んだことが無ければ手動 */
+/** 締切で集めるビュー（近日中・締切切れ）。並び順を選んだことが無ければ締切順 */
+const DUE_SORTED_KEYS = new Set(['view:upcoming', 'view:overdue'])
+
+/** そのリスト・ビューの並び順。選んだことが無ければ手動（締切で集めるビューは締切順） */
 export function sortModeOf(sortByKey: Record<string, SortMode> | undefined, key: string): SortMode {
-  return sortByKey?.[key] ?? 'manual'
+  return sortByKey?.[key] ?? (DUE_SORTED_KEYS.has(key) ? 'dueDate' : 'manual')
 }
 
 /** セクションの塊で分けるか。手動はセクションの中で並べ替えるので常に分ける。サイドバーのセクション行もこれに合わせる */

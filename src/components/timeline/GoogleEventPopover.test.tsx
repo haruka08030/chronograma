@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { useTaskStore } from '../../store/taskStore'
 import { GoogleEventPopover } from './GoogleEventPopover'
@@ -35,5 +35,34 @@ describe('GoogleEventPopover', () => {
   it('shows nothing extra when the description is empty', () => {
     const { container } = showEvent('  ')
     expect(container.ownerDocument.querySelector('p.whitespace-pre-line')).toBeNull()
+  })
+})
+
+describe('GoogleEventPopover: 記録にする・▶', () => {
+  it('終わった予定は「記録にする」だけ。押すと記録の画面を頼んでカードを閉じる', () => {
+    showEvent()
+    expect(screen.queryByRole('button', { name: 'Start logging' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Log it' }))
+    expect(useTaskStore.getState().recordPromptTaskId).toBe('event-g1')
+  })
+
+  it('これからの予定は ▶ だけ。押すとその名前で記録を始める', () => {
+    useTaskStore.getState().setCalendarEvents([
+      {
+        id: 'g2',
+        summary: '面接',
+        start: '2099-10-05T15:00:00+09:00',
+        end: '2099-10-05T16:00:00+09:00',
+        startTime: '15:00',
+        endTime: '16:00',
+        date: '2099-10-05',
+        isAllDay: false,
+      },
+    ])
+    render(<GoogleEventPopover eventId="g2" anchor={anchor} onClose={() => {}} />)
+    expect(screen.queryByRole('button', { name: 'Log it' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Start logging/ }))
+    expect(useTaskStore.getState().activeTimer).toMatchObject({ taskTitle: '面接', taskId: null })
+    useTaskStore.getState().stopTimer()
   })
 })

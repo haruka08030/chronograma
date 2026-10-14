@@ -86,7 +86,7 @@ export interface TaskState {
   /** `system` は OS のライト/ダークに合わせる */
   theme: 'light' | 'dark' | 'system'
   searchQuery: string
-  /** 並び順。リスト・ビュー・色ラベルごと（鍵は `sortKeyOf`）。無い鍵は手動 */
+  /** 並び順。リスト・ビュー・色ラベルごと（鍵は `sortKeyOf`）。無い鍵は手動（近日中・締切切れは締切順、`sortModeOf`） */
   sortByKey: Record<string, SortMode>
   sectionGrouping: SectionGrouping
   /** 今日の計画の「今日やる候補」の並び順・絞り込み */
@@ -347,6 +347,8 @@ export interface TaskState {
   startTimer: (title: string, tags?: string[], taskId?: string | null, color?: string | null, options?: { minutes?: number | null }) => void
   /** 動いているタイマーの「あと何分」の終わり（ISO）を付ける・選び直す。null で外す（数え上げに戻す）。#290 */
   setTimerEnd: (endsAt: string | null) => void
+  /** 動いているタイマーの題名・ラベルを直す（止めた記録にそのまま入る）。空の題名は無視。ラベルを選び直したら元の To-Do の色は外す */
+  editActiveTimer: (patch: { taskTitle?: string; tags?: string[] }) => void
   stopTimer: () => void
   /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
   resolveStaleTimer: (endedAt: string) => void
@@ -449,6 +451,11 @@ export interface TaskState {
   ) => void
   /** 未完了のものだけまとめて完了にする（2 件以上なら件数のトースト）。Undo は 1 段 */
   completeTasks: (ids: string[]) => void
+  /**
+   * 複製する（同じ日・同じ時間、元のすぐ後ろ。子も写す。完了・持ち越しは引き継がない、`duplicateTaskTrees`）。
+   * 記録・睡眠は写さない。複製の id を選んだ順に返す。Undo は 1 段
+   */
+  duplicateTasks: (ids: string[]) => string[]
   /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に recentDeletes にも積む */
   deleteTask: (id: string) => void
   deleteTasks: (ids: string[]) => void

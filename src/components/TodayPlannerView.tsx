@@ -5,7 +5,7 @@ import { useTaskStore } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { getDayPlan, showsDayResult } from '../lib/dayPlan'
 import { getDayReviews } from '../lib/weekReview'
-import { isActiveTask } from '../lib/taskLifecycle'
+import { isUnlabeledLog } from '../lib/logCategory'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
 import { onWrapUpRequest } from '../lib/notificationLaunch'
@@ -14,7 +14,6 @@ import { unplannedListIds } from '../lib/listKind'
 import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
-import { isLogTask, isSleepTask } from '../types/task'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CheckIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
@@ -27,7 +26,7 @@ import { SECTION_HEADING_CLASS } from './ui/headingClass'
 import { openTaskMenu } from '../lib/overlays'
 import { openTimeSlotForTask } from '../lib/timeSlotTarget'
 import { useOpenTaskRow } from '../hooks/useOpenTaskRow'
-import { useIsCoarsePointer } from '../hooks/useMediaQuery'
+import { useIsCoarsePointer, useIsDesktop } from '../hooks/useMediaQuery'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
@@ -42,6 +41,9 @@ import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSu
 
 /** 「1 日を締める」を出し始める時刻（朝から締めの話をしない）。設定の夜の締めの時刻があればその時刻から */
 const WRAP_UP_FROM_HOUR = 17
+
+/** スマホ幅で最初から出す締切切れの行の数 */
+const OVERDUE_PHONE_ROWS = 2
 
 /** 画面の区切りの見出し（To-Do・習慣）。小さな灰色のラベルではなく、ひと目で区切りと分かる太さ */
 const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
@@ -65,6 +67,7 @@ export function TodayPlannerView() {
   // 行を押したとき: PC は詳細、スマホは短いシート（To-Do 一覧と同じ）
   const openDetail = useOpenTaskRow()
   const isCoarse = useIsCoarsePointer()
+  const isDesktop = useIsDesktop()
 
   // 見ている日はカレンダー・習慣と共有する（d / w / m で切り替えても同じ日・その日を含む週と月が出る）
   const dateKey = useTaskStore((s) => s.selectedCalendarDateKey)
@@ -78,6 +81,7 @@ export function TodayPlannerView() {
   const [suggestionsChoice, setSuggestionsChoice] = useState<boolean | null>(null)
   const [showDone, setShowDone] = useState(false)
   const [showLeftOver, setShowLeftOver] = useState(false)
+  const [showAllOverdue, setShowAllOverdue] = useState(false)
   /** スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える */
   const [mobilePane, setMobilePane] = useState<PlannerPane>('list')
   /** 夜の締めの通知から開いた回数。1 以上なら時刻・件数に関係なく締めを出し、そこまでスクロールする */
@@ -101,13 +105,11 @@ export function TodayPlannerView() {
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
-  /** 推定でも分類が決まらなかった今日の記録（1 日を締めるときにまとめて付ける） */
+  /** ラベル名も色も無い今日の記録（1 日を締めるときにまとめて付ける） */
   const untaggedLogs = useMemo(
     () =>
       tasks
-        .filter(
-          (x) => isLogTask(x) && isActiveTask(x) && !isSleepTask(x) && x.tags.length === 0 && minutesOfLogOnCalendarDay(x, dateKey) > 0,
-        )
+        .filter((x) => isUnlabeledLog(x) && minutesOfLogOnCalendarDay(x, dateKey) > 0)
         .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
     [tasks, dateKey],
   )
@@ -138,6 +140,11 @@ export function TodayPlannerView() {
   const untimedOpen = useMemo(() => open.filter((x) => !(x.startTime && x.endTime)), [open])
   // 締切は焦らせてよい: 期限切れは畳まず、今日のリストの先頭に赤い日付つきで出す（今日を見ているときだけ）
   const overdue = useMemo(() => (viewingToday ? overdueAll : []), [viewingToday, overdueAll])
+  // スマホ幅は締切切れが今日やる行を画面の外へ押し出さないよう 2 行まで（残りは「他 N 件」で開く）。PC は全部
+  const overdueShown = useMemo(
+    () => (isDesktop || showAllOverdue ? overdue : overdue.slice(0, OVERDUE_PHONE_ROWS)),
+    [isDesktop, showAllOverdue, overdue],
+  )
   // やり残し（前の日に置いて終わっていないもの）は今日を見ているときだけ、リストの上に 1 行で出してまとめて今日へ移せる
   const leftOver = useMemo(() => (viewingToday ? carryOver : []), [viewingToday, carryOver])
   const suggestions = dueSoon
@@ -145,12 +152,18 @@ export function TodayPlannerView() {
   const dueByTomorrow = viewingToday && dueSoon.some((x) => x.dueDate !== null && x.dueDate <= tomorrowKey)
   const showSuggestions = suggestionsChoice ?? dueByTomorrow
   const candidateView = useTaskStore((s) => s.plannerCandidateView)
-  const { moreSuggestions, candidateGroups, hasMoreToShow, moreSentinelRef, shownSuggestions } = usePlannerSuggestions({
+  const {
+    moreSuggestions,
+    candidateGroups,
+    dueGroups,
+    remaining: moreRemaining,
+    showMore,
+    shownSuggestions,
+  } = usePlannerSuggestions({
     tasks,
     dateKey,
     excludedListIds,
     suggestions,
-    showSuggestions,
     view: candidateView,
   })
   const candidatePool = useMemo(() => [...suggestions, ...moreSuggestions], [suggestions, moreSuggestions])
@@ -163,17 +176,19 @@ export function TodayPlannerView() {
   )
 
   // 行のキー操作・選択・右クリックは To-Do 一覧と同じ（↑↓・Shift・⌘A・Enter・Space・Delete・⌘Enter・⌘/・Esc）。
-  // 対象は開いている未完了の行を上から順に
+  // 対象は開いている行を上から順に（完了は欄を開いているときだけ）
   const rowIds = useMemo(
     () =>
       [
-        ...overdue,
+        ...overdueShown,
         ...(showLeftOver ? leftOver : []),
         ...untimedOpen,
         ...timedOpen,
         ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : []),
+        // 完了の欄を開いているときは、その行も（Space で完了を外す）
+        ...(showDone ? done : []),
       ].map((x) => x.id),
-    [showLeftOver, leftOver, overdue, untimedOpen, timedOpen, showSuggestions, candidateGroups],
+    [showLeftOver, leftOver, overdueShown, untimedOpen, timedOpen, showSuggestions, candidateGroups, showDone, done],
   )
   const clearSelectedRef = useRef<() => void>(() => {})
   const { selected, clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
@@ -186,6 +201,8 @@ export function TodayPlannerView() {
     todayToggleRows: (ids) => todayToggle(ids).run(),
     // S: 「時間を決める」は見ている日の空きから（候補・やり残しの行も、置くとこの日にやる行になる）
     pickTimeRow: (id) => openTimeSlotForTask(id, dateKey),
+    // 候補の最後の行で ↓ を押すと「さらに表示」と同じく足す
+    onShowMore: showSuggestions && moreRemaining > 0 ? showMore : undefined,
     resetOn: [dateKey],
   })
   useEffect(() => {
@@ -205,6 +222,9 @@ export function TodayPlannerView() {
       onClick: () => bulk.complete(ids),
     }
     const many = (label: string) => (ids.length > 1 ? label : undefined)
+    // 完了の行が混ざっていれば、日の付け替え・完了は出さない（「操作」のメニューから）
+    const doneIds = new Set(done.map((x) => x.id))
+    if (ids.some((id) => doneIds.has(id))) return []
     if (ids.every((id) => openIds.has(id))) {
       return [
         {
@@ -240,10 +260,11 @@ export function TodayPlannerView() {
   // 気分の記号は締めの時刻から（To-Do が無い日・全部終えた日も。早い時刻に全部終えても夜まで待つ）。付けた日はそのまま出しておく
   const showMood = viewingToday && (wrapUpFocus > 0 || moodSet || nowMinutes >= wrapUpFrom)
 
-  // 候補の行は追加欄より下にあるので、listbox には aria-owns で入れる
+  // 候補・完了の行は追加欄より下にあるので、listbox には aria-owns で入れる
   const idPrefix = useId()
   const suggestionGroupId = (group: CandidateGroup) => `${idPrefix}due-${group.kind === 'day' ? group.dueDate : group.kind}`
-  const ownedGroupIds = showSuggestions ? candidateGroups.map(suggestionGroupId) : []
+  const doneGroupId = `${idPrefix}done`
+  const ownedGroupIds = [...(showSuggestions ? candidateGroups.map(suggestionGroupId) : []), ...(showDone ? [doneGroupId] : [])]
 
   /** 行が共通で使うもの */
   const rowEnv: PlannerRowEnv = {
@@ -292,6 +313,8 @@ export function TodayPlannerView() {
           env={rowEnv}
           headingClass={sectionHeading}
           overdue={overdue}
+          overdueShown={overdueShown}
+          onShowAllOverdue={() => setShowAllOverdue(true)}
           leftOver={leftOver}
           showLeftOver={showLeftOver}
           onToggleLeftOver={() => setShowLeftOver((v) => !v)}
@@ -309,10 +332,11 @@ export function TodayPlannerView() {
             addAllTargets={shownSuggestions}
             pool={candidatePool}
             candidateGroups={candidateGroups}
+            dueGroups={dueGroups}
             open={showSuggestions}
             onToggle={() => setSuggestionsChoice(!showSuggestions)}
-            hasMoreToShow={hasMoreToShow}
-            moreSentinelRef={moreSentinelRef}
+            remaining={moreRemaining}
+            onShowMore={showMore}
             groupId={suggestionGroupId}
           />
         )}
@@ -327,7 +351,7 @@ export function TodayPlannerView() {
               {t('planner.doneHeading', { count: done.length })}
             </DisclosureButton>
             {showDone && (
-              <ul>
+              <ul id={doneGroupId} role="group" aria-label={t('planner.doneHeading', { count: done.length })}>
                 {done.map((task) => (
                   <PlannerTaskRow key={task.id} task={task} env={rowEnv} />
                 ))}

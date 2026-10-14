@@ -9,7 +9,8 @@ import { tip } from '../../lib/tooltip'
 import { toDateKey } from '../../lib/dateKey'
 import { appToday } from '../../lib/timeZone'
 import { useDateFormat } from '../../hooks/useDateFormat'
-import { RecordPanel } from '../RecordPanel'
+import { OPEN_LOG_LATER_ACTION, RecordPanel } from '../RecordPanel'
+import { requestAction } from '../../lib/pendingAction'
 import { SleepRow } from '../SleepRow'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { PAGE_TITLE_CLASS } from '../ui/headingClass'
@@ -103,14 +104,16 @@ export function PlannerHeader({
               {t('planner.summaryLogged', { time: formatDuration(loggedMinutes) })}
             </span>
           )}
-          {/* 記録の無い時間は小さく横に（責めない。タイムラインの点線の枠を押すと埋められる） */}
+          {/* 記録の無い時間は小さく横に（責めない）。押すと「後から記録」を直前の記録の終わり〜今で開く */}
           {unrecorded > 0 && (
-            <span
-              className="whitespace-nowrap text-xs tabular-nums text-zinc-400 dark:text-zinc-500"
+            <button
+              type="button"
+              onClick={() => requestAction(OPEN_LOG_LATER_ACTION)}
               {...tip(t('planner.summaryUnrecordedHint'))}
+              className="-mx-1 whitespace-nowrap rounded px-1 text-xs tabular-nums text-zinc-400 underline decoration-dotted underline-offset-2 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
             >
               {t('planner.summaryUnrecorded', { time: formatDuration(unrecorded) })}
-            </span>
+            </button>
           )}
           {result ? (
             // 押すと週のふりかえりのその日の週へ（数え方はふりかえりと同じ）
