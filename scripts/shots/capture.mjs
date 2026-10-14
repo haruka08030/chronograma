@@ -118,6 +118,8 @@ const SCREENS = [
     click: 'button:has-text("後から記録") >> visible=true',
     steps: [{ fill: { selector: 'input[placeholder^="何をした"] >> visible=true', text: '課' } }],
   },
+  // 空欄のまま、記録する時間に重なる予定（ゼミ 15:00–16:30）を出す（#416）
+  { name: 'record-suggest-plan', view: 'planner', at: '16:00', click: 'button:has-text("後から記録") >> visible=true' },
   {
     name: 'timer-suggest',
     view: 'planner',

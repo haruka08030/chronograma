@@ -99,7 +99,7 @@ export function QuickCreatePopover({
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   // 記録の列では、名前を打つと推定したラベルを先に選び、過去の記録を候補に出す
-  const { title, category, setTitle, setCategory, pick } = useLogDraft({ infer: asLog })
+  const { title, category, taskId, color, setTitle, setCategory, pick } = useLogDraft({ infer: asLog })
   const googleWritable = useTaskStore((s) => s.googleConnected && s.googleCanWrite)
   const [choice, setChoice] = useState<QuickCreateChoice>(readChoice)
   const asEvent = !asLog && choice.kind === 'event'
@@ -132,7 +132,7 @@ export function QuickCreatePopover({
     if (asLog) {
       // 空欄なら分類名で記録（記録の入力はどこでも同じ規則）
       const name = title.trim() || category.trim() || t('quickCreate.untitled')
-      addTimeLog(name, dateKey, startTime, endTime, category.trim() ? [category.trim()] : [])
+      addTimeLog(name, dateKey, startTime, endTime, category.trim() ? [category.trim()] : [], undefined, undefined, color, taskId)
       onClose()
       return
     }
@@ -203,7 +203,7 @@ export function QuickCreatePopover({
   }
 
   const df = useDateFormat()
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (!asLog ? 270 : 230) + (editingTime ? 30 : 0) + (showFit ? 32 : 0))
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 270 + (editingTime ? 30 : 0) + (showFit ? 32 : 0))
   const listColor = toGoogle ? DEFAULT_GOOGLE_EVENT_HEX : (plannable.find((l) => l.id === listId)?.color ?? '#7986CB')
 
   return (
@@ -241,6 +241,8 @@ export function QuickCreatePopover({
           value={title}
           onChange={setTitle}
           onPick={pick}
+          // 置いた枠に重なる予定と、その時間帯にいつもやっていることを、書く前から出す
+          when={{ dateKey, start: startTime, end: endTime }}
           onKeyDown={onTitleKeyDown}
           placeholder={t('quickCreate.logPlaceholder')}
           className={TITLE_INPUT}

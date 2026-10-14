@@ -138,7 +138,7 @@ export function frequentLogs(tasks: readonly Task[], limit = 4, todayKey: string
 }
 
 /** 入力の突き合わせ用。カタカナはひらがなにそろえる（「すたでぃ」で「スタディ」も出す） */
-const fold = (s: string) => norm(s).replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
+export const foldTitle = (s: string) => norm(s).replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
 
 export interface LogTitleSuggestion extends RecentLog {
   /** いつもの長さ（分、5 分単位）。長さの分かる記録が無ければ null */
@@ -148,8 +148,8 @@ export interface LogTitleSuggestion extends RecentLog {
 /** いつもの長さを見る記録の数（新しい順） */
 const TYPICAL_LOG_SAMPLES = 10
 
-/** 記録の長さの中央値（5 分単位）。日をまたぐ記録も数える */
-function typicalMinutes(logs: readonly Task[]): number | null {
+/** 記録の長さの中央値（5 分単位、新しい順に並べた記録の先頭 10 件）。日をまたぐ記録も数える */
+export function typicalMinutes(logs: readonly Task[]): number | null {
   const mins = logs
     .slice(0, TYPICAL_LOG_SAMPLES)
     .map((t) => durationMinutesForTaskSlot(t))
@@ -172,10 +172,10 @@ export function logTitleSuggestions(
   limit = 3,
   todayKey: string = appTodayKey(),
 ): LogTitleSuggestion[] {
-  const q = fold(query)
+  const q = foldTitle(query)
   if (!q) return []
   const rank = (title: string): number => {
-    const f = fold(title)
+    const f = foldTitle(title)
     if (f === q) return -1
     if (f.startsWith(q)) return 0
     if (f.split(/[\s\p{P}\p{S}]+/u).some((w) => w.startsWith(q))) return 1

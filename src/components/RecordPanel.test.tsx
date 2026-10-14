@@ -70,4 +70,39 @@ describe('記録の名前の候補', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ title: 'カ' })
   })
+
+  it('後から記録で、重なる予定を空欄のまま出し、選ぶと予定の時間で記録する（#416）', () => {
+    useTaskStore.setState((st) => ({
+      tasks: [
+        ...st.tasks,
+        {
+          ...st.tasks[0]!,
+          id: 'ev',
+          kind: 'event',
+          title: 'ゼミ',
+          completed: false,
+          category: null,
+          tags: [],
+          dueDate: null,
+          scheduledDate: '2026-10-08',
+          startTime: '13:00',
+          endTime: '14:30',
+        },
+      ],
+    }))
+    openLater()
+    fireEvent.click(screen.getByRole('option', { name: /ゼミ/ }))
+    fireEvent.click(screen.getByRole('button', { name: '記録する' }))
+    expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ title: 'ゼミ', kind: 'log', startTime: '13:00', endTime: '14:30' })
+  })
+
+  it('打った文字に合う今日の To-Do を選ぶと、その To-Do に紐づいた記録になる（#416）', () => {
+    useTaskStore.getState().addTaskWithTime('STAT HW#3', '2026-10-08', '20:00', '21:00')
+    const todo = useTaskStore.getState().tasks.at(-1)!
+    const input = openLater()
+    fireEvent.change(input, { target: { value: 'hw' } })
+    fireEvent.click(screen.getByRole('option', { name: /STAT HW#3/ }))
+    fireEvent.click(screen.getByRole('button', { name: '記録する' }))
+    expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ title: 'STAT HW#3', kind: 'log', sourceTaskId: todo.id })
+  })
 })
