@@ -1327,7 +1327,6 @@ export default {
     executedSection: '完了 {{count}} 件',
     totalLogged: '合計記録',
     noLogs: 'この日の記録はまだありません',
-    timeUnset: '時刻未設定',
   },
   activityLog: {
     timerRunning: '記録中',

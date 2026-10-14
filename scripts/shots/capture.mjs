@@ -316,6 +316,14 @@ const SCREENS = [
   { name: 'calendar-early-done', view: 'calendar', doneNow: ['s4'] },
   // 月表示（To-Do は時刻の有無で見た目を変えない。Google の終日予定だけ塗りの帯）
   { name: 'calendar-month', view: 'calendar', calendarMode: 'month' },
+  // 日パネルの記録タブ（1 行の並び。#424）
+  {
+    name: 'calendar-day-panel-log',
+    view: 'calendar',
+    desktopOnly: true,
+    calendarMode: 'month',
+    click: '[role=tab]:has-text("記録") >> visible=true',
+  },
   // よく入れる予定（#311）: 見出しのボタンを押したところ・登録の画面・選んで日を続けて押しているところ
   {
     name: 'calendar-month-templates',

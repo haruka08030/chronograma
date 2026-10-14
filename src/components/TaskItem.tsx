@@ -38,6 +38,7 @@ import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS, ROW_LIFTED_CLASS
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 import { dueDateLabel } from './ui/dueDateLabel'
+import { DAY_ROW_PAD_CLASS, DAY_ROW_TIME_CLASS } from './ui/DayRow'
 
 /** PC で題名を 1 回押してから詳細を開くまで（2 回目が来たら名前の変更） */
 const DOUBLE_CLICK_MS = 250
@@ -83,6 +84,7 @@ export const TaskItem = memo(function TaskItem({
   dayKey,
   keepHandleSpace = false,
   showChildDue = false,
+  compact = false,
 }: {
   task: Task
   onClick?: () => void
@@ -115,6 +117,8 @@ export const TaskItem = memo(function TaskItem({
   keepHandleSpace?: boolean
   /** 親の行に子のいちばん近い締切を出す（子の行が下に並ばない所だけ。To-Do 一覧では出さない） */
   showChildDue?: boolean
+  /** 1 行に詰める（カレンダーの日パネル）: 左に開始時刻、メモ・タグ・実行日は出さず、締切だけ右に出す */
+  compact?: boolean
 }) {
   const { t, i18n } = useTranslation()
   // 締切の言葉と色（「明日まで」「1日遅れ」）は今日で変わるので、行は memo でも日をまたいだら描き直す
@@ -355,7 +359,7 @@ export const TaskItem = memo(function TaskItem({
         onDragEnd={rowNativeDraggable ? handleDragEnd : undefined}
         className={`group relative flex items-center gap-2 rounded-xl transition-colors cursor-pointer select-none
                   hover:bg-zinc-50 dark:hover:bg-zinc-800/40 ${ROW_PRESS_CLASS}
-                  ${isSubtask ? 'px-2.5 py-1.5 md:min-h-9' : 'px-2.5 py-2 md:min-h-10'}
+                  ${compact ? DAY_ROW_PAD_CLASS : isSubtask ? 'px-2.5 py-1.5 md:min-h-9' : 'px-2.5 py-2 md:min-h-10'}
                   ${selection?.selected ? ROW_SELECTED_CLASS : ''}
                   ${selection?.cursor ? ROW_CURSOR_CLASS : ''}
                   ${isDragging ? 'opacity-30' : ''}
@@ -399,6 +403,8 @@ export const TaskItem = memo(function TaskItem({
         {selection ? (
           <RowSelectCheckbox selected={selection.selected} reveal={selection.reveal} onToggle={selection.onToggle} small={isSubtask} />
         ) : null}
+
+        {compact && <span className={DAY_ROW_TIME_CLASS}>{task.startTime}</span>}
 
         {/* 予定（バイト・授業）には完了の丸を出さない */}
         {isEventTask(task) ? (
@@ -468,7 +474,7 @@ export const TaskItem = memo(function TaskItem({
             </button>
           )}
 
-          {notePreview && (
+          {notePreview && !compact && (
             <span
               className={`block truncate mt-0.5 ${isSubtask ? 'text-[11px]' : 'text-xs'}
                         ${task.completed && !timeLog ? 'text-zinc-400 dark:text-zinc-600' : 'text-zinc-400 dark:text-zinc-500'}`}
@@ -477,58 +483,67 @@ export const TaskItem = memo(function TaskItem({
             </span>
           )}
 
-          <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
-            {dueTone && dueText && (!task.completed || timeLog) && (
-              <span className={`inline-flex items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
-                <CalendarIcon className="w-3 h-3" />
-                {dueText}
-              </span>
-            )}
-            {submitted && (
-              <span {...tip(t('canvas.submittedMarkHint'))} className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                {t('canvas.submittedMark')}
-              </span>
-            )}
-            {childDue && <ChildDueChip due={childDue} />}
-            {scheduled && (!task.completed || timeLog) && (
-              <span className={`inline-flex items-center gap-0.5 text-[11px] ${SCHEDULED_TONE_CLASS[scheduled.tone]}`}>
-                <ClockIcon className="w-3 h-3" />
-                {scheduled.text}
-              </span>
-            )}
-            {dreamStepKey && (
-              <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                {dreamNext && <span className="max-w-[14rem] truncate">{t('someday.nextStep', { title: dreamNext })}</span>}
-                <span className="tabular-nums" aria-label={t('someday.stepProgressAria', { progress: dreamProgress })}>
-                  {dreamProgress}
+          {!compact && (
+            <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
+              {dueTone && dueText && (!task.completed || timeLog) && (
+                <span className={`inline-flex items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
+                  <CalendarIcon className="w-3 h-3" />
+                  {dueText}
                 </span>
-              </span>
-            )}
-            {sectionLabel && <span className="max-w-[12rem] truncate text-[11px] text-zinc-500 dark:text-zinc-400">{sectionLabel}</span>}
-            {repeatText && (
-              <span role="img" aria-label={repeatText} {...tip(repeatText)} className="inline-flex">
-                <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
-              </span>
-            )}
-            {sourceLink && <TaskSourceLink link={sourceLink} />}
-            {task.tags.length > 0 && (
-              <div className="flex gap-1">
-                {task.tags.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setFilterTag(tag)
-                    }}
-                    className={chipClass({ variant: 'fill', hover: true })}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+              )}
+              {submitted && (
+                <span {...tip(t('canvas.submittedMarkHint'))} className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                  {t('canvas.submittedMark')}
+                </span>
+              )}
+              {childDue && <ChildDueChip due={childDue} />}
+              {scheduled && (!task.completed || timeLog) && (
+                <span className={`inline-flex items-center gap-0.5 text-[11px] ${SCHEDULED_TONE_CLASS[scheduled.tone]}`}>
+                  <ClockIcon className="w-3 h-3" />
+                  {scheduled.text}
+                </span>
+              )}
+              {dreamStepKey && (
+                <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                  {dreamNext && <span className="max-w-[14rem] truncate">{t('someday.nextStep', { title: dreamNext })}</span>}
+                  <span className="tabular-nums" aria-label={t('someday.stepProgressAria', { progress: dreamProgress })}>
+                    {dreamProgress}
+                  </span>
+                </span>
+              )}
+              {sectionLabel && <span className="max-w-[12rem] truncate text-[11px] text-zinc-500 dark:text-zinc-400">{sectionLabel}</span>}
+              {repeatText && (
+                <span role="img" aria-label={repeatText} {...tip(repeatText)} className="inline-flex">
+                  <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+                </span>
+              )}
+              {sourceLink && <TaskSourceLink link={sourceLink} />}
+              {task.tags.length > 0 && (
+                <div className="flex gap-1">
+                  {task.tags.map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setFilterTag(tag)
+                      }}
+                      className={chipClass({ variant: 'fill', hover: true })}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
+        {compact && dueTone && dueText && !task.completed && (
+          <span className={`inline-flex shrink-0 items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
+            <CalendarIcon className="w-3 h-3" />
+            {dueText}
+          </span>
+        )}
 
         {listKind === 'someday' && !task.completed && !dream && (
           // いつかは締切の代わりに「予定する」（日付を選ぶと未分類へ移ってその日の予定になる）。出し方は締切のボタンと同じ
