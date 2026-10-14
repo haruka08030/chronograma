@@ -204,8 +204,8 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         ),
       }))
     },
-    duplicateTasks: (ids) => {
-      const { added, copyIds } = duplicateTaskTrees(get().tasks, ids)
+    duplicateTasks: (ids, place) => {
+      const { added, copyIds } = duplicateTaskTrees(get().tasks, ids, undefined, place)
       if (copyIds.length === 0) return []
       const first = added[0]
       pushUndo(

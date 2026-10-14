@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
-import { ColorPalette } from '../labels/ColorPalette'
-import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
+import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { CardTimeRange } from './CardTimeRange'
 import { googleEventTiming, movedGoogleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
 import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
@@ -12,8 +11,7 @@ import { useHotkey } from '../../hooks/useHotkey'
 import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
 import { anchoredCardClass } from '../ui/surface'
 import { iconButtonClass } from '../ui/iconButtonClass'
-import { PillToggle } from '../ui/PillToggle'
-import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
+import { CloseIcon, EllipsisVerticalIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
 import { shortcutTip, tip } from '../../lib/tooltip'
@@ -27,7 +25,7 @@ import { useNow } from '../../hooks/useAppClock'
 import { googleRecordPromptId } from '../../hooks/useCompleteWithLog'
 import { htmlToPlainText } from '../../lib/linkify'
 import { MemoPreview } from '../ui/MemoPreview'
-import { openTaskDetail } from '../../lib/overlays'
+import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
 import { CourseAssignments } from './CourseAssignments'
 import { useExitGhost } from '../../hooks/useExitGhost'
 
@@ -42,7 +40,6 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const { t } = useTranslation()
   const df = useDateFormat()
   const event = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
-  const setGoogleEventColor = useTaskStore((s) => s.setGoogleEventColor)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const now = useNow()
@@ -61,10 +58,9 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
     },
     [eventId],
   )
-  const [scope, setScope] = useState<'event' | 'series'>('series')
   const ref = useRef<HTMLDivElement>(null)
   const exitRef = useExitGhost(ref)
-  const layer = useDismiss({ open: true, onClose, inside: [ref] })
+  const layer = useDismiss({ open: true, onClose, inside: [ref], swallow: isAnchoredSheet })
 
   // タイトル入力中の Esc もカードを閉じる（タイトルは閉じるときに保存される）。
   // 入力欄の外の Esc は層の仕組みが閉じる。欄が自分で使った Esc（時刻の取り消し）では閉じない
@@ -91,13 +87,12 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
 
   if (!event) return null
   const recurring = !!event.recurringEventId
-  const effectiveScope = recurring ? scope : 'event'
   const hex = event.color ?? DEFAULT_GOOGLE_EVENT_HEX
   const dateText = df.monthDayWeekdayLong(event.date)
   const editable = canEditGoogleEvent(event, googleCanWrite)
   // Google の説明は HTML のことがあるので、メモと同じテキストに直して出す
   const memo = event.description ? htmlToPlainText(event.description) : ''
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 330 : 290) + (editable ? 40 : 0) + 44 + memoHeightEstimate(memo))
+  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 210 : 190) + (editable ? 40 : 0) + 44 + memoHeightEstimate(memo))
   const smallField = fieldClass({ size: 'sm' })
   const nowMs = now.getTime()
   const started = new Date(event.start).getTime() <= nowMs
@@ -171,6 +166,23 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             {...shortcutTip(t('common.delete'), 'delete')}
           >
             <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        )}
+        {/* ⋮: 右クリックと同じメニュー（色・削除）。予定のカードと同じ位置。色はカードに出しっぱなしにしない */}
+        {editable && (
+          <button
+            type="button"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect()
+              openTaskMenu({ kind: 'google', x: r.left, y: r.bottom, eventId: event.id })
+              onClose()
+            }}
+            className={iconButtonClass()}
+            aria-label={t('eventCard.more')}
+            aria-haspopup="menu"
+            {...tip(t('eventCard.more'))}
+          >
+            <EllipsisVerticalIcon className="h-4 w-4" strokeWidth={2.25} />
           </button>
         )}
         <button
@@ -263,27 +275,6 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             <MemoPreview text={memo} />
           </>
         )}
-      </div>
-      <div className="space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
-        {recurring && (
-          <PillToggle
-            ariaLabel={t('eventCard.colorScope')}
-            options={[
-              { value: 'event', label: t('eventCard.scopeEvent') },
-              { value: 'series', label: t('eventCard.scopeSeries') },
-            ]}
-            value={scope}
-            onChange={setScope}
-          />
-        )}
-        <ColorPalette
-          selectedHex={hex}
-          onChoose={(h) => setGoogleEventColor(event, h, effectiveScope)}
-          onDefault={() => setGoogleEventColor(event, null, effectiveScope)}
-          defaultLabel={t('eventCard.googleColor')}
-          defaultHex={event.baseColor ?? DEFAULT_GOOGLE_EVENT_HEX}
-          fill
-        />
       </div>
       {/* 授業の予定（時刻のある予定）: その科目の未完了の課題（#309） */}
       {!event.isAllDay && (

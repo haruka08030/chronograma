@@ -15,7 +15,7 @@ const NONE = ' none'
  * 授業の予定のカードに出す、その科目（Canvas・Moodle から取り込んだ課題のタグ）の未完了の課題（締切順に 3 件まで、#309）。
  * 押すとその課題の詳細を開く。科目の決め方は `lib/courseLinks.ts`（選んだつながり → 名前・ラベル名が科目と同じ）。
  * - つながる科目があり課題があれば、見出しの横で科目を選び直せる（「つながない」も）
- * - つながる科目が無ければ、科目を選ぶ欄だけ（LMS の課題を取り込んでいる人だけ。一度選べば同じ名前の予定はみなつながる）
+ * - つながる科目が無い予定（授業でない予定も）には何も出さない（科目を選ぶ欄も出さない、#394）
  * - 課題が無い・「つながない」を選んだ予定は何も出さない
  */
 export function CourseAssignments({
@@ -38,32 +38,24 @@ export function CourseAssignments({
   const items = useMemo(() => (match.course ? courseAssignments(tasks, match.course) : []), [tasks, match.course])
 
   if (!title.trim() || courses.length === 0) return null
-  if (match.chosen && !match.course) return null
-  if (match.course && items.length === 0) return null
+  if (!match.course || items.length === 0) return null
 
   const select = (
     <select
       value={match.course ?? ''}
       onChange={(e) => setCourseLink(title, e.target.value === NONE ? '' : e.target.value)}
       aria-label={t('courseTasks.selectAria', { title })}
-      className={fieldClass({ size: 'sm' }, match.course ? 'max-w-[11rem] truncate' : 'w-full')}
+      className={fieldClass({ size: 'sm' }, 'max-w-[11rem] truncate')}
     >
-      {!match.course && (
-        <option value="" disabled>
-          {t('courseTasks.pick')}
-        </option>
-      )}
       {courses.map((c) => (
         <option key={c} value={c}>
           {c}
         </option>
       ))}
-      {match.course && !courses.includes(match.course) && <option value={match.course}>{match.course}</option>}
-      {match.course && <option value={NONE}>{t('courseTasks.none')}</option>}
+      {!courses.includes(match.course) && <option value={match.course}>{match.course}</option>}
+      <option value={NONE}>{t('courseTasks.none')}</option>
     </select>
   )
-
-  if (!match.course) return <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">{select}</div>
 
   const shown = items.slice(0, COURSE_ASSIGNMENT_LIMIT)
   const rest = items.length - shown.length

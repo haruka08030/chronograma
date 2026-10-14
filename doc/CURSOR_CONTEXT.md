@@ -103,7 +103,9 @@
 - **タイムラインの重なり**: `src/lib/overlapLayout.ts`。時間が重なるブロックは塊ごとに列を割り当てる
   （Google カレンダー方式）。1 日表示・ログ画面は等幅で横並び（`columns`）、週表示・予定 vs ログの週は
   列が狭いので右へずらし重ね（`cascade`、ホバーで前面・`title` で全文）。週/日タイムラインは
-  `layoutPlanAndLog` で**重なる塊の中だけ**予定=左 / ログ=右に分ける。重ねるためブロック背景は不透明色
+  `layoutPlanAndLog`（`fixedLanes`）で常に予定=左半分 / ログ=右半分に分ける（3 日表示は記録を出さないので全幅）。
+  カレンダー（今日の計画の 1 日表示を除く）は、未来（記録を置けない今より先・先の日）の塊は予定が全幅で、点線の境目も今までだけ。
+  予定どおりの記録（`matchPlanAndActualForDate` の `matched`）がある予定は出さず、その記録を全幅にする（重なる予定があれば右半分）。重ねるためブロック背景は不透明色
 - **通知**: 何をいつ出すかは `supabase/functions/daily-reminders/schedule.ts`（純粋関数、サーバーとブラウザで共有）。
   朝のまとめ（`dailyReminders.planTime`）・予定の前（`eventReminderMinutes`）・締切の前（`notificationsEnabled`、前日 20:00 ＋ 3 時間前）・
   予定のあとの記録の確認（`recordPrompts`、通知の「予定どおり / 記録する」→ `logPlanAsPlanned` / `RecordPromptHost`）・
@@ -124,7 +126,7 @@
   計画どおり実行率は、時刻つき予定（タスク・範囲習慣）を `matchPlanAndActualForDate` でログと突き合わせた割合
 - **同期**: `useSupabaseSync` は毎回 取得（`lib/syncPull.ts` の `pullRemote`。ふだんは差分）→ `mergeSnapshots`（`src/lib/syncMerge.ts`）で前回同期ベースライン
   （`chronograma-sync-baseline-v1:{userId}`、本体と同じ置き場所）との三方向マージ → ローカル反映 → push（削除は
-  マージで決めた ID だけ）。フォーカス復帰時と表示中 60 秒ごとにも同期。ベースラインが無い初回は従来の `decideHydrate`
+  マージで決めた ID だけ）。フォーカス復帰時と表示中 60 秒ごと（Realtime の通知を購読できている間は 5 分ごと）にも同期。他の端末の変更の通知（`lib/syncWake.ts`、`038`）でも同期。ベースラインが無い初回は従来の `decideHydrate`
 
 - **リストの種類**（`TaskList.kind`、`src/types/list.ts`）: `tasks` は未分類（表示名「To‑Do」）だけ / `someday`（いつか・Wish）/ `checklist`（買い物など）。
   To‑Do はラベルで分ける。ほかの `tasks` のリストと未分類のセクションは `foldTaskFolders`（`src/lib/foldTaskFolders.ts`）がラベルに畳む
@@ -401,7 +403,7 @@
 - ログイン済みかつ `getSupabase()` ありのときのみ
 - **通常**（端末にベースラインあり）: 取得 → `mergeSnapshots`（`src/lib/syncMerge.ts`）で三方向マージ →
   ローカル反映 → push（削除はマージで決めた ID だけ）→ ベースライン保存。変更の 1.8 秒デバウンス後・
-  フォーカス復帰時・表示中 60 秒ごと。同期は常に 1 本ずつ直列
+  フォーカス復帰時・表示中 60 秒ごと（通知を購読できている間は 5 分ごと）・他の端末の変更の通知（自分が送った行のこだまは除く）。同期は常に 1 本ずつ直列
 - **この端末で初回**（ベースライン無し）: `fetchListsTasksHabits` →
   `decideHydrate`（`src/lib/supabaseData.ts`）
   - リモート完全空 → **ローカルを push**

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { WeekReviewCard } from './WeekReviewCard'
@@ -6,6 +6,7 @@ import { SleepStatsCard } from './SleepStatsCard'
 import { computeTaskStats } from '../lib/taskStats'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { useRememberScroll } from '../hooks/useRememberScroll'
 import { META_TEXT } from './ui/textClass'
 import { DUE_TONE_CLASS } from './ui/dueTone'
 import { useAppTodayKey } from '../hooks/useAppClock'
@@ -18,9 +19,11 @@ export function StatsView() {
   // 日をまたいだら数え直す（今日の日付を依存に入れる）
   const todayKey = useAppTodayKey()
   const stats = useMemo(() => computeTaskStats(tasks, lists, todayKey), [tasks, lists, todayKey])
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useRememberScroll(scrollRef, 'stats')
 
   return (
-    <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
+    <div ref={scrollRef} className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
       <div className="px-4 pt-4 pb-3 md:px-6 md:pt-8 md:pb-4">
         <h1 className={PAGE_TITLE_CLASS}>{t('stats.title')}</h1>
       </div>

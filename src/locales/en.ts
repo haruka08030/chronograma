@@ -602,17 +602,14 @@ export default {
   },
   courseTasks: {
     heading: 'Assignments for this course',
-    pick: 'Link to an LMS course…',
     none: 'Don’t link',
     selectAria: 'Course linked to “{{title}}”',
     more_one: '{{count}} more',
     more_other: '{{count}} more',
   },
   eventCard: {
+    more: 'More options',
     google: 'Google Calendar',
-    colorScope: 'Apply color to',
-    scopeEvent: 'This event',
-    scopeSeries: 'All events',
     googleColor: 'Use Google color',
     recordAndComplete: 'Log and complete',
     toRecord: 'Log it',

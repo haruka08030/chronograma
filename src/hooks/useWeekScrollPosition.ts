@@ -3,6 +3,7 @@ import { HOUR_HEIGHT } from '../lib/timeGrid'
 import { zonedNow, isNowOnDay } from '../lib/timeZone'
 import { toDateKey } from '../lib/dateKey'
 import { calendarWeekStart } from '../lib/weekStart'
+import { rememberedScroll, rememberScroll } from './useRememberScroll'
 
 /** 週タイムラインを開いた・表示する週が変わったときの縦スクロールの位置（今・朝） */
 export function useWeekScrollPosition({
@@ -24,6 +25,19 @@ export function useWeekScrollPosition({
    * 変わったときだけスクロールを合わせる。でないと朝や夜で押した瞬間に今の時刻へ戻されてしまう
    */
   const scrollKey = toDateKey(singleDay ? anchor : calendarWeekStart(anchor))
+  const memoryKey = `week:${singleDay ? 'day' : 'week'}:${scrollKey}`
+
+  // 動かした位置を覚えておき、画面を切り替えて戻ったらそこから
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      if (el.clientHeight > 0) rememberScroll(memoryKey, el.scrollTop)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [scrollRef, memoryKey])
+
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -37,7 +51,7 @@ export function useWeekScrollPosition({
       keepScrollOnFlipRef.current = false
       return
     }
-    const top = HOUR_HEIGHT * hours
+    const top = rememberedScroll(memoryKey) ?? HOUR_HEIGHT * hours
     // 隠れている間（スマホの「やること」タブ）は scrollTop が効かないので、見えた時点で合わせる
     if (el.clientHeight > 0) {
       el.scrollTop = top

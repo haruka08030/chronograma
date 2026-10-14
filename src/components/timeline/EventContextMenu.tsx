@@ -9,7 +9,7 @@ import { canEditGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit
 import { useTaskColor } from '../../hooks/useTaskColor'
 import { ColorPalette } from '../labels/ColorPalette'
 import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
-import { CheckIcon, ClockIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
+import { CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
 import { useScheduleEntry } from '../../hooks/useScheduleEntry'
 import { deleteTaskAsking } from '../../lib/seriesScope'
 
@@ -22,7 +22,7 @@ function Dot({ hex }: { hex: string }) {
 
 /**
  * タイムラインの予定・記録を右クリックしたときのメニュー（押して出るカードと同じ操作を、カードを開かずに）。
- * 予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・削除。記録: 色（＝ラベル）・詳細・削除
+ * 予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・複製・削除。記録: 色（＝ラベル）・詳細・削除
  */
 export function TaskEventMenu({
   x,
@@ -60,6 +60,7 @@ function TaskEventMenuBody({
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
+  const duplicateTasks = useTaskStore((s) => s.duplicateTasks)
   const isLog = isLogTask(task)
   const isEvent = isEventTask(task)
   const color = useTaskColor(task, !isLog)
@@ -148,6 +149,21 @@ function TaskEventMenuBody({
       icon: <OpenPanelIcon className={ICON} />,
       run: () => onOpenDetail(task.id),
     },
+    // 同じ日・同じ時間に写し、写したものの詳細を開く（行のメニューの「複製」と同じ）
+    ...(isLog
+      ? []
+      : [
+          {
+            kind: 'leaf' as const,
+            id: 'duplicate',
+            label: t('taskMenu.duplicate'),
+            icon: <DuplicateIcon className={ICON} />,
+            run: () => {
+              const [copy] = duplicateTasks([task.id])
+              if (copy) onOpenDetail(copy)
+            },
+          },
+        ]),
     {
       kind: 'leaf',
       id: 'delete',

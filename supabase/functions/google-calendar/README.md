@@ -23,3 +23,7 @@ Use the **same** Google OAuth Client ID/Secret as Supabase Auth → Google provi
 | `status` | `{}` → `{ "connected": true/false }` |
 | `events` | `{ "timeMin": ISO, "timeMax": ISO }` |
 | `disconnect` | `{}` |
+| `create` | `{ "fields": { summary, description?, colorId?, start, end } }` |
+| `update` | `{ "eventId", "fields" }`（変えるものだけ） |
+| `delete` | `{ "eventId" }`（消えている予定も成功） |
+| `upsert` | `{ "eventId", "fields" }`。ID を決めて、あれば直し（消した予定も戻す）、無ければその ID で作る。アプリの予定を Google に送るのに使う |

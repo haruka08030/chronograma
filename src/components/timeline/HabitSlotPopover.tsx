@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
+import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from './anchoredCard'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
 import { useExitGhost } from '../../hooks/useExitGhost'
@@ -46,7 +46,7 @@ export function HabitSlotPopover({
   const now = useNow()
   const ref = useRef<HTMLDivElement>(null)
   const exitRef = useExitGhost(ref)
-  const layer = useDismiss({ open: true, onClose, inside: [ref] })
+  const layer = useDismiss({ open: true, onClose, inside: [ref], swallow: isAnchoredSheet })
   const edit = () => {
     onClose()
     requestHabitEdit(habitId)

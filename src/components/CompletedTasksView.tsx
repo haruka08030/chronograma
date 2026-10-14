@@ -20,6 +20,7 @@ import { SectionLabel } from './ui/SectionLabel'
 import { ShowMoreButton } from './ui/ShowMoreButton'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { useRememberScroll } from '../hooks/useRememberScroll'
 import { META_TEXT } from './ui/textClass'
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { FilterMenuButton } from './ui/SortMenuButton'
@@ -38,6 +39,8 @@ const SUBTASK_NEST = 'border-l border-zinc-200 dark:border-zinc-700 ml-[13px] pl
  */
 export function CompletedTasksView() {
   const { t } = useTranslation()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useRememberScroll(scrollRef, 'completed')
   const df = useDateFormat()
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
@@ -152,7 +155,7 @@ export function CompletedTasksView() {
   }
 
   return (
-    <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
+    <div ref={scrollRef} className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
       <div className="px-6 pt-8 pb-2">
         <div className="flex items-center justify-between gap-3">
           <h1 className={PAGE_TITLE_CLASS}>{t('sidebar.views.completed')}</h1>

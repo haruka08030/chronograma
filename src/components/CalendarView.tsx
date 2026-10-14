@@ -38,8 +38,10 @@ import { CalendarCards } from './calendar/CalendarCards'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { movedToDateLabel } from '../lib/moveToast'
+import { isCopyDrop, placeCopies } from '../lib/dragCopy'
 import { isEventTask, isLogTask, planKindOf } from '../types/task'
 import { useSwipeNav } from '../hooks/useSwipeNav'
+import { useRememberScroll } from '../hooks/useRememberScroll'
 import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import { tip } from '../lib/tooltip'
 import { useHolidayName } from '../hooks/useHolidayName'
@@ -89,6 +91,7 @@ export function CalendarView({
 }) {
   const swipeRef = useRef<HTMLDivElement>(null)
   useSwipeNav(swipeRef, onSwipe)
+  useRememberScroll(swipeRef, `month:${toDateKey(displayMonth)}`)
   // タッチは項目の長押しで右クリックと同じメニュー
   useTouchContextMenu(swipeRef, (target) => !target.closest('[data-touch-menu]'))
   const { t } = useTranslation()
@@ -261,12 +264,18 @@ export function CalendarView({
                   setDragOverDate(null)
                   const gev = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? getDraggedGoogleEvent() : null
                   if (gev) {
-                    // Google の予定は時刻と長さ（何日続くか）を保ったまま日だけ動かす
-                    if (gev.date !== key) void moveGoogleEvent(gev, movedGoogleEventTiming(gev, key))
+                    // Google の予定は時刻と長さ（何日続くか）を保ったまま日だけ動かす。⌥ の複製はアプリの予定だけ（動かしもしない）
+                    if (gev.date !== key && !isCopyDrop(e)) void moveGoogleEvent(gev, movedGoogleEventTiming(gev, key))
                     return
                   }
                   const ids = readDraggedTaskIds(e.dataTransfer)
                   const taskIds = ids.length ? ids : dragTaskIdRef.current ? [dragTaskIdRef.current] : []
+                  dragTaskIdRef.current = null
+                  // ⌥ を押して落とした = 元は残し、この日に複製を置く（時刻はそのまま）
+                  if (isCopyDrop(e)) {
+                    placeCopies(taskIds, (t) => ({ scheduledDate: key, startTime: t.startTime, endTime: t.endTime, kind: planKindOf(t) }))
+                    return
+                  }
                   asOneUndo(() => {
                     // 取り消しの文は最初の 1 回の分が出る（asOneUndo）
                     const label = movedToDateLabel(taskIds, tasks, key)
@@ -286,7 +295,6 @@ export function CalendarView({
                       }
                     }
                   })
-                  dragTaskIdRef.current = null
                 }}
               >
                 <div className="relative mb-1 flex items-center gap-1">

@@ -6,7 +6,7 @@ import { useTaskStore, INBOX_LIST_ID } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { unplannedListIds } from '../../lib/listKind'
 import { colorVars } from '../../lib/logCategoryColors'
-import { anchoredCardStyle, type AnchorRect } from './anchoredCard'
+import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from './anchoredCard'
 import { TimeLogTagField } from '../TimeLogTagField'
 import { addGoogleEvent } from '../../lib/googleEventEdit'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
@@ -118,7 +118,7 @@ export function QuickCreatePopover({
   const exitRef = useExitGhost(ref)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useDismiss({ open: true, onClose, inside: [ref] })
+  useDismiss({ open: true, onClose, inside: [ref], swallow: isAnchoredSheet })
   useEffect(() => {
     inputRef.current?.focus()
   }, [])

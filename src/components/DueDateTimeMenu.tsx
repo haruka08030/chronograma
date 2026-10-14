@@ -16,6 +16,7 @@ import { fieldClass } from './ui/fieldClass'
 import { MenuLabel } from './ui/Menu'
 import { sectionLabelClass } from './ui/sectionLabelClass'
 import { useExitGhost } from '../hooks/useExitGhost'
+import { SheetBackdrop } from './ui/SheetBackdrop'
 
 const EDGE = 8
 const WIDTH = 288
@@ -53,10 +54,9 @@ export function DueDateTimeMenu({
   const [time, setTime] = useState<string>(() => (sharedDate && times.size === 1 ? ([...times][0] ?? '') : ''))
   const panelRef = useRef<HTMLDivElement>(null)
   const panelExit = useExitGhost(panelRef)
-  const backdropExit = useExitGhost()
   const [pos, setPos] = useState({ left: x, top: y })
 
-  useDismiss({ open: true, onClose, inside: [panelRef] })
+  useDismiss({ open: true, onClose, inside: [panelRef], swallow: sheet })
 
   // PC: 画面からはみ出さないよう、押した所の下（入らなければ上）に置く
   useLayoutEffect(() => {
@@ -78,7 +78,7 @@ export function DueDateTimeMenu({
 
   return createPortal(
     <>
-      {sheet && <div ref={backdropExit} className="fixed inset-0 z-[59] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />}
+      {sheet && <SheetBackdrop />}
       <div
         ref={panelExit}
         role="dialog"

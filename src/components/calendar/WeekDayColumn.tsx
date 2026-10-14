@@ -23,6 +23,8 @@ import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
 import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
 import { googleEventCrossesDay, googleEventSegmentOnDay } from '../../lib/googleEventSpan'
 import { unrecordedGapsForDay } from '../../lib/unrecordedGaps'
+import { matchPlanAndActualForDate } from '../../lib/matchEvents'
+import type { PlannedItem } from '../../types/plannedItem'
 
 type TimelineDrag = ReturnType<typeof useTimelineDrag>
 type TimelineDrop = ReturnType<typeof useTimelineDrop>
@@ -160,13 +162,53 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const gapId = (g: { start: number }) => `gap-${g.start}`
   // 時間が重なるところだけ 予定=左 / ログ=右 に分け、同じ種類の重なりは列（週表示はずらし重ね）にする
   const mode = gridDays.length > 1 ? 'cascade' : 'columns'
-  // 1 日表示（今日の計画）は 予定 / 記録 の 2 列に固定。週表示は列が狭いので、記録と重なる塊だけ左右に分け、
-  // 記録の無い時間帯は予定に全幅を使う（半分＋ずらし重ねだと「E...」になって何の予定か読めない）
-  const fixedLanes = splitLanes && gridDays.length === 1
+  // 予定 / 記録 の 2 列に固定（週表示も。予定だけ・記録だけの時間帯も点線をまたいで広げない、#403）
+  const fixedLanes = splitLanes
+  // カレンダー（今日の計画の 1 日表示ではない）は、記録を置けない未来の時間を予定に全幅で使う（#409）
+  const fullFromMin = splitLanes && !singleDay ? limitMin : null
+  const fullFromTop = fullFromMin === null ? undefined : (fullFromMin / 60) * HOUR_HEIGHT
+  /** この時刻（分）は予定に全幅を使う未来か */
+  const isFullAt = (min: number) => fullFromMin !== null && min >= fullFromMin
+  // カレンダーでは予定どおりの記録（ずれ 10 分以内）があれば予定は出さず、記録を全幅で出す（#409）
+  const matchedPlanIds = new Set<string>()
+  const fullLogIds = new Set<string>()
+  if (splitLanes && !singleDay) {
+    const planned: PlannedItem[] = [
+      ...dayTimed.map((t) => ({
+        id: t.id,
+        summary: t.title,
+        startTime: t.startTime!,
+        endTime: t.endTime!,
+        source: isEventTask(t) ? ('scheduled-event' as const) : ('scheduled-task' as const),
+        taskId: t.id,
+      })),
+      ...dayHabitSlots.map(({ slot }) => slot),
+      ...dayTimedEvents.map(({ e, seg }) => ({ id: `event-${e.id}`, summary: e.summary, ...seg, source: 'google' as const })),
+    ]
+    for (const pair of matchPlanAndActualForDate(
+      planned,
+      dayLogs.filter((l) => !isSleepTask(l)),
+    )) {
+      if (pair.status !== 'matched') continue
+      matchedPlanIds.add(pair.planned!.id)
+      fullLogIds.add(pair.actual!.id)
+    }
+  }
+  const shownTimed = dayTimed.filter((t) => !matchedPlanIds.has(t.id))
+  const shownHabitSlots = dayHabitSlots.filter(({ slot }) => !matchedPlanIds.has(slot.id))
+  const shownTimedEvents = dayTimedEvents.filter(({ e }) => !matchedPlanIds.has(`event-${e.id}`))
+  /** 作る・動かす・落とす枠の横位置。未来の予定は全幅 */
+  const previewClass = (lane: CreateIntent | null | undefined, top: number) =>
+    lane !== 'log' && fullFromTop !== undefined && top >= fullFromTop ? 'left-0.5 right-0.5' : laneClass(lane)
+  /** 押した・落とした列。未来は記録の列が無いので予定 */
+  const laneAtPoint = (clientX: number, clientY: number, el: HTMLElement): CreateIntent => {
+    const lane = laneAt(clientX, el)
+    return lane === 'log' && isFullAt(timeToMinutes(yToTime(getRelativeY(clientY, key)))) ? 'schedule' : lane
+  }
   const blockStyles = layoutPlanAndLog(
     [
-      ...dayTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
-      ...dayHabitSlots.map(({ slot }) => ({
+      ...shownTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
+      ...shownHabitSlots.map(({ slot }) => ({
         id: slot.id,
         ...blockGeometry(
           { id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false },
@@ -178,7 +220,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         id: m.id,
         ...blockGeometry({ id: m.id, title: m.task.title, startTime: m.startTime, endTime: m.endTime, completed: false }, key, false),
       })),
-      ...dayTimedEvents.map(({ e, seg }) => ({
+      ...shownTimedEvents.map(({ e, seg }) => ({
         id: `event-${e.id}`,
         ...blockGeometry({ id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
       })),
@@ -194,6 +236,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     ],
     mode,
     fixedLanes,
+    { fromTop: fullFromTop, logIds: fullLogIds },
   )
   const planStyle = (id: string) => blockStyles.get(`plan:${id}`)
   const logStyle = (id: string) => blockStyles.get(`log:${id}`)
@@ -210,13 +253,13 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         // 右クリックで予定を作り始めない
         if (e.button !== 0) return
         onSelectDate?.(key)
-        const lane = laneAt(e.clientX, e.currentTarget)
+        const lane = laneAtPoint(e.clientX, e.clientY, e.currentTarget)
         const limit = lane === 'log' ? logLimitMin(key) : null
         handleCreatePointerDown(e, key, lane, limit === null ? undefined : (limit / 60) * HOUR_HEIGHT)
       }}
       onDragEnter={handleDragEnter}
       onDragOver={(e) => {
-        const lane = laneAt(e.clientX, e.currentTarget)
+        const lane = laneAtPoint(e.clientX, e.clientY, e.currentTarget)
         if (lane !== dropLane) setDropLane(lane)
         const limit = lane === 'log' ? logLimitMin(key) : null
         const blocked = limit !== null && timeToMinutes(yToTime(getRelativeY(e.clientY, key))) >= limit
@@ -226,16 +269,20 @@ export const WeekDayColumn = memo(function WeekDayColumn({
       }}
       onDragLeave={handleDragLeave}
       onDrop={(e) => {
-        dropLaneRef.current = laneAt(e.clientX, e.currentTarget)
+        dropLaneRef.current = laneAtPoint(e.clientX, e.clientY, e.currentTarget)
         handleDropEvent(e, key)
       }}
     >
       {/* 予定｜記録の境目は点線にして、日の境目（実線）と見分ける。終わった日も 2 列だと分かる */}
-      {splitLanes && (
-        <div className="pointer-events-none absolute inset-y-0 left-1/2 border-l border-dashed border-zinc-200 dark:border-zinc-700" />
+      {/* カレンダーの未来は予定が全幅なので、境目は今までだけ */}
+      {splitLanes && fullFromTop !== 0 && (
+        <div
+          className="pointer-events-none absolute top-0 left-1/2 border-l border-dashed border-zinc-200 dark:border-zinc-700"
+          style={{ height: fullFromTop ?? '100%' }}
+        />
       )}
-      {/* 記録の列の「今より先」は使えないので薄く塗る */}
-      {splitLanes && logLimitMin(key) !== null && (
+      {/* 記録の列の「今より先」は使えないので薄く塗る（今日の計画。カレンダーは未来を予定に使う） */}
+      {splitLanes && fullFromTop === undefined && logLimitMin(key) !== null && (
         <div
           className="absolute bottom-0 left-1/2 right-0 cursor-default bg-zinc-50 dark:bg-zinc-800/30"
           style={{ top: ((logLimitMin(key) ?? 0) / 60) * HOUR_HEIGHT }}
@@ -264,7 +311,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               hover:border-accent-400 hover:bg-accent-500/5 hover:text-accent-600
               focus-visible:border-accent-500 focus-visible:outline-none
               dark:border-zinc-600 dark:text-zinc-500 dark:hover:border-accent-400 dark:hover:text-accent-300"
-            // 記録だけの塊は全幅に広がるが、記録の無い時間は常に記録の列（右半分）に収める（週表示で目立たせない）
+            // 記録の無い時間は記録の列（右半分）に収める
             style={{
               left: 'calc(50% + 2px)',
               width: 'calc(50% - 4px)',
@@ -317,8 +364,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         )
       })}
 
-      {dayTimed.map((t) => (
-        <div key={t.id} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
+      {shownTimed.map((t) => (
+        <div className="group/slot" key={t.id} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
           <TimeBlock
             task={t as TimeBlockTask}
             onPointerDown={(e) =>
@@ -370,8 +417,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           />
         </div>
       ))}
-      {dayHabitSlots.map(({ habit, slot, done }) => (
-        <div key={slot.id} style={{ opacity: movingTaskId === slot.id ? 0.3 : 1 }}>
+      {shownHabitSlots.map(({ habit, slot, done }) => (
+        <div className="group/slot" key={slot.id} style={{ opacity: movingTaskId === slot.id ? 0.3 : 1 }}>
           <TimeBlock
             task={{ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: done }}
             dayKey={key}
@@ -407,13 +454,13 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           )}
         </div>
       ))}
-      {dayTimedEvents.map(({ e, seg }) => {
+      {shownTimedEvents.map(({ e, seg }) => {
         // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー
         const recorded = dayLogs.some((l) => l.title === e.summary)
         // 日をまたぐ予定は列ごとに区間しか描いていないので、ドラッグでは動かさない（押すとカードで直せる）
         const editable = canEditGoogleEvent(e, googleCanWrite) && !googleEventCrossesDay(e)
         return (
-          <div key={`event-${e.id}`} style={{ opacity: movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
+          <div className="group/slot" key={`event-${e.id}`} style={{ opacity: movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
             <TimeBlock
               task={{
                 id: `event-${e.id}`,
@@ -463,8 +510,9 @@ export const WeekDayColumn = memo(function WeekDayColumn({
 
       {dragPreview && !allDayMoveKey && !unscheduleHover && (
         <div
-          className={`absolute ${laneClass(
+          className={`absolute ${previewClass(
             dragPreview.kind === 'create' ? activeCreateIntent : dayLogs.some((x) => x.id === dragPreview.taskId) ? 'log' : 'schedule',
+            dragPreview.top,
           )} rounded-md pointer-events-none z-20
             ${
               dragPreview.kind === 'create'
@@ -479,7 +527,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
 
       {dropPreview && !dropBlocked && (
         <div
-          className={`absolute ${laneClass(dropLane)} rounded-md pointer-events-none z-20
+          className={`absolute ${previewClass(dropLane, dropPreview.top)} rounded-md pointer-events-none z-20
                      bg-accent-500/20 border-2 border-accent-500/60 border-dashed`}
           style={{ top: dropPreview.top, height: dropPreview.height }}
         >
@@ -487,7 +535,13 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         </div>
       )}
 
-      {popup && <CreateGhost popup={popup} onAnchor={setCreateAnchorFromEl} laneClass={laneClass(popup.intent)} />}
+      {popup && (
+        <CreateGhost
+          popup={popup}
+          onAnchor={setCreateAnchorFromEl}
+          laneClass={previewClass(popup.intent, (timeToMinutes(popup.startTime) / 60) * HOUR_HEIGHT)}
+        />
+      )}
     </div>
   )
 })

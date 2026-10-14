@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
-import { getDayPlan, showsDayResult } from '../lib/dayPlan'
+import { getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
 import { getDayReviews } from '../lib/weekReview'
 import { isUnlabeledLog } from '../lib/logCategory'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
@@ -38,6 +38,10 @@ import { PlannerHabits } from './today/PlannerHabits'
 import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
 import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSuggestions'
+import { useCalendarCards } from '../hooks/useCalendarCards'
+import { useRememberScroll } from '../hooks/useRememberScroll'
+import { CalendarCards } from './calendar/CalendarCards'
+import { OverlaySuspense } from './ui/OverlaySuspense'
 
 /** 「1 日を締める」を出し始める時刻（朝から締めの話をしない）。設定の夜の締めの時刻があればその時刻から */
 const WRAP_UP_FROM_HOUR = 17
@@ -84,6 +88,8 @@ export function TodayPlannerView() {
   const [showAllOverdue, setShowAllOverdue] = useState(false)
   /** スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える */
   const [mobilePane, setMobilePane] = useState<PlannerPane>('list')
+  const listScrollRef = useRef<HTMLElement>(null)
+  useRememberScroll(listScrollRef, 'planner')
   /** 夜の締めの通知から開いた回数。1 以上なら時刻・件数に関係なく締めを出し、そこまでスクロールする */
   const [wrapUpFocus, setWrapUpFocus] = useState(0)
   useEffect(
@@ -138,6 +144,17 @@ export function TodayPlannerView() {
   // 今日やる行を、時間を決めたもの（時刻順）と時間未定に分ける
   const timedOpen = useMemo(() => open.filter((x) => x.startTime && x.endTime), [open])
   const untimedOpen = useMemo(() => open.filter((x) => !(x.startTime && x.endTime)), [open])
+  // スマホは横にタイムラインが無いので、今日やる行の一番上に今・次の 1 件（時間を決めた To-Do・予定・Google の予定）。PC は出さない
+  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  const nowNext = useMemo(
+    () => (viewingToday && !isDesktop ? nowOrNextPlan({ timed: timedOpen, tasks, events: calendarEvents, dateKey }, now) : null),
+    [viewingToday, isDesktop, timedOpen, tasks, calendarEvents, dateKey, now],
+  )
+  // 一番上に出している To-Do は、その間は下の時間を決めた行から外す（同じ行を 2 回出さない）
+  const nowNextTask = nowNext?.source === 'task' ? nowNext.task : null
+  const timedShown = useMemo(() => (nowNextTask ? timedOpen.filter((x) => x.id !== nowNextTask.id) : timedOpen), [timedOpen, nowNextTask])
+  // 予定（✓ の無いもの）を押したときのカード（タイムラインと同じ）
+  const cards = useCalendarCards()
   // 締切は焦らせてよい: 期限切れは畳まず、今日のリストの先頭に赤い日付つきで出す（今日を見ているときだけ）
   const overdue = useMemo(() => (viewingToday ? overdueAll : []), [viewingToday, overdueAll])
   // スマホ幅は締切切れが今日やる行を画面の外へ押し出さないよう 2 行まで（残りは「他 N 件」で開く）。PC は全部
@@ -182,13 +199,14 @@ export function TodayPlannerView() {
       [
         ...overdueShown,
         ...(showLeftOver ? leftOver : []),
+        ...(nowNextTask ? [nowNextTask] : []),
         ...untimedOpen,
-        ...timedOpen,
+        ...timedShown,
         ...(showSuggestions ? candidateGroups.flatMap((g) => g.tasks) : []),
         // 完了の欄を開いているときは、その行も（Space で完了を外す）
         ...(showDone ? done : []),
       ].map((x) => x.id),
-    [showLeftOver, leftOver, overdueShown, untimedOpen, timedOpen, showSuggestions, candidateGroups, showDone, done],
+    [showLeftOver, leftOver, overdueShown, nowNextTask, untimedOpen, timedShown, showSuggestions, candidateGroups, showDone, done],
   )
   const clearSelectedRef = useRef<() => void>(() => {})
   const { selected, clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
@@ -296,6 +314,7 @@ export function TodayPlannerView() {
       <PlannerMobileBar pane={mobilePane} onPaneChange={setMobilePane} />
 
       <section
+        ref={listScrollRef}
         className={`${mobilePane === 'list' ? 'flex' : 'hidden'} timer-safe min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
                     md:flex md:w-[380px] md:flex-none md:shrink-0 md:border-r`}
       >
@@ -319,7 +338,11 @@ export function TodayPlannerView() {
           showLeftOver={showLeftOver}
           onToggleLeftOver={() => setShowLeftOver((v) => !v)}
           open={open}
-          timedOpen={timedOpen}
+          timedOpen={timedShown}
+          nowNext={nowNext}
+          onOpenPlanCard={(plan, el) =>
+            plan.source === 'google' ? cards.openGoogleCard(plan.event.id, el) : cards.openCard(plan.task.id, el)
+          }
           untimedOpen={untimedOpen}
           totalCount={totalCount}
           listboxProps={listboxProps}
@@ -383,6 +406,9 @@ export function TodayPlannerView() {
       </section>
 
       <SelectionBar selectedIds={selected} actions={selectionActions} onClear={clearSelection} />
+      <OverlaySuspense>
+        <CalendarCards cards={cards} />
+      </OverlaySuspense>
     </div>
   )
 }

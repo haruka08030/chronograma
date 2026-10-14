@@ -67,7 +67,18 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
   const originalMatchMedia = window.matchMedia
   afterEach(() => {
     window.matchMedia = originalMatchMedia
+    vi.useRealTimers()
   })
+
+  /** PC 幅（7 日の列を並べる） */
+  function desktop() {
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('min-width: 768px'),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    })) as unknown as typeof window.matchMedia
+  }
 
   /** 10/7 のバイト 18:00–21:00 と ES を書く 20:00–21:00（記録は無し） */
   function seedOverlap() {
@@ -85,20 +96,45 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     return container.querySelector<HTMLElement>(`[data-datekey="2026-10-07"] [data-block-id="${id}"]`)!
   }
 
-  it('PC の週表示では記録の無い時間帯の予定が列の全幅を使う（半分に分けない）', () => {
-    // PC 幅（7 日の列を並べる）
-    window.matchMedia = ((query: string) => ({
-      matches: query.includes('min-width: 768px'),
-      media: query,
-      addEventListener() {},
-      removeEventListener() {},
-    })) as unknown as typeof window.matchMedia
+  it('PC の週表示も過ぎた時間の記録の無い時間帯の予定は左半分に収める（全幅に広げない）', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-08', '12:00', appTimeZone()))
+    desktop()
     seedOverlap()
     const { container } = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />)
     expect(container.querySelectorAll('[data-datekey]').length).toBe(7)
-    expect(planBlock(container, 'shift').style.width).toBe('calc(100% - 4px)')
+    expect(planBlock(container, 'shift').style.width).toBe('calc(50% - 4px)')
     expect(planBlock(container, 'es').style.left).toBe('calc(0% + 16px)')
+    expect(planBlock(container, 'es').style.width).toBe('calc(50% - 18px)')
+  })
+
+  it('カレンダーの未来（今より先）は記録を置けないので予定が全幅', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    desktop()
+    seedOverlap()
+    const { container } = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />)
+    expect(planBlock(container, 'shift').style.width).toBe('calc(100% - 4px)')
     expect(planBlock(container, 'es').style.width).toBe('calc(100% - 18px)')
+  })
+
+  it('カレンダーで予定どおりの記録があれば、予定は出さず記録が全幅', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-08', '12:00', appTimeZone()))
+    desktop()
+    useTaskStore.setState({
+      tasks: [
+        {
+          ...makeTask({ title: 'ゼミ', listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime: '15:00', endTime: '16:30' }, 0),
+          id: 'seminar',
+        },
+      ],
+    })
+    useTaskStore.getState().addTimeLog('ゼミ', '2026-10-07', '15:05', '16:30', [])
+    const log = useTaskStore.getState().tasks.find((x) => x.title === 'ゼミ' && x.id !== 'seminar')!
+    const { container } = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />)
+    expect(container.querySelector('[data-datekey="2026-10-07"] [data-block-id="seminar"]')).toBeNull()
+    expect(planBlock(container, log.id).style.width).toBe('calc(100% - 4px)')
   })
 
   it('今日の計画（1 日表示）は 予定 / 記録 の 2 列のまま', () => {

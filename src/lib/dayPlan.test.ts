@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
+import type { CalendarEvent } from '../types/calendarEvent'
 import {
   calendarDayKey,
   dueMarkDayKey,
   getDayPlan,
   getMoreSuggestions,
   groupCandidatesByDue,
-  nowOrNextTask,
+  nowOrNextPlan,
   showsDayResult,
 } from './dayPlan'
 import { setAppTimeZoneSetting } from './timeZone'
@@ -253,25 +254,63 @@ describe('締切が今日で先の日に置いた To-Do（#374）', () => {
   })
 })
 
-describe('nowOrNextTask', () => {
+describe('nowOrNextPlan', () => {
   const at = (hm: string) => new Date(`${DAY}T${hm}:00`)
   const timed = [
     task('a', { scheduledDate: DAY, startTime: '09:00', endTime: '10:00' }),
     task('b', { scheduledDate: DAY, startTime: '13:00', endTime: '14:30' }),
     task('c', { scheduledDate: DAY, startTime: '15:00', endTime: '16:00' }),
   ]
+  const pick = (hm: string, over: Partial<Parameters<typeof nowOrNextPlan>[0]> = {}) =>
+    nowOrNextPlan({ timed, tasks: [], events: [], dateKey: DAY, ...over }, at(hm))
+  const google = (id: string, startTime: string | null, endTime: string | null, over: Partial<CalendarEvent> = {}): CalendarEvent => ({
+    id,
+    summary: id,
+    start: '',
+    end: '',
+    startTime,
+    endTime,
+    date: DAY,
+    isAllDay: false,
+    ...over,
+  })
 
   it('picks the plan that has started and not ended', () => {
-    expect(nowOrNextTask(timed, at('13:30'))).toMatchObject({ task: { id: 'b' }, kind: 'now' })
+    expect(pick('13:30')).toMatchObject({ source: 'task', task: { id: 'b' }, kind: 'now' })
   })
 
   it('otherwise picks the next plan', () => {
-    expect(nowOrNextTask(timed, at('10:00'))).toMatchObject({ task: { id: 'b' }, kind: 'next' })
-    expect(nowOrNextTask(timed, at('14:30'))).toMatchObject({ task: { id: 'c' }, kind: 'next' })
+    expect(pick('10:00')).toMatchObject({ task: { id: 'b' }, kind: 'next' })
+    expect(pick('14:30')).toMatchObject({ task: { id: 'c' }, kind: 'next' })
   })
 
   it('is null when every plan has ended', () => {
-    expect(nowOrNextTask(timed, at('16:00'))).toBeNull()
-    expect(nowOrNextTask([], at('08:00'))).toBeNull()
+    expect(pick('16:00')).toBeNull()
+    expect(pick('08:00', { timed: [] })).toBeNull()
+  })
+
+  it('予定（授業・バイト）も入る。今のものが先、無ければ早く始まるもの（#400）', () => {
+    const lecture = task('lecture', { kind: 'event', scheduledDate: DAY, startTime: '10:40', endTime: '12:10' })
+    const other = task('otherDay', { kind: 'event', scheduledDate: '2026-10-03', startTime: '10:00', endTime: '11:00' })
+    expect(pick('11:00', { tasks: [lecture, other] })).toMatchObject({ source: 'event', task: { id: 'lecture' }, kind: 'now' })
+    expect(pick('10:00', { tasks: [lecture, other] })).toMatchObject({ source: 'event', task: { id: 'lecture' }, kind: 'next' })
+    // 始まりが同じなら To-Do を先に
+    const sameStart = task('same', { kind: 'event', scheduledDate: DAY, startTime: '13:00', endTime: '14:00' })
+    expect(pick('12:30', { tasks: [sameStart] })).toMatchObject({ source: 'task', task: { id: 'b' } })
+    // To-Do は tasks からは拾わない（時間を決めた行は timed で渡す）
+    expect(pick('08:00', { timed: [], tasks: timed })).toBeNull()
+  })
+
+  it('時刻つきの Google の予定も入る。終日・別の日・終わったものは入らない（#400）', () => {
+    const events = [
+      google('allDay', null, null, { isAllDay: true }),
+      google('tomorrow', '08:00', '09:00', { date: '2026-10-03' }),
+      google('done', '07:00', '08:00'),
+      google('seminar', '08:30', '09:30'),
+    ]
+    expect(pick('08:00', { events })).toMatchObject({ source: 'google', event: { id: 'seminar' }, kind: 'next' })
+    expect(pick('09:15', { events })).toMatchObject({ source: 'google', event: { id: 'seminar' }, kind: 'now' })
+    // 0 時をまたぐものはその日のうちは終わらない
+    expect(pick('23:30', { timed: [], events: [google('night', '22:00', '01:00')] })).toMatchObject({ kind: 'now' })
   })
 })

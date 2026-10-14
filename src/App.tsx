@@ -1,6 +1,7 @@
 import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
 import { usePersistLocalData } from './hooks/usePersistLocalData'
+import { useGooglePush } from './hooks/useGooglePush'
 import { useNotionSync } from './hooks/useNotionSync'
 import { useCanvasSync } from './hooks/useCanvasSync'
 import { Suspense, useState, useRef } from 'react'
@@ -59,6 +60,7 @@ export default function App() {
   usePersistLocalData()
   useNotionSync()
   useCanvasSync()
+  useGooglePush()
   useAppTheme()
 
   const selectedView = useTaskStore((s) => s.selectedView)

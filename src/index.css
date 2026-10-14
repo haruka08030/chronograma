@@ -313,6 +313,12 @@ body {
   cursor: pointer;
 }
 
+/* ⌥ を押しながら予定を動かしている間（複製になる）。ブロック・列が自分で付けるカーソルより勝たせる（`dragCopy.ts`） */
+.copy-drag,
+.copy-drag * {
+  cursor: copy !important;
+}
+
 /*
  * 予定（これから）・記録・Google の予定・作成中の枠: 薄い塗り＋枠。記録と予定は列（記録は右）で見分ける。
  */

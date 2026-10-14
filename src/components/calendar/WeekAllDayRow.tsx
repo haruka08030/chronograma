@@ -23,6 +23,7 @@ import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/t
 import { toDateKey } from '../../lib/dateKey'
 import { openTaskMenu } from '../../lib/overlays'
 import { movedToDateLabel } from '../../lib/moveToast'
+import { isCopyDrop, placeCopies } from '../../lib/dragCopy'
 import { tip } from '../../lib/tooltip'
 import { ChevronDownIcon, ChevronUpIcon, FlagIcon } from '../icons'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
@@ -214,8 +215,8 @@ export function WeekAllDayRow({
                 if (gev) {
                   // 終日の Google の予定は日数を保ったまま動かす
                   const cur = googleEventTiming(gev)
-                  // 同じ日の終日の予定に戻しただけなら Google へ書き込まない
-                  if (gev.isAllDay && cur.date === key) return
+                  // 同じ日の終日の予定に戻しただけなら Google へ書き込まない。⌥ の複製はアプリの予定だけ（動かしもしない）
+                  if ((gev.isAllDay && cur.date === key) || isCopyDrop(e)) return
                   const span = cur.endDate ? differenceInCalendarDays(parseISO(cur.endDate), parseISO(cur.date)) : 0
                   void moveGoogleEvent(gev, {
                     date: key,
@@ -227,7 +228,11 @@ export function WeekAllDayRow({
                 }
                 const ids = readDraggedTaskIds(e.dataTransfer)
                 if (!ids.length) return
-                // 終日の行に落とした = その日にやる ToDo（時刻は外す。期限 dueDate は変えない）
+                // 終日の行に落とした = その日にやる ToDo（時刻は外す。期限 dueDate は変えない）。⌥ を押していたら元は残して複製を置く
+                if (isCopyDrop(e)) {
+                  placeCopies(ids, (t) => ({ scheduledDate: key, startTime: null, endTime: null, kind: planKindOf(t) }))
+                  return
+                }
                 asOneUndo(() => {
                   const label = movedToDateLabel(ids, useTaskStore.getState().tasks, key)
                   for (const id of ids) {

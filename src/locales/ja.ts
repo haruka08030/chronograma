@@ -586,16 +586,13 @@ export default {
   },
   courseTasks: {
     heading: 'この科目の課題',
-    pick: 'LMS の科目とつなぐ…',
     none: 'つながない',
     selectAria: '「{{title}}」とつなぐ科目',
     more: 'ほか {{count}} 件',
   },
   eventCard: {
+    more: 'その他の操作',
     google: 'Google カレンダー',
-    colorScope: '色を付ける範囲',
-    scopeEvent: 'この予定',
-    scopeSeries: 'すべての繰り返し',
     googleColor: 'Google の色に戻す',
     recordAndComplete: '記録して完了',
     toRecord: '記録にする',

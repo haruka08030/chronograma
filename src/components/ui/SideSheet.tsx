@@ -1,11 +1,11 @@
 import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useEscapeLayer } from '../../hooks/useHotkey'
+import { useDismiss } from '../../hooks/useDismiss'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { ChevronLeftIcon } from '../icons'
 
 /**
- * 右から出るシート（タスクの詳細・習慣の詳細）。外側タップ・Esc で閉じる。スマホは全画面で、上に戻るボタンを固定する（Google Tasks と同じ）。
+ * 右から出るシート（タスクの詳細・習慣の詳細）。背景を押す（閉じるだけで下には届けない、`useDismiss`）・Esc で閉じる。スマホは全画面で、上に戻るボタンを固定する（Google Tasks と同じ）。
  * Tab はシートの中だけを巡回し、閉じたら `returnFocus` の要素へフォーカスを戻す
  */
 export function SideSheet({
@@ -24,14 +24,15 @@ export function SideSheet({
   children: ReactNode
 }) {
   const { t } = useTranslation()
-  // Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
-  useEscapeLayer(onClose)
+  const rootRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  // 背景の押下・Esc で閉じる（上に日付ピッカーなどが開いていればそちらが先）
+  useDismiss({ open: !closing, onClose, inside: [panelRef], backdrop: rootRef })
   const trapTab = useFocusTrap(panelRef, { active: !closing, returnFocus })
 
   return (
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 背景を押して閉じるのはマウス・指の近道（キーは Esc）。onKeyDown は Tab を中に留めるため
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose} onKeyDown={trapTab} inert={closing}>
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- onKeyDown は Tab を中に留めるため
+    <div ref={rootRef} className="fixed inset-0 z-50 flex justify-end" onKeyDown={trapTab} inert={closing}>
       <div className={`absolute inset-0 bg-black/20 dark:bg-black/40 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない） */}
       <div

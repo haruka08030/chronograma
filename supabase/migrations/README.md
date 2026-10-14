@@ -41,6 +41,7 @@
 | [`035_sync_changes_since.sql`](035_sync_changes_since.sql) | 同期の 1 回の取得を 1 往復にする関数 `sync_changes_since(p_since, p_mood_since, p_limit)`（security invoker で RLS のまま、`authenticated` だけ実行できる）。1 つの文で、サーバーの時刻・版の下限・`p_since` より後に変わった `lists` / `list_sections` / `tasks` / `habits` の行（`select *` と同じ形、表ごとに `p_limit + 1` 行まで）・消えた行の印・上限で消した印があるか・4 表に本人の行があるか・設定の表（`user_settings` など 6 つ）の `updated_at`・`p_mood_since` より後に変わった `day_moods` を jsonb で返す |
 | [`036_feedback.sql`](036_feedback.sql) | お問い合わせ・フィードバック `feedback`（文面 1〜2000 文字・アプリの版・ブラウザ、`feedback_size_check`）。端末は本人の行の insert だけ（読めない・変えられない・消せない。anon は送れない）。`created_at` はサーバーの時刻、1 人 24 時間に 20 件まで（トリガー `limit_feedback`、SECURITY DEFINER。超えたら errcode `P0001`・メッセージ `feedback_rate_limited`）。アカウントの削除で消える |
 | [`037_task_carried_days.sql`](037_task_carried_days.sql) | To-Do の続けて持ち越した日数 `tasks.carried_days`（既定 0、0〜3650 `tasks_carried_days_range`）。今日・前の日に置いて終わっていない To-Do を後ろの日へ回した日数の合計で、完了・実行日を外す・いつか / チェックリストへ移すと 0（数えるのはアプリ）。今日の計画の行の「3日目」と週のふりかえりの「持ち越しが多いタスク」 |
+| [`038_realtime_sync_wake.sql`](038_realtime_sync_wake.sql) | 同期する表（`lists` / `list_sections` / `tasks` / `habits` / `sync_tombstones`・設定の表 6 つ・`day_moods`）を Realtime の publication `supabase_realtime` に入れる（無ければ作る）。端末は本人の行（`user_id=eq.<自分>`）の INSERT / UPDATE の通知を同期を起こす合図にだけ使う。DELETE の通知は RLS が効かないので購読せず、消えた行は `sync_tombstones` の通知で知る |
 
 テーブル（最新の形）:
 

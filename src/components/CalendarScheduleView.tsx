@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { useTranslation } from 'react-i18next'
 import { addDays, format } from 'date-fns'
@@ -14,6 +14,7 @@ import { CalendarCards } from './calendar/CalendarCards'
 import { EmptyState } from './ui/EmptyState'
 import { CalendarIcon } from './icons'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { useRememberScroll } from '../hooks/useRememberScroll'
 import { colorVars } from '../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { timeToMinutes } from '../lib/timeGrid'
@@ -44,6 +45,8 @@ function byTime(a: { startTime?: string | null }, b: { startTime?: string | null
  */
 export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey: string; onOpenDay: (dateKey: string) => void }) {
   const { t, i18n } = useTranslation()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useRememberScroll(scrollRef, `schedule:${startDateKey}`)
   const df = useDateFormat()
   const holidayName = useHolidayName()
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
@@ -83,7 +86,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
   }, [days, allDayByDate, timedByDate, eventsByDate, holidayName])
 
   return (
-    <div className={PAGE_SCROLL_CLASS}>
+    <div ref={scrollRef} className={PAGE_SCROLL_CLASS}>
       <div className="mx-auto w-full max-w-2xl px-2 pb-6 pt-2 sm:px-4">
         {rows.length === 0 ? (
           <EmptyState icon={<CalendarIcon strokeWidth={1} />} title={t('calendarHub.scheduleEmpty')} />

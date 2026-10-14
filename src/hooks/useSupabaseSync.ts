@@ -66,10 +66,15 @@ import { createDayMoodPullState, dayMoodSince, runDayMoodSync } from '../lib/day
 import { hasExistingData } from '../lib/onboarding'
 import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
 import { storeActiveTimerIo } from './activeTimerIo'
+import { isKnownChange, subscribeSyncWake, type WakeEvent } from '../lib/syncWake'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
 const POLL_MS = 60_000
+/** 変更の通知を購読できている間の取り込みの間隔（通知の取りこぼしの安全網、#410） */
+const WAKE_POLL_MS = 5 * 60_000
+/** 通知が続けて届いたら（1 回の送信で何行も変わる）まとめて 1 回だけ確かめる */
+const WAKE_DEBOUNCE_MS = 500
 /**
  * 同期で手元のタスクが減るときの控え（`beforeSync`）を取る間隔。控えは全データの文字列化と全部の控えの読み込みになるので、
  * ほかの端末で 1 件消すたびには取らない（#257）
@@ -86,6 +91,7 @@ const SETTING_TABLE: Record<SettingKey, SettingTable> = {
   courses: 'user_course_links',
   timetable: 'user_timetable',
 }
+const SETTING_KEY_OF = Object.fromEntries(Object.entries(SETTING_TABLE).map(([k, t]) => [t, k])) as Record<SettingTable, SettingKey>
 
 /**
  * どれかのタブがこの人の同期を最後に終えた時刻（localStorage、タブで共有）。1 分ごとの取得は、ほかのタブがその間に取っていれば飛ばす
@@ -798,13 +804,61 @@ export function useSupabaseSync() {
       retryMs = 0
       void sync()
     }
+    /*
+     * 他の端末の変更の通知（#410）。届いたら少し待ってまとめ、この端末がもう知っている変更（自分が送った行のこだま・取得済みの行）
+     * だけなら回さない。同期中に届いた分は、同期が終わってから確かめる（送った行の版は送り終えてから前回の内容に入る）。
+     * 購読はタブが見えている間だけ（隠れたら外す。戻ったときは onVisible が差分で取る）
+     */
+    let wakeLive = false
+    let stopWake: (() => void) | null = null
+    let wakeQueue: WakeEvent[] = []
+    let wakeTimer: ReturnType<typeof setTimeout> | undefined
+    const checkWake = () => {
+      if (cancelled) return
+      if (running) {
+        wakeTimer = setTimeout(checkWake, WAKE_DEBOUNCE_MS)
+        return
+      }
+      const events = wakeQueue
+      wakeQueue = []
+      const moods = useTaskStore.getState().dayMoods
+      const ctx = {
+        mirror: pull.mirror,
+        settingSyncedAt: (table: SettingTable) => loadSettingSyncedAt(userId, SETTING_KEY_OF[table]),
+        moodSyncedAt: (day: string) => moods[day]?.syncedAt ?? null,
+      }
+      if (events.some((e) => !isKnownChange(e, ctx))) void sync()
+    }
+    const startWake = () => {
+      if (stopWake || document.visibilityState !== 'visible') return
+      stopWake = subscribeSyncWake(supabase, userId, {
+        onChange: (e) => {
+          wakeQueue.push(e)
+          clearTimeout(wakeTimer)
+          wakeTimer = setTimeout(checkWake, WAKE_DEBOUNCE_MS)
+        },
+        onStatus: (live) => {
+          wakeLive = live
+        },
+      })
+    }
+    const endWake = () => {
+      stopWake?.()
+      stopWake = null
+    }
+    const onVisibilityWake = () => (document.visibilityState === 'visible' ? startWake() : endWake())
+    startWake()
+
     document.addEventListener('visibilitychange', onVisible)
+    document.addEventListener('visibilitychange', onVisibilityWake)
     window.addEventListener('focus', onVisible)
     window.addEventListener('online', onOnline)
-    // 1 分ごとの取得は、ほかのタブがこの 1 分の間に取っていれば飛ばす（2 タブ開いても 1 分に 1 本）
+    // 1 分ごとの取得は、ほかのタブがこの 1 分の間に取っていれば飛ばす（2 タブ開いても 1 分に 1 本）。
+    // 通知を購読できている間は 5 分ごと（通知の取りこぼしの安全網）
     const poll = setInterval(() => {
       if (document.visibilityState !== 'visible') return
-      if (Date.now() - lastSyncedByAnyTab(userId) < POLL_MS - RECENT_SYNC_MS) return
+      const every = wakeLive ? WAKE_POLL_MS : POLL_MS
+      if (Date.now() - lastSyncedByAnyTab(userId) < every - RECENT_SYNC_MS) return
       void sync()
     }, POLL_MS)
 
@@ -813,8 +867,11 @@ export function useSupabaseSync() {
       cancelled = true
       clearTimeout(debounce)
       clearTimeout(retry)
+      clearTimeout(wakeTimer)
       clearInterval(poll)
+      endWake()
       document.removeEventListener('visibilitychange', onVisible)
+      document.removeEventListener('visibilitychange', onVisibilityWake)
       window.removeEventListener('focus', onVisible)
       window.removeEventListener('online', onOnline)
       unsub()

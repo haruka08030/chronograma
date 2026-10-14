@@ -6,13 +6,14 @@ import { planTiming } from '../../lib/planTiming'
 import { colorVars, labelForHex, recordHex } from '../../lib/logCategoryColors'
 import { CourseAssignments } from './CourseAssignments'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { anchoredCardStyle, memoHeightEstimate, type AnchorRect } from './anchoredCard'
+import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
 import { anchoredCardClass } from '../ui/surface'
 import { startTimerForTask } from '../../lib/timerDrop'
-import { CloseIcon, PencilIcon, TrashIcon } from '../icons'
+import { CloseIcon, EllipsisVerticalIcon, PencilIcon, TrashIcon } from '../icons'
+import { openTaskMenu } from '../../lib/overlays'
 import { CardActions } from './CardActions'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { shortcutTip, tip } from '../../lib/tooltip'
@@ -52,7 +53,7 @@ export function EventPopover({
 }) {
   const task = useTaskStore((s) => s.tasks.find((x) => x.id === taskId) ?? null)
   const ref = useRef<HTMLDivElement>(null)
-  const layer = useDismiss({ open: true, onClose, inside: [ref] })
+  const layer = useDismiss({ open: true, onClose, inside: [ref], swallow: isAnchoredSheet })
 
   // カードが一番上のときだけ（上に色の一覧などが重なっていれば効かない）
   useHotkey(SHORTCUTS.edit.hotkeys, () => onOpenDetail(taskId), { scope: layer })
@@ -162,6 +163,21 @@ function EventPopoverBody({
         >
           <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
+        {/* ⋮: 右クリックと同じメニュー（複製など）。Google カレンダーのカードと同じ位置。メニューを出したらカードは閉じる */}
+        <button
+          type="button"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            openTaskMenu({ kind: 'event', x: r.left, y: r.bottom, taskId: task.id })
+            onClose()
+          }}
+          className={iconButtonClass()}
+          aria-label={t('eventCard.more')}
+          aria-haspopup="menu"
+          {...tip(t('eventCard.more'))}
+        >
+          <EllipsisVerticalIcon className="h-4 w-4" strokeWidth={2.25} />
+        </button>
         <button
           type="button"
           onClick={onClose}
@@ -251,11 +267,14 @@ function EventPopoverBody({
         )}
       </div>
 
-      {/* 記録は色＝分類、予定は色だけ（既定はリストの色）。毎週の予定は、時刻・色を直す範囲をここで選ぶ */}
-      <div className="space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
-        <SeriesScopeField task={task} />
-        <ColorLabelPicker task={task} compact label={t('labels.pickerAria')} plan={!isLog} />
-      </div>
+      {/* 記録は色＝分類なのでカードで選ぶ。予定の色は ⋮・右クリックの「ラベル」で（カードに出しっぱなしにしない）。
+          毎週の予定は、時刻を直す範囲をここで選ぶ */}
+      {(isLog || task.series) && (
+        <div className="space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+          <SeriesScopeField task={task} />
+          {isLog && <ColorLabelPicker task={task} compact label={t('labels.pickerAria')} />}
+        </div>
+      )}
 
       {/* 授業の予定（時刻のある予定）: その科目の未完了の課題（#309） */}
       {isEvent && task.startTime && (

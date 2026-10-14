@@ -18,6 +18,7 @@ import { formatDuration } from '../lib/timeGrid'
 import { isImeKeyEvent, isTypingTarget } from '../lib/keyboard'
 import { TIME_SLOT_MENU_WIDTH } from '../lib/timeSlotTarget'
 import { useExitGhost } from '../hooks/useExitGhost'
+import { SheetBackdrop } from './ui/SheetBackdrop'
 
 /** 長さの選択肢。見積もり・設定の既定の長さが無ければ足す */
 const DURATIONS = [30, 60, 120]
@@ -68,10 +69,9 @@ export function TimeSlotMenu({
   const [end, setEnd] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
   const panelExit = useExitGhost(panelRef)
-  const backdropExit = useExitGhost()
   const [pos, setPos] = useState({ left: x, top: y })
 
-  useDismiss({ open: true, onClose, inside: [panelRef] })
+  useDismiss({ open: true, onClose, inside: [panelRef], swallow: sheet })
 
   // 閉じたら、開いたときのフォーカス（S で開いた一覧の箱・押したボタン）へ戻す。中で別の所へ移したあと（クリックで他を押した）は動かさない
   const [returnFocus] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null))
@@ -177,7 +177,7 @@ export function TimeSlotMenu({
 
   return createPortal(
     <>
-      {sheet && <div ref={backdropExit} className="fixed inset-0 z-[59] animate-fade-in bg-black/30" aria-hidden onClick={onClose} />}
+      {sheet && <SheetBackdrop />}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- 中の候補・長さのボタンの矢印キーをまとめて受ける */}
       <div
         ref={panelExit}
