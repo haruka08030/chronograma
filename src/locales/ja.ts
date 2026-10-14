@@ -515,6 +515,8 @@ export default {
     moveToWish: 'やりたいへ移す',
     nextStep: '次の一歩: {{title}}',
     stepUndated: '未定',
+    seeAllDreams: 'すべて見る',
+    collapseDreams: '閉じる',
     stepOfDreamAria: '夢「{{title}}」の一歩',
     stepProgressAria: '済んだ一歩 {{progress}}',
     addPlaceholder: 'いつかやりたいことを追加',
