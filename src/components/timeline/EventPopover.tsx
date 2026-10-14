@@ -267,11 +267,14 @@ function EventPopoverBody({
         )}
       </div>
 
-      {/* 記録は色＝分類、予定は色だけ（既定はリストの色）。毎週の予定は、時刻・色を直す範囲をここで選ぶ */}
-      <div className="space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
-        <SeriesScopeField task={task} />
-        <ColorLabelPicker task={task} compact label={t('labels.pickerAria')} plan={!isLog} />
-      </div>
+      {/* 記録は色＝分類なのでカードで選ぶ。予定の色は ⋮・右クリックの「ラベル」で（カードに出しっぱなしにしない）。
+          毎週の予定は、時刻を直す範囲をここで選ぶ */}
+      {(isLog || task.series) && (
+        <div className="space-y-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+          <SeriesScopeField task={task} />
+          {isLog && <ColorLabelPicker task={task} compact label={t('labels.pickerAria')} />}
+        </div>
+      )}
 
       {/* 授業の予定（時刻のある予定）: その科目の未完了の課題（#309） */}
       {isEvent && task.startTime && (
