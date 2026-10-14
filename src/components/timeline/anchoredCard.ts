@@ -20,10 +20,13 @@ const MARGIN = 12
  * Google カレンダーのように、ブロックの横（右に入らなければ左）にカードを出す位置。
  * 狭い画面（スマホ）では下からのシートにする。
  */
+/** スマホ幅ではカードを下からのシートにする */
+export const isAnchoredSheet = () => window.innerWidth < 640
+
 export function anchoredCardStyle(anchor: AnchorRect, width: number, estHeight: number): { style: CSSProperties; sheet: boolean } {
   const vw = window.innerWidth
   const vh = window.innerHeight
-  if (vw < 640) {
+  if (isAnchoredSheet()) {
     return { style: { left: 0, right: 0, bottom: 0 }, sheet: true }
   }
   let left = anchor.right + GAP

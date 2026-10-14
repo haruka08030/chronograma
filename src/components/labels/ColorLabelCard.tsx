@@ -8,7 +8,7 @@ import { colorLabelEditRows } from '../../lib/todoColorLabels'
 import { tip } from '../../lib/tooltip'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useTextEntry } from '../../hooks/useTextEntry'
-import { anchoredCardStyle, type AnchorRect } from '../timeline/anchoredCard'
+import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from '../timeline/anchoredCard'
 import { anchoredCardClass } from '../ui/surface'
 import { ColorSwatches } from '../ui/ColorSwatches'
 import { iconButtonClass } from '../ui/iconButtonClass'
@@ -55,7 +55,7 @@ export function ColorLabelCard({ hex, anchor, onClose }: { hex: string; anchor: 
     onClose()
   }
 
-  useDismiss({ open: true, onClose: save, onEscape: onClose, inside: [ref] })
+  useDismiss({ open: true, onClose: save, onEscape: onClose, inside: [ref], swallow: isAnchoredSheet })
   const entry = useTextEntry({ onSubmit: save, onCancel: onClose, commitOnBlur: false })
 
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, current ? 230 : 190)

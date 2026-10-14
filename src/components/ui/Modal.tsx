@@ -1,6 +1,7 @@
 import { useRef, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { dispatchHotkey, useEscapeLayer, useHotkey } from '../../hooks/useHotkey'
+import { dispatchHotkey, useHotkey } from '../../hooks/useHotkey'
+import { useDismiss } from '../../hooks/useDismiss'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { FLOATING_SURFACE } from './surface'
 import { isCancelEscape } from '../../lib/keyboard'
@@ -8,7 +9,7 @@ import { useExitGhost } from '../../hooks/useExitGhost'
 
 /**
  * 画面の中央に出すダイアログ（ラベル・色選択・完了＋記録・ショートカット一覧）。どれも同じ見た目にする。
- * - body 直下に重ね、背景を暗くする。背景を押すか Esc で閉じる（Esc は一番上の層だけ）
+ * - body 直下に重ね、背景を暗くする。背景を押す（閉じるだけで下には届けない、`useDismiss`）か Esc で閉じる（どちらも一番上の層だけ）
  * - 開いたらダイアログにフォーカスし、閉じたら元の場所に戻す。Tab / Shift+Tab はダイアログの中だけを巡回する（`useFocusTrap`）
  * - 予定カードの「外側クリックで閉じる」・1 文字ショートカットがダイアログ越しに効かないよう、
  *   キー入力はここで止め、`data-popover-keep` でカードに「内側」と知らせる。
@@ -45,8 +46,9 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   // 閉じるとき、背景は薄れて面は縮みながら消える（呼び出し側が外しても）
-  const exitRef = useExitGhost()
-  const layer = useEscapeLayer(onClose)
+  const backdropRef = useRef<HTMLDivElement>(null)
+  const exitRef = useExitGhost(backdropRef)
+  const layer = useDismiss({ open: true, onClose, inside: [ref], backdrop: backdropRef })
   useHotkey(closeKeys ?? [], onClose, { scope: layer, enabled: Boolean(closeKeys?.length) })
   const trapTab = useFocusTrap(ref, { initialFocus })
 
@@ -69,10 +71,7 @@ export function Modal({
         trapTab(e)
       }}
       onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => {
-        e.stopPropagation()
-        if (e.target === e.currentTarget) onClose()
-      }}
+      onClick={(e) => e.stopPropagation()}
     >
       <div
         ref={ref}
