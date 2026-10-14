@@ -71,6 +71,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   unscheduleHover,
   openCard,
   openGoogleCard,
+  openHabitCard,
   setCreateAnchorFromEl,
 }: {
   day: Date
@@ -118,8 +119,10 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   googleDragRef: MutableRefObject<CalendarEvent | null>
   allDayMoveKey: string | null
   unscheduleHover: boolean
-  openCard: (taskId: string) => void
-  openGoogleCard: (eventId: string) => void
+  openCard: (taskId: string, el?: Element | null) => void
+  openGoogleCard: (eventId: string, el?: Element | null) => void
+  /** 習慣の枠のカード */
+  openHabitCard: (slotId: string, el?: Element | null) => void
   setCreateAnchorFromEl: (el: HTMLDivElement | null) => void
 }) {
   const { t } = useTranslation()
@@ -306,7 +309,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
             aria-label={t('weekCalendar.movedPlanAria', { title: m.task.title, start: m.startTime, end: m.endTime, date: to })}
             title={t('weekCalendar.movedPlanAria', { title: m.task.title, start: m.startTime, end: m.endTime, date: to })}
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => openCard(m.task.id)}
+            onClick={(e) => openCard(m.task.id, e.currentTarget)}
           >
             <span className="min-w-0 truncate">{m.task.title}</span>
             <span className="shrink-0 tabular-nums">→{to}</span>
@@ -383,7 +386,9 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               }
               handleBlockPointerDown(evt, slot.id, key, slot.startTime, slot.endTime, gridRef.current)
             }}
-            onOpenDetail={() => {}}
+            // 済んだ枠は動かせないので押すとそのままカード（まだの枠はドラッグの仕組みが押したと判断して開く）
+            onTap={done ? () => openHabitCard(slot.id) : undefined}
+            onOpenDetail={() => openHabitCard(slot.id)}
             withCheck={done || hasStarted(slot.startTime)}
           />
           {(done || hasStarted(slot.startTime)) && (

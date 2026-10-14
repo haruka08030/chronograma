@@ -14,6 +14,7 @@ import { PlannerListStatus } from './PlannerListStatus'
 import { PlannerOnboarding } from './PlannerOnboarding'
 import { OnboardingNudges } from './OnboardingNudges'
 import { focusQuickAdd } from '../../lib/quickAddFocus'
+import { nowOrNextTask } from '../../lib/dayPlan'
 
 /**
  * 今日の計画の To-Do: 期限切れ → やり残し → 今日やる（時間未定 → 時間を決めた）→ 追加欄 → 一言。
@@ -23,6 +24,8 @@ export function PlannerTodoSection({
   env,
   headingClass,
   overdue,
+  overdueShown,
+  onShowAllOverdue,
   leftOver,
   showLeftOver,
   onToggleLeftOver,
@@ -36,6 +39,9 @@ export function PlannerTodoSection({
   env: PlannerRowEnv
   headingClass: string
   overdue: Task[]
+  /** 出している締切切れの行（スマホ幅は先頭の 2 行。残りは「他 N 件」で開く） */
+  overdueShown: Task[]
+  onShowAllOverdue: () => void
   leftOver: Task[]
   showLeftOver: boolean
   onToggleLeftOver: () => void
@@ -45,7 +51,7 @@ export function PlannerTodoSection({
   totalCount: number
   /** 行を包む listbox（`useTaskListSelection`）。↑↓ の枠を aria-activedescendant で伝える */
   listboxProps: HTMLAttributes<HTMLDivElement> & { ref: Ref<HTMLDivElement> }
-  /** 追加欄より下にある候補の行のまとまり（aria-owns でこの listbox に入れる） */
+  /** 追加欄より下にある候補・完了の行のまとまり（aria-owns でこの listbox に入れる） */
   ownedGroupIds: string[]
 }) {
   const ids = useId()
@@ -62,6 +68,8 @@ export function PlannerTodoSection({
   // 終わると持ち主（dataOwner）がこの人になる。アカウントにデータがあれば、その同期で案内は終わる
   const awaitingFirstSync = authLoading || (user !== null && dataOwner !== user.id)
   const showOnboarding = viewingToday && !onboardingDone && !awaitingFirstSync
+  // スマホは横にタイムラインが無いので、今日やる行の一番上に今・次の予定を 1 行（時間を決めた行にも残る）
+  const nowNext = viewingToday ? nowOrNextTask(timedOpen, day.now) : null
   const moveHere = (task: Task) => <MoveHereButton task={task} dateKey={dateKey} viewingToday={viewingToday} />
 
   const moveAllLeftOver = () =>
@@ -90,10 +98,31 @@ export function PlannerTodoSection({
               {t('planner.overdueHeading', { count: overdue.length })}
             </p>
             <ul role="group" aria-labelledby={`${ids}overdue`}>
-              {overdue.map((task) => (
-                <PlannerTaskRow key={task.id} task={task} env={env} action={<TimerButton task={task} />} dueMode="all" hoverActions />
+              {overdueShown.map((task) => (
+                <PlannerTaskRow
+                  key={task.id}
+                  task={task}
+                  env={env}
+                  action={
+                    <>
+                      <MoveHereButton task={task} dateKey={dateKey} viewingToday={viewingToday} collapse />
+                      <TimerButton task={task} />
+                    </>
+                  }
+                  dueMode="all"
+                  hoverActions
+                />
               ))}
             </ul>
+            {overdueShown.length < overdue.length && (
+              <button
+                type="button"
+                onClick={onShowAllOverdue}
+                className={`ml-11 ${buttonClass({ variant: 'link', size: 'xs' }, 'pointer-coarse:min-h-9')}`}
+              >
+                {t('planner.moreOverdue', { count: overdue.length - overdueShown.length })}
+              </button>
+            )}
           </div>
         )}
 
@@ -138,6 +167,17 @@ export function PlannerTodoSection({
             <p aria-hidden className="mt-3 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">
               {viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
             </p>
+          )}
+          {nowNext && (
+            // 下の時間を決めた行と同じタスクなので、キー操作・選択の対象には入れない（PC は横のタイムラインにある）
+            <ul data-now-next={nowNext.kind} className="md:hidden" role="group" aria-label={t('planner.nowNextAria')}>
+              <PlannerTaskRow
+                task={nowNext.task}
+                env={{ ...env, rowIds: [] }}
+                lead={t(nowNext.kind === 'now' ? 'planner.nowRow' : 'planner.nextRow')}
+                dueMode="urgent"
+              />
+            </ul>
           )}
           <ul role="group" aria-label={viewingToday ? t('planner.doToday') : t('planner.doThisDay')}>
             {untimedOpen.map((task) => (

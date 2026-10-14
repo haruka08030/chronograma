@@ -1,11 +1,13 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { requestPermission } from '../../lib/notifications'
 import { buttonClass } from '../ui/buttonClass'
+import { ChevronDownIcon } from '../icons'
 import { useOnboardingNudge } from '../../hooks/useOnboardingNudge'
 import { DayMoodPicker } from './DayMood'
+import { UntaggedLogList } from '../UntaggedLogList'
 
 /** 1 日を締める操作。文に混ぜず、メッセージの下に並べる（スマホでも押しやすい高さ） */
 const wrapUpButton = buttonClass({ variant: 'secondary', size: 'sm' }, 'min-h-9 md:min-h-8')
@@ -24,7 +26,6 @@ export function PlannerWrapUp({
   untaggedLogs,
   totalCount,
   tomorrowKey,
-  openDetail,
 }: {
   showWrapUp: boolean
   /** 気分の記号の行を出すか（今日の締めの時刻から。残りが無い日も出す） */
@@ -37,7 +38,8 @@ export function PlannerWrapUp({
   untaggedLogs: Task[]
   totalCount: number
   tomorrowKey: string
-  openDetail: (id: string) => void
+  /** 旧 API 互換。ラベルなしの記録はその場の行で付ける */
+  openDetail?: (id: string) => void
 }) {
   const { t } = useTranslation()
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
@@ -62,6 +64,10 @@ export function PlannerWrapUp({
     'Notification' in window &&
     Notification.permission !== 'denied'
 
+  // 開いたときのラベルなしの記録（付けても行は残し、押し間違いを直せる）。閉じていれば null
+  const [untaggedOpen, setUntaggedOpen] = useState<string[] | null>(null)
+  const showUntagged = untaggedLogs.length > 0 || untaggedOpen !== null
+
   const footerRef = useRef<HTMLElement>(null)
   useEffect(() => {
     if (focusKey > 0) footerRef.current?.scrollIntoView?.({ block: 'end' })
@@ -75,7 +81,7 @@ export function PlannerWrapUp({
 
   return (
     <footer ref={footerRef} data-wrap-up className="mt-auto space-y-2 px-6 pb-6 pt-8 text-sm">
-      {showWrapUp && (open.length > 0 || untaggedLogs.length > 0) && (
+      {showWrapUp && (open.length > 0 || showUntagged) && (
         <div className="space-y-2">
           {open.length > 0 && <p className="text-zinc-600 dark:text-zinc-300">{t('planner.wrapUpRemaining', { count: open.length })}</p>}
           <div className="flex flex-wrap gap-2">
@@ -86,6 +92,7 @@ export function PlannerWrapUp({
                   rescheduleTasks(
                     open.map((x) => x.id),
                     tomorrowKey,
+                    t('undo.tasksMovedToTomorrow', { count: open.length }),
                   )
                 }
                 className={wrapUpButton}
@@ -93,15 +100,22 @@ export function PlannerWrapUp({
                 {t('planner.moveRestToTomorrow')}
               </button>
             )}
-            {untaggedLogs.length > 0 && (
-              <button type="button" onClick={() => openDetail(untaggedLogs[0]!.id)} className={wrapUpButton}>
+            {showUntagged && (
+              <button
+                type="button"
+                aria-expanded={untaggedOpen !== null}
+                onClick={() => setUntaggedOpen((v) => (v ? null : untaggedLogs.map((x) => x.id)))}
+                className={wrapUpButton}
+              >
                 {t('planner.categorizeLogs', { count: untaggedLogs.length })}
+                <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${untaggedOpen ? 'rotate-180' : ''}`} />
               </button>
             )}
           </div>
+          {untaggedOpen && <UntaggedLogList ids={untaggedOpen} />}
         </div>
       )}
-      {showWrapUp && focusKey > 0 && open.length === 0 && untaggedLogs.length === 0 && (
+      {showWrapUp && focusKey > 0 && open.length === 0 && !showUntagged && (
         <p className="text-zinc-600 dark:text-zinc-300">{t('planner.wrapUpAllSet')}</p>
       )}
       {showMood && <DayMoodPicker dateKey={dateKey} />}

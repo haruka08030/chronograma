@@ -125,7 +125,25 @@ describe('reconcileCanvasItems', () => {
     expect(r.tasks[0]!.title).toBe('自分用のメモ')
   })
 
-  it('completes a task once it is submitted in Canvas, and reports it as automatic', () => {
+  it('keeps an assignment that is only submitted (saved progress, drafts) open and reports it as submitted (#395)', () => {
+    const r = reconcile([], [item('1', { submitted: true }), item('2')])
+    const id = canvasTaskId(CONN, 'assignment', '1')
+    expect(r.tasks.map((t) => [t.id, t.completed])).toEqual([
+      [id, false],
+      [canvasTaskId(CONN, 'assignment', '2'), false],
+    ])
+    expect(r.submittedIds).toEqual([id])
+    expect(r.autoCompletedIds).toEqual([])
+  })
+
+  it('still reports a submitted assignment the user already completed, so it is not asked again', () => {
+    const tasks = imported([item('1')]).map((t) => ({ ...t, completed: true, completedAt: NOW }))
+    const r = reconcile(tasks, [item('1', { submitted: true })])
+    expect(r.submittedIds).toEqual([canvasTaskId(CONN, 'assignment', '1')])
+    expect(r.changed).toBe(false)
+  })
+
+  it('completes a task once it is done (graded, excused or marked complete) in Canvas, and reports it as automatic', () => {
     const tasks = imported([item('1')])
     const r = reconcile(tasks, [item('1', { done: true })])
     expect(r.tasks[0].completed).toBe(true)

@@ -71,3 +71,47 @@ describe('TaskContextMenu のラベル', () => {
     expect(task(b).color).toBe('#D50000')
   })
 })
+
+describe('TaskContextMenu の複製', () => {
+  it('1 件を複製すると写したものの詳細を開き、複数なら全部写す', async () => {
+    const user = userEvent.setup()
+    const { a, b } = seed()
+    let opened = ''
+    const { unmount } = render(<TaskContextMenu x={10} y={10} taskIds={[a]} onClose={() => {}} onOpenDetail={(id) => (opened = id)} />)
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }))
+    expect(opened).not.toBe(a)
+    expect(task(opened).title).toBe('A')
+    unmount()
+
+    const before = useTaskStore.getState().tasks.length
+    renderMenu([a, b])
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }))
+    expect(useTaskStore.getState().tasks.length).toBe(before + 2)
+  })
+})
+
+describe('TaskContextMenu（PC の右クリック）の並び（#379）', () => {
+  it('1 件なら指のシートと同じく「時間を決める」「記録開始」を先頭に出し、その下に実行日・締切', () => {
+    const { a } = seed()
+    renderMenu([a])
+    const names = screen.getAllByRole('menuitem').map((el) => el.textContent ?? '')
+    const at = (re: RegExp) => names.findIndex((n) => re.test(n))
+    expect(at(/^Set a time/)).toBe(0)
+    expect(at(/^Start logging this task/)).toBeGreaterThan(at(/^Set a time/))
+    expect(at(/^Do date/)).toBeGreaterThan(at(/^Start logging this task/))
+    expect(at(/^Due/)).toBeGreaterThan(at(/^Do date/))
+  })
+
+  it('時刻の決まったタスク・複数選択には出さない', () => {
+    const { a, b } = seed()
+    useTaskStore.getState().updateTask(a, { scheduledDate: '2026-10-13', startTime: '10:00', endTime: '11:00' })
+    const { unmount } = renderMenu([a])
+    expect(screen.queryByRole('menuitem', { name: /^Set a time/ })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: /^Start logging this task/ })).toBeInTheDocument()
+    unmount()
+
+    renderMenu([a, b])
+    expect(screen.queryByRole('menuitem', { name: /^Set a time/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /^Start logging this task/ })).toBeNull()
+  })
+})

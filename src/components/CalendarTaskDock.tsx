@@ -1,60 +1,63 @@
-import { sortModeOf } from '../lib/todoSurfaceView'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import { getFilteredRootTasks } from '../lib/mainListTasks'
 import { unplannedListIds } from '../lib/listKind'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { compareByOrder } from '../lib/orderCompare'
-
-const UNSCHEDULED = '__unscheduled__'
+import { colorLabelText, NO_LABEL, todoColorLabels } from '../lib/todoColorLabels'
 import { TaskItem } from './TaskItem'
-import { displayListName } from '../lib/displayListName'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { EmptyState } from './ui/EmptyState'
 import { CheckCircleIcon } from './icons'
-import { sectionLabelClass } from './ui/sectionLabelClass'
-import { fieldClass } from './ui/fieldClass'
+import { chipClass } from './ui/chipClass'
+import { ColorDot } from './ui/FilterChips'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { META_TEXT } from './ui/textClass'
 import { isLogTask } from '../types/task'
+import { colorVars } from '../lib/logCategoryColors'
+import { NEUTRAL_HEX } from '../lib/googleColors'
 
+/**
+ * カレンダーの「時間未定のタスク」: 時刻の無い To-Do（全部。いつか・チェックリストは入れない）を締切の近い順に。
+ * To-Do ナビと同じラベル（色）で絞る（To-Do はリストで分けずラベルで分ける）
+ */
 export function CalendarTaskDock() {
   const { t } = useTranslation()
-  // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
-  const sortByKey = useTaskStore((s) => s.sortByKey)
-  const filterTag = useTaskStore((s) => s.filterTag)
-  const sections = useTaskStore((s) => s.sections)
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const categoryColors = useTaskStore((s) => s.logCategoryColors)
 
-  // 既定は「時間が未定のタスク」（全リスト横断）。カレンダーに置く候補を探す場所なので 1 リストに絞らない
-  const [dockListId, setDockListId] = useState<string>(UNSCHEDULED)
+  /** 絞っているラベルの色（`NO_LABEL` はラベルなし、null はすべて） */
+  const [color, setColor] = useState<string | null>(null)
   const openDetail = openTaskDetail
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const bulk = useBulkTaskActions()
 
-  const sortedLists = useMemo(() => [...lists].sort(compareByOrder), [lists])
-
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
+  const unscheduled = useMemo(
+    () =>
+      tasks
+        .filter((t) => !t.parentId && isActiveTask(t) && !excludedListIds.has(t.listId) && !(t.startTime && t.endTime))
+        .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || compareByOrder(a, b)),
+    [tasks, excludedListIds],
+  )
+  // ここにあるタスクの色だけ（To-Do ナビと同じ並び・名前）。選んでいる色は 0 件になっても残す
+  const labels = useMemo(
+    () => todoColorLabels(unscheduled, excludedListIds, presets, categoryColors, false, color === NO_LABEL ? null : color),
+    [unscheduled, excludedListIds, presets, categoryColors, color],
+  )
+  const hasUnlabeled = unscheduled.some((t) => !t.color && !t.completed && !isLogTask(t))
   const filtered = useMemo(
     () =>
-      dockListId === UNSCHEDULED
-        ? tasks
-            .filter((t) => !t.parentId && isActiveTask(t) && !excludedListIds.has(t.listId) && !(t.startTime && t.endTime))
-            .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || compareByOrder(a, b))
-        : getFilteredRootTasks({
-            tasks,
-            selectedView: null,
-            selectedListId: dockListId,
-            // そのリストを To‑Do で開いたときと同じ並び順
-            sortMode: sortModeOf(sortByKey, dockListId),
-            filterTag,
-            sections,
-          }),
-    [tasks, dockListId, sortByKey, filterTag, sections, excludedListIds],
+      color === null
+        ? unscheduled
+        : color === NO_LABEL
+          ? unscheduled.filter((t) => !t.color)
+          : unscheduled.filter((t) => t.color?.toUpperCase() === color),
+    [unscheduled, color],
   )
 
   const active = useMemo(() => filtered.filter((t) => !t.completed && !isLogTask(t)), [filtered])
@@ -77,7 +80,7 @@ export function CalendarTaskDock() {
     removeRows: deleteTasks,
     completeRows: bulk.toggleComplete,
     openMenu: (m) => openTaskMenu({ kind: 'task', ...m, onDone: () => clearSelectedRef.current() }),
-    resetOn: [dockListId],
+    resetOn: [color],
   })
   useEffect(() => {
     clearSelectedRef.current = clearSelected
@@ -92,26 +95,48 @@ export function CalendarTaskDock() {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50/80 dark:bg-zinc-900/80">
-        <div className="flex flex-shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-          <label htmlFor="calendar-dock-list" className={sectionLabelClass('field', 'shrink-0')}>
-            {t('calendarDock.listHeading')}
-          </label>
-          <select
-            id="calendar-dock-list"
-            value={dockListId}
-            onChange={(e) => setDockListId(e.target.value)}
-            className={fieldClass({ size: 'sm' }, 'min-w-0 flex-1')}
+        {/* ラベルが 1 つも無ければ絞るものが無いので出さない */}
+        {labels.length > 0 && (
+          <div
+            role="group"
+            aria-label={t('calendarDock.labelFilter')}
+            className="flex flex-shrink-0 flex-wrap items-center gap-1.5 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800"
           >
-            <option value={UNSCHEDULED}>{t('calendarDock.unscheduled')}</option>
-            {sortedLists
-              .filter((l) => !excludedListIds.has(l.id))
-              .map((l) => (
-                <option key={l.id} value={l.id}>
-                  {displayListName(l.id, l.name)}
-                </option>
-              ))}
-          </select>
-        </div>
+            <button
+              type="button"
+              aria-pressed={color === null}
+              onClick={() => setColor(null)}
+              className={chipClass({ variant: 'outline', size: 'sm', selected: color === null })}
+              style={colorVars(NEUTRAL_HEX)}
+            >
+              {t('sidebar.views.all')}
+            </button>
+            {labels.map((l) => (
+              <button
+                key={l.hex}
+                type="button"
+                aria-pressed={color === l.hex}
+                onClick={() => setColor(color === l.hex ? null : l.hex)}
+                className={chipClass({ variant: 'outline', size: 'sm', selected: color === l.hex })}
+                style={colorVars(l.hex)}
+              >
+                <ColorDot hex={l.hex} />
+                {colorLabelText(l.hex, presets, categoryColors, t)}
+              </button>
+            ))}
+            {(hasUnlabeled || color === NO_LABEL) && (
+              <button
+                type="button"
+                aria-pressed={color === NO_LABEL}
+                onClick={() => setColor(color === NO_LABEL ? null : NO_LABEL)}
+                className={chipClass({ variant: 'outline', size: 'sm', selected: color === NO_LABEL })}
+                style={colorVars(NEUTRAL_HEX)}
+              >
+                {t('labels.none')}
+              </button>
+            )}
+          </div>
+        )}
         <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
           {active.length === 0 && <EmptyState size="sm" icon={<CheckCircleIcon strokeWidth={1} />} title={t('calendarDock.empty')} />}
           {selected.size > 0 && (
@@ -126,12 +151,13 @@ export function CalendarTaskDock() {
               </button>
             </div>
           )}
-          <div {...listboxProps} aria-label={t('calendarDock.listHeading')} className="space-y-0.5 outline-none">
+          <div {...listboxProps} aria-label={t('calendarDock.unscheduled')} className="space-y-0.5 outline-none">
             {active.map((t) => (
               <TaskItem
                 key={t.id}
                 task={t}
                 hideDueDatePicker
+                showChildDue
                 onRowClick={makeRowClick(t.id)}
                 selection={makeSelection(t.id)}
                 dragGroupIds={getDragGroupIds(t.id)}

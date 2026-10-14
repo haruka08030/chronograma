@@ -12,8 +12,8 @@ import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
 import { anchoredCardClass } from '../ui/surface'
 import { startTimerForTask } from '../../lib/timerDrop'
-import { CloseIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
-import { buttonClass } from '../ui/buttonClass'
+import { CloseIcon, PencilIcon, TrashIcon } from '../icons'
+import { CardActions } from './CardActions'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { shortcutTip, tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
@@ -201,6 +201,39 @@ function EventPopoverBody({
               {tv.startTime && tv.endTime && ` · ${tv.startTime} – ${tv.endTime}`}
             </p>
           )}
+          {/* 操作は題名・時刻のすぐ下（色・課題はその下）。予定（バイト・授業）には完了を出さない */}
+          {!isLog && (
+            <CardActions
+              record={
+                canLogAsPlanned
+                  ? { label: isEvent ? t('eventCard.toRecord') : t('eventCard.recordAndComplete'), onClick: recordAndComplete }
+                  : undefined
+              }
+              complete={
+                isEvent
+                  ? undefined
+                  : {
+                      label: task.completed
+                        ? t('eventCard.markIncomplete')
+                        : canLogAsPlanned
+                          ? t('eventCard.markDoneOnly')
+                          : t('eventCard.markDone'),
+                      onClick: () => {
+                        toggleTask(task.id)
+                        onClose()
+                      },
+                    }
+              }
+              onStart={
+                !task.completed && !planEnded
+                  ? () => {
+                      if (startTimerForTask(task.id)) onClose()
+                    }
+                  : undefined
+              }
+              startDisabled={activeTimer?.taskId === task.id}
+            />
+          )}
         </div>
         {isEvent && task.series && (
           <>
@@ -231,43 +264,6 @@ function EventPopoverBody({
           labelName={labelForHex(task.color, timeLogTagPresets, logCategoryColors)}
           onOpenTask={onOpenDetail}
         />
-      )}
-
-      {!isLog && (
-        <div className="flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
-          {canLogAsPlanned && (
-            <button type="button" onClick={recordAndComplete} className={buttonClass({ variant: 'primary', size: 'sm' })}>
-              {isEvent ? t('eventCard.toRecord') : t('eventCard.recordAndComplete')}
-            </button>
-          )}
-          {/* 予定（バイト・授業）には「完了にする」を出さない（Google の予定と同じく、時間が過ぎたらグレー） */}
-          {!isEvent && (
-            <button
-              type="button"
-              onClick={() => {
-                toggleTask(task.id)
-                onClose()
-              }}
-              className={buttonClass({ variant: canLogAsPlanned ? 'secondary' : 'primary', size: 'sm' })}
-            >
-              {task.completed ? t('eventCard.markIncomplete') : canLogAsPlanned ? t('eventCard.markDoneOnly') : t('eventCard.markDone')}
-            </button>
-          )}
-          {!task.completed && !planEnded && (
-            <button
-              type="button"
-              // 記録中でも押せる（前の記録を保存して切り替える）
-              disabled={activeTimer?.taskId === task.id}
-              onClick={() => {
-                if (startTimerForTask(task.id)) onClose()
-              }}
-              className={buttonClass({ variant: 'secondary', size: 'sm' })}
-            >
-              <PlayIcon className="h-3 w-3" />
-              {t('eventCard.startLog')}
-            </button>
-          )}
-        </div>
       )}
     </div>
   )

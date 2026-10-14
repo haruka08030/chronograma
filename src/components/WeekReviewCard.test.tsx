@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { TASK_DEFAULTS } from '../lib/taskDefaults'
@@ -8,6 +8,7 @@ import { periodTargetMinutes } from '../lib/labelTargets'
 import { zonedNow } from '../lib/timeZone'
 import type { Task } from '../types/task'
 import { WeekReviewCard } from './WeekReviewCard'
+import { dispatchNav } from '../lib/shortcuts'
 import { openReviewDay } from '../lib/reviewFocus'
 import { TaskEstimateField } from './detail/TaskEstimateField'
 
@@ -268,5 +269,23 @@ describe('WeekReviewCard: 持ち越しが続いているタスク（#300）', ()
     useTaskStore.setState({ tasks: [task('one', { scheduledDate: today, carriedDays: 1 })] })
     render(<WeekReviewCard />)
     expect(screen.queryByText('Tasks that keep carrying over')).toBeNull()
+  })
+})
+
+describe('WeekReviewCard: T / J / K（#389）', () => {
+  it('K で前の月、J で戻り、今より先へは進まない。T で今月へ', () => {
+    useTaskStore.setState({ tasks: [] })
+    render(<WeekReviewCard />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Month' }))
+    act(() => dispatchNav('prev'))
+    expect(screen.getByText('Habits kept that month')).toBeInTheDocument()
+    act(() => dispatchNav('next'))
+    act(() => dispatchNav('next'))
+    expect(screen.queryByText('Habits kept that month')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeDisabled()
+    act(() => dispatchNav('prev'))
+    act(() => dispatchNav('prev'))
+    act(() => dispatchNav('today'))
+    expect(screen.queryByText('Habits kept that month')).toBeNull()
   })
 })

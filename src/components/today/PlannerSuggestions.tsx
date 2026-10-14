@@ -1,8 +1,9 @@
-import { useMemo, type RefObject } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import type { CandidateGroup } from './usePlannerSuggestions'
+import type { DueGroup } from '../../lib/dayPlan'
 import { usePlannerCandidateFilter } from './PlannerCandidateFilter'
 import { hasTaskFilter } from '../../lib/taskFilter'
 import { FilterNoMatch } from '../ui/FilterChips'
@@ -18,6 +19,8 @@ import { useAppTodayKey } from '../../hooks/useAppClock'
 import { formatDuration } from '../../lib/timeGrid'
 import { tip } from '../../lib/tooltip'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { ShowMoreButton } from '../ui/ShowMoreButton'
+import { shortDate } from '../../lib/moveToast'
 
 /**
  * 今日の計画の候補（締切間近・その先・日付なし）。畳んだ 1 行で、開くと締切の日ごとのまとまり。
@@ -28,10 +31,11 @@ export function PlannerSuggestions({
   addAllTargets,
   pool,
   candidateGroups,
+  dueGroups,
   open,
   onToggle,
-  hasMoreToShow,
-  moreSentinelRef,
+  remaining,
+  onShowMore,
   groupId,
 }: {
   env: PlannerRowEnv
@@ -43,10 +47,13 @@ export function PlannerSuggestions({
   /** 絞り込む前の候補すべて（メニューに出すリスト・ラベル・タグ） */
   pool: Task[]
   candidateGroups: CandidateGroup[]
+  /** 締切順で分けたまとまり（並び順に関係なく「入りきらない」を数える） */
+  dueGroups: DueGroup[]
   open: boolean
   onToggle: () => void
-  hasMoreToShow: boolean
-  moreSentinelRef: RefObject<HTMLDivElement | null>
+  /** まだ出していない候補の数（「さらに表示（残り N 件）」） */
+  remaining: number
+  onShowMore: () => void
   /** まとまりの id（今日の計画の listbox が aria-owns で自分の中に入れる） */
   groupId: (group: CandidateGroup) => string
 }) {
@@ -60,18 +67,26 @@ export function PlannerSuggestions({
   const filter = usePlannerCandidateFilter(pool)
   const filtered = hasTaskFilter(filter.view)
 
-  // 締切の日の見出しごとに、見積もりが締切までの空きに入りきるか（今日から先の日を見ているときだけ。#332）
+  // 締切の日ごとに、見積もりが締切までの空きに入りきるか（今日から先の日を見ているときだけ。#332）。
+  // 締切順は見出しに「入りきらない」、ほかの並び順は見出しが無いので、その締切の行の締切の文字を締切の赤にする
   const todayKey = useAppTodayKey()
   const dayGroups = useMemo(
     () =>
       dateKey >= todayKey
-        ? candidateGroups.flatMap((g) => (g.kind === 'day' && g.dueDate >= dateKey ? [{ dueDate: g.dueDate, tasks: g.tasks }] : []))
+        ? dueGroups.flatMap((g) => (g.kind === 'day' && g.dueDate >= dateKey ? [{ dueDate: g.dueDate, tasks: g.tasks }] : []))
         : [],
-    [candidateGroups, dateKey, todayKey],
+    [dueGroups, dateKey, todayKey],
   )
   const lastDue = dayGroups.at(-1)?.dueDate
   const loads = useDayLoads(lastDue ? daysBeforeDue(dateKey, lastDue) : [])
   const fits = useMemo(() => dueFits(dayGroups, dateKey, (k) => loads.get(k)?.freeMinutes ?? 0), [dayGroups, dateKey, loads])
+  /** 入りきらない締切の数字（ツールチップ・読み上げ） */
+  const fitHintOf = (dueDate: string | null) => {
+    const fit = dueDate ? fits.get(dueDate) : undefined
+    return fit?.over
+      ? t('planner.dueFitHint', { estimate: formatDuration(fit.estimateMinutes), free: formatDuration(fit.freeMinutes) })
+      : undefined
+  }
 
   /** 候補のまとまりの見出し（締切の日）。今日・明日は締切の色で焦らせる */
   const dueGroupHeading = (group: CandidateGroup): { text: string; tone: string } | null => {
@@ -104,16 +119,13 @@ export function PlannerSuggestions({
           )}
           {candidateGroups.map((group, i) => {
             const heading = dueGroupHeading(group)
-            const fit = group.kind === 'day' ? fits.get(group.dueDate) : undefined
-            const fitHint = fit?.over
-              ? t('planner.dueFitHint', { estimate: formatDuration(fit.estimateMinutes), free: formatDuration(fit.freeMinutes) })
-              : undefined
+            const fitHint = group.kind === 'day' ? fitHintOf(group.dueDate) : undefined
             return (
               <div key={group.kind === 'day' ? group.dueDate : group.kind} className={heading ? '' : 'mt-2'}>
                 {heading && (
                   <p className={`ml-11 flex items-baseline justify-between gap-2 text-xs ${i === 0 ? 'mt-2' : 'mt-4'} ${heading.tone}`}>
                     <span>{heading.text}</span>
-                    {fit?.over && (
+                    {fitHint && (
                       // 入りきらないときだけ 1 語（数字は押したとき・ホバーで）。入りきるときは何も足さない
                       <span data-due-fit="over" {...tip(fitHint)} className={`mr-3 shrink-0 ${DUE_TONE_CLASS.overdue}`}>
                         {t('planner.dueFitOver')}
@@ -130,6 +142,7 @@ export function PlannerSuggestions({
                       env={env}
                       action={<MoveHereButton task={task} dateKey={dateKey} viewingToday={viewingToday} />}
                       dueMode={group.kind === 'sorted' ? 'all' : group.kind === 'later' ? 'date' : 'none'}
+                      dueOverHint={group.kind === 'sorted' ? fitHintOf(task.dueDate) : undefined}
                     />
                   ))}
                 </ul>
@@ -140,6 +153,10 @@ export function PlannerSuggestions({
                       rescheduleTasks(
                         addAllTargets.map((x) => x.id),
                         dateKey,
+                        // やり残しの「すべて今日へ」と同じく件数と「元に戻す」
+                        viewingToday
+                          ? t('undo.tasksMovedToToday', { count: addAllTargets.length })
+                          : { key: 'undo.tasksMovedToDate', params: { count: addAllTargets.length, date: shortDate(dateKey) } },
                       )
                     }
                     className={`ml-11 mt-1 ${buttonClass({ variant: 'link', size: 'xs' })}`}
@@ -152,7 +169,7 @@ export function PlannerSuggestions({
               </div>
             )
           })}
-          {hasMoreToShow && <div ref={moreSentinelRef} aria-hidden className="h-px" />}
+          {remaining > 0 && <ShowMoreButton onClick={onShowMore} remaining={remaining} />}
         </>
       )}
     </div>

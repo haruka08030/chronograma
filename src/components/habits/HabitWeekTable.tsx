@@ -4,7 +4,7 @@ import { isHabitRestOn, type Habit } from '../../types/habit'
 import { habitLongestStreak, habitStreak, isHabitCountedOnDate } from '../../lib/habitStats'
 import { habitWeekDoneCount, habitWeekRequired, isHabitDueOnDate } from '../../lib/habitSchedule'
 import { habitDayStatus, habitMinutesOn, habitRecordFor, type HabitRecordIndex } from '../../lib/habitTiming'
-import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_PENDING } from '../../lib/habitMark'
+import { HABIT_DONE_FILL, HABIT_MISSED, HABIT_OFF_TIME_FILL, HABIT_PENDING } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
 import { TODAY_TEXT } from '../../lib/dayMarker'
 import { toDateKey } from '../../lib/dateKey'
@@ -147,6 +147,7 @@ function HabitWeekRow({
           // 予定の日（作る前の日・週の回数を満たした週の残りの日は除く）だけ輪を出し、ほかは小さな点
           const isDue = isHabitDueOnDate(h, d, habitRecords) && isHabitCountedOnDate(h, d, habitRecords)
           const isFuture = key > todayKey
+          const isPast = key < todayKey
           const record = isOffTime ? habitRecordFor(habitRecords, h, key) : null
           // 時間の目標に届いていない日の分（読み上げとツールチップだけ。マスには出さない）
           const minutes = h.goalMinutes && status === 'missed' ? habitMinutesOn(habitRecords, h, key) : 0
@@ -185,7 +186,8 @@ function HabitWeekRow({
                     : isOffTime
                       ? HABIT_OFF_TIME_FILL
                       : isDue
-                        ? `${HABIT_PENDING} group-hover/cell:bg-zinc-100 dark:group-hover/cell:bg-zinc-800 ${isFuture ? 'opacity-40' : ''}`
+                        ? // 過ぎた日でやらなかった = 灰の輪、今日 = 習慣の色の輪、これから = 薄い色の輪
+                          `${isPast ? HABIT_MISSED : HABIT_PENDING} group-hover/cell:bg-zinc-100 dark:group-hover/cell:bg-zinc-800 ${isFuture ? 'opacity-40' : ''}`
                         : 'group-hover/cell:bg-zinc-100 dark:group-hover/cell:bg-zinc-800'
                 }`}
                 style={colorVars(h.color)}

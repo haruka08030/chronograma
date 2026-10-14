@@ -12,10 +12,12 @@ import { EmptyState } from './ui/EmptyState'
 import { DayNav } from './ui/DayNav'
 import { RepeatIcon } from './icons'
 import { HabitContextMenu } from './HabitContextMenu'
+import { useHabitEditRequest } from '../lib/habitEditRequest'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { HabitComposer } from './habits/HabitComposer'
 import { HabitWeekTable } from './habits/HabitWeekTable'
+import { HabitTrend } from './habits/HabitTrend'
 import { HabitDetailSheet } from './habits/HabitDetailSheet'
 import { ArchivedHabits } from './habits/ArchivedHabits'
 import { useHabitMenu } from './habits/useHabitMenu'
@@ -25,7 +27,7 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { usePresence } from '../hooks/usePresence'
 
 /**
- * 習慣の画面: 追加（`HabitComposer`）→ 見ている週の表（`HabitWeekTable`）→ アーカイブ。
+ * 習慣の画面: 追加（`HabitComposer`）→ 見ている週の表（`HabitWeekTable`）→ 直近 4 週（`HabitTrend`）→ アーカイブ。
  * 表の名前を押すと右から詳細（`HabitDetailSheet`: 連続・達成率・月のカレンダー・編集）
  */
 export function HabitsView() {
@@ -53,6 +55,8 @@ export function HabitsView() {
     setDetail((prev) => ({ habitId, edit, seq: (prev?.seq ?? 0) + 1 }))
   }, [])
   const closeDetail = useCallback(() => setDetail(null), [])
+  // タイムラインの習慣のカード・メニューの「編集」
+  useHabitEditRequest((habitId) => openDetail(habitId, true))
   // 消した・アーカイブした習慣の詳細は閉じる。閉じたあとも右へ引っ込む動きのあいだは残す
   const detailHabit = detail ? (habits.find((h) => h.id === detail.habitId) ?? null) : null
   const sheetValue = useMemo(() => (detail && detailHabit ? { ...detail, habit: detailHabit } : null), [detail, detailHabit])
@@ -98,7 +102,7 @@ export function HabitsView() {
 
   return (
     <div className={PAGE_SCROLL_CLASS}>
-      <div className="px-4 pt-4 pb-3 md:px-6 md:pt-8 md:pb-4">
+      <div className="px-4 pt-4 pb-3 md:max-w-3xl md:px-6 md:pt-8 md:pb-4">
         <div className="flex items-end justify-between gap-3">
           <h1 className={PAGE_TITLE_CLASS}>{t('habits.title')}</h1>
           <button
@@ -114,7 +118,8 @@ export function HabitsView() {
         </div>
       </div>
 
-      <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:px-6 md:pb-8">
+      {/* PC の広い画面でも名前と丸が離れすぎないよう、幅に上限を付ける（左寄せは他の画面と同じ） */}
+      <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:max-w-3xl md:px-6 md:pb-8">
         {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} onAdded={onAdded} /> : null}
 
         {habits.length === 0 ? (
@@ -148,6 +153,10 @@ export function HabitsView() {
               addedId={addedId}
             />
           </section>
+        )}
+
+        {habits.length > 0 && (
+          <HabitTrend habits={habits} todayKey={todayKey} habitRecords={habitRecords} onOpen={(h) => openDetail(h.id)} />
         )}
 
         {archivedHabits.length > 0 && (

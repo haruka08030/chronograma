@@ -58,10 +58,11 @@ select throws_ok($$insert into public.feedback (message) values ('anon')$$, '425
 reset role;
 
 -- 1 人 24 時間に 20 件まで（A はもう 2 件。あと 18 件は通り、21 件目で断る）。24 時間より前の行は数えない
+-- 昨日の行は件数の上限と created_at の書き換え（トリガー limit_feedback）を通さずに入れる
+alter table public.feedback disable trigger limit_feedback;
 insert into public.feedback (user_id, message, created_at)
 select '00000000-0000-4000-8000-00000000000a', 'yesterday ' || g, now() - interval '25 hours' from generate_series(1, 30) g;
--- 上のトリガーは created_at をサーバーの時刻にするので、昨日の行は後から昨日に戻す
-update public.feedback set created_at = now() - interval '25 hours' where message like 'yesterday %';
+alter table public.feedback enable trigger limit_feedback;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000000a","role":"authenticated"}', true);
 set local role authenticated;
 select lives_ok(

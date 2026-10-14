@@ -6,6 +6,7 @@ import { useTaskStore } from '../store/taskStore'
 import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { sourceLinkOf } from '../lib/sourceLink'
+import { useCanvasSubmitted } from '../lib/canvasSubmitted'
 import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
@@ -16,7 +17,8 @@ import { planHex } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
-import { nextChildDue } from '../lib/childDue'
+import { ChildDueChip } from './ui/ChildDueChip'
+import { useChildDue } from '../hooks/useChildDue'
 import { recurrenceLabel } from '../lib/recurrenceLabel'
 import { startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
@@ -36,6 +38,9 @@ import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS, ROW_LIFTED_CLASS
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 import { dueDateLabel } from './ui/dueDateLabel'
+
+/** PC で題名を 1 回押してから詳細を開くまで（2 回目が来たら名前の変更） */
+const DOUBLE_CLICK_MS = 250
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
@@ -77,6 +82,7 @@ export const TaskItem = memo(function TaskItem({
   sectionLabel,
   dayKey,
   keepHandleSpace = false,
+  showChildDue = false,
 }: {
   task: Task
   onClick?: () => void
@@ -107,6 +113,8 @@ export const TaskItem = memo(function TaskItem({
   sectionLabel?: string | null
   /** つまみを出さない並びでも、つまみの幅を空けておく（並び順を変えても行の文字が横に動かないように。PC だけ） */
   keepHandleSpace?: boolean
+  /** 親の行に子のいちばん近い締切を出す（子の行が下に並ばない所だけ。To-Do 一覧では出さない） */
+  showChildDue?: boolean
 }) {
   const { t, i18n } = useTranslation()
   // 締切の言葉と色（「明日まで」「1日遅れ」）は今日で変わるので、行は memo でも日をまたいだら描き直す
@@ -190,6 +198,8 @@ export const TaskItem = memo(function TaskItem({
   const timeLog = isLogTask(task)
   // メモが URL 1 つだけ（Canvas・Notion の取り込みなど）なら、文字列ではなく「開く」アイコンにする
   const sourceLink = sourceLinkOf(task.description)
+  // Canvas で提出はしたが済んではいない課題（途中保存も）。終わったかは利用者が決める（#395）
+  const submitted = useCanvasSubmitted(task.id) && !task.completed
   const repeatText = task.recurrence ? recurrenceLabel(t, task.recurrence, task.dueDate) : null
   const notePreview = sourceLink
     ? ''
@@ -205,12 +215,7 @@ export const TaskItem = memo(function TaskItem({
   const dueText = due ? (dueOnRowDay ? (task.dueTime ?? t('common.due')) : due.text) : null
   // 完了済みタイムログの期限（= ログ開始日）は緊急度を持たないので常に控えめに
   const dueTone: DateTone | null = due ? (timeLog && task.completed ? 'past' : due.tone) : null
-  // 親の行に、まだ終わっていない子のいちばん近い締切（企業の下の ES 締切など）。親の締切のほうが先なら親の締切だけ
-  const nextChild = useTaskStore((s) => (timeLog || task.completed ? undefined : nextChildDue(s.tasks, task.id)))
-  const childDue =
-    nextChild?.dueDate && (!task.dueDate || nextChild.dueDate < task.dueDate)
-      ? dueDateLabel(nextChild.dueDate, nextChild.dueTime, t, language)
-      : null
+  const childDue = useChildDue(task, showChildDue && !timeLog)
   const scheduled = useMemo(() => {
     if (timeLog || !task.scheduledDate) return null
     const d = fromDateKey(task.scheduledDate)
@@ -243,21 +248,45 @@ export const TaskItem = memo(function TaskItem({
   const lift = !!liftListeners && !editing
   const longPress = useRowLift(task.id, !!selection && !editing && !liftListeners)
 
-  const beginTitleInteraction = useCallback(
+  const beginRename = useCallback(() => {
+    setEditValue(task.title)
+    setEditing(true)
+  }, [task.title])
+  // 題名を押したときも行と同じ（PC は詳細、指はシート。`useOpenTaskRow`）。名前の変更は PC はダブルクリックか F2、スマホは詳細から。
+  // 行に動きが無い所（詳細のサブタスク）は押すと名前の変更
+  const hasRowAction = !!onRowClick || !!onClick
+  const singleClickRef = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(singleClickRef.current), [])
+  const isCoarse = useIsCoarsePointer()
+
+  const handleTitleClick = useCallback(
     (e: React.MouseEvent) => {
+      if (!hasRowAction) {
+        e.stopPropagation()
+        beginRename()
+        return
+      }
+      // 指・キー（detail 0）・修飾キー・選択中はそのまま行へ
+      if (isCoarse || e.detail === 0 || e.shiftKey || isModKey(e) || selection?.reveal) return
+      // PC: ダブルクリックの 2 回目より先に詳細が開いて背景を押さないよう、1 回目は少し待ってから行へ
       e.stopPropagation()
-      if (e.shiftKey || isModKey(e)) {
-        onRowClick?.(e)
-        return
-      }
-      if (selection?.reveal && onRowClick) {
-        onRowClick(e)
-        return
-      }
-      setEditValue(task.title)
-      setEditing(true)
+      window.clearTimeout(singleClickRef.current)
+      if (e.detail > 1) return
+      singleClickRef.current = window.setTimeout(() => {
+        if (onRowClick) onRowClick(e)
+        else onClick?.()
+      }, DOUBLE_CLICK_MS)
     },
-    [onRowClick, selection?.reveal, task.title],
+    [hasRowAction, isCoarse, selection?.reveal, onRowClick, onClick, beginRename],
+  )
+  const handleTitleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (isCoarse || !hasRowAction || selection?.reveal) return
+      e.stopPropagation()
+      window.clearTimeout(singleClickRef.current)
+      beginRename()
+    },
+    [isCoarse, hasRowAction, selection?.reveal, beginRename],
   )
 
   /** 一覧がメニューを持っていれば任せる（選択中のまとめて操作）。無ければこの行だけのメニューを開く */
@@ -273,7 +302,6 @@ export const TaskItem = memo(function TaskItem({
   }, [selection?.cursor])
 
   // スマホ: 右へ払うと完了、左へ払うと今日やる ⇄ 明日へ（タスクのリストの親タスクだけ）。今日の計画の行と同じ
-  const isCoarse = useIsCoarsePointer()
   const todayToggle = useTodayToggle()
   const swipe = useRowSwipe(
     rowRef,
@@ -404,8 +432,15 @@ export const TaskItem = memo(function TaskItem({
               type="button"
               id={optionId ? `${optionId}-title` : undefined}
               data-task-title
-              onClick={beginTitleInteraction}
-              className={`block w-full truncate text-left cursor-text outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
+              onClick={handleTitleClick}
+              onDoubleClick={handleTitleDoubleClick}
+              onKeyDown={(e) => {
+                if (e.key !== 'F2') return
+                e.preventDefault()
+                e.stopPropagation()
+                beginRename()
+              }}
+              className={`block w-full truncate text-left ${hasRowAction ? 'cursor-pointer' : 'cursor-text'} outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
                         transition-colors ${shownCompleted && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
             >
@@ -429,17 +464,12 @@ export const TaskItem = memo(function TaskItem({
                 {dueText}
               </span>
             )}
-            {childDue && nextChild && (
-              <span
-                data-child-due={nextChild.id}
-                {...tip(t('taskItem.nextChildDueHint', { title: nextChild.title }))}
-                className={`inline-flex min-w-0 items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[childDue.tone]}`}
-              >
-                <CalendarIcon className="w-3 h-3 shrink-0" />
-                <span className="max-w-[10rem] truncate">{nextChild.title}</span>
-                <span className="shrink-0">{childDue.text}</span>
+            {submitted && (
+              <span {...tip(t('canvas.submittedMarkHint'))} className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                {t('canvas.submittedMark')}
               </span>
             )}
+            {childDue && <ChildDueChip due={childDue} />}
             {scheduled && (!task.completed || timeLog) && (
               <span className={`inline-flex items-center gap-0.5 text-[11px] ${SCHEDULED_TONE_CLASS[scheduled.tone]}`}>
                 <ClockIcon className="w-3 h-3" />

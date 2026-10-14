@@ -202,6 +202,62 @@ export function makeTask(
   return withLogCategory(looksLikeSleep(task) ? { ...task, kind: 'sleep' } : task)
 }
 
+/**
+ * 選んだタスクの複製（Google カレンダーの「複製」と同じく、同じ日・同じ時間に作る）。子（ゴミ箱・アーカイブを除く）も同じ規則で写す。
+ * 引き継がないもの: 完了・持ち越し日数・移した予定の控え・毎週の繰り返しの印（予定の 1 回分を写すと、ふつうの予定になる）。
+ * 記録・睡眠は写さない。選んだ行の祖先も選んでいれば、その行は祖先と一緒に写る（2 つ作らない）。
+ * 返すのは新しく足す行と、選んだ行ごとの複製の id（選んだ順）
+ */
+export function duplicateTaskTrees(
+  tasks: Task[],
+  ids: string[],
+  now: string = new Date().toISOString(),
+): { added: Task[]; copyIds: string[] } {
+  const byId = new Map(tasks.map((t) => [t.id, t]))
+  const picked = new Set(ids)
+  const live = (t: Task) => t.deletedAt === null && t.archivedAt === null
+  const hasPickedAncestor = (t: Task) => {
+    for (let p = t.parentId ? byId.get(t.parentId) : undefined; p; p = p.parentId ? byId.get(p.parentId) : undefined) {
+      if (picked.has(p.id)) return true
+    }
+    return false
+  }
+  const roots = ids
+    .map((id) => byId.get(id))
+    .filter((t): t is Task => !!t && !isLogTask(t) && t.deletedAt === null && !hasPickedAncestor(t))
+    .filter((t, i, arr) => arr.indexOf(t) === i)
+  const added: Task[] = []
+  const copy = (src: Task, parentId: string | null, order: number): Task => {
+    const out: Task = {
+      ...src,
+      id: newId(),
+      parentId,
+      order,
+      completed: false,
+      completedAt: null,
+      carriedDays: 0,
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+      deletedAt: null,
+    }
+    delete out.movedPlans
+    delete out.series
+    added.push(out)
+    for (const child of tasks.filter((t) => t.parentId === src.id && live(t) && !isLogTask(t))) copy(child, out.id, child.order)
+    return out
+  }
+  const copyIds = roots.map((src) => {
+    // 元のすぐ後ろ（次の兄弟との間）に置く
+    const siblings = tasks
+      .filter((t) => t.listId === src.listId && t.parentId === src.parentId && (src.parentId !== null || t.sectionId === src.sectionId))
+      .sort(compareByOrder)
+    const next = siblings[siblings.findIndex((t) => t.id === src.id) + 1]
+    return copy(src, src.parentId, next ? (src.order + next.order) / 2 : src.order + 1).id
+  })
+  return { added, copyIds }
+}
+
 /** 記録の分類を推定するのに使う状態 */
 export type CategoryInferenceState = Pick<TaskState, 'tasks' | 'timeLogTagPresets' | 'logCategoryColors'>
 

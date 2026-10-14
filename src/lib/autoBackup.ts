@@ -184,7 +184,8 @@ export async function saveAutoBackup(
     const all = await getAll()
     const savedAt = new Date().toISOString()
     const entry: AutoBackup = {
-      id: `${kind}-${savedAt}`,
+      // 同じミリ秒に 2 つ取っても上書きしない（id が時刻だけだと、後の控えが前の控えを消していた）
+      id: `${kind}-${savedAt}-${Math.random().toString(36).slice(2, 8)}`,
       kind,
       savedAt,
       dateKey,

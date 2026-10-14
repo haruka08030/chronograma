@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { fromDateKey } from '../lib/dateKey'
@@ -8,6 +8,7 @@ import { makeTask } from '../store/taskHelpers'
 import { INBOX_LIST_ID } from '../store/storeConstants'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { WeekCalendarView } from './WeekCalendarView'
+import { focusQuickAdd, hasQuickAddTarget } from '../lib/quickAddFocus'
 
 beforeAll(() => {
   // jsdom には無いもの（タイムラインの大きさ・スクロール）
@@ -278,5 +279,95 @@ describe('WeekCalendarView: 記録の無い時間（点線の枠）', () => {
     three.unmount()
     const next = render(<WeekCalendarView anchor={fromDateKey('2026-10-08')} selectedDateKey="2026-10-08" singleDay />)
     expect(gapsIn(next.container, '2026-10-08')).toHaveLength(0)
+  })
+})
+
+describe('WeekCalendarView: C で作成カード', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('選んでいる日の次の正時で作成カードが開き、そのまま入れるとその時間の予定になる', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:20', appTimeZone()))
+    useTaskStore.setState({ tasks: [], defaultBlockMinutes: 60 })
+    render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-08" threeDay />)
+    act(() => {
+      expect(focusQuickAdd()).toBe(true)
+    })
+    const input = await screen.findByPlaceholderText('Add title')
+    fireEvent.change(input, { target: { value: 'Seminar' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(useTaskStore.getState().tasks.find((t) => t.title === 'Seminar')).toMatchObject({
+      scheduledDate: '2026-10-08',
+      startTime: '17:00',
+      endTime: '18:00',
+    })
+  })
+
+  it('今日の計画（1 日表示）では登録しない（今日の追加欄へ）', () => {
+    render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
+    expect(hasQuickAddTarget()).toBe(false)
+  })
+})
+
+describe('WeekCalendarView: 習慣の枠', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** 今は 10/7 16:00。毎日 7:00–7:30 の Run（10/7 は始まっている） */
+  function seedHabit() {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const id = useTaskStore.getState().addHabit({
+      title: 'Run',
+      color: '#0B8043',
+      timeMode: 'range',
+      startTime: '07:00',
+      endTime: '07:30',
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: undefined,
+    })
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    const block = () => view.container.querySelector<HTMLElement>(`[data-datekey="2026-10-07"] [data-block-id^="habit-slot::"]`)!
+    return { id, block }
+  }
+
+  it('押すと小さなカードが開き、✓ で予定どおり達成になる', async () => {
+    const { id, block } = seedHabit()
+    fireEvent.keyDown(block(), { key: 'Enter' })
+    const card = await screen.findByRole('dialog', { name: 'Run' })
+    fireEvent.click(within(card).getByRole('button', { name: 'Done as planned (log it)' }))
+    expect(useTaskStore.getState().tasks.some((t) => t.habitId === id && t.startTime === '07:00')).toBe(true)
+    // 済んだ枠も押すとカード（取り消しが出る）
+    fireEvent.click(block())
+    const again = await screen.findByRole('dialog', { name: 'Run' })
+    expect(within(again).getByRole('button', { name: 'Mark as not done' })).toBeInTheDocument()
+  })
+
+  it('右クリックで習慣のメニュー', () => {
+    const { block } = seedHabit()
+    fireEvent.contextMenu(block(), { clientX: 100, clientY: 100 })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+  })
+})
+
+describe('WeekCalendarView: 終日の行をたたんでも締切は出す', () => {
+  it('置いた To-Do が多い日も、締切の旗は「他 N 件」に入れずに出す', () => {
+    const at = (title: string, order: number, extra: object = {}) => ({
+      ...makeTask({ title, listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', ...extra }, order),
+      id: title,
+    })
+    useTaskStore.setState({
+      tasks: [at('A', 0), at('B', 1), at('C', 2), at('D', 3), at('Report', 4, { scheduledDate: '2026-10-06', dueDate: '2026-10-07' })],
+    })
+    render(<WeekCalendarView anchor={fromDateKey('2026-10-06')} selectedDateKey="2026-10-06" threeDay />)
+    // 10/6 の置いた日のチップと、10/7 の締切の旗
+    expect(screen.getAllByText('Report')).toHaveLength(2)
+    expect(screen.getByText('+2 more')).toBeInTheDocument()
+    expect(screen.queryByText('C')).toBeNull()
   })
 })

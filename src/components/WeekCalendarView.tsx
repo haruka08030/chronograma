@@ -25,14 +25,16 @@ import { useIsDesktop } from '../hooks/useMediaQuery'
 import { isEventTask, isLogTask, planKindOf, type Task } from '../types/task'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
-import { EventPopover, GoogleEventPopover, QuickCreatePopover } from './lazyOverlays'
-import { appTodayKey } from '../lib/timeZone'
+import { QuickCreatePopover } from './lazyOverlays'
+import { CalendarCards } from './calendar/CalendarCards'
+import { appTodayKey, zonedNow } from '../lib/timeZone'
 import { TimeGutter } from './timeline/TimeGutter'
 import { useTimeGutterWidth } from '../hooks/useTimeGutterWidth'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { toDateKey } from '../lib/dateKey'
 import { shortDate } from '../lib/moveToast'
-import { minutesToTime } from '../lib/clockTime'
+import { endWithinDay, minutesToTime } from '../lib/clockTime'
+import { useQuickAddAction } from '../lib/quickAddFocus'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { WeekDayHeader } from './calendar/WeekDayHeader'
 import { WeekAllDayRow } from './calendar/WeekAllDayRow'
@@ -200,26 +202,16 @@ export function WeekCalendarView({
     return null
   }, [])
 
-  const {
-    eventCard,
-    setEventCard,
-    openCard,
-    closeCard,
-    openDetailFromCard,
-    googleCard,
-    setGoogleCard,
-    openGoogleCard,
-    closeGoogleCard,
-    createAnchor,
-    setCreateAnchorFromEl,
-  } = useCalendarCards(gridRef)
+  const cards = useCalendarCards(gridRef)
+  const { setEventCard, openCard, setGoogleCard, openGoogleCard, openHabitCard, openHabitMenu, createAnchor, setCreateAnchorFromEl } = cards
 
   /**
    * 予定・記録・Google の予定のメニュー（右クリック・タッチの長押し）。
-   * 習慣の枠なども同じ属性を持つので、メニューを出せるもの（タスク・Google の予定）のときだけ開いて true
+   * 習慣の枠は習慣の画面と同じメニュー。メニューを出せるもの（タスク・Google の予定・習慣の枠）のときだけ開いて true
    */
   const openBlockMenu = useCallback(
     (id: string, x: number, y: number): boolean => {
+      if (openHabitMenu(id, x, y)) return true
       const { tasks, calendarEvents } = useTaskStore.getState()
       const known = id.startsWith('event-')
         ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length))
@@ -232,7 +224,7 @@ export function WeekCalendarView({
       )
       return true
     },
-    [setEventCard, setGoogleCard],
+    [setEventCard, setGoogleCard, openHabitMenu],
   )
 
   // ref だけを読むので作り直さない（フックの中の useCallback が描くたびに作り直されないように）
@@ -255,11 +247,11 @@ export function WeekCalendarView({
     onResizeDone,
     onBlockTap: useCallback(
       (taskId: string) => {
-        if (parseHabitSlotId(taskId)) return
-        if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
+        if (parseHabitSlotId(taskId)) openHabitCard(taskId)
+        else if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
         else openCard(taskId)
       },
-      [openCard, openGoogleCard],
+      [openCard, openGoogleCard, openHabitCard],
     ),
     clickCreateMinutes: defaultBlockMinutes,
     onBlockLongPress,
@@ -406,6 +398,23 @@ export function WeekCalendarView({
   )
   const timelineDrop = useTimelineDrop({ getRelativeY, getTaskDuration, onDrop })
 
+  // C / ⌘N: 選んでいる日（表示に無ければ最初の日）の次の正時で作成カードを開く（Google カレンダーと同じ。今日の計画へは移らない）
+  useQuickAddAction(
+    singleDay
+      ? null
+      : () => {
+          if (timelineDrag.popup) return
+          const dateKey = gridDays.some((d) => toDateKey(d) === focusKey) ? focusKey : gridKey0
+          const startMin = Math.min(zonedNow().getHours() + 1, 23) * 60
+          const startTime = minutesToTime(startMin)
+          timelineDrag.openPopup({ dateKey, startTime, endTime: endWithinDay(startTime, defaultBlockMinutes), intent: 'schedule' })
+          // 見えていない時間なら、作る枠が見える所まで送る
+          const el = scrollRef.current
+          const y = (startMin / 60) * hourHeight
+          if (el && (y < el.scrollTop || y + hourHeight > el.scrollTop + el.clientHeight)) el.scrollTop = Math.max(0, y - hourHeight)
+        },
+  )
+
   /** 祝日の名前は終日の行に出す（今日の計画は自分の見出しがあるので出さない） */
   const holidayNameOf = useHolidayName()
   const holidayName = singleDay ? () => null : holidayNameOf
@@ -462,6 +471,7 @@ export function WeekCalendarView({
     unscheduleHover,
     openCard,
     openGoogleCard,
+    openHabitCard,
     setCreateAnchorFromEl,
   }
 
@@ -508,6 +518,7 @@ export function WeekCalendarView({
               allDayAddDate={allDayAddDate}
               setAllDayAddDate={setAllDayAddDate}
               openGoogleCard={openGoogleCard}
+              openCard={openCard}
             />
           )}
 
@@ -573,10 +584,7 @@ export function WeekCalendarView({
       </div>
 
       <OverlaySuspense>
-        {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={closeGoogleCard} />}
-        {eventCard && (
-          <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />
-        )}
+        <CalendarCards cards={cards} />
         {timelineDrag.popup && createAnchor && (
           <QuickCreatePopover
             anchor={createAnchor}

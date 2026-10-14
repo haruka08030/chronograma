@@ -17,6 +17,7 @@ import {
   CalendarIcon,
   CheckIcon,
   ClockIcon,
+  DuplicateIcon,
   FlagIcon,
   OpenPanelIcon,
   PlayIcon,
@@ -82,6 +83,7 @@ export function TaskContextMenu({
   const scheduleWish = useScheduleWish()
   const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
   const setSomedayTier = useTaskStore((s) => s.setSomedayTier)
+  const duplicateTasks = useTaskStore((s) => s.duplicateTasks)
 
   const targets = useTaskStore(useShallow((s) => s.tasks.filter((x) => taskIds.includes(x.id))))
   /** 全部が同じ値ならその値（チェックを付ける） */
@@ -251,6 +253,34 @@ export function TaskContextMenu({
         },
       ]
     : []
+  const timerEntry: ActionEntry[] =
+    taskIds.length === 1 && plannable && targets[0] && !targets[0].completed
+      ? [
+          {
+            kind: 'leaf',
+            id: 'timer',
+            label: t('planner.startTimer'),
+            icon: <PlayIcon className={ICON} />,
+            run: done(() => startTimerForTask(taskIds[0])),
+          },
+        ]
+      : []
+  // 時間未定なら「時間を決める」（空き時間の候補）。メニューは選ぶと閉じるので、閉じたあとに開く
+  const untimed = taskIds.length === 1 && targets[0] && canPickTime(targets[0], lists) ? targets[0] : null
+  const setTimeEntry: ActionEntry[] = untimed
+    ? [
+        {
+          kind: 'leaf',
+          id: 'set-time',
+          label: t('timeSlot.title'),
+          icon: <ClockIcon className={ICON} />,
+          run: done(() => {
+            const dateKey = timeSlotDateKey(untimed)
+            queueMicrotask(() => openTaskMenu({ kind: 'timeSlot', x, y, taskId: untimed.id, dateKey }))
+          }),
+        },
+      ]
+    : []
   // 予定日（いつやる）を先に、期限（締切）はその下。「明日やる」を期限で動かして締切を変えてしまわないように
   const plannedEntries: ActionEntry[] = [
     ...todayToggleEntry,
@@ -376,12 +406,17 @@ export function TaskContextMenu({
         keys: shortcutLabel(['mod', '↵']),
         run: done(() => bulk.complete(taskIds)),
       }
+  const quickActions: ActionEntry[] = [...setTimeEntry, ...todayToggleEntry, ...timerEntry]
+  const dateEntries: ActionEntry[] = allEvents ? [scheduleEntry] : plannedEntries.filter((e) => e.id !== 'today-toggle')
   const entries: ActionEntry[] = allWishes
     ? somedayEntries
     : allChecklist
       ? checklistEntries
       : [
-          ...(plannable ? (allEvents ? [...todayToggleEntry, scheduleEntry] : plannedEntries) : []),
+          // 指のシートと同じ並び: 時間を決める・今日やる / 明日へ・記録開始、区切ってその下に日付
+          ...(plannable
+            ? [...quickActions, ...dateEntries.map((e, i) => (i === 0 && quickActions.length > 0 ? { ...e, divider: true } : e))]
+            : []),
           { kind: 'sub', id: 'list', label: t('taskMenu.moveTo'), icon: <ArrowRightIcon className={ICON} />, leaves: listLeaves },
           ...(sectionLeaves.length > 0
             ? [
@@ -408,6 +443,21 @@ export function TaskContextMenu({
                 },
               ]
             : []),
+          // 同じ日・同じ時間に写す（Google カレンダーの「複製」と同じ）。1 件なら写したものの詳細を開いて直せるようにする
+          ...(targets.some((x) => !isLogTask(x))
+            ? [
+                {
+                  kind: 'leaf' as const,
+                  id: 'duplicate',
+                  label: t('taskMenu.duplicate'),
+                  icon: <DuplicateIcon className={ICON} />,
+                  run: done(() => {
+                    const copies = duplicateTasks(taskIds)
+                    if (copies.length === 1) onOpenDetail(copies[0])
+                  }),
+                },
+              ]
+            : []),
           {
             kind: 'leaf',
             id: 'archive',
@@ -431,34 +481,6 @@ export function TaskContextMenu({
           },
         ]
       : []
-  const timerEntry: ActionEntry[] =
-    taskIds.length === 1 && plannable && targets[0] && !targets[0].completed
-      ? [
-          {
-            kind: 'leaf',
-            id: 'timer',
-            label: t('planner.startTimer'),
-            icon: <PlayIcon className={ICON} />,
-            run: done(() => startTimerForTask(taskIds[0])),
-          },
-        ]
-      : []
-  // 時間未定なら「時間を決める」（空き時間の候補）。メニューは選ぶと閉じるので、閉じたあとに開く
-  const untimed = taskIds.length === 1 && targets[0] && canPickTime(targets[0], lists) ? targets[0] : null
-  const setTimeEntry: ActionEntry[] = untimed
-    ? [
-        {
-          kind: 'leaf',
-          id: 'set-time',
-          label: t('timeSlot.title'),
-          icon: <ClockIcon className={ICON} />,
-          run: done(() => {
-            const dateKey = timeSlotDateKey(untimed)
-            queueMicrotask(() => openTaskMenu({ kind: 'timeSlot', x, y, taskId: untimed.id, dateKey }))
-          }),
-        },
-      ]
-    : []
   const quickEntries: ActionEntry[] = allWishes
     ? [...somedayEntries.filter((e) => e.id !== 'delete'), ...openEntry]
     : allChecklist

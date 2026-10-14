@@ -77,7 +77,7 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime）、`estimates` はその ID の To-Do の見積もり（分） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など） */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -100,6 +100,31 @@ const SCREENS = [
     click: 'button:has-text("あと何分") >> visible=true',
   },
   { name: 'timer-time-up', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 52, endsIn: -2 } },
+  // 見出しの「記録なし」から後から記録を開いた所（#393）
+  { name: 'planner-unrecorded', view: 'planner', click: 'button:has-text("記録なし") >> visible=true' },
+  // 通知の「記録する」（#392）。記録パネルの「後から記録」と同じフォーム
+  { name: 'record-prompt', view: 'planner', query: '?record=s6' },
+  // 記録中に題名・ラベルを直す（#391）
+  {
+    name: 'timer-edit',
+    view: 'planner',
+    timer: { title: 'レポート', tags: ['課題'], startedAgo: 3 },
+    click: ['[data-floating-timer] button:has-text("課題")', '[data-floating-timer] button:has-text("レポート")'],
+  },
+  // 「1 日を締める」のラベルなしの記録を開いて行のチップで付ける所（#390）と、設定のラベルの「直近 30 日でラベルなし」から開いた所
+  {
+    name: 'planner-untagged',
+    view: 'planner',
+    at: '19:30',
+    click: 'button:has-text("ラベルなしの記録") >> visible=true',
+    scrollTo: '[data-wrap-up]',
+  },
+  {
+    name: 'settings-untagged',
+    view: 'settings',
+    click: 'button:has-text("直近 30 日でラベルなし") >> visible=true',
+    scrollTo: '[data-untagged-logs]',
+  },
   // 見出しの「予定 / 空き」で、置いた To-Do が空きを超える日（目安を 2 時間にして今日を超えさせる。「（超過）」を締切の色で）
   { name: 'planner-free-over', view: 'planner', state: { dailyCapacityMinutes: 120 } },
   // 下の「習慣」（週に◯回で今週の回数を満たした習慣は「今週は達成」と薄く出す）
@@ -169,6 +194,17 @@ const SCREENS = [
     click: OPEN_CANDIDATES,
     scrollToBottom: true,
   },
+  // 既定の優先度順では見出しを足さず、入りきらない締切の行の締切を赤く（#332）
+  {
+    name: 'planner-due-fit-priority',
+    view: 'planner',
+    state: {
+      dailyCapacityMinutes: 60,
+      plannerCandidateView: { sort: 'priority', listId: null, color: null, tag: null, priority: null, estimate: null },
+    },
+    click: 'button[aria-expanded]:has-text("To-Do から追加") >> visible=true',
+    scrollToBottom: true,
+  },
   { name: 'planner-candidates-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_BUTTON] },
   { name: 'planner-candidates-filter-menu', view: 'planner', click: [OPEN_CANDIDATES, CANDIDATE_FILTER] },
   {
@@ -230,6 +266,8 @@ const SCREENS = [
   { name: 'todo-label', view: 'all', mobileClick: OPEN_LISTS, click: LABEL_JOBHUNT },
   // 見出しの並び順のメニュー（スマホは下から出すシート）。色ラベル・いつかでも同じメニュー
   { name: 'todo-sort-menu', view: 'all', click: SORT_BUTTON },
+  // 締切で集めるビューは、選んだことが無ければ締切順
+  { name: 'todo-upcoming', view: 'upcoming' },
   // To-Do 一覧の絞り込み（じょうご）と、優先度で絞ったところ（チップ・件数）
   { name: 'todo-filter-menu', view: 'all', click: [TODO_FILTER, '[role=menu] >> text=優先度で絞る >> visible=true'] },
   {
@@ -368,8 +406,8 @@ const SCREENS = [
   // 開いた状態でしか見えないもの: click のセレクタを押してから撮る
   { name: 'calendar-dock', view: 'calendar', click: 'button[aria-pressed]' },
   // タスク詳細（締切・時刻・タイムゾーン・繰り返し・リストの並び）
-  // タイトルを押すと編集になるので、行の左の余白を押して開く
-  { name: 'task-detail', view: 'all', click: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")', clickAt: { x: 4, y: 12 } },
+  // 題名を押して開く（行と同じ。スマホは短いシート）
+  { name: 'task-detail', view: 'all', click: 'button[data-task-title]:has-text("ES 書く（第一志望）") >> visible=true' },
   // 曜日つきの毎週（繰り返しの下に曜日のピル）
   // メモを押して編集に入った状態（中身に合わせて欄が伸びる）
   {
@@ -532,6 +570,7 @@ const SCREENS = [
   { name: 'checklist-hover', list: 'seed-shopping', hover: '[data-task-row="s24"]' },
   { name: 'someday-hover', list: 'seed-someday', hover: '[data-task-row="s21"]' },
   // 行を右クリックしたときのメニュー（PC だけ。いつか・買い物はリストに合わせた短いメニュー）
+  { name: 'todo-menu', view: 'all', desktopOnly: true, rightClick: '[data-task-row="s2"]' },
   { name: 'someday-menu', list: 'seed-someday', rightClick: '[data-task-row="s21"]' },
   { name: 'checklist-menu', list: 'seed-shopping', rightClick: '[data-task-row="s24"]' },
   { name: 'checklist-menu-checked', list: 'seed-shopping', rightClick: '[data-task-row="s25"]' },
@@ -837,7 +876,7 @@ async function main() {
           page.on('pageerror', (e) => consoleErrors.push(String(e.message ?? e)))
 
           try {
-            await page.goto(server.baseUrl, { waitUntil: 'networkidle' })
+            await page.goto(server.baseUrl + (screen.query ?? ''), { waitUntil: 'networkidle' })
             // Zustand の復元とフォントの反映を待つ
             await page.waitForTimeout(600)
             if (screen.mobileClick && vp.hasTouch) {
@@ -850,7 +889,8 @@ async function main() {
               const clicks = Array.isArray(screen.click) ? screen.click : [screen.click]
               for (const [i, sel] of clicks.entries()) {
                 await page.click(sel, i === 0 && screen.clickAt ? { position: screen.clickAt } : undefined)
-                await page.waitForTimeout(300)
+                // PC で題名を押すと、ダブルクリックを待ってから詳細が開く（TaskItem の DOUBLE_CLICK_MS）
+                await page.waitForTimeout(600)
               }
             }
             if (screen.typeInto) {
