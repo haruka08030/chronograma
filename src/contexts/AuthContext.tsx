@@ -23,6 +23,20 @@ import { useTaskStore } from '../store/taskStore'
 import { clearDeletedAccount, clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { readFunctionErrorBody } from '../lib/functionError'
 import { detachWebPush } from '../lib/webPush'
+import { classifyPasskeyError, defaultPasskeyName, passkeyErrorKey, type PasskeyFailure } from '../lib/passkey'
+
+export type PasskeyItem = { id: string; name: string; createdAt: string; lastUsedAt: string | null }
+
+/** パスキーの結果。閉じただけのときは error を付けない（cancelled だけ立てる） */
+export type PasskeyResult = { error?: string; failure?: PasskeyFailure }
+
+function passkeyResult(error: unknown): PasskeyResult {
+  const err = error as { message?: string } | null
+  if (err?.message && isNetworkErrorMessage(err.message)) return { error: i18n.t('account.networkError'), failure: 'other' }
+  const failure = classifyPasskeyError(error as Parameters<typeof classifyPasskeyError>[0])
+  const key = passkeyErrorKey(failure)
+  return key ? { error: i18n.t(key), failure } : { failure }
+}
 
 export type AuthContextValue = {
   session: Session | null
@@ -32,6 +46,12 @@ export type AuthContextValue = {
   verifyEmailOtp: (email: string, token: string) => Promise<{ error?: string }>
   /** Google の画面に移る。戻ってきたら Supabase がセッションを作る（同じメールのアカウントがあればそこに入る） */
   signInWithGoogle: () => Promise<{ error?: string }>
+  /** Face ID などでログインする。メールもアカウント名も打たない（端末が登録済みのパスキーを出す） */
+  signInWithPasskey: () => Promise<PasskeyResult>
+  /** ログイン中のアカウントに、この端末のパスキーを登録する */
+  registerPasskey: () => Promise<PasskeyResult>
+  listPasskeys: () => Promise<{ passkeys?: PasskeyItem[]; error?: string }>
+  deletePasskey: (id: string) => Promise<{ error?: string }>
   signOut: () => Promise<void>
   /**
    * アカウントとクラウドのデータを全部消し、この端末のデータと自動バックアップも消す。
@@ -49,6 +69,10 @@ const noopAuth: AuthContextValue = {
   signInWithOtp: async () => ({ error: 'Supabase が設定されていません' }),
   verifyEmailOtp: async () => ({ error: 'Supabase が設定されていません' }),
   signInWithGoogle: async () => ({ error: 'Supabase が設定されていません' }),
+  signInWithPasskey: async () => ({ error: 'Supabase が設定されていません' }),
+  registerPasskey: async () => ({ error: 'Supabase が設定されていません' }),
+  listPasskeys: async () => ({ error: 'Supabase が設定されていません' }),
+  deletePasskey: async () => ({ error: 'Supabase が設定されていません' }),
   signOut: async () => {},
   deleteAccount: async () => ({ error: 'Supabase が設定されていません' }),
 }
@@ -282,6 +306,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!error) return {}
         if (isNetworkErrorMessage(error.message)) return { error: i18n.t('account.networkError') }
         return { error: i18n.t('account.googleFailed') }
+      },
+      signInWithPasskey: async () => {
+        const sb = await loadClient()
+        if ('error' in sb) return sb
+        try {
+          const { error } = await sb.auth.signInWithPasskey()
+          return error ? passkeyResult(error) : {}
+        } catch (err) {
+          return passkeyResult(err)
+        }
+      },
+      registerPasskey: async () => {
+        const sb = getSupabase()
+        if (!sb || !session) return { error: i18n.t('account.genericError') }
+        try {
+          const { data, error } = await sb.auth.registerPasskey()
+          if (error) return passkeyResult(error)
+          // 一覧で端末を見分けられるよう名前を付ける（付けられなくても登録は済んでいる）
+          if (data?.id && !data.friendly_name) {
+            await sb.auth.passkey.update({ passkeyId: data.id, friendlyName: defaultPasskeyName() }).catch(() => {})
+          }
+          return {}
+        } catch (err) {
+          return passkeyResult(err)
+        }
+      },
+      listPasskeys: async () => {
+        const sb = getSupabase()
+        if (!sb || !session) return { passkeys: [] }
+        try {
+          const { data, error } = await sb.auth.passkey.list()
+          if (error) return { error: i18n.t(isNetworkErrorMessage(error.message) ? 'account.networkError' : 'account.passkeyListFailed') }
+          return {
+            passkeys: (data ?? []).map((p) => ({
+              id: p.id,
+              name: p.friendly_name || i18n.t('account.passkeyUnnamed'),
+              createdAt: p.created_at,
+              lastUsedAt: p.last_used_at ?? null,
+            })),
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : ''
+          return { error: i18n.t(isNetworkErrorMessage(message) ? 'account.networkError' : 'account.passkeyListFailed') }
+        }
+      },
+      deletePasskey: async (id: string) => {
+        const sb = getSupabase()
+        if (!sb || !session) return { error: i18n.t('account.genericError') }
+        try {
+          const { error } = await sb.auth.passkey.delete({ passkeyId: id })
+          if (!error) return {}
+          return { error: i18n.t(isNetworkErrorMessage(error.message) ? 'account.networkError' : 'account.passkeyDeleteFailed') }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : ''
+          return { error: i18n.t(isNetworkErrorMessage(message) ? 'account.networkError' : 'account.passkeyDeleteFailed') }
+        }
       },
       signOut: async () => {
         const sb = getSupabase()

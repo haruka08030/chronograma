@@ -15,10 +15,12 @@ import { isGoogleAvailable } from '../lib/googleCalendar'
 import { GoogleSignInButton } from './ui/GoogleSignInButton'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT, PHRASE_WRAP } from './ui/textClass'
 import { useExitGhost } from '../hooks/useExitGhost'
+import { isPasskeySupported } from '../lib/passkey'
+import { PasskeySection } from './PasskeySection'
 
 export function AccountMenu() {
   const { t } = useTranslation()
-  const { user, loading, signInWithOtp, verifyEmailOtp, signInWithGoogle, signOut, deleteAccount } = useAuth()
+  const { user, loading, signInWithOtp, verifyEmailOtp, signInWithGoogle, signInWithPasskey, signOut, deleteAccount } = useAuth()
   // ログイン用リンクが使えずに戻ってきたときは、送り直せるよう入力欄を開いて始める
   const [open, setOpen] = useState(() => pendingAuthLinkError() != null)
   const [email, setEmail] = useState('')
@@ -35,10 +37,11 @@ export function AccountMenu() {
     return linkError ? t(authLinkErrorKey(linkError)) : null
   })
   const googleSignIn = isGoogleAvailable()
+  const passkeySignIn = isPasskeySupported()
   // メールの欄は Google が使えないときと、メールのリンクが使えずに戻ってきたときだけ最初から開く
   const [emailOpen, setEmailOpen] = useState(() => {
     const linkError = pendingAuthLinkError()
-    return !googleSignIn || (linkError != null && authLinkErrorKey(linkError) !== 'account.googleFailed')
+    return (!googleSignIn && !passkeySignIn) || (linkError != null && authLinkErrorKey(linkError) !== 'account.googleFailed')
   })
   useEffect(() => clearAuthLinkError(), [])
   // ログインの欄を開いたら、押す前に Supabase を読んでおく（ログインしない人は起動時に読まない、#268）
@@ -201,6 +204,17 @@ export function AccountMenu() {
     }
   }
 
+  /** Face ID などでその場でログインする（ページを離れない）。閉じただけなら何も出さない */
+  const handlePasskey = async () => {
+    setError(null)
+    setMessage(null)
+    setPending(true)
+    const res = await signInWithPasskey()
+    setPending(false)
+    if (res.error) setError(res.error)
+    else if (!res.failure) setOpen(false)
+  }
+
   const resetToEmail = () => {
     setCodeSentTo(null)
     setCode('')
@@ -236,6 +250,7 @@ export function AccountMenu() {
         >
           {t('account.signOut')}
         </button>
+        <PasskeySection />
         <div className="basis-full border-t border-zinc-100 pt-3 dark:border-zinc-800">
           <p className={`mb-2 ${HINT_TEXT}`}>{t('account.deleteHelp')}</p>
           {reauth && user.email ? (
@@ -315,12 +330,30 @@ export function AccountMenu() {
           >
             <p className={`mb-1 text-sm font-medium ${PHRASE_WRAP}`}>{t('account.tagline')}</p>
             <p className={`mb-3 ${HINT_TEXT}`}>{t('account.intro')}</p>
-            {/* Google が主。メールは Supabase の送信数が少なく届かないことがあるので、控えめに下へ */}
+            {/*
+              パスキーが主（ホーム画面の PWA でも Safari に移らずに終わる）。次に Google。
+              メールは Supabase の送信数が少なく届かないことがあるので、控えめに下へ
+            */}
+            {!codeSentTo && passkeySignIn && (
+              <button
+                type="button"
+                onClick={() => void handlePasskey()}
+                disabled={pending || redirecting}
+                className={buttonClass({ variant: 'primary', size: 'lg' }, 'w-full')}
+              >
+                {pending && !emailOpen ? t('account.passkeyWaiting') : t('account.signInWithPasskey')}
+              </button>
+            )}
             {!codeSentTo && googleSignIn && (
-              <GoogleSignInButton onClick={() => void handleGoogle()} disabled={pending || redirecting} className="w-full">
+              <GoogleSignInButton
+                onClick={() => void handleGoogle()}
+                disabled={pending || redirecting}
+                className={`w-full${passkeySignIn ? ' mt-2' : ''}`}
+              >
                 {redirecting ? t('account.redirecting') : t('account.signInWithGoogle')}
               </GoogleSignInButton>
             )}
+            {!codeSentTo && passkeySignIn && <p className={`mt-2 ${META_TEXT}`}>{t(googleSignIn ? 'account.passkeyFirstTime' : 'account.passkeyFirstTimeEmail')}</p>}
             {codeSentTo ? (
               <form onSubmit={(e) => void handleVerify(e)} className="flex flex-col gap-2">
                 <p className={`break-all ${HINT_TEXT}`}>{codeSentTo}</p>
@@ -347,7 +380,7 @@ export function AccountMenu() {
             ) : emailOpen ? (
               <form
                 onSubmit={(e) => void handleSubmit(e)}
-                className={`flex flex-col gap-2${googleSignIn ? ' mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800' : ''}`}
+                className={`flex flex-col gap-2${googleSignIn || passkeySignIn ? ' mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800' : ''}`}
               >
                 <input
                   type="email"
@@ -357,7 +390,7 @@ export function AccountMenu() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   // 押して開いた欄にはそのまま書ける
-                  autoFocus={googleSignIn}
+                  autoFocus={googleSignIn || passkeySignIn}
                   className={fieldClass({}, 'w-full')}
                 />
                 {error && <p className={ERROR_TEXT}>{error}</p>}
@@ -365,7 +398,7 @@ export function AccountMenu() {
                 <button
                   type="submit"
                   disabled={pending}
-                  className={buttonClass({ variant: googleSignIn ? 'secondary' : 'primary', size: 'md' })}
+                  className={buttonClass({ variant: googleSignIn || passkeySignIn ? 'secondary' : 'primary', size: 'md' })}
                 >
                   {pending ? t('account.sending') : t('account.sendLink')}
                 </button>
