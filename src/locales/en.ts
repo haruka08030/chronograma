@@ -958,6 +958,11 @@ export default {
   confirmDialog: {
     ok: 'OK',
   },
+  estimateBias: {
+    label: 'This label usually takes {{ratio}}× your estimate',
+    all: 'Things usually take {{ratio}}× your estimate',
+    apply: 'Make it {{time}}',
+  },
   timeSlot: {
     title: 'Set a time',
     duration: 'Length',

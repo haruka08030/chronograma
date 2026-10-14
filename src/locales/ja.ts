@@ -931,6 +931,11 @@ export default {
   confirmDialog: {
     ok: 'OK',
   },
+  estimateBias: {
+    label: 'このラベルはいつも {{ratio}} 倍かかっています',
+    all: 'いつも見積もりの {{ratio}} 倍かかっています',
+    apply: '{{time}}にする',
+  },
   timeSlot: {
     title: '時間を決める',
     duration: '長さ',
