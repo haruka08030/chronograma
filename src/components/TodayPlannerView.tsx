@@ -39,6 +39,7 @@ import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
 import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSuggestions'
 import { useCalendarCards } from '../hooks/useCalendarCards'
+import { useRememberScroll } from '../hooks/useRememberScroll'
 import { CalendarCards } from './calendar/CalendarCards'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 
@@ -87,6 +88,8 @@ export function TodayPlannerView() {
   const [showAllOverdue, setShowAllOverdue] = useState(false)
   /** スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える */
   const [mobilePane, setMobilePane] = useState<PlannerPane>('list')
+  const listScrollRef = useRef<HTMLElement>(null)
+  useRememberScroll(listScrollRef, 'planner')
   /** 夜の締めの通知から開いた回数。1 以上なら時刻・件数に関係なく締めを出し、そこまでスクロールする */
   const [wrapUpFocus, setWrapUpFocus] = useState(0)
   useEffect(
@@ -311,6 +314,7 @@ export function TodayPlannerView() {
       <PlannerMobileBar pane={mobilePane} onPaneChange={setMobilePane} />
 
       <section
+        ref={listScrollRef}
         className={`${mobilePane === 'list' ? 'flex' : 'hidden'} timer-safe min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
                     md:flex md:w-[380px] md:flex-none md:shrink-0 md:border-r`}
       >
