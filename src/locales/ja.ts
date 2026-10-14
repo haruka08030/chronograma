@@ -510,6 +510,7 @@ export default {
   },
   someday: {
     tierDream: '夢',
+    inProgressDreams: '進めている夢',
     tierWish: 'やりたい',
     moveToDream: '夢へ移す',
     moveToWish: 'やりたいへ移す',

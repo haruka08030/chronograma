@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDroppable } from '@dnd-kit/core'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
-import { dreamSteps, stepDateKey, TIER_DROP_PREFIX } from '../../lib/somedayTier'
+import { dreamSteps, stepDateKey } from '../../lib/somedayTier'
 import { formatShortDateWeekday } from '../../lib/dateFormat'
 import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
 import { useLongPress } from '../../hooks/useLongPress'
@@ -95,25 +94,18 @@ function useOverflowX(ref: React.RefObject<HTMLElement | null>, deps: unknown) {
 }
 
 /**
- * いつかの夢（#429・#433）。一覧の上に、横にスクロールする 1 列で並べる（次のカードの端が見えて続きがあると分かる）。
- * 入りきらないときだけ見出しの右に「すべて見る」（折り返して全部並べる。もう一度押すと 1 列に戻す）。
- * 場所全体がドラッグの落とし先で、やりたいの行を落とすと夢へ移す。夢が無ければドラッグ中だけ出す
+ * いつかの進めている夢（一歩のある夢、#429・#433・#434）。一覧の上に、横にスクロールする 1 列で並べる（次のカードの端が見えて続きがあると分かる）。
+ * 入りきらないときだけ見出しの右に「すべて見る」（折り返して全部並べる。もう一度押すと 1 列に戻す）。一歩の無い夢は一覧の夢の段の行
  */
-export function DreamCards({ dreams, dragging }: { dreams: Task[]; dragging: boolean }) {
+export function DreamCards({ dreams }: { dreams: Task[] }) {
   const { t } = useTranslation()
-  const { setNodeRef, isOver } = useDroppable({ id: `${TIER_DROP_PREFIX}dream` })
   const [expanded, setExpanded] = useState(false)
   const rowRef = useRef<HTMLDivElement>(null)
   const overflow = useOverflowX(rowRef, `${dreams.length}:${expanded}`)
-  if (dreams.length === 0 && !dragging) return null
-  const title = t('someday.tierDream')
+  if (dreams.length === 0) return null
+  const title = t('someday.inProgressDreams')
   return (
-    <section
-      ref={setNodeRef}
-      aria-label={title}
-      data-someday-tier="dream"
-      className={`mb-2 rounded-xl pb-1 transition-colors ${isOver ? 'bg-accent-500/15 ring-1 ring-accent-400/40' : ''}`}
-    >
+    <section aria-label={title} className="mb-2 pb-1">
       <div className="flex items-center justify-between gap-2 px-3 py-1">
         <h2 className={`py-0.5 ${GROUP_HEADING_TEXT}`}>{title}</h2>
         {overflow || expanded ? (
@@ -127,22 +119,18 @@ export function DreamCards({ dreams, dragging }: { dreams: Task[]; dragging: boo
           </button>
         ) : null}
       </div>
-      {dreams.length > 0 ? (
-        <div
-          ref={rowRef}
-          className={
-            expanded
-              ? 'grid grid-cols-1 gap-2 px-1 sm:grid-cols-2 xl:grid-cols-3'
-              : 'flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-          }
-        >
-          {dreams.map((d) => (
-            <DreamCard key={d.id} task={d} className={expanded ? '' : 'w-[min(18rem,82%)] shrink-0 snap-start'} />
-          ))}
-        </div>
-      ) : (
-        <div className="mx-2 min-h-12 rounded-md border border-dashed border-zinc-300 dark:border-zinc-600" aria-hidden />
-      )}
+      <div
+        ref={rowRef}
+        className={
+          expanded
+            ? 'grid grid-cols-1 gap-2 px-1 sm:grid-cols-2 xl:grid-cols-3'
+            : 'flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+        }
+      >
+        {dreams.map((d) => (
+          <DreamCard key={d.id} task={d} className={expanded ? '' : 'w-[min(18rem,82%)] shrink-0 snap-start'} />
+        ))}
+      </div>
     </section>
   )
 }

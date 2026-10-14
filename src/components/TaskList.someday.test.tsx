@@ -44,7 +44,7 @@ describe('いつかの 2 段（#221）', () => {
         <TaskList />
       </DndContext>,
     )
-    const dreams = screen.getByRole('region', { name: 'Dreams' })
+    const dreams = screen.getByRole('region', { name: 'Dreams in progress' })
     expect(within(dreams).getByRole('button', { name: 'マチュピチュに行く' })).toBeInTheDocument()
     expect(within(dreams).getByText('Next step: スペイン語を習う')).toBeInTheDocument()
     expect(within(dreams).getByText(/10\/20/)).toBeInTheDocument()
@@ -98,6 +98,48 @@ describe('いつかの 2 段（#221）', () => {
     const groups = screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))
     expect(groups).toEqual(['Wishes', '旅行', '学び'])
     expect(tierOf('ピクニック')).toBe('旅行')
-    expect(within(screen.getByRole('region', { name: 'Dreams' })).getByRole('button', { name: 'マチュピチュに行く' })).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'Dreams in progress' })).getByRole('button', { name: 'マチュピチュに行く' }),
+    ).toBeInTheDocument()
+  })
+
+  it('一歩の無い夢はカードにせず、夢の段の行でセクションごとに出す（#434）', () => {
+    const listId = seed()
+    const abroad = useTaskStore.getState().addSection(listId, '海外')
+    useTaskStore.setState({
+      tasks: [
+        ...useTaskStore.getState().tasks.map((t) => (t.id === 'picnic' ? { ...t, sectionId: abroad } : t)),
+        {
+          ...useTaskStore.getState().tasks.find((t) => t.id === 'picnic')!,
+          id: 'sky',
+          title: 'スカイダイビング',
+          somedayTier: 'dream' as const,
+          sectionId: abroad,
+        },
+      ],
+    })
+    render(
+      <DndContext>
+        <TaskList />
+      </DndContext>,
+    )
+    const groups = screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))
+    expect(groups).toEqual(['Dreams', '海外', 'Wishes', '海外'])
+    expect(within(screen.getByRole('group', { name: 'Dreams' })).getByRole('option', { name: 'スカイダイビング' })).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Dreams in progress' })).queryByText('スカイダイビング')).toBeNull()
+    expect(tierOf('ピクニック')).toBe('海外')
+  })
+
+  it('段の中のセクションの落とし先へ落とすと、そのセクションと段へ移す', () => {
+    const listId = seed()
+    const travel = useTaskStore.getState().addSection(listId, '旅行')
+    applyDragEnd({
+      active: { id: 'task::picnic', data: { current: {} } },
+      over: { id: `tier::dream::section-drop::${listId}::${travel}` },
+      delta: { x: 0, y: 0 },
+    } as unknown as DragEndEvent)
+    const picnic = useTaskStore.getState().tasks.find((t) => t.id === 'picnic')!
+    expect(picnic.sectionId).toBe(travel)
+    expect(picnic.somedayTier).toBe('dream')
   })
 })

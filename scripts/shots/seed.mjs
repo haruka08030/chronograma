@@ -240,8 +240,11 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
     task({ id: 's21', title: '中国語', listId: SOMEDAY_ID, order: 2, somedayTier: 'dream' }, instant),
     task({ id: 's22', title: 'HSK 4 級に合格', listId: SOMEDAY_ID, parentId: 's21', order: 0 }, instant),
     task({ id: 's23', title: '単語帳を 1 冊終える', listId: SOMEDAY_ID, parentId: 's21', order: 1, completed: true }, instant),
-    // 夢が入りきらないとき（横にスクロールして「すべて見る」、#433）
-    task({ id: 'dream-machu', title: 'マチュピチュに行く', listId: SOMEDAY_ID, order: 3, somedayTier: 'dream' }, instant),
+    // 一歩の無い夢は夢の段の行（セクションごと、#434）
+    task(
+      { id: 'dream-machu', title: 'マチュピチュに行く', listId: SOMEDAY_ID, sectionId: 'seed-travel', order: 3, somedayTier: 'dream' },
+      instant,
+    ),
     task({ id: 'dream-marathon', title: 'フルマラソンを完走する', listId: SOMEDAY_ID, order: 4, somedayTier: 'dream' }, instant),
     task({ id: 's15', title: '牛乳', listId: SHOPPING_ID, order: 0 }, instant),
     task({ id: 's16', title: 'シャンプー', listId: SHOPPING_ID, order: 1 }, instant),
