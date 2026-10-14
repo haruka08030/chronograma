@@ -14,7 +14,7 @@ import { canNestUnder } from './taskDepth'
 import { todoFilterFor } from './taskFilter'
 import { isIndentIntent, isOutdentIntent } from './taskDragIntent'
 import { compareByOrder } from './orderCompare'
-import { parseTierDropId, parseTierSectionDropId, somedayTierOf } from './somedayTier'
+import { parseTierDropId, somedayTierOf } from './somedayTier'
 
 const isSomedayList = (state: { lists: { id: string; kind?: string }[] }, listId: string) =>
   state.lists.find((l) => l.id === listId)?.kind === 'someday'
@@ -79,9 +79,7 @@ export function applyDragEnd(event: DragEndEvent) {
   if (!over || active.id === over.id) {
     return
   }
-  // いつかの段の中のセクションへ落としたら、そのセクションへ落としたのと同じに扱い、段も移す
-  const tierSection = parseTierSectionDropId(String(over.id))
-  const overId = tierSection?.dropId ?? (over.id as string)
+  const overId = over.id as string
 
   if (activeId.startsWith(DRAGSEC_PREFIX) && overId.startsWith(DROPSEC_PREFIX)) {
     const a = parseSectionReorderId(activeId, DRAGSEC_PREFIX)
@@ -161,7 +159,7 @@ export function applyDragEnd(event: DragEndEvent) {
     if (built) {
       // いつかで別の段の行の前後へ落としたら、その段へも移す（並べ替えと 1 回の取り消しで戻る、#221）
       const overTask = overId.startsWith(TASK_PREFIX) ? state.tasks.find((t) => t.id === overId.slice(TASK_PREFIX.length)) : undefined
-      const tier = tierSection?.tier ?? (overTask && isSomedayList(state, overTask.listId) ? somedayTierOf(overTask) : null)
+      const tier = overTask && isSomedayList(state, overTask.listId) ? somedayTierOf(overTask) : null
       state.asOneUndo(() => {
         state.reorderManualRootTasks(built.orderedIds, built.sectionUpdate)
         if (tier) state.setSomedayTier(group, tier)

@@ -18,39 +18,28 @@ export function parseTierDropId(id: string): SomedayTier | null {
   return tier === 'dream' || tier === 'wish' ? tier : null
 }
 
-/** 段の中のセクションの落とし先（`tier::dream::section-drop::…`）。同じセクションが両方の段に出るので段を頭に付ける */
-export function tierSectionDropId(tier: SomedayTier, sectionDropId: string): string {
-  return `${TIER_DROP_PREFIX}${tier}::${sectionDropId}`
-}
-
-export function parseTierSectionDropId(id: string): { tier: SomedayTier; dropId: string } | null {
-  if (!id.startsWith(TIER_DROP_PREFIX)) return null
-  const rest = id.slice(TIER_DROP_PREFIX.length)
-  const sep = rest.indexOf('::')
-  if (sep < 0) return null
-  const tier = rest.slice(0, sep)
-  return tier === 'dream' || tier === 'wish' ? { tier, dropId: rest.slice(sep + 2) } : null
-}
-
-/** 段の中の塊。`sectionId` が null はセクションの外の行（見出しを出さない） */
+/** やりたいの段の中の塊。`sectionId` が null はセクションの外の行（見出しを出さない） */
 export type TierSection = { sectionId: string | null; title: string; tasks: Task[] }
 
 /**
- * 未完了のルートを段 → セクションに分ける（並びは `active` の順のまま）。
- * どの段も先頭はセクションの外の塊、続けて `sections` の順。`sections` が null（セクションで分けない）なら外の塊だけ
+ * 未完了のルートを夢（カードで並べる。セクションで分けない）とやりたい（セクションの塊）に分ける（並びは `active` の順のまま、#429）。
+ * やりたいは先頭がセクションの外の塊、続けて `sections` の順。`sections` が null（セクションで分けない）なら外の塊だけ
  */
 export function tierSections(
   active: readonly Task[],
   sections: readonly { id: string; name: string }[] | null,
-): Record<SomedayTier, TierSection[]> {
-  const build = (tier: SomedayTier): TierSection[] => {
-    const rows = active.filter((t) => somedayTierOf(t) === tier)
-    const named = (sections ?? []).map((s) => ({ sectionId: s.id, title: s.name, tasks: rows.filter((t) => t.sectionId === s.id) }))
-    const ids = new Set(named.map((b) => b.sectionId))
-    const loose = rows.filter((t) => !t.sectionId || !ids.has(t.sectionId))
-    return [{ sectionId: null, title: '', tasks: loose }, ...named]
-  }
-  return { dream: build('dream'), wish: build('wish') }
+): { dream: Task[]; wish: TierSection[] } {
+  const dream = active.filter((t) => somedayTierOf(t) === 'dream')
+  const rows = active.filter((t) => somedayTierOf(t) === 'wish')
+  const named = (sections ?? []).map((s) => ({ sectionId: s.id, title: s.name, tasks: rows.filter((t) => t.sectionId === s.id) }))
+  const ids = new Set(named.map((b) => b.sectionId))
+  const loose = rows.filter((t) => !t.sectionId || !ids.has(t.sectionId))
+  return { dream, wish: [{ sectionId: null, title: '', tasks: loose }, ...named] }
+}
+
+/** 夢のカードに出す次の一歩の日付（予定の日、無ければ締切の日）。一歩が無い・日付が無ければ null */
+export function stepDateKey(step: Pick<Task, 'scheduledDate' | 'dueDate'> | null): string | null {
+  return step ? (step.scheduledDate ?? step.dueDate ?? null) : null
 }
 
 export function somedayTierOf(task: Pick<Task, 'somedayTier'>): SomedayTier {
