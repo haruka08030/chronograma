@@ -10,7 +10,7 @@ import i18n from '../i18n/config'
 import { isNetworkErrorMessage, otpRateLimit } from '../lib/errorMessages'
 import { setErrorReportUser } from '../lib/errorReport'
 import { markOAuthSignInStarted, pendingAuthLinkError } from '../lib/authLinkError'
-import { pendingEmailCode } from '../lib/pendingEmailCode'
+import { shouldReturnToEmailCode } from '../lib/pendingEmailCode'
 import {
   AUTH_TOKEN_KEY,
   getSupabase,
@@ -30,7 +30,8 @@ export type AuthContextValue = {
   session: Session | null
   user: User | null
   loading: boolean
-  signInWithOtp: (email: string) => Promise<{ error?: string }>
+  /** `retryAfter` は送りすぎで待つ秒数（わかるとき） */
+  signInWithOtp: (email: string) => Promise<{ error?: string; retryAfter?: number }>
   verifyEmailOtp: (email: string, token: string) => Promise<{ error?: string }>
   /** Google の画面に移る。戻ってきたら Supabase がセッションを作る（同じメールのアカウントがあればそこに入る） */
   signInWithGoogle: () => Promise<{ error?: string }>
@@ -171,8 +172,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // ログイン用リンクが使えなかった（期限切れ・使用済み）。理由はアカウント欄に出す
     if (pendingAuthLinkError()) useTaskStore.getState().openSettingsWithScroll('account')
-    // メールのコードを見に行くあいだにアプリが閉じられた。開き直したらコードを打つ欄へ戻す
-    else if (pendingEmailCode() && !needsSupabaseAtStart()) useTaskStore.getState().openSettingsWithScroll('account')
+    // メールのコードを見に行くあいだにアプリが閉じられた（読み込み直された）。開き直したらコードを打つ欄へ戻す
+    else if (needsSupabaseAtStart() ? shouldReturnToEmailCode('reauth') : shouldReturnToEmailCode('signIn')) {
+      useTaskStore.getState().openSettingsWithScroll('account')
+    }
 
     let unsubscribe: (() => void) | null = null
     /** 読み込んだクライアントのセッションを読み、変化を受ける（起動時・ログインを始めたとき・ほかのタブでログインしたとき） */
@@ -262,9 +265,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // 送りすぎは英語のまま出さず、待てば送れることを伝える
           const limit = otpRateLimit(error)
           if (limit) {
-            return {
-              error: limit.seconds != null ? i18n.t('account.otpWaitSeconds', { count: limit.seconds }) : i18n.t('account.otpRateLimited'),
-            }
+            if (limit.seconds != null)
+              return { error: i18n.t('account.otpWaitSeconds', { count: limit.seconds }), retryAfter: limit.seconds }
+            return { error: i18n.t('account.otpRateLimited') }
           }
           return { error: error.message }
         } catch (err) {
