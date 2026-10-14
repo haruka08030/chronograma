@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,11 +29,13 @@ vi.mock('../contexts/AuthContext', () => ({
 }))
 
 const { AccountMenu } = await import('./AccountMenu')
+const { clearPendingEmailCode, pendingEmailCode, savePendingEmailCode } = await import('../lib/pendingEmailCode')
 
 beforeEach(() => {
   auth.googleAvailable = true
   auth.signInWithOtp.mockClear()
   auth.signInWithGoogle.mockClear()
+  clearPendingEmailCode()
 })
 
 async function openSignIn() {
@@ -71,5 +73,28 @@ describe('ログインの画面', () => {
     expect(screen.queryByRole('button', { name: 'Sign in with Google' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Sign in with email' })).toBeNull()
     expect(screen.getByPlaceholderText('Email')).toBeInTheDocument()
+  })
+
+  it('コードを送ったままアプリを閉じて開き直すと、コードの欄から始まる', async () => {
+    const first = await openSignIn()
+    await first.click(screen.getByRole('button', { name: 'Sign in with email' }))
+    await first.type(screen.getByPlaceholderText('Email'), 'a@example.com')
+    await first.click(screen.getByRole('button', { name: 'Send link' }))
+    await screen.findByPlaceholderText('Code from email')
+    expect(pendingEmailCode()).toBe('a@example.com')
+
+    // 開き直す（画面の中の状態は消える）
+    cleanup()
+    render(<AccountMenu />)
+    expect(screen.getByPlaceholderText('Code from email')).toBeInTheDocument()
+    expect(screen.getByText('a@example.com')).toBeInTheDocument()
+  })
+
+  it('メールアドレスを変えると、開き直してもコードの欄に戻らない', async () => {
+    savePendingEmailCode('a@example.com')
+    const user = userEvent.setup()
+    render(<AccountMenu />)
+    await user.click(screen.getByRole('button', { name: 'Use a different email' }))
+    expect(pendingEmailCode()).toBeNull()
   })
 })
