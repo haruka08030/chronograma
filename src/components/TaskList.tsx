@@ -31,7 +31,7 @@ import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { FilterNoMatch } from './ui/FilterChips'
 import { hasTaskFilter, NO_TODO_FILTER, todoFilterFor } from '../lib/taskFilter'
 import { compareByOrder } from '../lib/orderCompare'
-import { tierSections } from '../lib/somedayTier'
+import { dreamSteps, tierSections } from '../lib/somedayTier'
 import { DreamCards } from './todo/DreamCards'
 import { useRememberScroll } from '../hooks/useRememberScroll'
 
@@ -122,10 +122,11 @@ export function TaskList({
           b.headerKind === 'section-named' && b.sectionId ? [{ id: b.sectionId, name: b.title }] : [],
         )
       : null
-    return tierSections(rows.active, named)
-  }, [tiered, rows.active, rows.showSectionBlocks, rows.sectionBlocks])
-  /** 一覧の行に出す未完了のルート（いつかは夢をカードで別に出すので、やりたいだけ。セクションの順） */
-  const active = useMemo(() => (tiers ? tiers.wish.flatMap((b) => b.tasks) : rows.active), [tiers, rows.active])
+    // 一歩（子・予定にした一歩）のある夢はカード、無い夢は夢の段の行（#434）
+    return tierSections(rows.active, named, (d) => dreamSteps(tasks, d.id) !== null)
+  }, [tiered, rows.active, rows.showSectionBlocks, rows.sectionBlocks, tasks])
+  /** 一覧の行に出す未完了のルート（いつかは夢 → やりたい、段の中はセクションの順。進めている夢はカードで別に出す） */
+  const active = useMemo(() => (tiers ? [...tiers.dream, ...tiers.wish].flatMap((b) => b.tasks) : rows.active), [tiers, rows.active])
 
   /** 塊で分けないとき、行に出すセクション名 */
   const sectionNameById = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections])
@@ -345,8 +346,8 @@ export function TaskList({
             />
           )}
 
-          {/* いつかの夢は一覧の上にカードで（#429） */}
-          {tiers ? <DreamCards dreams={tiers.dream} dragging={canDrag && taskDragging} /> : null}
+          {/* いつかの進めている夢（一歩のある夢）は一覧の上にカードで（#429・#434） */}
+          {tiers ? <DreamCards dreams={tiers.cards} /> : null}
 
           {/* 読み上げ: 未完了の行は listbox（↑↓ の枠を aria-activedescendant で伝える） */}
           <div {...listboxProps} aria-label={title} className="space-y-0.5 outline-none">
@@ -370,7 +371,7 @@ export function TaskList({
               incompleteSubtasks={incompleteSubtasks}
               subtaskNestWithDrag={subtaskNestWithDrag}
               subtaskNestNoDrag={subtaskNestNoDrag}
-              wish={tiers ? { sections: tiers.wish, heading: tiers.dream.length > 0 } : null}
+              tiers={tiers ? { dream: tiers.dream, wish: tiers.wish } : null}
             />
           </div>
 

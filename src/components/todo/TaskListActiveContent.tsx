@@ -10,7 +10,7 @@ import { SECTION_HEADING_TEXT } from '../ListSectionHeading'
 import { TaskItem, type TaskItemSelection } from '../TaskItem'
 import { DnDSubtreeRows, StaticSubtreeRows } from './subtaskRows'
 import { SectionDropZone, SomedayTierHeading } from './sectionParts'
-import type { TierSection } from '../../lib/somedayTier'
+import type { SomedayTier, TierSection } from '../../lib/somedayTier'
 
 /** 読み上げ: セクションの塊は listbox の中の group。名前はリスト名とセクション名 */
 const groupLabel = (block: SectionBlockRow) => (block.listTitle ? `${block.listTitle} ${block.title}` : block.title)
@@ -39,7 +39,7 @@ export function TaskListActiveContent({
   incompleteSubtasks,
   subtaskNestWithDrag,
   subtaskNestNoDrag,
-  wish = null,
+  tiers = null,
 }: {
   canDrag: boolean
   flatManualSortableIds: string[]
@@ -60,8 +60,8 @@ export function TaskListActiveContent({
   incompleteSubtasks: (parentId: string) => Task[]
   subtaskNestWithDrag: string
   subtaskNestNoDrag: string
-  /** いつかのやりたい（#429）。あればセクションの塊で出す（夢は一覧の外のカード）。見出しは夢があるときかドラッグ中だけ */
-  wish?: { sections: TierSection[]; heading: boolean } | null
+  /** いつかの段（#221・#434）。あれば「夢」「やりたい」の見出しの下に、段ごとにセクションで分けて出す（進めている夢は一覧の外のカード） */
+  tiers?: Record<SomedayTier, TierSection[]> | null
 }) {
   const { t } = useTranslation()
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
@@ -122,31 +122,48 @@ export function TaskListActiveContent({
       {sectionActions(sectionId, title)}
     </div>
   )
-  if (wish) {
-    // セクションの外の行 → セクションの順。空のセクションも出す（作ったばかりのセクションが見えるように）。
-    // セクションの外が空のときは、ドラッグ中（外へ戻す落とし先）だけ出す
-    const hasSections = wish.sections.length > 1
+  if (tiers) {
+    // 夢（上）・やりたい（下）。段の中はセクションの外の行 → セクションの順。
+    // 空のセクションはやりたいの段に出し（どちらの段にも行が無いとき）、ドラッグ中は両方の段に落とし先として出す。
+    // 空の段は、ドラッグ中（落とし先）だけ見出しを出す
+    const dragging = canDrag && taskDragging
     const listId = selectedListId ?? ''
-    const shown = wish.sections.filter((b) => b.sectionId !== null || b.tasks.length > 0 || (canDrag && taskDragging && hasSections))
-    const title = t('someday.tierWish')
+    const usedSections = new Set(
+      [...tiers.dream, ...tiers.wish].filter((b) => b.sectionId !== null && b.tasks.length > 0).map((b) => b.sectionId),
+    )
     return (
       <SortableContext items={canDrag ? flatManualSortableIds : []} strategy={verticalListSortingStrategy}>
-        <div role="group" aria-label={title} className="relative">
-          {wish.heading || (canDrag && taskDragging) ? <SomedayTierHeading tier="wish" title={title} dropTarget={canDrag} /> : null}
-          {shown.map((b) => (
-            <div
-              key={b.sectionId ?? 'none'}
-              role={b.sectionId !== null ? 'group' : undefined}
-              aria-label={b.sectionId !== null ? b.title : undefined}
-              data-section-anchor={b.sectionId ?? undefined}
-              className={`relative scroll-mt-2 ${b.sectionId !== null ? 'pt-3' : ''}`}
-            >
-              {b.sectionId !== null ? staticSectionHeader(listId, b.sectionId, b.title) : null}
-              {canDrag ? sortableRows(b.tasks) : staticRows(b.tasks)}
-              {canDrag && hasSections ? <SectionDropZone listId={listId} sectionId={b.sectionId} empty={b.tasks.length === 0} /> : null}
+        {(['dream', 'wish'] as const).map((tier) => {
+          const blocks = tiers[tier]
+          const hasSections = blocks.length > 1
+          const shown = blocks.filter((b) =>
+            b.sectionId === null
+              ? b.tasks.length > 0 || (dragging && hasSections)
+              : b.tasks.length > 0 || dragging || (tier === 'wish' && !usedSections.has(b.sectionId)),
+          )
+          if (shown.length === 0 && !dragging) return null
+          const title = t(tier === 'dream' ? 'someday.tierDream' : 'someday.tierWish')
+          return (
+            <div key={tier} role="group" aria-label={title} className="relative pt-3 first:pt-1">
+              <SomedayTierHeading tier={tier} title={title} dropTarget={canDrag} />
+              {shown.map((b) => (
+                <div
+                  key={b.sectionId ?? 'none'}
+                  role={b.sectionId !== null ? 'group' : undefined}
+                  aria-label={b.sectionId !== null ? b.title : undefined}
+                  data-section-anchor={b.sectionId ?? undefined}
+                  className="relative scroll-mt-2"
+                >
+                  {b.sectionId !== null ? staticSectionHeader(listId, b.sectionId, b.title) : null}
+                  {canDrag ? sortableRows(b.tasks) : staticRows(b.tasks)}
+                  {canDrag && hasSections ? (
+                    <SectionDropZone listId={listId} sectionId={b.sectionId} tier={tier} empty={b.tasks.length === 0} />
+                  ) : null}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )
+        })}
       </SortableContext>
     )
   }

@@ -526,6 +526,7 @@ export default {
   },
   someday: {
     tierDream: 'Dreams',
+    inProgressDreams: 'Dreams in progress',
     tierWish: 'Wishes',
     moveToDream: 'Move to Dreams',
     moveToWish: 'Move to Wishes',
