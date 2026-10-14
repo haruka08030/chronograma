@@ -32,6 +32,7 @@ import { FilterNoMatch } from './ui/FilterChips'
 import { hasTaskFilter, NO_TODO_FILTER, todoFilterFor } from '../lib/taskFilter'
 import { compareByOrder } from '../lib/orderCompare'
 import { tierSections } from '../lib/somedayTier'
+import { DreamCards } from './todo/DreamCards'
 import { useRememberScroll } from '../hooks/useRememberScroll'
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
@@ -123,8 +124,8 @@ export function TaskList({
       : null
     return tierSections(rows.active, named)
   }, [tiered, rows.active, rows.showSectionBlocks, rows.sectionBlocks])
-  /** 出している順の未完了のルート（段に分けるときは夢 → やりたい、段の中はセクションの順） */
-  const active = useMemo(() => (tiers ? [...tiers.dream, ...tiers.wish].flatMap((b) => b.tasks) : rows.active), [tiers, rows.active])
+  /** 一覧の行に出す未完了のルート（いつかは夢をカードで別に出すので、やりたいだけ。セクションの順） */
+  const active = useMemo(() => (tiers ? tiers.wish.flatMap((b) => b.tasks) : rows.active), [tiers, rows.active])
 
   /** 塊で分けないとき、行に出すセクション名 */
   const sectionNameById = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections])
@@ -344,6 +345,9 @@ export function TaskList({
             />
           )}
 
+          {/* いつかの夢は一覧の上にカードで（#429） */}
+          {tiers ? <DreamCards dreams={tiers.dream} dragging={canDrag && taskDragging} /> : null}
+
           {/* 読み上げ: 未完了の行は listbox（↑↓ の枠を aria-activedescendant で伝える） */}
           <div {...listboxProps} aria-label={title} className="space-y-0.5 outline-none">
             <TaskListActiveContent
@@ -366,7 +370,7 @@ export function TaskList({
               incompleteSubtasks={incompleteSubtasks}
               subtaskNestWithDrag={subtaskNestWithDrag}
               subtaskNestNoDrag={subtaskNestNoDrag}
-              tiers={tiers}
+              wish={tiers ? { sections: tiers.wish, heading: tiers.dream.length > 0 } : null}
             />
           </div>
 
