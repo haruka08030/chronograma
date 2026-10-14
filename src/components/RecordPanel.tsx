@@ -23,7 +23,8 @@ import { usePendingAction } from '../lib/pendingAction'
 import { isLogTask, isSleepTask } from '../types/task'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
-import { TITLE_MAX_LENGTH } from '../lib/textLimits'
+import { LogTitleInput } from './LogTitleInput'
+import { useLogDraft } from '../hooks/useLogDraft'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
 /** 「l」で今日を開いて「記録する」を開く（`requestAction`） */
@@ -66,8 +67,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
   const laterButtonRef = useRef<HTMLButtonElement>(null)
   useFocusBackOnClose(mode === 'timer', timerButtonRef)
   useFocusBackOnClose(mode === 'manual', laterButtonRef)
-  const [title, setTitle] = useState('')
-  const [category, setCategory] = useState('')
+  const { title, category, setTitle, setCategory, pick, reset } = useLogDraft()
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const recent = useMemo(() => frequentLogs(tasks, 2), [tasks])
@@ -101,8 +101,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
 
   const close = () => {
     setMode('idle')
-    setTitle('')
-    setCategory('')
+    reset()
   }
 
   const openManual = () => {
@@ -213,12 +212,18 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
       <div className="space-y-3">
         {summary}
         <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
-          <input
+          <LogTitleInput
             // タップの端末ではキーボードを出さない（ラベルのチップを押して始めるのがいちばん早く、キーボードがチップを隠す）
             autoFocus={!coarse}
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            maxLength={TITLE_MAX_LENGTH}
+            onChange={setTitle}
+            onPick={(s) => {
+              pick(s)
+              // 後から記録は、いつもの長さで始まりを入れる（終わりはそのまま。0 時より前にはしない）
+              if (mode === 'manual' && s.typicalMinutes && end) {
+                setStart(addClockMinutes('00:00', Math.max(0, timeToMinutes(end) - s.typicalMinutes)))
+              }
+            }}
             onKeyDown={onEnter}
             placeholder={mode === 'timer' ? t('quickLog.titlePlaceholder') : t('records.laterPlaceholder')}
             className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"

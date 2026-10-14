@@ -111,6 +111,20 @@ const SCREENS = [
     timer: { title: 'レポート', tags: ['課題'], startedAgo: 3 },
     click: ['[data-floating-timer] button:has-text("課題")', '[data-floating-timer] button:has-text("レポート")'],
   },
+  // 記録の名前を打つと過去の記録が候補に出る（#415）。後から記録と、記録中に題名を直すところ
+  {
+    name: 'record-suggest',
+    view: 'planner',
+    click: 'button:has-text("後から記録") >> visible=true',
+    steps: [{ fill: { selector: 'input[placeholder^="何をした"] >> visible=true', text: '課' } }],
+  },
+  {
+    name: 'timer-suggest',
+    view: 'planner',
+    timer: { title: 'レポート', tags: ['課題'], startedAgo: 3 },
+    click: '[data-floating-timer] button:has-text("レポート")',
+    steps: [{ fill: { selector: '[data-floating-timer] input', text: '授' } }],
+  },
   // 「1 日を締める」のラベルなしの記録を開いて行のチップで付ける所（#390）と、設定のラベルの「直近 30 日でラベルなし」から開いた所
   {
     name: 'planner-untagged',
