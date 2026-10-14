@@ -177,6 +177,12 @@ export function FloatingTimer() {
             <LogTitleInput
               autoFocus
               dropUp
+              // 始めた時刻〜今に重なる予定と、その時間帯にいつもやっていることも出す
+              when={{
+                dateKey: toDateKey(toAppWall(activeTimer.startedAt)),
+                start: clockOf(toAppWall(activeTimer.startedAt)),
+                end: clockOf(toAppWall(startMs + elapsed)),
+              }}
               value={titleDraft}
               onChange={setTitleDraft}
               onPick={(s) => {
