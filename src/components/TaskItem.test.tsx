@@ -130,3 +130,32 @@ describe('TaskItem: 親の行の次の締切（#308）', () => {
     expect(document.querySelector('[data-child-due]')).toBeNull()
   })
 })
+
+describe('TaskItem: 子の進み具合', () => {
+  it('子のある行は題名の右に「済/全部」。消した・アーカイブした子は数えない', () => {
+    const parent = addTask('Curry')
+    const add = (title: string) => {
+      const c = addTask(title)
+      useTaskStore.getState().updateTask(c.id, { parentId: parent.id })
+      return c
+    }
+    const onion = add('Onion')
+    add('Carrot')
+    add('Pork')
+    const gone = add('Old')
+    const shelved = add('Shelved')
+    useTaskStore.getState().toggleTask(onion.id)
+    useTaskStore.getState().deleteTasks([gone.id])
+    useTaskStore.getState().archiveTask(shelved.id)
+    render(<Row id={parent.id} />)
+
+    const title = screen.getByText('Curry').closest('[data-task-title]')!
+    expect(title).toHaveTextContent('Curry1/3')
+  })
+
+  it('子の無い行には出さない', () => {
+    const task = addTask('Solo')
+    render(<Row id={task.id} />)
+    expect(screen.getByText('Solo').closest('[data-task-title]')).toHaveTextContent(/^Solo$/)
+  })
+})
