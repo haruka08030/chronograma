@@ -610,9 +610,6 @@ export default {
   eventCard: {
     more: 'More options',
     google: 'Google Calendar',
-    colorScope: 'Apply color to',
-    scopeEvent: 'This event',
-    scopeSeries: 'All events',
     googleColor: 'Use Google color',
     recordAndComplete: 'Log and complete',
     toRecord: 'Log it',
