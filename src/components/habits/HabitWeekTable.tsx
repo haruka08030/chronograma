@@ -6,7 +6,7 @@ import { habitWeekDoneCount, habitWeekRequired, isHabitDueOnDate } from '../../l
 import { habitDayStatus, habitMinutesOn, habitRecordFor, type HabitRecordIndex } from '../../lib/habitTiming'
 import { HABIT_DONE_FILL, HABIT_MISSED, HABIT_OFF_TIME_FILL, HABIT_PENDING } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
-import { TODAY_TEXT } from '../../lib/dayMarker'
+import { TODAY_COLUMN, TODAY_TEXT } from '../../lib/dayMarker'
 import { toDateKey } from '../../lib/dateKey'
 import { tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
@@ -47,13 +47,14 @@ export function HabitWeekTable({
       {/* すき間（gap-2）は行と同じにして、丸を曜日・日付の真下にそろえる */}
       <div className="flex items-end gap-2 border-b border-zinc-100 px-3 py-2 dark:border-zinc-800 md:px-4">
         <div className="hidden min-w-0 flex-1 md:block" />
-        <div className={`${DAYS_GRID} w-full`}>
+        {/* 今日の列の塗りを見出しの上下の余白まで伸ばす */}
+        <div className={`${DAYS_GRID} -my-2 w-full self-stretch`}>
           {weekDates.map((d, i) => {
             const isToday = toDateKey(d) === todayKey
             return (
               <div
                 key={i}
-                className={`flex flex-col items-center leading-tight ${isToday ? TODAY_TEXT : 'text-zinc-400 dark:text-zinc-500'}`}
+                className={`flex flex-col items-center justify-end py-2 leading-tight ${isToday ? `${TODAY_TEXT} ${TODAY_COLUMN}` : 'text-zinc-400 dark:text-zinc-500'}`}
               >
                 <span className="text-[11px]">{weekdayLabels[i]}</span>
                 <span className="text-sm tabular-nums">{d.getDate()}</span>
@@ -137,7 +138,8 @@ function HabitWeekRow({
         </span>
         {tail && <span className="shrink-0 text-xs tabular-nums text-zinc-500 dark:text-zinc-400 md:hidden">{tail}</span>}
       </button>
-      <div className={DAYS_GRID}>
+      {/* 今日の列の塗りを行の余白まで伸ばし、PC は上下の行とつなげて 1 本の縦列にする（スマホは名前が上に乗るので丸の段だけ） */}
+      <div className={`${DAYS_GRID} -mb-3 md:-my-2.5 md:self-stretch`}>
         {weekDates.map((d) => {
           const key = toDateKey(d)
           const status = habitDayStatus(h, key, habitRecords)
@@ -170,7 +172,7 @@ function HabitWeekRow({
               data-habit-day={key}
               aria-label={cellLabel}
               aria-pressed={isDone || isOffTime}
-              className="group/cell flex h-10 items-center justify-center"
+              className={`group/cell flex h-[3.25rem] items-center justify-center pb-3 md:h-auto md:min-h-[3.75rem] md:py-2.5 ${key === todayKey ? TODAY_COLUMN : ''}`}
               {...tip(
                 record
                   ? t('habits.offTimeTooltip', { date: cellDate, start: record.startTime, end: record.endTime })
