@@ -13,7 +13,12 @@ import { requestQuickStart } from './lib/quickStart'
 import { setupUrlHistory } from './lib/urlHistory'
 import { installGlobalErrorReporting, reportFailure } from './lib/errorReport'
 import { dataStoreOpenError, dataStoreRecoveredFromLocalStorage } from './lib/dataStore'
-import { openTaskFromNotification, openWrapUpFromNotification, stopTimerFromNotification } from './lib/notificationLaunch'
+import {
+  openTaskFromNotification,
+  openWrapUpFromNotification,
+  stopTimerFromNotification,
+  startTimerFromNotification,
+} from './lib/notificationLaunch'
 import { closeTaskNotifications, installNotificationCleanup } from './lib/notificationCleanup'
 
 const launch: LaunchHandlers = {
@@ -32,6 +37,8 @@ const launch: LaunchHandlers = {
   openTask: ({ taskId, date }) => openTaskFromNotification(taskId, date),
   // 止め忘れの「止める」はそのタイマーを止めて、記録の終わりを直せる詳細を開く
   stopTimer: ({ startedAt }) => stopTimerFromNotification(startedAt),
+  // 開始の通知の「記録を始める」はその予定のタイマーを始める（済んだ・終わった予定は詳細を開く）
+  startTimer: ({ taskId, date }) => void startTimerFromNotification(taskId, date),
   // 夜の締めは今日の計画の「1 日を締める」の所を見せる
   wrapUp: () => openWrapUpFromNotification(),
   // 共有から開いたときは中身を追加欄に入れて開く（足すのは確かめてから）

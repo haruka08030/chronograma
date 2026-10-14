@@ -29,6 +29,9 @@ describe('reminderPayload', () => {
     expect(p.url).toBe('/?view=planner&task=task%2F1&date=2026-10-07')
     expect(p.taskId).toBeUndefined()
     expect(p.tag).toBe('chronograma-start-task/1')
+    // 「記録を始める」（#419）。締切の通知には付けない
+    expect(p.actions).toEqual([{ action: 'start-timer', title: '記録を始める' }])
+    expect(reminderPayload(MESSAGES.en, fired({ kind: 'due', endTime: null }), '2026-10-05').actions).toBeUndefined()
   })
 
   it('締切の通知は、その To-Do と締切日を開く URL', () => {
