@@ -312,7 +312,7 @@ type GoogleTimes =
   | { start: { date: string }; end: { date: string } }
   | { start: { dateTime: string; timeZone: string }; end: { dateTime: string; timeZone: string } }
 
-function toGoogleTimes(t: GoogleEventTiming): GoogleTimes {
+export function toGoogleTimes(t: GoogleEventTiming): GoogleTimes {
   if (!t.startTime || !t.endTime) {
     // Google の終日は終わりの日を含まない
     return { start: { date: t.date }, end: { date: addDaysYmd(t.endDate ?? t.date, 1) } }
@@ -406,4 +406,9 @@ export async function updateGoogleEvent(
 
 export async function deleteGoogleEvent(eventId: string): Promise<void> {
   await writeGoogle({ action: 'delete', eventId })
+}
+
+/** ID を決めて Google の予定を作る・直す（消した予定も戻す）。アプリの予定を Google に送るのに使う */
+export async function upsertGoogleEvent(eventId: string, fields: Record<string, unknown>): Promise<CalendarEvent | null> {
+  return writeGoogle({ action: 'upsert', eventId, fields })
 }

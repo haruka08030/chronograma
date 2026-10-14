@@ -185,6 +185,8 @@ function pickEventFields(raw: unknown): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   if (typeof src.summary === 'string') out.summary = src.summary
   if (typeof src.description === 'string') out.description = src.description
+  // 予定の色（1〜11）。null は色を外す（カレンダーの色に戻る）
+  if (src.colorId === null || (typeof src.colorId === 'string' && /^(?:[1-9]|1[01])$/.test(src.colorId))) out.colorId = src.colorId
   for (const key of ['start', 'end'] as const) {
     const v = src[key] as EventTime | undefined
     if (!v) continue
@@ -217,6 +219,25 @@ async function writeGoogleEvent(
   }
   if (method === 'DELETE') return null
   return (await res.json()) as GoogleEventItem
+}
+
+/**
+ * ID を決めて作る。あれば直し（消した予定も戻す）、無ければその ID で作る。
+ * アプリの予定から ID を決めるので、何度送っても・どの端末から送っても 1 つにしかならない
+ */
+async function upsertGoogleEvent(accessToken: string, eventId: string, fields: Record<string, unknown>): Promise<GoogleEventItem> {
+  try {
+    return (await writeGoogleEvent(accessToken, 'PATCH', eventId, { ...fields, status: 'confirmed' }))!
+  } catch (e) {
+    if (!(e instanceof GoogleApiError) || e.status !== 404) throw e
+  }
+  try {
+    return (await writeGoogleEvent(accessToken, 'POST', null, { ...fields, id: eventId }))!
+  } catch (e) {
+    // 同時に作られていた（409）ら、もう一度直す
+    if (!(e instanceof GoogleApiError) || e.status !== 409) throw e
+    return (await writeGoogleEvent(accessToken, 'PATCH', eventId, { ...fields, status: 'confirmed' }))!
+  }
 }
 
 /**
@@ -471,7 +492,7 @@ Deno.serve(
         }
       }
 
-      if (action === 'create' || action === 'update' || action === 'delete') {
+      if (action === 'create' || action === 'update' || action === 'delete' || action === 'upsert') {
         const { row, error: fetchError } = await loadConnection()
         if (fetchError) {
           console.error('[google] load connection failed', fetchError.message)
@@ -485,10 +506,16 @@ Deno.serve(
         }
         const eventId = (body.eventId as string | undefined)?.trim() || null
         if (action !== 'create' && !eventId) return errorResponse(400, 'eventId is required')
+        // upsert の ID はアプリが決める（Google の ID に使える英小文字 a〜v と数字、5〜1024 文字）
+        if (action === 'upsert' && !/^[a-v0-9]{5,1024}$/.test(eventId!)) return errorResponse(400, 'eventId is invalid')
         try {
           const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
           const accessToken = await refreshGoogleAccessToken(row.refresh_token)
           const fields = action === 'delete' ? null : pickEventFields(body.fields)
+          if (action === 'upsert') {
+            const item = await upsertGoogleEvent(accessToken, eventId!, fields!)
+            return jsonResponse({ ok: true, event: normalizeEvents([item], timeZone)[0] })
+          }
           const item = await writeGoogleEvent(
             accessToken,
             action === 'create' ? 'POST' : action === 'update' ? 'PATCH' : 'DELETE',
