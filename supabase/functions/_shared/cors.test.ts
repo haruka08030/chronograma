@@ -33,6 +33,11 @@ describe('corsHeadersFor', () => {
     expect(corsHeadersFor('https://app.example.com', allowed)['Access-Control-Allow-Origin']).toBe('https://app.example.com')
   })
 
+  it('lets an allowed origin read the Server-Timing breakdown', () => {
+    expect(corsHeadersFor('https://app.example.com', allowed)['Timing-Allow-Origin']).toBe('https://app.example.com')
+    expect(corsHeadersFor('https://evil.example.com', allowed)['Timing-Allow-Origin']).toBeUndefined()
+  })
+
   it('does not allow other origins', () => {
     expect(corsHeadersFor('https://evil.example.com', allowed)['Access-Control-Allow-Origin']).toBeUndefined()
     expect(corsHeadersFor(null, allowed)['Access-Control-Allow-Origin']).toBeUndefined()
