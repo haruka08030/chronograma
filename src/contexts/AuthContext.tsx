@@ -10,6 +10,7 @@ import i18n from '../i18n/config'
 import { isNetworkErrorMessage, otpRateLimit } from '../lib/errorMessages'
 import { setErrorReportUser } from '../lib/errorReport'
 import { markOAuthSignInStarted, pendingAuthLinkError } from '../lib/authLinkError'
+import { pendingEmailCode } from '../lib/pendingEmailCode'
 import {
   AUTH_TOKEN_KEY,
   getSupabase,
@@ -149,6 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // ログイン用リンクが使えなかった（期限切れ・使用済み）。理由はアカウント欄に出す
     if (pendingAuthLinkError()) useTaskStore.getState().openSettingsWithScroll('account')
+    // メールのコードを見に行くあいだにアプリが閉じられた。開き直したらコードを打つ欄へ戻す
+    else if (pendingEmailCode() && !needsSupabaseAtStart()) useTaskStore.getState().openSettingsWithScroll('account')
 
     let unsubscribe: (() => void) | null = null
     /** 読み込んだクライアントのセッションを読み、変化を受ける（起動時・ログインを始めたとき・ほかのタブでログインしたとき） */

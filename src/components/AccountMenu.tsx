@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { isNetworkErrorMessage } from '../lib/errorMessages'
 import { authLinkErrorKey, clearAuthLinkError, pendingAuthLinkError } from '../lib/authLinkError'
+import { clearPendingEmailCode, pendingEmailCode, savePendingEmailCode } from '../lib/pendingEmailCode'
 import { isSupabaseConfigured, loadSupabase } from '../lib/supabase'
 import { flushPendingSync } from '../hooks/useSupabaseSync'
 import { buttonClass } from './ui/buttonClass'
@@ -19,10 +20,11 @@ import { useExitGhost } from '../hooks/useExitGhost'
 export function AccountMenu() {
   const { t } = useTranslation()
   const { user, loading, signInWithOtp, verifyEmailOtp, signInWithGoogle, signOut, deleteAccount } = useAuth()
-  // ログイン用リンクが使えずに戻ってきたときは、送り直せるよう入力欄を開いて始める
-  const [open, setOpen] = useState(() => pendingAuthLinkError() != null)
-  const [email, setEmail] = useState('')
-  const [codeSentTo, setCodeSentTo] = useState<string | null>(null)
+  // ログイン用リンクが使えずに戻ってきたときは、送り直せるよう入力欄を開いて始める。
+  // コードを送ったままアプリを閉じたときは、コードを打つ欄を開いて始める
+  const [open, setOpen] = useState(() => pendingAuthLinkError() != null || pendingEmailCode() != null)
+  const [email, setEmail] = useState(() => pendingEmailCode() ?? '')
+  const [codeSentTo, setCodeSentTo] = useState<string | null>(() => pendingEmailCode())
   const [code, setCode] = useState('')
   const [pending, setPending] = useState(false)
   const [redirecting, setRedirecting] = useState(false)
@@ -41,6 +43,10 @@ export function AccountMenu() {
     return !googleSignIn || (linkError != null && authLinkErrorKey(linkError) !== 'account.googleFailed')
   })
   useEffect(() => clearAuthLinkError(), [])
+  // ほかの方法・ほかのタブでログインできたら、送ったコードはもう要らない
+  useEffect(() => {
+    if (user) clearPendingEmailCode()
+  }, [user])
   // ログインの欄を開いたら、押す前に Supabase を読んでおく（ログインしない人は起動時に読まない、#268）
   const signedOut = !user && !loading
   useEffect(() => {
@@ -156,6 +162,7 @@ export function AccountMenu() {
       else {
         setMessage(t('account.codeSent'))
         setCodeSentTo(email.trim())
+        savePendingEmailCode(email.trim())
         setCode('')
       }
     } catch (err) {
@@ -175,6 +182,7 @@ export function AccountMenu() {
       const res = await verifyEmailOtp(codeSentTo, code)
       if (res.error) setError(res.error)
       else {
+        clearPendingEmailCode()
         setCodeSentTo(null)
         setCode('')
         setEmail('')
@@ -202,6 +210,7 @@ export function AccountMenu() {
   }
 
   const resetToEmail = () => {
+    clearPendingEmailCode()
     setCodeSentTo(null)
     setCode('')
     setError(null)
