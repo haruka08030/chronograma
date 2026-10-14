@@ -1380,7 +1380,6 @@ export default {
     executedSection: 'Completed ({{count}})',
     totalLogged: 'Total logged',
     noLogs: 'No logs for this day yet.',
-    timeUnset: 'Time not set',
   },
   activityLog: {
     timerRunning: 'Logging…',
