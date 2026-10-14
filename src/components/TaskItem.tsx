@@ -404,7 +404,8 @@ export const TaskItem = memo(function TaskItem({
           <RowSelectCheckbox selected={selection.selected} reveal={selection.reveal} onToggle={selection.onToggle} small={isSubtask} />
         ) : null}
 
-        {compact && <span className={DAY_ROW_TIME_CLASS}>{task.startTime}</span>}
+        {/* 時刻の無い行は時刻の列を空けない（空けると左の色の線と丸の間が開きすぎる） */}
+        {compact && task.startTime && <span className={DAY_ROW_TIME_CLASS}>{task.startTime}</span>}
 
         {/* 予定（バイト・授業）には完了の丸を出さない */}
         {isEventTask(task) ? (
