@@ -112,6 +112,17 @@ describe('ログインの画面', () => {
     expect(screen.getByPlaceholderText('Code from email')).toBeInTheDocument()
   })
 
+  it('コードを待つ間は外を押しても閉じず、「ログイン」を押すと閉じる', async () => {
+    savePendingEmailCode('signIn', 'a@example.com')
+    const user = userEvent.setup()
+    render(<AccountMenu />)
+    await user.click(document.body)
+    await user.keyboard('{Escape}')
+    expect(screen.getByPlaceholderText('Code from email')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(screen.queryByPlaceholderText('Code from email')).toBeNull()
+  })
+
   it('メールアドレスを変えると、開き直してもコードの欄に戻らない', async () => {
     savePendingEmailCode('signIn', 'a@example.com')
     const user = userEvent.setup()
