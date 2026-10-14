@@ -142,6 +142,18 @@ export const TaskItem = memo(function TaskItem({
     return steps ? `${steps.done}/${steps.total}\u0000${steps.next?.title ?? ''}` : ''
   })
   const [dreamProgress, dreamNext] = dreamStepKey ? dreamStepKey.split('\u0000') : ['', '']
+  // 子のある行は「済/全部」（中国語 1/3、カレー 2/3）。消した・アーカイブした子と記録は数えない。夢は上の進み具合で出す
+  const childProgress = useTaskStore((s) => {
+    if (dream) return null
+    let total = 0
+    let done = 0
+    for (const c of s.tasks) {
+      if (c.parentId !== task.id || c.deletedAt || c.archivedAt || isLogTask(c)) continue
+      total++
+      if (c.completed) done++
+    }
+    return total > 0 ? `${done}/${total}` : null
+  })
   const [editing, setEditing] = useState(Boolean(autoEdit))
   const [editValue, setEditValue] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -440,11 +452,19 @@ export const TaskItem = memo(function TaskItem({
                 e.stopPropagation()
                 beginRename()
               }}
-              className={`block w-full truncate text-left ${hasRowAction ? 'cursor-pointer' : 'cursor-text'} outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
+              className={`${childProgress ? 'flex items-baseline gap-2' : 'block truncate'} w-full text-left ${hasRowAction ? 'cursor-pointer' : 'cursor-text'} outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
                         transition-colors ${shownCompleted && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
             >
-              {task.title || '\u00A0'}
+              {childProgress ? (
+                <>
+                  {/* 子の進み具合は題名のすぐ右（PC の広い行で右端に離すと、どの行の数か追いにくい） */}
+                  <span className="min-w-0 truncate">{task.title || '\u00A0'}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500">{childProgress}</span>
+                </>
+              ) : (
+                task.title || '\u00A0'
+              )}
             </button>
           )}
 
