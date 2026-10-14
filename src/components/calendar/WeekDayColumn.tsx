@@ -318,7 +318,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
       })}
 
       {dayTimed.map((t) => (
-        <div key={t.id} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
+        <div className="group/slot" key={t.id} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
           <TimeBlock
             task={t as TimeBlockTask}
             onPointerDown={(e) =>
@@ -371,7 +371,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         </div>
       ))}
       {dayHabitSlots.map(({ habit, slot, done }) => (
-        <div key={slot.id} style={{ opacity: movingTaskId === slot.id ? 0.3 : 1 }}>
+        <div className="group/slot" key={slot.id} style={{ opacity: movingTaskId === slot.id ? 0.3 : 1 }}>
           <TimeBlock
             task={{ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: done }}
             dayKey={key}
@@ -413,7 +413,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         // 日をまたぐ予定は列ごとに区間しか描いていないので、ドラッグでは動かさない（押すとカードで直せる）
         const editable = canEditGoogleEvent(e, googleCanWrite) && !googleEventCrossesDay(e)
         return (
-          <div key={`event-${e.id}`} style={{ opacity: movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
+          <div className="group/slot" key={`event-${e.id}`} style={{ opacity: movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
             <TimeBlock
               task={{
                 id: `event-${e.id}`,
