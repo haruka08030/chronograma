@@ -82,4 +82,19 @@ describe('いつかの段（#221）', () => {
     expect(out.tasks.map((t) => t.somedayTier ?? null)).toEqual(['dream', null, null])
     expect(out.tasks[0]!.updatedAt).toBe(now)
   })
+
+  it('夢の一歩を予定にしても元の夢を覚え、夢の進み具合に数える（#430）', async () => {
+    const { dreamSteps } = await import('../lib/somedayTier')
+    st().setSomedayTier(['trip'], 'dream')
+    st().promoteToPlanned('step', '2026-10-20')
+    expect(get('step').parentId).toBeNull()
+    expect(get('step').dreamId).toBe('trip')
+    expect(dreamSteps(st().tasks, 'trip')).toMatchObject({ next: { id: 'step' }, done: 0, total: 1 })
+    st().toggleTask('step')
+    expect(dreamSteps(st().tasks, 'trip')).toMatchObject({ next: null, done: 1, total: 1 })
+    // やりたいの子を予定にしても、つながりは付けない
+    useTaskStore.setState({ tasks: [...st().tasks, row('sub', { parentId: 'picnic' })] })
+    st().promoteToPlanned('sub', '2026-10-21')
+    expect('dreamId' in get('sub')).toBe(false)
+  })
 })

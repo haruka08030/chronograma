@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { TASK_DEFAULTS } from './taskDefaults'
-import { dreamSteps, parseTierDropId, readSomedayTier, somedayTierOf, withDreamsFromSteps, withSomedayTier } from './somedayTier'
+import {
+  dreamOfStep,
+  dreamSteps,
+  parseTierDropId,
+  readSomedayTier,
+  somedayTierOf,
+  withDreamsFromSteps,
+  withSomedayTier,
+} from './somedayTier'
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
   ...TASK_DEFAULTS,
@@ -63,5 +71,21 @@ describe('somedayTier', () => {
     expect(out.map((t) => t.somedayTier ?? null)).toEqual(['dream', null, null, null, null])
     // 直すものが無ければ同じ配列
     expect(withDreamsFromSteps(out, new Set(['wish']))).toBe(out)
+  })
+
+  it('予定にした一歩（dreamId）も数え、次の一歩は予定にした済んでいない一歩（日付の早い順）を先に（#430）', () => {
+    const tasks = [
+      task('d', { somedayTier: 'dream' }),
+      task('c1', { parentId: 'd', order: 0 }),
+      task('s2', { listId: '__inbox__', dreamId: 'd', scheduledDate: '2026-10-25' }),
+      task('s1', { listId: '__inbox__', dreamId: 'd', scheduledDate: '2026-10-20' }),
+      task('s0', { listId: '__inbox__', dreamId: 'd', completed: true, archivedAt: '2026-10-01T00:00:00Z' }),
+      task('gone', { listId: '__inbox__', dreamId: 'd', deletedAt: '2026-10-01T00:00:00Z' }),
+    ]
+    expect(dreamSteps(tasks, 'd')).toMatchObject({ next: { id: 's1' }, done: 1, total: 4 })
+    const someday = new Set(['wish'])
+    expect(dreamOfStep(tasks, tasks[2]!, someday)?.id).toBe('d')
+    // 夢でなくなったら（やりたいへ移した）名前を出さない
+    expect(dreamOfStep([{ ...tasks[0]!, somedayTier: undefined }, ...tasks.slice(1)], tasks[2]!, someday)).toBeNull()
   })
 })

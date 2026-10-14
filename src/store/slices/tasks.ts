@@ -1,5 +1,5 @@
 /** タスクの追加・完了・編集・一括操作・ゴミ箱・アーカイブ */
-import { somedayTierOf, withSomedayTier } from '../../lib/somedayTier'
+import { somedayTierOf, withDreamId, withSomedayTier } from '../../lib/somedayTier'
 import { isEventTask, type Task } from '../../types/task'
 import { INBOX_ID, TRASH_KEEP_DAYS } from '../storeConstants'
 import {
@@ -268,6 +268,10 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const s0 = get()
       if (!s0.tasks.some((t) => t.id === id)) return
       const family = expandDescendantIds([id], s0.tasks)
+      // 夢の一歩なら、To-Do になっても元の夢を覚える（夢の進み具合・次の一歩に数える、#430）
+      const promoted = s0.tasks.find((t) => t.id === id)
+      const parent = promoted?.parentId ? s0.tasks.find((t) => t.id === promoted.parentId) : undefined
+      const dreamId = parent && !parent.parentId && parent.somedayTier === 'dream' ? parent.id : null
       pushUndo()
       const now = new Date().toISOString()
       set((s) => {
@@ -278,17 +282,20 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
             if (t.id === id) {
               // 「中国語」の下の「HSK 合格」だけを予定にしたら、未分類では 1 件のタスクとして出す
               // To-Do になったら、いつかの段（夢）は外す
-              return withSomedayTier(
-                {
-                  ...t,
-                  listId: INBOX_ID,
-                  sectionId: null,
-                  parentId: null,
-                  order: maxOrder + 1,
-                  scheduledDate: dateKey,
-                  updatedAt: now,
-                },
-                null,
+              return withDreamId(
+                withSomedayTier(
+                  {
+                    ...t,
+                    listId: INBOX_ID,
+                    sectionId: null,
+                    parentId: null,
+                    order: maxOrder + 1,
+                    scheduledDate: dateKey,
+                    updatedAt: now,
+                  },
+                  null,
+                ),
+                dreamId ?? t.dreamId,
               )
             }
             return { ...t, listId: INBOX_ID, sectionId: null, updatedAt: now }

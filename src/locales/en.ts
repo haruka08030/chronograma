@@ -531,6 +531,7 @@ export default {
     moveToWish: 'Move to Wishes',
     nextStep: 'Next step: {{title}}',
     stepUndated: 'No date',
+    stepOfDreamAria: 'A step toward “{{title}}”',
     stepProgressAria: 'Steps done {{progress}}',
     addPlaceholder: 'Add something for someday',
     schedule: 'Schedule',

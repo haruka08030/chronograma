@@ -60,12 +60,41 @@ export function withSomedayTier<T extends Task>(t: T, tier: SomedayTier | 'dream
   return rest
 }
 
-/** 夢の次の一歩（並び順で最初の、済んでいない子）と進み具合（済んだ子 / 全部）。一歩が無ければ null */
+/**
+ * 夢の一歩（夢の下の子と、予定にして To-Do になった一歩 `dreamId`、#430）と進み具合（済んだ一歩 / 全部）。一歩が無ければ null。
+ * 次の一歩は、予定にした済んでいない一歩（日付の早い順）を先に、無ければ夢の下の並び順で最初の済んでいない子。
+ * 予定にした一歩は、済んでアーカイブしても数える（消したものは数えない）
+ */
 export function dreamSteps(tasks: readonly Task[], dreamId: string): { next: Task | null; done: number; total: number } | null {
-  const steps = tasks.filter((t) => t.parentId === dreamId && isActiveTask(t)).sort(compareByOrder)
+  const children = tasks.filter((t) => t.parentId === dreamId && isActiveTask(t)).sort(compareByOrder)
+  const linked = tasks
+    .filter((t) => t.dreamId === dreamId && !t.deletedAt && t.parentId !== dreamId)
+    .sort((a, b) => (stepDateKey(a) ?? '9999').localeCompare(stepDateKey(b) ?? '9999') || compareByOrder(a, b))
+  const steps = [...linked, ...children]
   if (steps.length === 0) return null
   const done = steps.filter((t) => t.completed).length
   return { next: steps.find((t) => !t.completed) ?? null, done, total: steps.length }
+}
+
+/** 夢の一歩だった To-Do の、元の夢（いつかのリストで消していない夢のときだけ）。行に夢の名前を添えるのに使う */
+export function dreamOfStep(tasks: readonly Task[], step: Pick<Task, 'dreamId'>, somedayListIds: ReadonlySet<string>): Task | null {
+  if (!step.dreamId) return null
+  const dream = tasks.find((t) => t.id === step.dreamId)
+  return dream && !dream.deletedAt && dream.somedayTier === 'dream' && somedayListIds.has(dream.listId) ? dream : null
+}
+
+/** サーバー・バックアップの値を読む（空でない文字列のほかは持たない） */
+export function readDreamId(raw: unknown): string | null {
+  return typeof raw === 'string' && raw.length > 0 ? raw : null
+}
+
+/** 夢の一歩だった行だけ項目を持つ形（同期で「変わった」と見ないため、持たない行は項目ごと無い） */
+export function withDreamId<T extends Task>(t: T, dreamId: string | null | undefined): T {
+  if (dreamId) return t.dreamId === dreamId ? t : { ...t, dreamId }
+  if (!('dreamId' in t)) return t
+  const rest = { ...t }
+  delete rest.dreamId
+  return rest
 }
 
 /** 前の版のデータ: いつかのリストの、一歩（子）を持つルートの行は夢にする（STORE_VERSION 41・`034`） */

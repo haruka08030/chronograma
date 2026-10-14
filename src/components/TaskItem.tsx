@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { DraggableSyntheticListeners } from '@dnd-kit/core'
-import { dreamSteps } from '../lib/somedayTier'
+import { dreamOfStep, dreamSteps } from '../lib/somedayTier'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
@@ -11,7 +11,7 @@ import { isModKey, isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
 import { RowSelectCheckbox } from './ui/RowSelectCheckbox'
-import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, RepeatIcon, TrashIcon } from './icons'
+import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, RepeatIcon, StarIcon, TrashIcon } from './icons'
 import { CompletionCircle, EventMark } from './ui/CompletionCircle'
 import { planHex } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
@@ -146,6 +146,12 @@ export const TaskItem = memo(function TaskItem({
     return steps ? `${steps.done}/${steps.total}\u0000${steps.next?.title ?? ''}` : ''
   })
   const [dreamProgress, dreamNext] = dreamStepKey ? dreamStepKey.split('\u0000') : ['', '']
+  // 夢の一歩を予定にした To-Do（#430）: 元の夢の名前を添える（夢でなくなったら出さない）
+  const stepOfDream = useTaskStore((s) =>
+    task.dreamId
+      ? (dreamOfStep(s.tasks, task, new Set(s.lists.filter((l) => l.kind === 'someday').map((l) => l.id)))?.title ?? null)
+      : null,
+  )
   // 子のある行は「済/全部」（中国語 1/3、カレー 2/3）。消した・アーカイブした子と記録は数えない。夢は上の進み具合で出す
   const childProgress = useTaskStore((s) => {
     if (dream) return null
@@ -513,6 +519,15 @@ export const TaskItem = memo(function TaskItem({
                 </span>
               )}
               {sectionLabel && <span className="max-w-[12rem] truncate text-[11px] text-zinc-500 dark:text-zinc-400">{sectionLabel}</span>}
+              {stepOfDream && (
+                <span
+                  className="inline-flex min-w-0 items-center gap-0.5 text-[11px] text-zinc-500 dark:text-zinc-400"
+                  aria-label={t('someday.stepOfDreamAria', { title: stepOfDream })}
+                >
+                  <StarIcon className="h-3 w-3 shrink-0" aria-hidden />
+                  <span className="max-w-[12rem] truncate">{stepOfDream}</span>
+                </span>
+              )}
               {repeatText && (
                 <span role="img" aria-label={repeatText} {...tip(repeatText)} className="inline-flex">
                   <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
