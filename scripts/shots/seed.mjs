@@ -34,7 +34,7 @@ function task(fields, stamp) {
     updatedAt: iso,
     order: fields.order ?? 0,
     listId: fields.listId ?? INBOX_ID,
-    sectionId: null,
+    sectionId: fields.sectionId ?? null,
     parentId: fields.parentId ?? null,
     dueDate: fields.dueDate ?? null,
     dueTime: fields.dueTime ?? null,
@@ -233,7 +233,7 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
     task({ id: 's91', title: 'ES 提出', parentId: 's90', dueDate: inTwoDays, estimateMinutes: 180, order: 0 }, instant),
     task({ id: 's92', title: '一次面接', parentId: 's90', scheduledDate: inTwoDays, dueDate: dayKey(shift(now, 6)), order: 1 }, instant),
     // いつか（Wish）と買い物（チェックリスト）は別リスト
-    task({ id: 's13', title: '北海道に行く', listId: SOMEDAY_ID, order: 0 }, instant),
+    task({ id: 's13', title: '北海道に行く', listId: SOMEDAY_ID, sectionId: 'seed-travel', order: 0 }, instant),
     task({ id: 's14', title: '『人を動かす』を読む', listId: SOMEDAY_ID, order: 1 }, instant),
     // 下に置いた子（目標の下の一歩、メニューの下の材料）
     // 一歩を置いた夢（いつかの上の段、#221）
@@ -419,7 +419,8 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
         { id: SOMEDAY_ID, name: 'いつか', color: '#F6BF26', order: 1, kind: 'someday' },
         { id: SHOPPING_ID, name: '買い物', color: '#33B679', order: 2, kind: 'checklist' },
       ],
-      sections: [],
+      // いつかの段の中のセクション（#427）
+      sections: [{ id: 'seed-travel', listId: SOMEDAY_ID, name: '旅行', order: 0 }],
       habits,
       selectedListId: INBOX_ID,
       selectedView: 'planner',

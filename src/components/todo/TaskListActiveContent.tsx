@@ -10,6 +10,7 @@ import { SECTION_HEADING_TEXT } from '../ListSectionHeading'
 import { TaskItem, type TaskItemSelection } from '../TaskItem'
 import { DnDSubtreeRows, StaticSubtreeRows } from './subtaskRows'
 import { SectionDropZone, SomedayTierHeading } from './sectionParts'
+import type { SomedayTier, TierSection } from '../../lib/somedayTier'
 
 /** 読み上げ: セクションの塊は listbox の中の group。名前はリスト名とセクション名 */
 const groupLabel = (block: SectionBlockRow) => (block.listTitle ? `${block.listTitle} ${block.title}` : block.title)
@@ -59,8 +60,8 @@ export function TaskListActiveContent({
   incompleteSubtasks: (parentId: string) => Task[]
   subtaskNestWithDrag: string
   subtaskNestNoDrag: string
-  /** いつかのリストの 2 段（#221）。あれば「夢」「やりたい」の見出しの下に分けて出す（セクションの塊の代わり） */
-  tiers?: { dream: Task[]; wish: Task[] } | null
+  /** いつかのリストの 2 段（#221）。あれば「夢」「やりたい」の見出しの下に、段ごとにセクションで分けて出す */
+  tiers?: Record<SomedayTier, TierSection[]> | null
 }) {
   const { t } = useTranslation()
   const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
@@ -114,18 +115,52 @@ export function TaskListActiveContent({
         })}
       </div>
     ))
+  // セクションの見出し（並べ替えのドラッグなし）。名前の変更・削除と、押すと上の入力欄からこのセクションに追加
+  const staticSectionHeader = (listId: string, sectionId: string, title: string) => (
+    <div className="group relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
+      <div className="min-w-0 flex-1">{sectionTitle(sectionId, title, Boolean(selectedListId) && selectedListId === listId)}</div>
+      {sectionActions(sectionId, title)}
+    </div>
+  )
   if (tiers) {
-    // 夢（上）・やりたい（下）。空の段は、ドラッグ中（落とし先）だけ見出しを出す
+    // 夢（上）・やりたい（下）。段の中はセクションの外の行 → セクションの順。
+    // 空のセクションはやりたいの段に出し（どちらの段にも行が無いとき）、ドラッグ中は両方の段に落とし先として出す。
+    // 空の段は、ドラッグ中（落とし先）か空のセクションを出すときだけ見出しを出す
+    const dragging = canDrag && taskDragging
+    const listId = selectedListId ?? ''
+    const usedSections = new Set(
+      [...tiers.dream, ...tiers.wish].filter((b) => b.sectionId !== null && b.tasks.length > 0).map((b) => b.sectionId),
+    )
     return (
       <SortableContext items={canDrag ? flatManualSortableIds : []} strategy={verticalListSortingStrategy}>
         {(['dream', 'wish'] as const).map((tier) => {
-          const rows = tiers[tier]
-          if (rows.length === 0 && !(canDrag && taskDragging)) return null
+          const blocks = tiers[tier]
+          const hasSections = blocks.length > 1
+          const shown = blocks.filter((b) =>
+            b.sectionId === null
+              ? b.tasks.length > 0 || (dragging && hasSections)
+              : b.tasks.length > 0 || dragging || (tier === 'wish' && !usedSections.has(b.sectionId)),
+          )
+          if (shown.length === 0 && !dragging) return null
           const title = t(tier === 'dream' ? 'someday.tierDream' : 'someday.tierWish')
           return (
             <div key={tier} role="group" aria-label={title} className="relative pt-3 first:pt-1">
               <SomedayTierHeading tier={tier} title={title} dropTarget={canDrag} />
-              {canDrag ? sortableRows(rows) : staticRows(rows)}
+              {shown.map((b) => (
+                <div
+                  key={b.sectionId ?? 'none'}
+                  role={b.sectionId !== null ? 'group' : undefined}
+                  aria-label={b.sectionId !== null ? b.title : undefined}
+                  data-section-anchor={b.sectionId ?? undefined}
+                  className="relative scroll-mt-2"
+                >
+                  {b.sectionId !== null ? staticSectionHeader(listId, b.sectionId, b.title) : null}
+                  {canDrag ? sortableRows(b.tasks) : staticRows(b.tasks)}
+                  {canDrag && hasSections ? (
+                    <SectionDropZone listId={listId} sectionId={b.sectionId} tier={tier} empty={b.tasks.length === 0} />
+                  ) : null}
+                </div>
+              ))}
             </div>
           )
         })}
@@ -258,12 +293,7 @@ export function TaskListActiveContent({
             <div className="px-3 pb-1 pt-1 text-xs font-semibold tracking-tight text-zinc-700 dark:text-zinc-200">{block.listTitle}</div>
           ) : null}
           {block.headerKind === 'section-named' && block.sectionId !== null ? (
-            <div className="group relative z-10 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg mb-0.5 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
-              <div className="min-w-0 flex-1">
-                {sectionTitle(block.sectionId, block.title, Boolean(selectedListId) && selectedListId === block.listId)}
-              </div>
-              {sectionActions(block.sectionId, block.title)}
-            </div>
+            staticSectionHeader(block.listId, block.sectionId, block.title)
           ) : (
             <button
               type="button"
