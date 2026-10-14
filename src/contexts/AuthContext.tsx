@@ -21,6 +21,7 @@ import {
   signOutThisDevice,
 } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
+import { rememberGoogleConnected, wasGoogleConnected } from '../lib/googleConnectedHint'
 import { clearDeletedAccount, clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { readFunctionErrorBody } from '../lib/functionError'
 import { detachWebPush } from '../lib/webPush'
@@ -66,7 +67,13 @@ function enqueueGoogleSync(task: () => Promise<void>) {
   })
 }
 
-async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
+/**
+ * 連携しているかをもう確かめた人。起動時はセッションの読み出しと INITIAL_SESSION・SIGNED_IN の通知が続けて来るので、
+ * 同じ人には 1 回だけ確かめる（毎回聞くと、予定の取得がその分だけ遅れる）。ログアウトで空にする
+ */
+let googleCheckedFor: string | null = null
+
+async function handleGoogleAuthSideEffects(event: AuthChangeEvent, userId: string) {
   // 直接 Google OAuth の ?code= は、どの画面に戻ってきても必ず交換する。
   // （以前は plan-vs-actual が mount されたときだけ処理していたため取りこぼしていた）
   if (hasGoogleOAuthCallbackInUrl()) {
@@ -76,7 +83,11 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
         const connected = await isGoogleCalendarConnected()
         useTaskStore.getState().setGoogleConnected(connected)
         useTaskStore.getState().setGoogleConnectionError(connected ? null : useTaskStore.getState().googleConnectionError)
-        if (connected) return
+        if (connected) {
+          rememberGoogleConnected(userId)
+          googleCheckedFor = userId
+          return
+        }
       }
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Google OAuth callback failed'
@@ -91,6 +102,15 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
     return
   }
 
+  if (googleCheckedFor === userId) return
+  googleCheckedFor = userId
+
+  // この端末で前につながっていたなら、聞かずにすぐ予定を取りに行く（つながっていなければ予定の取得が断り、連携を外す）
+  if (wasGoogleConnected(userId)) {
+    useTaskStore.getState().setGoogleConnected(true)
+    return
+  }
+
   // Google でログインしただけではカレンダーはつながらない（連携は設定から別に許可する）。
   // ログインの方法によらず、サーバーに連携があるかだけを見る
   try {
@@ -98,6 +118,7 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent) {
     useTaskStore.getState().setGoogleConnected(connected)
     if (connected) {
       useTaskStore.getState().setGoogleConnectionError(null)
+      rememberGoogleConnected(userId)
     }
   } catch {
     useTaskStore.getState().setGoogleConnected(false)
@@ -167,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           setSession(s)
           if (s) {
-            enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION'))
+            enqueueGoogleSync(() => handleGoogleAuthSideEffects('INITIAL_SESSION', s.user.id))
           }
         })
         .catch((err) => {
@@ -186,10 +207,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (s && GOOGLE_AUTH_EVENTS.has(event)) {
-          enqueueGoogleSync(() => handleGoogleAuthSideEffects(event))
+          enqueueGoogleSync(() => handleGoogleAuthSideEffects(event, s.user.id))
         }
 
-        if (event === 'SIGNED_OUT') void onSignedOut(sb)
+        if (event === 'SIGNED_OUT') {
+          googleCheckedFor = null
+          void onSignedOut(sb)
+        }
       })
       unsubscribe = () => sub.subscription.unsubscribe()
     }

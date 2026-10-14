@@ -10,6 +10,7 @@ import { clearBaseline } from './syncMerge'
 import { clearSettingSyncedAt } from './settingSync'
 import { clearAutoBackups } from './autoBackup'
 import { clearSignedOutLeftovers, clearSyncMirrors } from './deviceCleanup'
+import { forgetGoogleConnected } from './googleConnectedHint'
 
 /** もう無いと分かったアカウント（別の端末で消された）。この後の SIGNED_OUT で控えを取らない */
 const goneAccounts = new Set<string>()
@@ -74,6 +75,7 @@ export function clearAccountData(owner: string | null, opts: { backup?: boolean 
 export function clearLocalAccountState(userId: string | null): void {
   const store = useTaskStore.getState()
   store.setGoogleConnected(false)
+  forgetGoogleConnected()
   store.setGoogleAccessToken(null)
   store.setCalendarEvents([])
   store.setGoogleConnectionError(null)
