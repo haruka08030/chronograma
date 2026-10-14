@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
@@ -9,6 +9,7 @@ import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { META_TEXT } from '../ui/textClass'
 import { loggedMinutesForTask } from '../../lib/estimateActual'
 import { useAppTodayKey } from '../../hooks/useAppClock'
+import { EstimateBiasHint } from '../EstimateBiasHint'
 
 /** タスク詳細の見積もり（かかりそうな時間）。タイムラインに置く・時間を決めるときの長さになる */
 export function TaskEstimateField({ task }: { task: Task }) {
@@ -16,6 +17,8 @@ export function TaskEstimateField({ task }: { task: Task }) {
   const updateTask = useTaskStore((s) => s.updateTask)
   const tasks = useTaskStore((s) => s.tasks)
   const todayKey = useAppTodayKey()
+  // 見積もりを選んだ直後だけクセを添える（開くたび・直した後には出さない）
+  const [justPicked, setJustPicked] = useState<number | null>(null)
   // 完了した To-Do だけ、結び付いた記録の合計を見積もりの下に添える（#297。決めた後に見る。やる前の To-Do には出さない）
   const logged = useMemo(
     () => (task.completed ? loggedMinutesForTask(tasks, task.id, todayKey) : 0),
@@ -29,7 +32,11 @@ export function TaskEstimateField({ task }: { task: Task }) {
       <select
         id={`estimate-${task.id}`}
         value={task.estimateMinutes ?? ''}
-        onChange={(e) => updateTask(task.id, { estimateMinutes: e.target.value === '' ? null : Number(e.target.value) })}
+        onChange={(e) => {
+          const m = e.target.value === '' ? null : Number(e.target.value)
+          updateTask(task.id, { estimateMinutes: m })
+          setJustPicked(m)
+        }}
         className={fieldClass({}, 'w-[10rem]')}
       >
         <option value="">{t('taskDetail.estimateNone')}</option>
@@ -39,6 +46,18 @@ export function TaskEstimateField({ task }: { task: Task }) {
           </option>
         ))}
       </select>
+      {/* やる前の To-Do だけ、見積もりのクセを添える（#417。決める前に見る） */}
+      {!task.completed && justPicked != null && justPicked === task.estimateMinutes && (
+        <EstimateBiasHint
+          minutes={justPicked}
+          labelId={task.labelId ?? null}
+          onApply={(m) => {
+            updateTask(task.id, { estimateMinutes: m })
+            setJustPicked(null)
+          }}
+          className="mt-1.5"
+        />
+      )}
       {logged > 0 && (
         <p className={`mt-1.5 tabular-nums ${META_TEXT}`}>{t('taskDetail.estimateLogged', { time: formatDuration(logged) })}</p>
       )}

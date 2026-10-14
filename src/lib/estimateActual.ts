@@ -137,3 +137,64 @@ export function getEstimateRows(
     (a, b) => b.loggedMinutes - b.estimateMinutes - (a.loggedMinutes - a.estimateMinutes) || b.loggedMinutes - a.loggedMinutes,
   )
 }
+
+/** 倍率を出すのに要る、見積もりと記録のそろった完了した To-Do の数（ラベルごと・全体とも） */
+export const ESTIMATE_BIAS_MIN_SAMPLES = 5
+/** この間の倍率は出さない（ほぼ見積もりどおり） */
+const BIAS_QUIET_FROM = 0.8
+const BIAS_QUIET_TO = 1.2
+
+export interface EstimateBias {
+  /** 記録 ÷ 見積もりの中央値 */
+  ratio: number
+  /** ラベルごとの倍率か（false は全体の倍率） */
+  byLabel: boolean
+  /** 数えた To-Do の数 */
+  samples: number
+}
+
+const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b)
+  const mid = s.length / 2
+  return s.length % 2 ? s[Math.floor(mid)]! : (s[mid - 1]! + s[mid]!) / 2
+}
+
+/**
+ * 見積もりのクセ（#417）。見積もりと結び付いた記録が両方ある**完了した** To-Do の「記録 ÷ 見積もり」の中央値（1 件の外れ値に引っ張られない）。
+ * `labelId` のラベル（無ければラベルなしの To-Do）で 5 件以上あればその倍率、無ければ全体の倍率、全体でも 5 件未満なら null。
+ * 0.8〜1.2 の間（ほぼ見積もりどおり）も null。結び付けは `linkLogsToTasks`（迷うものは数えない）。いつか・チェックリストは入れない
+ */
+export function estimateBias(
+  tasks: readonly Task[],
+  labelId: string | null,
+  excludedListIds: ReadonlySet<string> = new Set(),
+  todayKey: string = toDateKey(zonedNow()),
+): EstimateBias | null {
+  const linked = linkLogsToTasks(tasks, todayKey)
+  const all: number[] = []
+  const same: number[] = []
+  for (const t of tasks) {
+    if (!isTodoTask(t) || !t.completed || isDeletedTask(t) || excludedListIds.has(t.listId)) continue
+    if (t.estimateMinutes == null || t.estimateMinutes <= 0) continue
+    const l = linked.get(t.id)
+    if (!l) continue
+    const r = l.minutes / t.estimateMinutes
+    all.push(r)
+    if ((t.labelId ?? null) === labelId) same.push(r)
+  }
+  const pick =
+    same.length >= ESTIMATE_BIAS_MIN_SAMPLES
+      ? { xs: same, byLabel: true }
+      : all.length >= ESTIMATE_BIAS_MIN_SAMPLES
+        ? { xs: all, byLabel: false }
+        : null
+  if (!pick) return null
+  const ratio = median(pick.xs)
+  if (ratio >= BIAS_QUIET_FROM && ratio <= BIAS_QUIET_TO) return null
+  return { ratio, byLabel: pick.byLabel, samples: pick.xs.length }
+}
+
+/** 倍率で直した長さ（15 分単位、15 分より短くしない） */
+export function adjustedMinutes(minutes: number, ratio: number): number {
+  return Math.max(15, Math.round((minutes * ratio) / 15) * 15)
+}

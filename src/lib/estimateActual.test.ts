@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { TASK_DEFAULTS } from './taskDefaults'
-import { getEstimateRows, loggedMinutesByTask, loggedMinutesForTask } from './estimateActual'
+import { adjustedMinutes, estimateBias, getEstimateRows, loggedMinutesByTask, loggedMinutesForTask } from './estimateActual'
 
 const task = (id: string, over: Partial<Task> = {}): Task =>
   ({
@@ -189,5 +189,72 @@ describe('getEstimateRows: 月のふりかえり（#304）', () => {
     expect(getEstimateRows(tasks, anchor, new Set(), now, 'month').map((r) => r.task.id)).toEqual(['oct1'])
     const sep = getEstimateRows(tasks, new Date('2026-09-15T12:00:00'), new Set(), now, 'month')
     expect(sep.map((r) => r.task.id)).toEqual(['sep30'])
+  })
+})
+
+describe('estimateBias（見積もりのクセ、#417）', () => {
+  /** 見積もり `est` 分で、記録が `logged` 分だった完了した To-Do（と、その記録） */
+  const sample = (id: string, est: number, logged: number, over: Partial<Task> = {}): Task[] => [
+    done(id, '2026-10-07', { estimateMinutes: est, ...over }),
+    log(
+      `${id}-log`,
+      '2026-10-07',
+      '09:00',
+      `${String(9 + Math.floor(logged / 60)).padStart(2, '0')}:${String(logged % 60).padStart(2, '0')}`,
+      {
+        sourceTaskId: id,
+      },
+    ),
+  ]
+  const many = (n: number, est: number, logged: number, over: Partial<Task> = {}) =>
+    Array.from({ length: n }, (_, i) => sample(`${over.labelId ?? 'none'}-${est}-${logged}-${i}`, est, logged, over)).flat()
+
+  it('ラベルに 5 件以上あれば、そのラベルの中央値', () => {
+    const tasks = many(5, 60, 90, { labelId: 'hw' })
+    expect(estimateBias(tasks, 'hw', new Set(), TODAY)).toEqual({ ratio: 1.5, byLabel: true, samples: 5 })
+  })
+
+  it('ラベルで 5 件未満なら全体の倍率、全体でも 5 件未満なら出さない', () => {
+    const tasks = [...many(2, 60, 90, { labelId: 'hw' }), ...many(3, 60, 120, { labelId: 'job' })]
+    expect(estimateBias(tasks, 'hw', new Set(), TODAY)).toEqual({ ratio: 2, byLabel: false, samples: 5 })
+    expect(estimateBias(many(4, 60, 120), null, new Set(), TODAY)).toBeNull()
+  })
+
+  it('ラベルなしの To-Do はラベルなし同士で数える', () => {
+    const tasks = [...many(5, 30, 60), ...many(5, 60, 60, { labelId: 'hw' })]
+    expect(estimateBias(tasks, null, new Set(), TODAY)).toEqual({ ratio: 2, byLabel: true, samples: 5 })
+  })
+
+  it('1 件の外れ値（15 分の見積もりで 5 時間）に引っ張られない（中央値）', () => {
+    const tasks = [...many(4, 60, 90), ...sample('outlier', 15, 300)]
+    expect(estimateBias(tasks, null, new Set(), TODAY)?.ratio).toBe(1.5)
+  })
+
+  it('ほぼ見積もりどおり（0.8〜1.2）なら出さない', () => {
+    expect(estimateBias(many(5, 60, 70), null, new Set(), TODAY)).toBeNull()
+    expect(estimateBias(many(5, 60, 72), null, new Set(), TODAY)).toBeNull()
+    expect(estimateBias(many(5, 60, 48), null, new Set(), TODAY)).toBeNull()
+    expect(estimateBias(many(5, 60, 30), null, new Set(), TODAY)?.ratio).toBe(0.5)
+  })
+
+  it('未完了・見積もりの無い・記録の結び付かない To-Do は数えない', () => {
+    const tasks = [
+      ...many(4, 60, 120),
+      task('open', { estimateMinutes: 60 }),
+      log('open-log', '2026-10-07', '09:00', '11:00', { sourceTaskId: 'open' }),
+      done('noest', '2026-10-07'),
+      log('noest-log', '2026-10-07', '09:00', '11:00', { sourceTaskId: 'noest' }),
+      done('nolog', '2026-10-07', { estimateMinutes: 60 }),
+    ]
+    expect(estimateBias(tasks, null, new Set(), TODAY)).toBeNull()
+  })
+})
+
+describe('adjustedMinutes', () => {
+  it('15 分単位に丸め、15 分より短くしない', () => {
+    expect(adjustedMinutes(60, 1.4)).toBe(90)
+    expect(adjustedMinutes(60, 1.5)).toBe(90)
+    expect(adjustedMinutes(30, 0.3)).toBe(15)
+    expect(adjustedMinutes(120, 1.6)).toBe(195)
   })
 })
