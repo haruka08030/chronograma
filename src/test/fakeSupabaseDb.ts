@@ -70,8 +70,24 @@ function parseOr(text: string): (r: Row) => boolean {
  * `missing` に入れた表・関数は読めない（PostgREST の表の一覧が古いときと同じ断り方）。
  * `035` の sync_changes_since（差分・印・設定の版・版の下限・1 日の気分を 1 回で）も真似る（`missing` に入れると前の取り方）
  */
-export function fakeDb(opts: { maxRows?: number } = {}) {
+export function fakeDb(opts: { maxRows?: number; realtime?: boolean } = {}) {
   const maxRows = opts.maxRows ?? 1000
+  /**
+   * Realtime の Postgres の変更の通知の偽物（`038`、`opts.realtime` のときだけ `channel` がある）。
+   * 書き込み（どの端末からでも）のたびに、その表・その種類（INSERT / UPDATE）・その人の購読へ次のタイマーで届ける
+   */
+  type RealtimeSub = { table: string; event: string; userId: string | null; cb: (p: { new: Row }) => void }
+  const channels = new Set<{ subs: RealtimeSub[] }>()
+  const realtime = { up: true, sent: 0 }
+  const emit = (table: string, event: 'INSERT' | 'UPDATE', row: Row) => {
+    const copy = { ...row }
+    for (const ch of channels)
+      for (const s of ch.subs)
+        if (s.table === table && s.event === event && (s.userId === null || s.userId === copy.user_id)) {
+          realtime.sent++
+          setTimeout(() => s.cb({ new: copy }), 0)
+        }
+  }
   const missing = new Set<string>()
   const tables: Record<string, Row[]> = { lists: [], list_sections: [], tasks: [], habits: [], sync_tombstones: [] }
   let clock = micros('2026-10-03T00:00:00.000000+00:00')
@@ -85,6 +101,7 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
     const row = { user_id: userId, table_name: table, row_id: id, deleted_at: at }
     if (i >= 0) ts[i] = row
     else ts.push(row)
+    emit('sync_tombstones', i >= 0 ? 'UPDATE' : 'INSERT', row)
   }
   const untombstone = (userId: string, table: string, id: string) => {
     tables.sync_tombstones = tables.sync_tombstones!.filter((t) => !(t.user_id === userId && t.table_name === table && t.row_id === id))
@@ -117,6 +134,7 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
         all.push(next)
         if (key === 'id') untombstone(next.user_id, table, String(next.id))
       }
+      emit(table, old ? 'UPDATE' : 'INSERT', next)
       out.push(next)
     }
     return out
@@ -131,6 +149,7 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
     if (!old) {
       const next = { ...row, ...(base == null ? {} : { updated_at: stamp }) } as Row
       all.push(next)
+      emit(table, 'INSERT', next)
       return [next]
     }
     if (ignoreDuplicates) return []
@@ -144,6 +163,7 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
       next = { ...old, ...row, updated_at: at } as Row
     }
     all[i] = next
+    emit(table, 'UPDATE', next)
     return [next]
   }
   /** 取得の記録（`since` は updated_at などの時刻より後だけを取った = 差分） */
@@ -371,8 +391,36 @@ export function fakeDb(opts: { maxRows?: number } = {}) {
       }
     },
   }
+  if (opts.realtime) {
+    type Channel = { subs: RealtimeSub[]; on: (...a: unknown[]) => Channel; subscribe: (cb?: (status: string) => void) => Channel }
+    Object.assign(client, {
+      channel: () => {
+        const ch: Channel = {
+          subs: [],
+          on: (_type, o, cb) => {
+            const f = o as { event: string; table: string; filter?: string }
+            const m = /^user_id=eq\.(.+)$/.exec(f.filter ?? '')
+            ch.subs.push({ table: f.table, event: f.event, userId: m?.[1] ?? null, cb: cb as RealtimeSub['cb'] })
+            return ch
+          },
+          subscribe: (cb) => {
+            if (realtime.up) channels.add(ch)
+            setTimeout(() => cb?.(realtime.up ? 'SUBSCRIBED' : 'CHANNEL_ERROR'), 0)
+            return ch
+          },
+        }
+        return ch
+      },
+      removeChannel: async (ch: Channel) => {
+        channels.delete(ch as never)
+        return 'ok'
+      },
+    })
+  }
   return {
     client: client as unknown as SupabaseClient,
+    /** Realtime の偽物（`opts.realtime`）。`up` を false にすると購読に失敗する。`sent` は届けた通知の数、`subscribed()` は購読している数 */
+    realtime: Object.assign(realtime, { subscribed: () => channels.size }),
     tables,
     downloaded,
     selects,

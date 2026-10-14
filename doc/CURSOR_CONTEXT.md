@@ -126,7 +126,7 @@
   計画どおり実行率は、時刻つき予定（タスク・範囲習慣）を `matchPlanAndActualForDate` でログと突き合わせた割合
 - **同期**: `useSupabaseSync` は毎回 取得（`lib/syncPull.ts` の `pullRemote`。ふだんは差分）→ `mergeSnapshots`（`src/lib/syncMerge.ts`）で前回同期ベースライン
   （`chronograma-sync-baseline-v1:{userId}`、本体と同じ置き場所）との三方向マージ → ローカル反映 → push（削除は
-  マージで決めた ID だけ）。フォーカス復帰時と表示中 60 秒ごとにも同期。ベースラインが無い初回は従来の `decideHydrate`
+  マージで決めた ID だけ）。フォーカス復帰時と表示中 60 秒ごと（Realtime の通知を購読できている間は 5 分ごと）にも同期。他の端末の変更の通知（`lib/syncWake.ts`、`038`）でも同期。ベースラインが無い初回は従来の `decideHydrate`
 
 - **リストの種類**（`TaskList.kind`、`src/types/list.ts`）: `tasks` は未分類（表示名「To‑Do」）だけ / `someday`（いつか・Wish）/ `checklist`（買い物など）。
   To‑Do はラベルで分ける。ほかの `tasks` のリストと未分類のセクションは `foldTaskFolders`（`src/lib/foldTaskFolders.ts`）がラベルに畳む
@@ -403,7 +403,7 @@
 - ログイン済みかつ `getSupabase()` ありのときのみ
 - **通常**（端末にベースラインあり）: 取得 → `mergeSnapshots`（`src/lib/syncMerge.ts`）で三方向マージ →
   ローカル反映 → push（削除はマージで決めた ID だけ）→ ベースライン保存。変更の 1.8 秒デバウンス後・
-  フォーカス復帰時・表示中 60 秒ごと。同期は常に 1 本ずつ直列
+  フォーカス復帰時・表示中 60 秒ごと（通知を購読できている間は 5 分ごと）・他の端末の変更の通知（自分が送った行のこだまは除く）。同期は常に 1 本ずつ直列
 - **この端末で初回**（ベースライン無し）: `fetchListsTasksHabits` →
   `decideHydrate`（`src/lib/supabaseData.ts`）
   - リモート完全空 → **ローカルを push**
