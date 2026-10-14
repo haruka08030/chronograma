@@ -41,6 +41,7 @@ import { movedToDateLabel } from '../lib/moveToast'
 import { isCopyDrop, placeCopies } from '../lib/dragCopy'
 import { isEventTask, isLogTask, planKindOf } from '../types/task'
 import { useSwipeNav } from '../hooks/useSwipeNav'
+import { useRememberScroll } from '../hooks/useRememberScroll'
 import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import { tip } from '../lib/tooltip'
 import { useHolidayName } from '../hooks/useHolidayName'
@@ -90,6 +91,7 @@ export function CalendarView({
 }) {
   const swipeRef = useRef<HTMLDivElement>(null)
   useSwipeNav(swipeRef, onSwipe)
+  useRememberScroll(swipeRef, `month:${toDateKey(displayMonth)}`)
   // タッチは項目の長押しで右クリックと同じメニュー
   useTouchContextMenu(swipeRef, (target) => !target.closest('[data-touch-menu]'))
   const { t } = useTranslation()

@@ -32,6 +32,7 @@ import { FilterNoMatch } from './ui/FilterChips'
 import { hasTaskFilter, NO_TODO_FILTER, todoFilterFor } from '../lib/taskFilter'
 import { compareByOrder } from '../lib/orderCompare'
 import { somedayTierOf } from '../lib/somedayTier'
+import { useRememberScroll } from '../hooks/useRememberScroll'
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
   let n = 0
@@ -290,11 +291,14 @@ export function TaskList({
     return out
   }, [showSectionBlocks, sectionBlocks, active, incompleteSubtasks])
 
+  // リスト・ビュー・色ラベルごとに、戻ったら離れた位置から
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useRememberScroll(scrollRef, `todo:${selectedView ?? ''}:${selectedListId ?? ''}:${filterColor ?? ''}`)
   useSectionScrollTarget(sectionBlocks)
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-      <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
+      <div ref={scrollRef} className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
         <TaskListHeader
           title={title}
           colorView={colorView}

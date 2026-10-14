@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -15,6 +15,7 @@ import { HabitContextMenu } from './HabitContextMenu'
 import { useHabitEditRequest } from '../lib/habitEditRequest'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { useRememberScroll } from '../hooks/useRememberScroll'
 import { HabitComposer } from './habits/HabitComposer'
 import { HabitWeekTable } from './habits/HabitWeekTable'
 import { HabitTrend } from './habits/HabitTrend'
@@ -32,6 +33,8 @@ import { usePresence } from '../hooks/usePresence'
  */
 export function HabitsView() {
   const { t } = useTranslation()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useRememberScroll(scrollRef, 'habits')
   const df = useDateFormat()
   const allHabits = useTaskStore((s) => s.habits)
   // アーカイブした習慣は表に入れず、下の「アーカイブ」にだけ出す
@@ -101,7 +104,7 @@ export function HabitsView() {
   useNavShortcut({ today: goToday, prev: () => shiftWeek(-1), next: () => shiftWeek(1) })
 
   return (
-    <div className={PAGE_SCROLL_CLASS}>
+    <div ref={scrollRef} className={PAGE_SCROLL_CLASS}>
       <div className="px-4 pt-4 pb-3 md:max-w-3xl md:px-6 md:pt-8 md:pb-4">
         <div className="flex items-end justify-between gap-3">
           <h1 className={PAGE_TITLE_CLASS}>{t('habits.title')}</h1>

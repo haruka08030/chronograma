@@ -26,6 +26,7 @@ import { askChoice, askConfirm } from '../lib/confirmDialog'
 import { parseTasksCsv, unknownCsvListNames } from '../lib/importTasksCsv'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { useRememberScroll } from '../hooks/useRememberScroll'
 import { TimetableDialog } from './calendar/TimetableDialog'
 import { FeedbackRow } from './settings/FeedbackDialog'
 
@@ -101,6 +102,10 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
   const importTasksFromCsv = useTaskStore((s) => s.importTasksFromCsv)
   const lang = i18n.resolvedLanguage?.startsWith('en') ? 'en' : 'ja'
 
+  // 行き先を指定して開いたときは、下の scrollIntoView が後から上書きする
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useRememberScroll(scrollRef, 'settings')
+
   useLayoutEffect(() => {
     // Google カレンダーは連携のページで扱う（SettingsView が切り替える）
     if (!settingsScrollTarget || settingsScrollTarget === 'google') return
@@ -118,7 +123,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
   const csvInputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div className={PAGE_SCROLL_CLASS}>
+    <div ref={scrollRef} className={PAGE_SCROLL_CLASS}>
       <div className="mx-auto w-full max-w-2xl space-y-8 px-4 pb-24 pt-6 md:px-6 md:pt-8">
         <h1 className={PAGE_TITLE_CLASS}>{t('settings.title')}</h1>
 

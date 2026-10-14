@@ -16,6 +16,7 @@ import { EmptyState } from './ui/EmptyState'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
+import { useRememberScroll } from '../hooks/useRememberScroll'
 import { META_TEXT } from './ui/textClass'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 import { colorVars } from '../lib/logCategoryColors'
@@ -36,6 +37,8 @@ const TRASH_BOX_ICON = ICON_PATHS.trash
 
 export function TaskBinView({ mode }: { mode: BinMode }) {
   const { t } = useTranslation()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useRememberScroll(scrollRef, `bin:${mode}`)
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const restoreDeletedTasks = useTaskStore((s) => s.restoreDeletedTasks)
@@ -154,7 +157,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   const boxIcon = mode === 'deleted' ? TRASH_BOX_ICON : ARCHIVE_BOX_ICON
 
   return (
-    <div className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
+    <div ref={scrollRef} className={`flex flex-col ${PAGE_SCROLL_CLASS}`}>
       <div className="flex items-end justify-between px-6 pt-8 pb-2">
         <div>
           <h1 className={PAGE_TITLE_CLASS}>{title}</h1>
