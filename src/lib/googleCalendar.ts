@@ -7,6 +7,7 @@ import { functionErrorMessage } from './functionError'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
 import { fromDateKey } from './dateKey'
 import { minutesToTime, pad2, timeToMinutes } from './clockTime'
+import { forgetGoogleConnected } from './googleConnectedHint'
 
 type GoogleCalendarPayload = {
   ok?: boolean
@@ -164,6 +165,8 @@ export function shouldDisconnectAfterFetchError(message: string): boolean {
 }
 
 export async function disconnectGoogleCalendar(): Promise<void> {
+  // 次に開いたときは、いきなり予定を取りに行かずに確かめる
+  forgetGoogleConnected()
   const sb = getSupabase()
   if (!sb) return
   await invokeGoogleCalendar({ action: 'disconnect' })
