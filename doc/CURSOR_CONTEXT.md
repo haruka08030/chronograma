@@ -103,7 +103,9 @@
 - **タイムラインの重なり**: `src/lib/overlapLayout.ts`。時間が重なるブロックは塊ごとに列を割り当てる
   （Google カレンダー方式）。1 日表示・ログ画面は等幅で横並び（`columns`）、週表示・予定 vs ログの週は
   列が狭いので右へずらし重ね（`cascade`、ホバーで前面・`title` で全文）。週/日タイムラインは
-  `layoutPlanAndLog`（`fixedLanes`）で常に予定=左半分 / ログ=右半分に分ける（3 日表示は記録を出さないので全幅）。重ねるためブロック背景は不透明色
+  `layoutPlanAndLog`（`fixedLanes`）で常に予定=左半分 / ログ=右半分に分ける（3 日表示は記録を出さないので全幅）。
+  カレンダー（今日の計画の 1 日表示を除く）は、未来（記録を置けない今より先・先の日）の塊は予定が全幅で、点線の境目も今までだけ。
+  予定どおりの記録（`matchPlanAndActualForDate` の `matched`）がある予定は出さず、その記録を全幅にする（重なる予定があれば右半分）。重ねるためブロック背景は不透明色
 - **通知**: 何をいつ出すかは `supabase/functions/daily-reminders/schedule.ts`（純粋関数、サーバーとブラウザで共有）。
   朝のまとめ（`dailyReminders.planTime`）・予定の前（`eventReminderMinutes`）・締切の前（`notificationsEnabled`、前日 20:00 ＋ 3 時間前）・
   予定のあとの記録の確認（`recordPrompts`、通知の「予定どおり / 記録する」→ `logPlanAsPlanned` / `RecordPromptHost`）・

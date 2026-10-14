@@ -65,4 +65,20 @@ describe('layoutPlanAndLog: 予定と記録の左右分け', () => {
     expect(styles.get('plan:shift')).toMatchObject({ left: 'calc(0% + 2px)', width: 'calc(25% - 4px)' })
     expect(styles.get('plan:es')).toMatchObject({ left: 'calc(25% + 2px)', width: 'calc(25% - 4px)' })
   })
+
+  it('fixedLanes でも fromTop より下だけの塊（未来）は全幅、またぐ塊は左半分', () => {
+    const styles = layoutPlanAndLog([...plans, { id: 'later', top: 600, height: 60 }], [], 'columns', true, { fromTop: 60 })
+    expect(styles.get('plan:shift')).toMatchObject({ width: 'calc(25% - 4px)' })
+    expect(styles.get('plan:later')).toMatchObject({ left: 'calc(0% + 2px)', width: 'calc(100% - 4px)' })
+  })
+
+  it('fixedLanes でも予定の無い塊の logIds の記録（予定どおり）は全幅、予定と重なれば右半分', () => {
+    const logs = [
+      { id: 'asPlanned', top: 600, height: 60 },
+      { id: 'beside', top: 30, height: 60 },
+    ]
+    const styles = layoutPlanAndLog(plans, logs, 'columns', true, { logIds: new Set(['asPlanned', 'beside']) })
+    expect(styles.get('log:asPlanned')).toMatchObject({ left: 'calc(0% + 2px)', width: 'calc(100% - 4px)' })
+    expect(styles.get('log:beside')).toMatchObject({ left: 'calc(50% + 2px)', width: 'calc(50% - 4px)' })
+  })
 })
