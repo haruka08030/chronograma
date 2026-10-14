@@ -602,7 +602,6 @@ export default {
   },
   courseTasks: {
     heading: 'Assignments for this course',
-    pick: 'Link to an LMS course…',
     none: 'Don’t link',
     selectAria: 'Course linked to “{{title}}”',
     more_one: '{{count}} more',
