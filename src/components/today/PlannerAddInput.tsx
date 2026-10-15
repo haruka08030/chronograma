@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { INBOX_LIST_ID } from '../../store/taskStore'
+import { INBOX_LIST_ID, useTaskStore } from '../../store/taskStore'
+import { taskPlacementDate } from '../../lib/taskTimeRange'
 import { addTaskFromQuickText, type QuickAddPicks } from '../../lib/quickAddTask'
 import { useQuickAddTarget } from '../../lib/quickAddFocus'
-import { useIsCoarsePointer } from '../../hooks/useMediaQuery'
+import { useIsCoarsePointer, useIsDesktop } from '../../hooks/useMediaQuery'
+import { flyIntoTimeline, nudgeTimelineTab } from '../../lib/onboardingMotion'
 import { InlineAddInput } from '../ui/InlineAddInput'
 import { chipClass } from '../ui/chipClass'
 import { QuickAddDetails } from '../QuickAddDetails'
@@ -16,13 +18,25 @@ export const GUIDE_PLACEHOLDER_MS = 2600
  * 足したものの「やる日」は見ている日で、その日の行の最後に入る（欄の上に見える）。書き方の解釈は To-Do 画面と同じ。C / ⌘N でここにフォーカスする。
  * 何も無い日は書き方の例を薄く出す。
  * はじめの案内の間でまだ何も無いとき（`guide`）は、ここが入口: PC は開いたときに欄にカーソルを置き（スマホはキーボードが開くので置かない）、
- * 薄い文字の例を入れ替え、欄が空の間は下に例のボタン（押すと欄に入る。足す前に読み取りのチップが見える）。1 件入れたら普段の欄に戻る
+ * 薄い文字の例を入れ替え、欄が空の間は下に例のボタン（押すと欄に入る。足す前に読み取りのチップが見える）。1 件入れたら普段の欄に戻る。
+ * 案内の間（`onboarding`）に時刻つきで足すと、PC は枠がタイムラインのその時間へ移る動き、スマホは「タイムライン」のタブが弾む
  */
-export function PlannerAddInput({ dateKey, showExample, guide = false }: { dateKey: string; showExample: boolean; guide?: boolean }) {
+export function PlannerAddInput({
+  dateKey,
+  showExample,
+  guide = false,
+  onboarding = false,
+}: {
+  dateKey: string
+  showExample: boolean
+  guide?: boolean
+  onboarding?: boolean
+}) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   useQuickAddTarget(inputRef)
   const isCoarse = useIsCoarsePointer()
+  const isDesktop = useIsDesktop()
   const [draft, setDraft] = useState('')
   // 下のチップで選んだ値（消したら・足したら空に）
   const [picks, setPicks] = useState<QuickAddPicks>({})
@@ -33,8 +47,14 @@ export function PlannerAddInput({ dateKey, showExample, guide = false }: { dateK
 
   const submit = () => {
     if (!draft.trim()) return
-    addTaskFromQuickText(draft, { defaultListId: INBOX_LIST_ID, defaultDate: dateKey, picks, last: true })
+    const id = addTaskFromQuickText(draft, { defaultListId: INBOX_LIST_ID, defaultDate: dateKey, picks, last: true })
     change('')
+    if (!onboarding || !id) return
+    const added = useTaskStore.getState().tasks.find((t) => t.id === id)
+    if (!added?.startTime || !added.endTime || taskPlacementDate(added) !== dateKey) return
+    if (isDesktop) {
+      if (inputRef.current) flyIntoTimeline(inputRef.current, id)
+    } else nudgeTimelineTab()
   }
 
   // 1 件でもあれば置かない（↓ や 1 文字のショートカットを邪魔しない）

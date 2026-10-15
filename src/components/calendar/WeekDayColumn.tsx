@@ -20,6 +20,7 @@ import { formatDate } from '../../lib/dateFormat'
 import { minutesToTime } from '../../lib/clockTime'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
+import { OnboardingPlaceSlot } from './OnboardingPlaceSlot'
 import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
 import { googleEventCrossesDay, googleEventSegmentOnDay } from '../../lib/googleEventSpan'
 import { unrecordedGapsForDay } from '../../lib/unrecordedGaps'
@@ -336,6 +337,9 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           </button>
         )
       })}
+
+      {/* はじめの案内の間、今日の計画のタイムラインに「ここに置く」（ドラッグ・作成中は出さない） */}
+      {singleDay && !dragPreview && !dropPreview && !popup && <OnboardingPlaceSlot dateKey={key} splitLanes={splitLanes} />}
 
       {dayMovedPlans.map((m) => {
         const geo = blockGeometry(

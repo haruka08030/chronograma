@@ -282,10 +282,12 @@ export default {
     example2: 'essay by tomorrow',
     useExample: 'Put “{{text}}” in the add field',
     add: 'Add one thing to do',
-    place: 'Drag it onto the timeline to give it a time',
+    place: 'Put it on the timeline',
     placeTouch: 'Tap the row and set a time',
     record: 'Press ▶ on the row when you start',
     recordTouch: 'Tap the row and start logging when you start',
+    placeHere: 'Put “{{title}}” at {{start}}–{{end}}',
+    placeHereShort: 'Put it here',
     done: 'All set. Your plan and what you did line up, so you see the gap',
   },
   onboardingNudge: {

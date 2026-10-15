@@ -73,6 +73,34 @@ describe('はじめの 3 ステップ', () => {
     }
   })
 
+  it('PC: 時間の決まっていない To-Do だけのとき、タイムラインの空きに「ここに置く」。押すと置け、② が済む', async () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('min-width: 768px'),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    })) as unknown as typeof window.matchMedia
+    // 夜遅くは今日の空きが無い。昼に固定する
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(new Date().setHours(13, 0, 0, 0)))
+    try {
+      const user = userEvent.setup()
+      openToday()
+      expect(screen.queryByRole('button', { name: /^Put “Essay” at/ })).toBeNull()
+      await user.type(screen.getByPlaceholderText(/^e\.g\./), 'Essay{Enter}')
+      const place = await screen.findByRole('button', { name: 'Put “Essay” at 13:00–14:00' })
+      await user.click(place)
+      const essay = useTaskStore.getState().tasks.find((x) => x.title === 'Essay')!
+      expect(essay.startTime).toBeTruthy()
+      expect(guide()).toHaveTextContent('Step 3 of 3')
+      expect(screen.queryByRole('button', { name: /^Put “Essay” at/ })).toBeNull()
+    } finally {
+      window.matchMedia = original
+      vi.useRealTimers()
+    }
+  })
+
   it('3 つ終わると「できました」を出し、少しして消え、二度と出ない', () => {
     vi.useFakeTimers()
     try {

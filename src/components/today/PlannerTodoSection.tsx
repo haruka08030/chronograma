@@ -1,7 +1,7 @@
 import { useId, type HTMLAttributes, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { useAuth } from '../../contexts/AuthContext'
+import { useShowsOnboarding } from '../../hooks/useShowsOnboarding'
 import type { Task } from '../../types/task'
 import { buttonClass } from '../ui/buttonClass'
 import { DisclosureButton } from '../ui/Disclosure'
@@ -66,16 +66,9 @@ export function PlannerTodoSection({
   const ids = useId()
   const { t } = useTranslation()
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
-  const onboardingDone = useTaskStore((s) => s.onboardingDone)
-  const dataOwner = useTaskStore((s) => s.dataOwner)
-  const { user, loading: authLoading } = useAuth()
   const { day, viewingToday } = env
   const { dateKey, tomorrowKey } = day
-  // はじめの案内を出していてまだ何も無い間は、追加欄が入口（例が入れ替わり、下に例のボタン）
-  // ログイン中で、この端末でこの人としての初めての同期がまだ終わっていない間は出さない（アカウントのデータが届く前に一瞬出ていた）。
-  // 終わると持ち主（dataOwner）がこの人になる。アカウントにデータがあれば、その同期で案内は終わる
-  const awaitingFirstSync = authLoading || (user !== null && dataOwner !== user.id)
-  const showOnboarding = viewingToday && !onboardingDone && !awaitingFirstSync
+  const showOnboarding = useShowsOnboarding(viewingToday)
   const emptyDay = totalCount === 0 && overdue.length === 0 && leftOver.length === 0
   const timedAction = (task: Task) => (
     <>
@@ -240,7 +233,7 @@ export function PlannerTodoSection({
         </div>
       </div>
 
-      <PlannerAddInput dateKey={dateKey} showExample={emptyDay} guide={showOnboarding && emptyDay} />
+      <PlannerAddInput dateKey={dateKey} showExample={emptyDay} guide={showOnboarding && emptyDay} onboarding={showOnboarding} />
 
       <PlannerListStatus totalCount={totalCount} openCount={open.length} overdueCount={overdue.length} />
 
