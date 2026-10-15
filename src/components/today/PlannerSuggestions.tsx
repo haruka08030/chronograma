@@ -8,7 +8,7 @@ import { usePlannerCandidateFilter } from './PlannerCandidateFilter'
 import { hasTaskFilter } from '../../lib/taskFilter'
 import { FilterNoMatch } from '../ui/FilterChips'
 import { useDateFormat } from '../../hooks/useDateFormat'
-import { buttonClass } from '../ui/buttonClass'
+import { MoveAllButton } from './MoveAllButton'
 import { DisclosureButton } from '../ui/Disclosure'
 import { META_TONE_CLASS } from './plannerRowMeta'
 import { PlannerTaskRow, type PlannerRowEnv } from './PlannerTaskRow'
@@ -147,8 +147,9 @@ export function PlannerSuggestions({
                   ))}
                 </ul>
                 {addAllTargets.length > 1 && group.tasks.some((x) => x.id === lastSuggestionId) && (
-                  <button
-                    type="button"
+                  <MoveAllButton
+                    // 上の行を押すつもりで当たらないよう、行から間を空ける
+                    className="ml-11 mt-3"
                     onClick={() =>
                       rescheduleTasks(
                         addAllTargets.map((x) => x.id),
@@ -159,12 +160,11 @@ export function PlannerSuggestions({
                           : { key: 'undo.tasksMovedToDate', params: { count: addAllTargets.length, date: shortDate(dateKey) } },
                       )
                     }
-                    className={`ml-11 mt-1 ${buttonClass({ variant: 'link', size: 'xs' })}`}
                   >
                     {t(viewingToday ? 'planner.addAllSuggestions' : 'planner.addAllSuggestionsThisDay', {
                       count: addAllTargets.length,
                     })}
-                  </button>
+                  </MoveAllButton>
                 )}
               </div>
             )
