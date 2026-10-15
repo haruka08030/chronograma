@@ -590,6 +590,9 @@ const SCREENS = [
   { name: 'settings-week-start', view: 'settings', weekStartsOn: 0, scrollTo: '#settings-time-zone' },
   { name: 'calendar-time-zones', view: 'calendar', extraTimeZones: true, hover: '[data-tip^="ロンドンの友達"]' },
   { name: 'someday', list: 'seed-someday' },
+  // いつかのやりたい棚と、# セクションで絞り込んだとき（夢とやりたいを上下に、#439）
+  { name: 'someday-wishes', list: 'seed-someday', click: 'button[role=tab]:has-text("やりたい") >> visible=true' },
+  { name: 'someday-filter', list: 'seed-someday', click: 'button:has-text("# 旅行") >> visible=true' },
   { name: 'checklist', list: 'seed-shopping' },
   // 行に乗せたとき（PC だけ）。いつかは締切の代わりに「予定する」
   { name: 'todo-hover', view: 'all', hover: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")' },
