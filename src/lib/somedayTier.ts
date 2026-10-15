@@ -1,7 +1,7 @@
 /**
- * いつかの 2 段（#221）: 「夢」（上）と「やりたい」（下）。段は利用者が作るセクションとは別で、アプリが持つ固定のもの。
- * 夢だけを `somedayTier: 'dream'` で持ち、持たないものはやりたい（新しく入れたものもやりたい）。
- * 夢は本体ではなく一歩（子）を To-Do にするので、行に次の一歩と進み具合（済んだ一歩 / 全部）を出す
+ * いつかの夢とやりたい（#221・#439）。夢は重い（人生レベル）もの、やりたいは気軽なもの。分けるのは眺め方を変えるため:
+ * 夢はボード（タイル）で眺め、やりたいは棚（行）から選んで予定にする。
+ * 夢だけを `somedayTier: 'dream'` で持ち、持たないものはやりたい。一歩（子）のある夢はタイルに次の一歩と進み具合を出す
  */
 import type { Task } from '../types/task'
 import { compareByOrder } from './orderCompare'
@@ -9,55 +9,24 @@ import { isActiveTask } from './taskLifecycle'
 
 export type SomedayTier = 'dream' | 'wish'
 
-/** いつかの段の見出し（ドラッグの落とし先）の id の頭（`tier::dream` / `tier::wish`） */
-export const TIER_DROP_PREFIX = 'tier::'
-
-export function parseTierDropId(id: string): SomedayTier | null {
-  if (!id.startsWith(TIER_DROP_PREFIX)) return null
-  const tier = id.slice(TIER_DROP_PREFIX.length)
-  return tier === 'dream' || tier === 'wish' ? tier : null
-}
-
-/** 段の中のセクションの落とし先（`tier::dream::section-drop::…`）。同じセクションが両方の段に出るので段を頭に付ける */
-export function tierSectionDropId(tier: SomedayTier, sectionDropId: string): string {
-  return `${TIER_DROP_PREFIX}${tier}::${sectionDropId}`
-}
-
-export function parseTierSectionDropId(id: string): { tier: SomedayTier; dropId: string } | null {
-  if (!id.startsWith(TIER_DROP_PREFIX)) return null
-  const rest = id.slice(TIER_DROP_PREFIX.length)
-  const sep = rest.indexOf('::')
-  if (sep < 0) return null
-  const tier = rest.slice(0, sep)
-  return tier === 'dream' || tier === 'wish' ? { tier, dropId: rest.slice(sep + 2) } : null
-}
-
-/** 段の中の塊。`sectionId` が null はセクションの外の行（見出しを出さない） */
-export type TierSection = { sectionId: string | null; title: string; tasks: Task[] }
-
 /**
- * 未完了のルートを、進めている夢（`isCard`、一歩のある夢。カードで出す）と、夢・やりたいの段 → セクションの塊に分ける
- * （並びは `active` の順のまま、#434）。どの段も先頭はセクションの外の塊、続けて `sections` の順。
- * `sections` が null（セクションで分けない）なら外の塊だけ
+ * いつかの色: セクションの並び順で決める（データに色を持たせない、#439）。夢のタイル・絞り込みのチップに使う。
+ * セクションの外（-1）はグレー
  */
-export function tierSections(
-  active: readonly Task[],
-  sections: readonly { id: string; name: string }[] | null,
-  isCard: (dream: Task) => boolean,
-): { cards: Task[]; dream: TierSection[]; wish: TierSection[] } {
-  const cards = active.filter((t) => somedayTierOf(t) === 'dream' && isCard(t))
-  const carded = new Set(cards.map((t) => t.id))
-  const build = (tier: SomedayTier): TierSection[] => {
-    const rows = active.filter((t) => somedayTierOf(t) === tier && !carded.has(t.id))
-    const named = (sections ?? []).map((s) => ({ sectionId: s.id, title: s.name, tasks: rows.filter((t) => t.sectionId === s.id) }))
-    const ids = new Set(named.map((b) => b.sectionId))
-    const loose = rows.filter((t) => !t.sectionId || !ids.has(t.sectionId))
-    return [{ sectionId: null, title: '', tasks: loose }, ...named]
-  }
-  return { cards, dream: build('dream'), wish: build('wish') }
+export const SOMEDAY_SECTION_COLORS = ['#039BE5', '#8E24AA', '#F4511E', '#0B8043', '#F6BF26', '#E67C73', '#3F51B5', '#33B679'] as const
+export const SOMEDAY_NO_SECTION_COLOR = '#616161'
+
+export function somedaySectionColor(index: number): string {
+  return index < 0 ? SOMEDAY_NO_SECTION_COLOR : SOMEDAY_SECTION_COLORS[index % SOMEDAY_SECTION_COLORS.length]!
 }
 
-/** 夢のカードに出す次の一歩の日付（予定の日、無ければ締切の日）。一歩が無い・日付が無ければ null */
+/** 未完了のルートを夢とやりたいに分ける（並びは `active` の順のまま）。`sectionId` があればそのセクションのものだけ */
+export function splitSomeday(active: readonly Task[], sectionId: string | null): { dreams: Task[]; wishes: Task[] } {
+  const rows = sectionId ? active.filter((t) => t.sectionId === sectionId) : active
+  return { dreams: rows.filter((t) => somedayTierOf(t) === 'dream'), wishes: rows.filter((t) => somedayTierOf(t) === 'wish') }
+}
+
+/** 夢のタイルに出す次の一歩の日付（予定の日、無ければ締切の日）。一歩が無い・日付が無ければ null */
 export function stepDateKey(step: Pick<Task, 'scheduledDate' | 'dueDate'> | null): string | null {
   return step ? (step.scheduledDate ?? step.dueDate ?? null) : null
 }

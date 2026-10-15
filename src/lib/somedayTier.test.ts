@@ -4,7 +4,8 @@ import { TASK_DEFAULTS } from './taskDefaults'
 import {
   dreamOfStep,
   dreamSteps,
-  parseTierDropId,
+  somedaySectionColor,
+  splitSomeday,
   readSomedayTier,
   somedayTierOf,
   withDreamsFromSteps,
@@ -43,8 +44,6 @@ describe('somedayTier', () => {
     expect(withSomedayTier(plain, null)).toBe(plain)
     expect(readSomedayTier('dream')).toBe('dream')
     expect(readSomedayTier('wish')).toBeNull()
-    expect(parseTierDropId('tier::dream')).toBe('dream')
-    expect(parseTierDropId('tier::x')).toBeNull()
   })
 
   it('夢の次の一歩は並び順で最初の済んでいない子。進み具合は済んだ子 / 全部（消した子は数えない）', () => {
@@ -87,5 +86,14 @@ describe('somedayTier', () => {
     expect(dreamOfStep(tasks, tasks[2]!, someday)?.id).toBe('d')
     // 夢でなくなったら（やりたいへ移した）名前を出さない
     expect(dreamOfStep([{ ...tasks[0]!, somedayTier: undefined }, ...tasks.slice(1)], tasks[2]!, someday)).toBeNull()
+  })
+
+  it('夢とやりたいに分け、セクションで絞り込める。色はセクションの並び順で、外はグレー（#439）', () => {
+    const rows = [task('a', { somedayTier: 'dream', sectionId: 's1' }), task('b', { sectionId: 's1' }), task('c', { somedayTier: 'dream' })]
+    expect(splitSomeday(rows, null)).toMatchObject({ dreams: [{ id: 'a' }, { id: 'c' }], wishes: [{ id: 'b' }] })
+    expect(splitSomeday(rows, 's1')).toMatchObject({ dreams: [{ id: 'a' }], wishes: [{ id: 'b' }] })
+    expect(somedaySectionColor(0)).toBe('#039BE5')
+    expect(somedaySectionColor(8)).toBe('#039BE5')
+    expect(somedaySectionColor(-1)).toBe('#616161')
   })
 })

@@ -32,8 +32,10 @@ import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { FilterNoMatch } from './ui/FilterChips'
 import { hasTaskFilter, NO_TODO_FILTER, todoFilterFor } from '../lib/taskFilter'
 import { compareByOrder } from '../lib/orderCompare'
-import { dreamSteps, tierSections } from '../lib/somedayTier'
-import { DreamCards } from './todo/DreamCards'
+import { somedaySectionColor, somedayTierOf, splitSomeday, type SomedayTier } from '../lib/somedayTier'
+import { DreamBoard } from './todo/DreamBoard'
+import { SomedayBar, WishPick } from './todo/SomedayParts'
+import { GROUP_HEADING_TEXT } from './ListSectionHeading'
 import { useRememberScroll } from '../hooks/useRememberScroll'
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
@@ -113,27 +115,39 @@ export function TaskList({
     taskFilter,
   })
   const { filtered, groupingScope, groupBySection, hasSections } = rows
-  // いつかのリストは「夢」「やりたい」の 2 段で出し、段の中をセクションで分ける（#221・#427）
-  const tiered = listKind === 'someday' && Boolean(selectedListId)
-  const showSectionBlocks = !tiered && rows.showSectionBlocks
-  const sectionBlocks = tiered ? null : rows.sectionBlocks
-  const tiers = useMemo(() => {
-    if (!tiered) return null
-    const named = rows.showSectionBlocks
-      ? (rows.sectionBlocks ?? []).flatMap((b) =>
-          b.headerKind === 'section-named' && b.sectionId ? [{ id: b.sectionId, name: b.title }] : [],
-        )
-      : null
-    // 一歩（子・予定にした一歩）のある夢はカード、無い夢は夢の段の行（#434）
-    return tierSections(rows.active, named, (d) => dreamSteps(tasks, d.id) !== null)
-  }, [tiered, rows.active, rows.showSectionBlocks, rows.sectionBlocks, tasks])
-  /** 一覧の行に出す未完了のルート（いつかは夢 → やりたい、段の中はセクションの順。進めている夢はカードで別に出す） */
-  const active = useMemo(() => (tiers ? [...tiers.dream, ...tiers.wish].flatMap((b) => b.tasks) : rows.active), [tiers, rows.active])
+  // いつかのリストは夢ボードとやりたい棚の切り替え（#439）。セクションは上の絞り込み（# 海外）で、塊には分けない
+  const someday = listKind === 'someday' && Boolean(selectedListId)
+  const showSectionBlocks = !someday && rows.showSectionBlocks
+  const sectionBlocks = someday ? null : rows.sectionBlocks
+  const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
+  const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
+  const listSections = useMemo(
+    () => (someday ? sections.filter((s) => s.listId === selectedListId).sort(compareByOrder) : []),
+    [someday, sections, selectedListId],
+  )
+  /** 絞り込んでいるセクション（ナビのセクションを押したときも同じ） */
+  const filterSectionId = someday && quickAddSectionId && listSections.some((s) => s.id === quickAddSectionId) ? quickAddSectionId : null
+  const somedaySplit = useMemo(() => (someday ? splitSomeday(rows.active, filterSectionId) : null), [someday, rows.active, filterSectionId])
+  // 開いたときは夢があれば夢、無ければやりたい（押して切り替えたらそのまま）
+  const [pickedTab, setPickedTab] = useState<SomedayTier | null>(null)
+  const somedayTab: SomedayTier = pickedTab ?? (somedaySplit && somedaySplit.dreams.length === 0 ? 'wish' : 'dream')
+  const showBoard = Boolean(somedaySplit) && (filterSectionId !== null || somedayTab === 'dream')
+  const showShelf = !somedaySplit || filterSectionId !== null || somedayTab === 'wish'
+  const sectionIndex = useMemo(() => new Map(listSections.map((s, i) => [s.id, i])), [listSections])
+  const colorOfSection = useCallback(
+    (sectionId: string | null) => somedaySectionColor(sectionId ? (sectionIndex.get(sectionId) ?? -1) : -1),
+    [sectionIndex],
+  )
+  /** 一覧の行に出す未完了のルート（いつかはやりたいだけ。夢はボードのタイル） */
+  const active = useMemo(
+    () => (somedaySplit ? (showShelf ? somedaySplit.wishes : []) : rows.active),
+    [somedaySplit, showShelf, rows.active],
+  )
 
-  /** 塊で分けないとき、行に出すセクション名 */
+  /** 塊で分けないとき、行に出すセクション名（いつかはセクションで絞り込んでいなければ） */
   const sectionNameById = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections])
   const sectionLabelFor = (task: { sectionId: string | null }) =>
-    !rows.showSectionBlocks && task.sectionId ? (sectionNameById.get(task.sectionId) ?? null) : null
+    (someday ? !filterSectionId : !rows.showSectionBlocks) && task.sectionId ? (sectionNameById.get(task.sectionId) ?? null) : null
 
   /** 親 ID → サブタスク（`order` 昇順）。TickTick 風に一覧で親の直下へ出す */
   const childrenByParent = useMemo(() => {
@@ -159,9 +173,16 @@ export function TaskList({
 
   // 完了した To-Do はナビの「完了済み」に集める。チェックリスト（使い回す）といつか（かなえた）だけリストの下に残す
   const keepsDoneInList = listKind === 'checklist' || listKind === 'someday'
+  const doneInList = useMemo(
+    () =>
+      keepsDoneInList ? filtered.filter((t) => t.completed && !isLogTask(t) && (!filterSectionId || t.sectionId === filterSectionId)) : [],
+    [keepsDoneInList, filtered, filterSectionId],
+  )
+  // いつか: かなえた夢はボードの下に残し、下の「かなえた」の一覧はやりたいだけ（棚を出しているとき）
+  const fulfilledDreams = useMemo(() => (someday ? doneInList.filter((t) => somedayTierOf(t) === 'dream') : []), [someday, doneInList])
   const completedTodos = useMemo(
-    () => (keepsDoneInList ? filtered.filter((t) => t.completed && !isLogTask(t)) : []),
-    [keepsDoneInList, filtered],
+    () => (someday ? (showShelf ? doneInList.filter((t) => somedayTierOf(t) === 'wish') : []) : doneInList),
+    [someday, showShelf, doneInList],
   )
   const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
@@ -322,16 +343,32 @@ export function TaskList({
         />
 
         <div className="flex-1 px-4 pb-4 space-y-0.5">
+          {somedaySplit && (
+            <SomedayBar
+              tab={somedayTab}
+              onTab={setPickedTab}
+              dreamCount={somedaySplit.dreams.length}
+              wishCount={somedaySplit.wishes.length}
+              sections={listSections}
+              colorOfSection={colorOfSection}
+              filterSectionId={filterSectionId}
+              onFilter={(id) => setQuickAddSectionId(id)}
+            />
+          )}
           {showQuickAdd && (
-            <div className="mb-1.5">
+            <div className={someday ? 'mb-3' : 'mb-1.5'}>
               <QuickAdd
                 placeholder={
-                  listKind === 'someday'
-                    ? t('someday.addPlaceholder')
-                    : listKind === 'checklist'
-                      ? t('checklist.addPlaceholder')
-                      : undefined
+                  someday && !filterSectionId && somedayTab === 'dream'
+                    ? t('someday.dreamAddPlaceholder')
+                    : listKind === 'someday'
+                      ? t('someday.addPlaceholder')
+                      : listKind === 'checklist'
+                        ? t('checklist.addPlaceholder')
+                        : undefined
                 }
+                // 入れる先は開いている側（夢ボードを開いていれば夢）
+                somedayTier={someday && somedayTab === 'dream' ? 'dream' : undefined}
               />
             </div>
           )}
@@ -357,8 +394,21 @@ export function TaskList({
             />
           )}
 
-          {/* いつかの進めている夢（一歩のある夢）は一覧の上にカードで（#429・#434） */}
-          {tiers ? <DreamCards dreams={tiers.cards} /> : null}
+          {somedaySplit && showBoard && (
+            <DreamBoard
+              dreams={somedaySplit.dreams}
+              fulfilled={fulfilledDreams}
+              colorOf={(d) => (d.sectionId && sectionIndex.has(d.sectionId) ? colorOfSection(d.sectionId) : null)}
+              sectionNameOf={(d) => (filterSectionId || !d.sectionId ? null : (sectionNameById.get(d.sectionId) ?? null))}
+              heading={filterSectionId !== null}
+            />
+          )}
+          {somedaySplit && showShelf && (
+            <>
+              {filterSectionId && <h2 className={`px-1 pb-1 pt-5 ${GROUP_HEADING_TEXT}`}>{t('someday.tierWish')}</h2>}
+              {!filterSectionId && <WishPick wishes={somedaySplit.wishes} />}
+            </>
+          )}
 
           {/* 読み上げ: 未完了の行は listbox（↑↓ の枠を aria-activedescendant で伝える） */}
           <div {...listboxProps} aria-label={title} className="space-y-0.5 outline-none">
@@ -382,7 +432,6 @@ export function TaskList({
               incompleteSubtasks={incompleteSubtasks}
               subtaskNestWithDrag={subtaskNestWithDrag}
               subtaskNestNoDrag={subtaskNestNoDrag}
-              tiers={tiers ? { dream: tiers.dream, wish: tiers.wish } : null}
             />
           </div>
 
