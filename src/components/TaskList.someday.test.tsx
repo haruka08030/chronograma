@@ -143,3 +143,22 @@ describe('いつかの 2 段（#221）', () => {
     expect(picnic.somedayTier).toBe('dream')
   })
 })
+
+describe('いつかの空っぽ', () => {
+  it('まだ何も無いいつかは、追加欄の下に例。押すと欄に入り、1 件あれば出ない', async () => {
+    const user = userEvent.setup()
+    useTaskStore.getState().addList('いつか', 'someday')
+    const wish = useTaskStore.getState().lists.find((l) => l.name === 'いつか')!
+    useTaskStore.getState().selectList(wish.id)
+    render(
+      <DndContext>
+        <TaskList />
+      </DndContext>,
+    )
+    await user.click(screen.getByRole('button', { name: 'Put “Travel abroad” in the add field' }))
+    const input = screen.getByDisplayValue('Travel abroad')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(screen.queryByRole('button', { name: 'Put “Travel abroad” in the add field' })).toBeNull()
+  })
+})
