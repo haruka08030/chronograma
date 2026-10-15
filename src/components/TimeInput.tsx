@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { pad2, toMinutes } from '../lib/clockTime'
 import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { zonedNow } from '../lib/timeZone'
@@ -68,13 +69,32 @@ function normalizeTime(raw: string): string | null {
   return `${pad2(h)}:${pad2(m)}`
 }
 
-/** いちばん近い、縦にスクロールする祖先（ページ全体は含めない） */
-function scrollParent(el: HTMLElement | null): HTMLElement | null {
-  for (let node = el; node && node !== document.body; node = node.parentElement) {
-    const { overflowY } = getComputedStyle(node)
-    if (overflowY === 'auto' || overflowY === 'scroll') return node
+/** 候補の高さの上限（max-h-64）と、画面の端・欄から空ける幅 */
+const LIST_MAX_HEIGHT = 256
+const GAP = 4
+const EDGE = 8
+/** 下にこれだけ入らなければ、上の方が広いとき上に開く */
+const LIST_MIN_HEIGHT = 160
+
+/**
+ * 候補を置く所（画面に対して）。欄の下に入らなければ、上の方が広いとき上に開く。高さは入る分だけ。
+ * スマホでキーボードが出ているときは見えている範囲（visualViewport）で測る
+ */
+function listPlacement(input: DOMRect): CSSProperties {
+  const vv = window.visualViewport
+  const top = vv?.offsetTop ?? 0
+  const bottom = top + (vv?.height ?? window.innerHeight)
+  const below = bottom - input.bottom - GAP - EDGE
+  const above = input.top - top - GAP - EDGE
+  const up = below < Math.min(LIST_MIN_HEIGHT, LIST_MAX_HEIGHT) && above > below
+  const width = Math.max(input.width, 96)
+  return {
+    position: 'fixed',
+    left: Math.max(EDGE, Math.min(input.left, window.innerWidth - width - EDGE)),
+    width,
+    maxHeight: Math.min(LIST_MAX_HEIGHT, up ? above : below),
+    ...(up ? { bottom: window.innerHeight - input.top + GAP } : { top: input.bottom + GAP }),
   }
-  return null
 }
 
 function buildTimeOptions(stepMinutes: number): string[] {
@@ -99,8 +119,9 @@ export function TimeInput({
 }: TimeInputProps) {
   const [draft, setDraft] = useState('')
   const [open, setOpen] = useState(false)
-  // 下に候補（max-h-64）が収まらない欄（画面の下に浮くカードなど）は上に開く
-  const [dropUp, setDropUp] = useState(false)
+  // 候補はカード・シートの中に置くと切れ、今の行へ送るときにカードごとスクロールするので、画面に対して置く（`listPlacement`）
+  const [listStyle, setListStyle] = useState<CSSProperties>({})
+  const dropUp = listStyle.bottom !== undefined
   const openRef = useRef(false)
   const [highlightIndex, setHighlightIndex] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -135,11 +156,39 @@ export function TimeInput({
     [options, defaultHighlightIndex],
   )
 
+  const centerOnOpen = useRef(false)
+  // ハイライトの行が見えるよう候補の中だけを送る（scrollIntoView は周りのカードまでスクロールしてしまう）
+  useLayoutEffect(() => {
+    const list = listRef.current
+    const node = optionRefs.current[highlightIndex]
+    if (!open || !list || !node) return
+    const pad = 4
+    // 開いたときは今の行を真ん中に（前後の時刻がどちらも見える）。その後のキー操作は見える所まで送るだけ
+    if (centerOnOpen.current) {
+      centerOnOpen.current = false
+      list.scrollTop = node.offsetTop - (list.clientHeight - node.offsetHeight) / 2
+    } else if (node.offsetTop - pad < list.scrollTop) list.scrollTop = node.offsetTop - pad
+    else if (node.offsetTop + node.offsetHeight + pad > list.scrollTop + list.clientHeight)
+      list.scrollTop = node.offsetTop + node.offsetHeight + pad - list.clientHeight
+  }, [highlightIndex, open, listStyle])
+
+  // 開いている間に周り（カード・シート・画面）がスクロール・リサイズしたら、欄に付いていく
   useEffect(() => {
     if (!open) return
-    const node = optionRefs.current[highlightIndex]
-    if (node) node.scrollIntoView({ block: 'nearest' })
-  }, [highlightIndex, open])
+    const place = (e?: Event) => {
+      if (e?.target instanceof Node && listRef.current?.contains(e.target)) return
+      const rect = inputRef.current?.getBoundingClientRect()
+      if (rect) setListStyle(listPlacement(rect))
+    }
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    window.visualViewport?.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+      window.visualViewport?.removeEventListener('resize', place)
+    }
+  }, [open])
 
   const commitDraft = useCallback(() => {
     const normalized = normalizeTime(draft)
@@ -154,7 +203,7 @@ export function TimeInput({
   useEffect(() => {
     const onPointerDown = (e: MouseEvent) => {
       if (!rootRef.current) return
-      if (!rootRef.current.contains(e.target as Node)) {
+      if (!rootRef.current.contains(e.target as Node) && !listRef.current?.contains(e.target as Node)) {
         // フォーカスしていないインスタンスは draft が初期値のままなので、
         // 外側クリックのたびに commit すると他 UI（日付など）操作で空文字が確定し value が消える
         if (openRef.current) commitDraft()
@@ -166,10 +215,9 @@ export function TimeInput({
   }, [commitDraft])
 
   const openList = () => {
-    const rect = rootRef.current?.getBoundingClientRect()
-    // スクロールする枠（スマホで下から出るカードなど）の中では下に開く。上に開くと枠の上で切れ、下なら枠ごとスクロールして見える
-    const inScroller = !!rootRef.current && scrollParent(rootRef.current.parentElement) !== null
-    setDropUp(rect && !inScroller ? window.innerHeight - rect.bottom < 272 && rect.top > window.innerHeight - rect.bottom : false)
+    const rect = inputRef.current?.getBoundingClientRect()
+    if (rect) setListStyle(listPlacement(rect))
+    centerOnOpen.current = true
     setOpen(true)
   }
 
@@ -275,40 +323,46 @@ export function TimeInput({
         aria-activedescendant={open && highlightIndex >= 0 ? `${listId}-${highlightIndex}` : undefined}
         aria-autocomplete="list"
       />
-      {open && !disabled && (
-        <div
-          ref={listRef}
-          id={listId}
-          className={`absolute z-40 max-h-64 w-full animate-pop-in ${dropUp ? 'bottom-full mb-1 origin-bottom' : 'mt-1 origin-top'} overflow-y-auto overscroll-contain rounded-md p-1 shadow-[0_8px_20px_rgba(0,0,0,0.16)] ${FLOATING_SURFACE}`}
-          role="listbox"
-        >
-          {options.map((option, idx) => {
-            const active = idx === highlightIndex
-            const selected = option === (value ?? '')
-            return (
-              <button
-                key={option}
-                id={`${listId}-${idx}`}
-                ref={(node) => {
-                  optionRefs.current[idx] = node
-                }}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => selectValue(option)}
-                // ハイライトはメニューと同じ色。今の値は ✓ と太字で示す
-                className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm ${
-                  active ? MENU_ROW_ACTIVE : `${MENU_ROW_HOVER} ${MENU_ROW_PRESS}`
-                } ${selected ? 'font-medium text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-200'}`}
-                role="option"
-                aria-selected={selected}
-              >
-                <span className="tabular-nums">{option}</span>
-                <span className={`text-xs ${selected ? 'opacity-100' : 'opacity-0'}`}>✓</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
+      {open &&
+        !disabled &&
+        createPortal(
+          <div
+            ref={listRef}
+            id={listId}
+            style={listStyle}
+            // body 直下に出すので、開いている予定カード・シートからは「内側」（押しても閉じない）
+            data-popover-keep
+            className={`z-[95] animate-pop-in ${dropUp ? 'origin-bottom' : 'origin-top'} overflow-y-auto overscroll-contain rounded-md p-1 shadow-[0_8px_20px_rgba(0,0,0,0.16)] ${FLOATING_SURFACE}`}
+            role="listbox"
+          >
+            {options.map((option, idx) => {
+              const active = idx === highlightIndex
+              const selected = option === (value ?? '')
+              return (
+                <button
+                  key={option}
+                  id={`${listId}-${idx}`}
+                  ref={(node) => {
+                    optionRefs.current[idx] = node
+                  }}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => selectValue(option)}
+                  // ハイライトはメニューと同じ色。今の値は ✓ と太字で示す
+                  className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm ${
+                    active ? MENU_ROW_ACTIVE : `${MENU_ROW_HOVER} ${MENU_ROW_PRESS}`
+                  } ${selected ? 'font-medium text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-200'}`}
+                  role="option"
+                  aria-selected={selected}
+                >
+                  <span className="tabular-nums">{option}</span>
+                  <span className={`text-xs ${selected ? 'opacity-100' : 'opacity-0'}`}>✓</span>
+                </button>
+              )
+            })}
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
