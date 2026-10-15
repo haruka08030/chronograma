@@ -1,4 +1,4 @@
-import { useId, useState, type HTMLAttributes, type Ref } from 'react'
+import { useId, type HTMLAttributes, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { useAuth } from '../../contexts/AuthContext'
@@ -13,7 +13,6 @@ import { PlannerAddInput } from './PlannerAddInput'
 import { PlannerListStatus } from './PlannerListStatus'
 import { PlannerOnboarding } from './PlannerOnboarding'
 import { OnboardingNudges } from './OnboardingNudges'
-import { focusQuickAdd } from '../../lib/quickAddFocus'
 import type { NowNextPlan } from '../../lib/dayPlan'
 import { planHex } from '../../lib/planVisual'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
@@ -70,14 +69,14 @@ export function PlannerTodoSection({
   const onboardingDone = useTaskStore((s) => s.onboardingDone)
   const dataOwner = useTaskStore((s) => s.dataOwner)
   const { user, loading: authLoading } = useAuth()
-  const [draft, setDraft] = useState('')
   const { day, viewingToday } = env
   const { dateKey, tomorrowKey } = day
-  // はじめの案内を出している間は、書き方の例は案内の方に出す（追加欄と 2 回出さない）
+  // はじめの案内を出していてまだ何も無い間は、追加欄が入口（例が入れ替わり、下に例のボタン）
   // ログイン中で、この端末でこの人としての初めての同期がまだ終わっていない間は出さない（アカウントのデータが届く前に一瞬出ていた）。
   // 終わると持ち主（dataOwner）がこの人になる。アカウントにデータがあれば、その同期で案内は終わる
   const awaitingFirstSync = authLoading || (user !== null && dataOwner !== user.id)
   const showOnboarding = viewingToday && !onboardingDone && !awaitingFirstSync
+  const emptyDay = totalCount === 0 && overdue.length === 0 && leftOver.length === 0
   const timedAction = (task: Task) => (
     <>
       <TomorrowButton task={task} tomorrowKey={tomorrowKey} viewingToday={viewingToday} />
@@ -241,24 +240,12 @@ export function PlannerTodoSection({
         </div>
       </div>
 
-      <PlannerAddInput
-        dateKey={dateKey}
-        draft={draft}
-        onDraftChange={setDraft}
-        showExample={!showOnboarding && totalCount === 0 && overdue.length === 0 && leftOver.length === 0}
-      />
+      <PlannerAddInput dateKey={dateKey} showExample={emptyDay} guide={showOnboarding && emptyDay} />
 
       <PlannerListStatus totalCount={totalCount} openCount={open.length} overdueCount={overdue.length} />
 
-      {/* はじめて使う人だけ: 今日を見ているとき、追加欄の下に 3 ステップ */}
-      {showOnboarding && (
-        <PlannerOnboarding
-          onUseExample={(text) => {
-            setDraft(text)
-            focusQuickAdd()
-          }}
-        />
-      )}
+      {/* はじめて使う人だけ: 今日を見ているとき、追加欄の下に進み具合の 1 行 */}
+      {showOnboarding && <PlannerOnboarding />}
       {/* 案内を終えた直後の 1 回だけの誘い（iPhone の Safari ならホーム画面への追加） */}
       {viewingToday && <OnboardingNudges />}
     </>
