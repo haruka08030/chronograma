@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../../store/taskStore'
@@ -7,6 +7,7 @@ import { toDateKey } from '../../lib/dateKey'
 import { appToday } from '../../lib/timeZone'
 import { TodayPlannerView } from '../TodayPlannerView'
 import { ONBOARDING_DONE_MS } from './PlannerOnboarding'
+import { GUIDE_PLACEHOLDER_MS } from './PlannerAddInput'
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {}
@@ -26,7 +27,6 @@ beforeAll(() => {
 })
 
 const guide = () => screen.queryByRole('region', { name: 'Getting started' })
-const step = (name: string) => within(guide()!).getByText(name).closest('li')!
 
 function openToday() {
   useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
@@ -40,29 +40,37 @@ describe('はじめの 3 ステップ', () => {
     vi.setSystemTime(new Date(new Date().setHours(13, 0, 0, 0)))
     openToday()
     expect(screen.queryByText('Log your sleep?')).not.toBeInTheDocument()
-    expect(within(guide()!).getByRole('button', { name: 'Put “essay by tomorrow” in the add field' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Put “essay by tomorrow” in the add field' })).toBeInTheDocument()
     vi.useRealTimers()
   })
 
-  it('新しい人には今日の画面に 3 ステップを出し、やると順にチェックが付く', async () => {
+  it('新しい人には追加欄を入口にし、案内は進み具合といまのステップの名前だけ', async () => {
     const user = userEvent.setup()
     openToday()
-    expect(guide()).toBeInTheDocument()
-    expect(within(guide()!).getAllByRole('listitem')).toHaveLength(3)
-    // 書き方の例は案内の方に出す（追加欄の例と 2 回出さない）
-    const input = screen.getByPlaceholderText('Add')
+    expect(guide()).toHaveTextContent('Step 1 of 3: Add one thing to do')
+    // 追加欄にはじめからカーソルがあり、薄い文字は書き方の例
+    const input = screen.getByPlaceholderText('e.g. 3pm essay 1h')
+    expect(input).toHaveFocus()
 
-    // 例を押すと追加欄に入る。Enter で足すと、時刻つきなので ① と ② が済む
+    // 例を押すと追加欄に入る（例のボタンは欄が空の間だけ）。Enter で足すと、時刻つきなので ① と ② が済む
     await user.click(screen.getByRole('button', { name: 'Put “3pm essay 1h” in the add field' }))
     expect(input).toHaveValue('3pm essay 1h')
     expect(input).toHaveFocus()
+    expect(screen.queryByRole('button', { name: 'Put “essay by tomorrow” in the add field' })).toBeNull()
     await user.keyboard('{Enter}')
-    expect(step('Add one thing to do')).toHaveTextContent('(done)')
-    expect(step('Give it a time')).toHaveTextContent('(done)')
-    expect(step('Record it with ▶')).not.toHaveTextContent('(done)')
-    // 説明は次にやるステップだけ
-    expect(within(guide()!).getByText(/Press ▶ on the row/)).toBeInTheDocument()
-    expect(within(guide()!).queryByText(/Drag it onto the timeline/)).toBeNull()
+    expect(guide()).toHaveTextContent('Step 3 of 3: Press ▶ on the row when you start')
+  })
+
+  it('案内の間、追加欄の薄い文字の例は入れ替わる', () => {
+    vi.useFakeTimers()
+    try {
+      openToday()
+      expect(screen.getByPlaceholderText('e.g. 3pm essay 1h')).toBeInTheDocument()
+      act(() => void vi.advanceTimersByTime(GUIDE_PLACEHOLDER_MS))
+      expect(screen.getByPlaceholderText('e.g. essay by tomorrow')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('3 つ終わると「できました」を出し、少しして消え、二度と出ない', () => {
