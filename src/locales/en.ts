@@ -1027,6 +1027,8 @@ export default {
     emptyArchived: 'No archived tasks',
   },
   dueDatePicker: {
+    typePlaceholder: 'Type a date (10/20, tomorrow, fri)',
+    typeLabel: 'Type a date',
     title: 'Choose due date',
     prevMonth: 'Previous month',
     nextMonth: 'Next month',

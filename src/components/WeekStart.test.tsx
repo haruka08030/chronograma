@@ -107,6 +107,9 @@ describe('週の開始日: 日曜はじまり', () => {
     const { container } = render(<DatePickerBody value="2026-10-07" onPick={() => {}} autoFocus />)
     expect(headerLabels(container)[0]).toBe('Sun')
     expect(container.querySelector('[data-day]')!.getAttribute('data-day')).toBe('2026-09-27')
+    // PC は入力欄にフォーカスして開く。↓ で日の格子へ
+    await userEvent.keyboard('{ArrowDown}')
+    expect(document.activeElement?.getAttribute('data-day')).toBe('2026-10-07')
     await userEvent.keyboard('{Home}')
     expect(document.activeElement?.getAttribute('data-day')).toBe('2026-10-04')
     await userEvent.keyboard('{End}')

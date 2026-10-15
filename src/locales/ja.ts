@@ -996,6 +996,8 @@ export default {
     emptyArchived: 'アーカイブ済みのタスクはありません',
   },
   dueDatePicker: {
+    typePlaceholder: '日付を入力（10/20・明日・金曜）',
+    typeLabel: '日付を入力',
     title: '締切を選択',
     prevMonth: '前の月',
     nextMonth: '次の月',
