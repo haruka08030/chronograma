@@ -269,10 +269,12 @@ export default {
     example2: 'レポート 明日まで',
     useExample: '「{{text}}」を追加欄に入れる',
     add: 'やることを 1 つ入れる',
-    place: 'タイムラインへドラッグして時間に置く',
+    place: 'タイムラインに置く',
     placeTouch: '行を押して時間を決める',
     record: '始めるときに行の ▶ で記録する',
     recordTouch: '始めるときに行を押して記録を開始',
+    placeHere: '「{{title}}」を {{start}}–{{end}} に置く',
+    placeHereShort: 'ここに置く',
     done: 'できました。​予定と実際が並び、​ずれが見えます',
   },
   onboardingNudge: {

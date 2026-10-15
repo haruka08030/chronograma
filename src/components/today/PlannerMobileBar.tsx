@@ -1,17 +1,31 @@
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { StatsIcon } from '../icons'
 import { Segmented } from '../ui/Segmented'
+import { bounce, onTimelineTabNudge } from '../../lib/onboardingMotion'
 
 export type PlannerPane = 'list' | 'timeline'
 
-/** スマホだけ: やること / タイムラインの切り替えと、統計の入口（記録の延長。PC 幅は左のサイドバーにある） */
+/**
+ * スマホだけ: やること / タイムラインの切り替えと、統計の入口（記録の延長。PC 幅は左のサイドバーにある）。
+ * はじめの案内の間に時刻つきで足すと、「タイムライン」のタブが弾む（そこに入ったことを知らせる）
+ */
 export function PlannerMobileBar({ pane, onPaneChange }: { pane: PlannerPane; onPaneChange: (pane: PlannerPane) => void }) {
   const { t } = useTranslation()
   const selectView = useTaskStore((s) => s.selectView)
+  const tabsRef = useRef<HTMLDivElement>(null)
+  useEffect(
+    () =>
+      onTimelineTabNudge(() => {
+        const tab = tabsRef.current?.querySelectorAll<HTMLElement>('[role="tab"]')[1]
+        if (tab) bounce(tab)
+      }),
+    [],
+  )
   return (
     <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-[calc(0.75rem+env(safe-area-inset-top))] md:hidden">
-      <div className="min-w-0 flex-1">
+      <div ref={tabsRef} className="min-w-0 flex-1">
         <Segmented
           role="tab"
           size="md"
