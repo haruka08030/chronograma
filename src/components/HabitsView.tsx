@@ -9,6 +9,7 @@ import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { buttonClass } from './ui/buttonClass'
 import { EmptyState } from './ui/EmptyState'
+import { ExampleChips } from './ui/ExampleChips'
 import { DayNav } from './ui/DayNav'
 import { RepeatIcon } from './icons'
 import { HabitContextMenu } from './HabitContextMenu'
@@ -126,9 +127,18 @@ export function HabitsView() {
         {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} onAdded={onAdded} /> : null}
 
         {habits.length === 0 ? (
-          // フォームを開いている間は「右上の＋習慣を追加」の案内を出さない（ボタンは「閉じる」になっている）
+          // 例を押すとその名前で追加のカードが開く（中身を確かめて足す）。カードを開いている間は出さない
           showComposer ? null : (
-            <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
+            <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty')}>
+              <ExampleChips
+                examples={t('habits.examples', { returnObjects: true }) as string[]}
+                onPick={(title) => {
+                  patchNewForm({ title })
+                  setShowComposer(true)
+                }}
+                className="mt-4 justify-center"
+              />
+            </EmptyState>
           )
         ) : (
           <section className="space-y-2">

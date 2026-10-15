@@ -7,7 +7,7 @@ import { useQuickAddTarget } from '../../lib/quickAddFocus'
 import { useIsCoarsePointer, useIsDesktop } from '../../hooks/useMediaQuery'
 import { flyIntoTimeline, nudgeTimelineTab } from '../../lib/onboardingMotion'
 import { InlineAddInput } from '../ui/InlineAddInput'
-import { chipClass } from '../ui/chipClass'
+import { ExampleChips } from '../ui/ExampleChips'
 import { QuickAddDetails } from '../QuickAddDetails'
 
 /** はじめの案内の間、追加欄の薄い文字の例を入れ替える間隔 */
@@ -92,22 +92,14 @@ export function PlannerAddInput({
         placeholder={placeholder}
       />
       {guide && draft === '' && (
-        <div className="ml-11 mt-2 flex flex-wrap items-center gap-1.5">
-          {examples.map((example) => (
-            <button
-              key={example}
-              type="button"
-              onClick={() => {
-                change(example)
-                inputRef.current?.focus()
-              }}
-              aria-label={t('onboarding.useExample', { text: example })}
-              className={chipClass({ variant: 'outline', size: 'md' }, 'pointer-coarse:min-h-9')}
-            >
-              {example}
-            </button>
-          ))}
-        </div>
+        <ExampleChips
+          examples={examples}
+          onPick={(example) => {
+            change(example)
+            inputRef.current?.focus()
+          }}
+          className="ml-11 mt-2"
+        />
       )}
       {/* 入力中だけ、足したら付く値のチップ（見ている日が既定のやる日）。押して選べる */}
       <QuickAddDetails

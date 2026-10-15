@@ -51,6 +51,14 @@ describe('習慣の画面: 新しい習慣のフォーム', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.getByText(/No habits yet/)).toBeInTheDocument()
   })
+
+  it('空のときは例のボタン。押すとその名前で追加のカードが開く', async () => {
+    const user = userEvent.setup()
+    render(<HabitsView />)
+    await user.click(screen.getByRole('button', { name: 'Put “Gym” in the add field' }))
+    expect(screen.getByDisplayValue('Gym')).toBeInTheDocument()
+    expect(screen.queryByText(/No habits yet/)).toBeNull()
+  })
 })
 
 describe('習慣の画面: 休み', () => {

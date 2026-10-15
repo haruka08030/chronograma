@@ -16,6 +16,7 @@ import { useOpenTaskRow } from '../hooks/useOpenTaskRow'
 import { CheckCircleIcon, CheckIcon } from './icons'
 import { SelectionBar } from './ui/SelectionBar'
 import { EmptyState } from './ui/EmptyState'
+import { ExampleChips } from './ui/ExampleChips'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { openTaskMenu } from '../lib/overlays'
 import { openTimeSlotForTask } from '../lib/timeSlotTarget'
@@ -65,6 +66,7 @@ export function TaskList({
   const filterColor = useTaskStore((s) => s.filterColor)
   const todoFilter = useTaskStore((s) => s.todoFilter)
   const setTodoFilter = useTaskStore((s) => s.setTodoFilter)
+  const requestQuickAdd = useTaskStore((s) => s.requestQuickAdd)
   // じょうごの絞り込み（優先度・見積もり）は To-Do のリスト・ビューだけ
   const taskFilter = useMemo(() => todoFilterFor(lists, selectedListId, todoFilter), [lists, selectedListId, todoFilter])
   const filtering = taskFilter !== undefined && hasTaskFilter(taskFilter)
@@ -332,6 +334,15 @@ export function TaskList({
                 }
               />
             </div>
+          )}
+
+          {/* まだ何も無いいつかは、追加欄の下に例（押すと欄に入る） */}
+          {listKind === 'someday' && incompleteCount === 0 && completedTodos.length === 0 && !filtering && (
+            <ExampleChips
+              examples={t('someday.examples', { returnObjects: true }) as string[]}
+              onPick={(text) => requestQuickAdd({ text, note: '' })}
+              className="mb-2 ml-11"
+            />
           )}
 
           {incompleteCount === 0 && filtering && (
