@@ -8,12 +8,17 @@ import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
 import { dayIndexInWeek, monthGridDays, weekdayLabelsFrom } from '../lib/weekStart'
+import { parseDateInput } from '../lib/parseDateInput'
+import { isSubmitEnter } from '../lib/keyboard'
+import { useIsCoarsePointer } from '../hooks/useMediaQuery'
+import { fieldClass } from './ui/fieldClass'
 
 /**
  * 月のカレンダー（月の切り替え・日付・今日/明日・なし）。期限のポップオーバー・タスクの右クリックメニュー・
  * カレンダー画面の見出しの日付ジャンプで共通。
  * 開くたびに作り直す前提で、`month`（なければ選んでいる日、それもなければ今日）の月から始める。
- * キーボード: 日の格子は Tab で 1 回だけ止まり、←→↑↓ で日・週、PageUp/PageDown で月、Home/End で週の頭と終わり、Enter で決める
+ * キーボード: 日の格子は Tab で 1 回だけ止まり、←→↑↓ で日・週、PageUp/PageDown で月、Home/End で週の頭と終わり、Enter で決める。
+ * 上の入力欄に日付を打つと（10/20・1020・20・明日・金曜など。`parseDateInput`）その日を見せ、Enter で決める。↓ で格子へ
  */
 export function DatePickerBody({
   value,
@@ -32,11 +37,15 @@ export function DatePickerBody({
   footer?: boolean
   /** 最初に見せる月（カレンダー画面の月表示では、選んでいる日ではなく見ている月から始める） */
   month?: Date
-  /** 開いたら日の格子（選んでいる日・なければ今日）にフォーカスする（期限の欄から開くポップオーバー） */
+  /**
+   * 開いたらフォーカスする（期限の欄から開くポップオーバー）。PC は入力欄（そのまま打てる）、
+   * スマホは日の格子（選んでいる日・なければ今日。キーボードが勝手に出ないように）
+   */
   autoFocus?: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const df = useDateFormat()
+  const coarse = useIsCoarsePointer()
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(month ?? (value ? fromDateKey(value) : appToday())))
   const pick = onPick
   // 週の並びは設定の週の開始日から（カレンダーの月表示と同じ）
@@ -49,7 +58,13 @@ export function DatePickerBody({
   // キーで動かす日（格子の中で Tab が止まる 1 日）
   const [activeKey, setActiveKey] = useState(() => value ?? todayKey)
   const gridRef = useRef<HTMLDivElement>(null)
-  const focusActive = useRef(autoFocus)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const focusActive = useRef(autoFocus && coarse)
+  useEffect(() => {
+    if (autoFocus && !coarse) inputRef.current?.focus()
+    // 開いたときだけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => {
     if (!focusActive.current) return
     focusActive.current = false
@@ -57,6 +72,35 @@ export function DatePickerBody({
   }, [activeKey, viewMonth])
   // 見ている月に無い日は、その月の 1 日を止まる日にする（月を切り替えたとき）
   const tabKey = isSameMonth(fromDateKey(activeKey), viewMonth) ? activeKey : toDateKey(viewMonth)
+
+  // 入力欄に打った日（読めて、選べる日のときだけ）。打つたびにその日の月を見せる。
+  // 日だけ（「20」）は打ち始めたときに見ていた月の日（打って月が変わっても、その月のまま）
+  const [text, setText] = useState('')
+  const [typeMonth, setTypeMonth] = useState(viewMonth)
+  const parseTyped = (s: string, month: Date) => parseDateInput(s, i18n.language.startsWith('ja'), month)
+  const typedKey = (() => {
+    const key = parseTyped(text, typeMonth)
+    return key && !(min != null && key < min) ? key : null
+  })()
+  const onType = (next: string) => {
+    const month = text === '' ? viewMonth : typeMonth
+    setText(next)
+    setTypeMonth(month)
+    const key = parseTyped(next, month)
+    if (!key) return
+    const d = fromDateKey(key)
+    if (!isSameMonth(d, viewMonth)) setViewMonth(startOfMonth(d))
+    setActiveKey(key)
+  }
+  const onInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (isSubmitEnter(e)) {
+      e.preventDefault()
+      if (typedKey) pick(typedKey)
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${tabKey}"]`)?.focus()
+    }
+  }
 
   const onGridKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const from = fromDateKey(tabKey)
@@ -89,6 +133,19 @@ export function DatePickerBody({
 
   return (
     <>
+      <input
+        ref={inputRef}
+        type="text"
+        value={text}
+        onChange={(e) => onType(e.target.value)}
+        onKeyDown={onInputKeyDown}
+        placeholder={t('dueDatePicker.typePlaceholder')}
+        aria-label={t('dueDatePicker.typeLabel')}
+        aria-invalid={text.trim() !== '' && !typedKey}
+        enterKeyHint="done"
+        autoComplete="off"
+        className={fieldClass({ size: 'sm' }, `mb-2 w-full ${text.trim() !== '' && !typedKey ? 'text-zinc-400 dark:text-zinc-500' : ''}`)}
+      />
       <div className="mb-1 flex items-center justify-between px-1">
         <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{df.yearMonth(viewMonth)}</span>
         <div className="flex items-center gap-0.5">
@@ -125,7 +182,7 @@ export function DatePickerBody({
           const key = toDateKey(day)
           const inMonth = isSameMonth(day, viewMonth)
           const today = key === todayKey
-          const selected = value != null && key === value
+          const selected = typedKey != null ? key === typedKey : value != null && key === value
           const beforeMin = min != null && key < min
           return (
             <div key={key} className="flex justify-center">
