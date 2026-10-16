@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react'
+import type { CSSProperties, MouseEvent } from 'react'
 import { CheckIcon } from '../icons'
 import { PRIORITY_RING_CLASS } from '../../lib/priorityColor'
 import { colorVars } from '../../lib/logCategoryColors'
@@ -89,12 +89,16 @@ export function CompletionCircle({
 }
 
 /**
- * 完了の丸の代わりに置く、予定（完了の無いもの）の印。丸と同じ幅を取り、Google の予定の一覧と同じく色の点だけを出す
+ * 完了の丸の代わりに置く、予定（完了の無いもの）の印。Google の予定の一覧と同じく色の丸だけを出す。
+ * 大きさ・枠の太さは完了の丸と同じ（20px、サブタスクは 16px）。並べたときに丸の大きさがそろう
+ * `hex` の代わりに `style` で `--c` を渡せる（睡眠の色など）
  */
-export function EventMark({ hex, small = false }: { hex: string; small?: boolean }) {
+export function EventMark({ hex, style, small = false }: { hex?: string; style?: CSSProperties; small?: boolean }) {
   return (
-    <span aria-hidden className={`flex flex-shrink-0 items-center justify-center ${small ? 'h-4 w-4' : 'h-5 w-5'}`}>
-      <span className="gc-dot h-2.5 w-2.5 rounded-full" style={colorVars(hex)} />
-    </span>
+    <span
+      aria-hidden
+      className={`gc-dot flex-shrink-0 rounded-full border-[1.5px] ${small ? 'h-4 w-4' : 'h-5 w-5'}`}
+      style={style ?? (hex ? colorVars(hex) : undefined)}
+    />
   )
 }

@@ -8,7 +8,7 @@ import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategory
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
-import { CalendarCheck } from './timeline/CalendarCheck'
+import { CalendarCheck, CalendarDot } from './timeline/CalendarCheck'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import { beginCalendarItemNativeDrag } from '../lib/calendarItemDrag'
 import {
@@ -392,7 +392,7 @@ export function CalendarView({
                       style={colorVars(eventState(e, key) === 'upcoming' ? (e.color ?? DEFAULT_GOOGLE_EVENT_HEX) : '#BDBDBD')}
                     >
                       {/* タスクと同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯。色は予定ごと */}
-                      {e.startTime && <span className="gc-dot h-1.5 w-1.5 shrink-0 rounded-full" aria-hidden />}
+                      {e.startTime && <CalendarDot />}
                       {e.startTime && <span className="shrink-0 opacity-70">{e.startTime}</span>}
                       <span className="truncate">{e.summary}</span>
                     </div>
@@ -435,7 +435,7 @@ export function CalendarView({
                       {/* To-Do は時刻の有無で見た目を変えない（「✓ 15:00 タイトル」、時刻なしは「✓ タイトル」）。● の代わりに ✓ を置き、その場で完了にできる */}
                       {/* 予定（完了の無いもの）は Google の月表示と同じく ● */}
                       {isEventTask(t) ? (
-                        <span aria-hidden className="gc-dot mx-0.5 h-2 w-2 shrink-0 rounded-full" />
+                        <CalendarDot />
                       ) : (
                         <CalendarCheck
                           done={t.completed}
