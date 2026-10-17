@@ -13,6 +13,7 @@ import {
 } from '../lib/notion'
 import { useTaskStore, isAdoptingFromOtherTab, setStateWithImportedLabels } from '../store/taskStore'
 import { cloudReady } from '../lib/cloudReady'
+import { knownNotConnected, noteIntegrationConnected } from '../lib/integrationHint'
 import { reportFailure } from '../lib/errorReport'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
@@ -89,6 +90,11 @@ export function useNotionSync() {
     const run = async (manual = false) => {
       // 取り込みは代表の 1 つのタブだけ
       if (!manual && !isLeaderTab()) return
+      // つないでいないと分かっていれば呼ばない（設定からの同期・接続は呼ぶ）
+      if (!manual && knownNotConnected('notion', userId)) {
+        setSyncState({ connected: false, configured: false, error: null })
+        return
+      }
       if (running) {
         rerun = true
         return
@@ -100,6 +106,7 @@ export function useNotionSync() {
           rerun = false
           const res = await fetchNotionPages()
           if (cancelled) return
+          noteIntegrationConnected('notion', userId, res.connected && res.configured)
           if (!res.connected) {
             setSyncState({ connected: false, configured: false, error: null })
             continue
