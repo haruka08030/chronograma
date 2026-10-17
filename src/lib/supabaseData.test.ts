@@ -170,6 +170,17 @@ const task = (id: string, userId = 'u1'): Row => ({
 const noDeletes = { lists: [], tasks: [], habits: [], sections: [] }
 
 describe('fetchListsTasksHabits', () => {
+  it('4 つの表を同時に読み始める（順に読むと表ごとの往復が足し算になる。#443）', async () => {
+    const { client } = fakeSupabase({ lists: [], list_sections: [], tasks: [task('t1')], habits: [] })
+    const asked: string[] = []
+    const from = client.from.bind(client)
+    const spy = { ...client, from: (table: string) => (asked.push(table), from(table)) } as typeof client
+    const res = await fetchListsTasksHabits(spy, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    expect(asked.slice(0, 4).sort()).toEqual(['habits', 'list_sections', 'lists', 'tasks'])
+    expect(res.tasks).toHaveLength(1)
+  })
+
   it('pages past the API row limit instead of stopping at the first page', async () => {
     const tasks = Array.from({ length: 2500 }, (_, i) => task(`t${String(i).padStart(4, '0')}`))
     const { client } = fakeSupabase({ lists: [], list_sections: [], tasks, habits: [] })

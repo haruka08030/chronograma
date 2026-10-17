@@ -418,13 +418,17 @@ export async function fetchListsTasksHabits(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<{ lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] } | { error: string }> {
-  const listRows = await fetchAllRows<ListRow>(supabase, 'lists', userId)
+  // 4 つの表は互いに関係しないので同時に読む（順に読むと、表ごとの往復がそのまま足し算になる）。
+  // 読み始める前のサーバーの時刻から次の差分を取るので、読んでいる間に変わった行は次の同期で届く（`syncPull.ts`）
+  const [listRows, sectionRows, taskRows, habitRows] = await Promise.all([
+    fetchAllRows<ListRow>(supabase, 'lists', userId),
+    fetchAllRows<SectionRow>(supabase, 'list_sections', userId),
+    fetchAllRows<TaskRow>(supabase, 'tasks', userId),
+    fetchAllRows<HabitRow>(supabase, 'habits', userId),
+  ])
   if ('error' in listRows) return listRows
-  const sectionRows = await fetchAllRows<SectionRow>(supabase, 'list_sections', userId)
   if ('error' in sectionRows) return sectionRows
-  const taskRows = await fetchAllRows<TaskRow>(supabase, 'tasks', userId)
   if ('error' in taskRows) return taskRows
-  const habitRows = await fetchAllRows<HabitRow>(supabase, 'habits', userId)
   if ('error' in habitRows) return habitRows
 
   return {
@@ -506,9 +510,11 @@ export async function fetchServerNow(supabase: SupabaseClient): Promise<{ at: st
  * ほかの端末で消した行が次の全部の取得まで手元に残る）
  */
 export async function fetchChangesSince(supabase: SupabaseClient, userId: string, since: string): Promise<SyncChanges | { error: string }> {
+  // 行の表どうしは同時に読む（印は行を読み終えてから）
+  const results = await Promise.all(SYNC_TABLES.map((table) => fetchRowsSince(supabase, table, userId, since, ['updated_at', 'id'])))
   const got: Partial<Record<SyncTable, Record<string, unknown>[]>> = {}
-  for (const table of SYNC_TABLES) {
-    const res = await fetchRowsSince(supabase, table, userId, since, ['updated_at', 'id'])
+  for (const [i, table] of SYNC_TABLES.entries()) {
+    const res = results[i]!
     if ('error' in res) return { error: `${table}: ${res.error}` }
     got[table] = res.rows
   }
