@@ -15,6 +15,7 @@ import {
 } from '../lib/canvas'
 import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
 import { cloudReady } from '../lib/cloudReady'
+import { needsReconnect } from '../lib/integrationReconnect'
 import { knownNotConnected, noteIntegrationConnected } from '../lib/integrationHint'
 import { reportFailure } from '../lib/errorReport'
 import { notify } from '../lib/notify'
@@ -68,6 +69,15 @@ export function requestCanvasSync() {
 
 /** 前回 Canvas から取り込んだタイトル・期限（この端末だけ。ユーザーが変えた値を上書きしないため） */
 const pulledKey = (userId: string) => `${CANVAS_PULLED_PREFIX}${userId}`
+
+/** どこかの学校の接続が切れていて、つなぎ直さないと直らない */
+export function canvasReconnectNeeded(s: CanvasSyncState): boolean {
+  return needsReconnect(s.error) || Object.values(s.connectionErrors).some(needsReconnect)
+}
+
+export function useCanvasReconnectNeeded(): boolean {
+  return canvasReconnectNeeded(useCanvasSyncState())
+}
 
 export function useCanvasSyncState(): CanvasSyncState {
   return useSyncExternalStore(
@@ -169,13 +179,18 @@ export function useCanvasSync() {
           savePulled(pulledKey(userId), pulled)
           if (changed) asIncomingChange(() => useTaskStore.setState({ ...next, selectedListId }))
           for (const [id, ids] of submitted) noteCanvasSubmitted(id, ids)
+          const wasLost = canvasReconnectNeeded(syncState)
           setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })
+          // 接続が切れたら 1 回だけ知らせる（Canvas のリストの上と設定には直るまで出す）
+          if (!wasLost && canvasReconnectNeeded(syncState)) notify(i18n.t('integrationReconnect.lost', { name: 'Canvas' }))
         } while (rerun && !cancelled)
       } catch (e) {
         if (cancelled) return
         console.error('[canvas]', e)
         reportFailure('integration', 'canvas', e, { code: e instanceof CanvasRequestError ? e.code : null })
+        const wasLost = canvasReconnectNeeded(syncState)
         setSyncState({ error: e instanceof CanvasRequestError && e.code ? e.code : e instanceof Error ? e.message : String(e) })
+        if (!wasLost && canvasReconnectNeeded(syncState)) notify(i18n.t('integrationReconnect.lost', { name: 'Canvas' }))
       } finally {
         running = false
         if (!cancelled) setSyncState({ syncing: false })

@@ -33,7 +33,7 @@ export type SmartView =
   'planner' | 'all' | 'today' | 'upcoming' | 'overdue' | 'calendar' | 'stats' | 'habits' | 'completed' | 'archived' | 'deleted' | 'settings'
 
 /** 設定画面を開いたときの一度きりのスクロール先（永続化しない） */
-export type SettingsScrollTarget = 'appearance' | 'account' | 'install' | 'google'
+export type SettingsScrollTarget = 'appearance' | 'account' | 'install' | 'google' | 'notion' | 'canvas'
 
 export type SortMode = 'manual' | 'dueDate' | 'priority' | 'title' | 'createdAt'
 

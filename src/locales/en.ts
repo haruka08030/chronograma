@@ -1537,11 +1537,16 @@ export default {
     disconnect: 'Disconnect',
     more: 'More integrations',
   },
+  integrationReconnect: {
+    lost: 'Lost the connection to {{name}}',
+    line: "Lost the connection to {{name}}, so items from {{name}} can't update.",
+    reconnect: 'Reconnect',
+    settingsLabel: 'Connection lost',
+  },
   googleReconnect: {
     lost: 'Lost the connection to Google Calendar',
     line: "Lost the connection to Google Calendar, so your events can't show.",
     reconnect: 'Reconnect',
-    settingsLabel: 'Connection lost',
   },
   googleSettings: {
     title: 'Google Calendar',

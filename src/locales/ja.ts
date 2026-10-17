@@ -1486,11 +1486,16 @@ export default {
     disconnect: '接続を解除',
     more: 'その他の連携',
   },
+  integrationReconnect: {
+    lost: '{{name}} との接続が切れました',
+    line: '{{name}} との接続が切れたため、{{name}} の内容を更新できません。',
+    reconnect: 'もう一度接続する',
+    settingsLabel: '接続が切れています',
+  },
   googleReconnect: {
     lost: 'Google カレンダーとの接続が切れました',
     line: 'Google カレンダーとの接続が切れたため、予定を出せません。',
     reconnect: 'もう一度接続する',
-    settingsLabel: '接続が切れています',
   },
   googleSettings: {
     title: 'Google カレンダー',

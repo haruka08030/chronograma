@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
+import { IntegrationReconnectLines } from './IntegrationReconnectLines'
 import { isTodoSurfaceView, sortKeyOf, sortModeOf } from '../lib/todoSurfaceView'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
@@ -341,6 +342,7 @@ export function TaskList({
           onAddSection={beginDraftSection}
           onOpenNav={onOpenNav}
         />
+        <IntegrationReconnectLines listId={selectedListId} />
 
         <div className="flex-1 px-4 pb-4 space-y-0.5">
           {somedaySplit && (
