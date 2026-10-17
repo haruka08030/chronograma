@@ -75,12 +75,25 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
 
   if (!isSupabaseConfigured) return null
 
-  const anyConnected = google.connected || notion !== null || canvas.length > 0
+  const anyConnected = google.connected || google.reconnectNeeded || notion !== null || canvas.length > 0
 
   return (
     <SettingsGroup id="settings-integrations" title={t('integrations.title')}>
       {google.connected && google.clientId && (
         <SettingsRow label={t('googleSettings.title')}>{disconnectButton(() => void run(() => google.disconnect()))}</SettingsRow>
+      )}
+      {google.reconnectNeeded && google.clientId && (
+        // 切れたままなら、ここでも何が起きたかとつなぎ直しを出す（次のページを開かなくても分かるように）
+        <SettingsRow label={t('googleSettings.title')} help={t('googleReconnect.settingsLabel')}>
+          <button
+            type="button"
+            className={buttonClass({ variant: 'primary', size: 'md' })}
+            disabled={google.loading}
+            onClick={() => void google.connect()}
+          >
+            {google.loading ? t('planVsActual.connecting') : t('googleReconnect.reconnect')}
+          </button>
+        </SettingsRow>
       )}
       {notion !== null && (
         <SettingsRow label="Notion" help={notion}>
