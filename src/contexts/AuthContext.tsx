@@ -21,7 +21,7 @@ import {
   signOutThisDevice,
 } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
-import { rememberGoogleConnected, wasGoogleConnected } from '../lib/googleConnectedHint'
+import { rememberGoogleConnected, wasGoogleConnected, wasGoogleConnectionLost } from '../lib/googleConnectedHint'
 import { clearDeletedAccount, clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { readFunctionErrorBody } from '../lib/functionError'
 import { detachWebPush } from '../lib/webPush'
@@ -120,6 +120,9 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent, userId: strin
     if (connected) {
       useTaskStore.getState().setGoogleConnectionError(null)
       rememberGoogleConnected(userId)
+    } else if (wasGoogleConnectionLost(userId)) {
+      // 前に切れたまま。つなぎ直すまで「もう一度つなぐ」を出し続ける
+      useTaskStore.getState().setGoogleReconnectNeeded(true)
     }
   } catch {
     useTaskStore.getState().setGoogleConnected(false)

@@ -7,6 +7,8 @@ import { cacheGoogleEvents, cachedGoogleEvents, rangeKey } from '../lib/googleEv
 import { withoutPendingDeletes } from '../lib/googleEventEdit'
 import { withoutPushedEvents } from '../lib/googlePush'
 import { appTimeZone } from '../lib/timeZone'
+import { markGoogleConnectionLost } from '../lib/googleConnectedHint'
+import { notify } from '../lib/notify'
 import type { CalendarEvent } from '../types/calendarEvent'
 
 /** Google 側で変えた予定を拾う間隔（画面に戻ったときはすぐ取り直す） */
@@ -39,7 +41,8 @@ export function useGoogleCalendarEvents(timeMin: Date, timeMax: Date) {
   useEffect(() => {
     if (!googleConnected) return
     let cancelled = false
-    const { setCalendarEvents, setGoogleConnected, setGoogleConnectionError, setGoogleCanWrite } = useTaskStore.getState()
+    const { setCalendarEvents, setGoogleConnected, setGoogleConnectionError, setGoogleCanWrite, setGoogleReconnectNeeded } =
+      useTaskStore.getState()
     const timeZone = appTimeZone()
     const show = (events: CalendarEvent[]) => setCalendarEvents(withoutPendingDeletes(withoutPushedEvents(events)))
 
@@ -85,11 +88,17 @@ export function useGoogleCalendarEvents(timeMin: Date, timeMax: Date) {
       } catch (e) {
         if (cancelled) return
         const raw = e instanceof Error ? e.message : t('account.genericError')
-        setGoogleConnectionError(localizeGoogleError(raw, t))
         if (shouldDisconnectAfterFetchError(raw)) {
+          // つながりが切れた（取り消された・期限切れ・許可が足りない）。連携は外さず、何が起きたかと「もう一度つなぐ」を出す
           setGoogleConnected(false)
           setCalendarEvents([])
+          setGoogleConnectionError(null)
+          setGoogleReconnectNeeded(true)
+          if (owner) markGoogleConnectionLost(owner)
+          notify(t('googleReconnect.lost'))
+          return
         }
+        setGoogleConnectionError(localizeGoogleError(raw, t))
       }
     }
 

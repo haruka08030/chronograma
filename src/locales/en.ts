@@ -1442,7 +1442,7 @@ export default {
     supabaseNotConfigured: 'Cloud sync is not set up. Sign in first, then connect.',
     notConnected: 'Google Calendar isn’t connected. Connect it again.',
     rateLimited: 'Too many requests to Google Calendar. Wait a moment, then try again.',
-    tokenExpired: 'The Google Calendar connection expired. Disconnect, then connect again.',
+    tokenExpired: 'Lost the connection to Google Calendar. Reconnect it in Settings → Google Calendar.',
     oauthRefreshMissing: 'Could not obtain Google refresh token. Revoke app access in your Google account, then reconnect.',
     scopeNotGranted: 'Google Calendar access was not granted. Reconnect and approve calendar permission.',
     redirectUriMismatch: 'Add {{uri}} to Google Cloud Authorized redirect URIs (Credentials → OAuth Web client), then save.',
@@ -1536,6 +1536,12 @@ export default {
     services: 'Google Calendar, Notion, Canvas',
     disconnect: 'Disconnect',
     more: 'More integrations',
+  },
+  googleReconnect: {
+    lost: 'Lost the connection to Google Calendar',
+    line: "Lost the connection to Google Calendar, so your events can't show.",
+    reconnect: 'Reconnect',
+    settingsLabel: 'Connection lost',
   },
   googleSettings: {
     title: 'Google Calendar',
