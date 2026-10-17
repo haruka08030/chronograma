@@ -6,6 +6,7 @@ import { iconButtonClass } from './ui/iconButtonClass'
 import { CloseIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { notify } from '../lib/notify'
+import { ReconnectLine } from './ReconnectLine'
 
 /**
  * カレンダー上の Google カレンダー連携の 1 行。
@@ -47,18 +48,14 @@ export function GoogleConnectLine({
 
   if (reconnectNeeded) {
     return (
-      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 py-1 pl-4 pr-2 text-xs md:pl-6 md:pr-4">
-        <span className={`min-w-0 flex-1 md:flex-none ${ERROR_TEXT} ${PHRASE_WRAP}`}>{t('googleReconnect.line')}</span>
-        <button
-          type="button"
-          onClick={() => void connect()}
-          disabled={loading}
-          className="shrink-0 rounded-md px-1.5 py-0.5 font-medium text-accent-600 transition-colors hover:bg-accent-50 disabled:opacity-50 dark:text-accent-400 dark:hover:bg-accent-500/10"
-        >
-          {loading ? t('planVsActual.connecting') : t('googleReconnect.reconnect')}
-        </button>
-        {error && <span className={`w-full ${ERROR_TEXT}`}>{error}</span>}
-      </div>
+      <ReconnectLine
+        className="pl-4 pr-2 md:pl-6 md:pr-4"
+        message={t('googleReconnect.line')}
+        actionLabel={loading ? t('planVsActual.connecting') : t('googleReconnect.reconnect')}
+        onAction={() => void connect()}
+        busy={loading}
+        detail={error}
+      />
     )
   }
 

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
+import type { SettingsScrollTarget } from '../store/storeTypes'
 import { notify } from '../lib/notify'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { isImportFileTooLarge, MAX_IMPORT_FILE_BYTES, previewBackupJson } from '../lib/backupFormat'
@@ -38,13 +39,13 @@ import { FeedbackRow } from './settings/FeedbackDialog'
  */
 export function SettingsView() {
   const settingsScrollTarget = useTaskStore((s) => s.settingsScrollTarget)
-  const [page, setPage] = useState<'main' | 'integrations'>(() => (settingsScrollTarget === 'google' ? 'integrations' : 'main'))
+  const [page, setPage] = useState<'main' | 'integrations'>(() => (isIntegrationTarget(settingsScrollTarget) ? 'integrations' : 'main'))
 
-  // Google カレンダーへの案内は連携のページを開く（届いたときに 1 回だけ切り替える）
+  // 連携（Google カレンダー・Notion・Canvas）への案内は連携のページを開く（届いたときに 1 回だけ切り替える）
   const [seenTarget, setSeenTarget] = useState(settingsScrollTarget)
   if (settingsScrollTarget !== seenTarget) {
     setSeenTarget(settingsScrollTarget)
-    if (settingsScrollTarget === 'google') setPage('integrations')
+    if (isIntegrationTarget(settingsScrollTarget)) setPage('integrations')
   }
 
   return page === 'integrations' ? (
@@ -54,6 +55,9 @@ export function SettingsView() {
   )
 }
 
+const isIntegrationTarget = (target: SettingsScrollTarget | null): target is 'google' | 'notion' | 'canvas' =>
+  target === 'google' || target === 'notion' || target === 'canvas'
+
 /** 外部連携のページ。戻るで設定のトップへ */
 function IntegrationsPage({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation()
@@ -62,8 +66,8 @@ function IntegrationsPage({ onBack }: { onBack: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
-    if (settingsScrollTarget === 'google') {
-      document.getElementById('settings-google')?.scrollIntoView({ block: 'start' })
+    if (isIntegrationTarget(settingsScrollTarget)) {
+      document.getElementById(`settings-${settingsScrollTarget}`)?.scrollIntoView({ block: 'start' })
       clearSettingsScrollTarget()
     } else {
       scrollRef.current?.scrollTo({ top: 0 })

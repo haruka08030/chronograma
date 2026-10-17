@@ -24,7 +24,7 @@ export function GoogleCalendarSettings() {
         </SettingsRow>
       ) : reconnectNeeded ? (
         // 切れたまま。つなぎ直すのを先に、使わないなら外せるように
-        <SettingsRow label={t('googleReconnect.settingsLabel')}>
+        <SettingsRow label={t('integrationReconnect.settingsLabel')}>
           <div className="flex flex-wrap justify-end gap-2">
             <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void disconnect()}>
               {t('integrations.disconnect')}

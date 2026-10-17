@@ -13,6 +13,8 @@ import {
 } from '../lib/notion'
 import { useTaskStore, isAdoptingFromOtherTab, setStateWithImportedLabels } from '../store/taskStore'
 import { cloudReady } from '../lib/cloudReady'
+import { needsReconnect } from '../lib/integrationReconnect'
+import { notify } from '../lib/notify'
 import { knownNotConnected, noteIntegrationConnected } from '../lib/integrationHint'
 import { reportFailure } from '../lib/errorReport'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
@@ -49,6 +51,11 @@ export function requestNotionSync() {
 
 /** 前回 Notion から取り込んだタイトル・期限（この端末だけ。ユーザーが変えた値を上書きしないため） */
 const notionPulledKey = (userId: string) => `${NOTION_PULLED_PREFIX}${userId}`
+
+/** Notion の接続が切れていて、つなぎ直さないと直らない */
+export function useNotionReconnectNeeded(): boolean {
+  return needsReconnect(useNotionSyncState().error)
+}
 
 export function useNotionSyncState(): NotionSyncState {
   return useSyncExternalStore(
@@ -145,7 +152,10 @@ export function useNotionSync() {
         if (cancelled) return
         console.error('[notion]', e)
         reportFailure('integration', 'notion', e, { code: e instanceof NotionRequestError ? e.code : null })
+        const wasLost = needsReconnect(syncState.error)
         setSyncState({ error: e instanceof NotionRequestError && e.code ? e.code : e instanceof Error ? e.message : String(e) })
+        // 接続が切れたら 1 回だけ知らせる（受信箱の上と設定には直るまで出す）
+        if (!wasLost && needsReconnect(syncState.error)) notify(i18n.t('integrationReconnect.lost', { name: 'Notion' }))
       } finally {
         running = false
         if (!cancelled) setSyncState({ syncing: false })

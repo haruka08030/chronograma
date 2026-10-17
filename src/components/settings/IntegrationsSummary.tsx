@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../contexts/AuthContext'
 import { useGoogleConnect } from '../../hooks/useGoogleConnect'
-import { requestNotionSync } from '../../hooks/useNotionSync'
-import { requestCanvasSync } from '../../hooks/useCanvasSync'
+import { requestNotionSync, useNotionReconnectNeeded } from '../../hooks/useNotionSync'
+import { requestCanvasSync, useCanvasSyncState } from '../../hooks/useCanvasSync'
+import { needsReconnect } from '../../lib/integrationReconnect'
+import { useTaskStore } from '../../store/taskStore'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { disconnectNotion, fetchNotionStatus } from '../../lib/notion'
 import { disconnectCanvas, fetchCanvasStatus, type CanvasConnection } from '../../lib/canvas'
@@ -22,6 +24,15 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
   const [notion, setNotion] = useState<string | null>(null)
   const [canvas, setCanvas] = useState<CanvasConnection[]>([])
   const [busy, setBusy] = useState(false)
+  const notionLost = useNotionReconnectNeeded()
+  const canvasErrors = useCanvasSyncState().connectionErrors
+  const openSettingsWithScroll = useTaskStore((s) => s.openSettingsWithScroll)
+  /** 切れた連携の行のボタン。押すとその連携の欄へ */
+  const reconnectButton = (target: 'notion' | 'canvas') => (
+    <button type="button" className={buttonClass({ variant: 'primary', size: 'md' })} onClick={() => openSettingsWithScroll(target)}>
+      {t('integrationReconnect.reconnect')}
+    </button>
+  )
 
   useEffect(() => {
     if (!user || !isSupabaseConfigured) return
@@ -84,7 +95,7 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
       )}
       {google.reconnectNeeded && google.clientId && (
         // 切れたままなら、ここでも何が起きたかとつなぎ直しを出す（次のページを開かなくても分かるように）
-        <SettingsRow label={t('googleSettings.title')} help={t('googleReconnect.settingsLabel')}>
+        <SettingsRow label={t('googleSettings.title')} help={t('integrationReconnect.settingsLabel')}>
           <button
             type="button"
             className={buttonClass({ variant: 'primary', size: 'md' })}
@@ -96,15 +107,16 @@ export function IntegrationsSummary({ onOpen }: { onOpen: () => void }) {
         </SettingsRow>
       )}
       {notion !== null && (
-        <SettingsRow label="Notion" help={notion}>
-          {disconnectButton(() => void disconnectNotionRow())}
+        <SettingsRow label="Notion" help={notionLost ? t('integrationReconnect.settingsLabel') : notion}>
+          {notionLost ? reconnectButton('notion') : disconnectButton(() => void disconnectNotionRow())}
         </SettingsRow>
       )}
       {canvas.map((c) => {
         const host = new URL(c.baseUrl).host
+        const lost = needsReconnect(canvasErrors[c.id])
         return (
-          <SettingsRow key={c.id} label="Canvas" help={host}>
-            {disconnectButton(() => void disconnectCanvasRow(c.id, host))}
+          <SettingsRow key={c.id} label="Canvas" help={lost ? `${host} · ${t('integrationReconnect.settingsLabel')}` : host}>
+            {lost ? reconnectButton('canvas') : disconnectButton(() => void disconnectCanvasRow(c.id, host))}
           </SettingsRow>
         )
       })}
