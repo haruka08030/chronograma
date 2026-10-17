@@ -11,6 +11,7 @@ import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
 import type { CourseLink } from '../lib/courseLinks'
 import type { Timetable } from '../lib/timetable'
+import type { AddonId, Addons } from '../lib/addons'
 import type { SeriesRule, SeriesScope } from '../lib/eventSeries'
 import type { DayMoods, Mood } from '../lib/dayMood'
 import type { CandidateView } from '../lib/plannerCandidates'
@@ -30,7 +31,19 @@ export type ToastText = string | { key: string; params?: Record<string, string |
 export type CalendarMode = 'month' | 'week' | 'threeDay' | 'schedule'
 
 export type SmartView =
-  'planner' | 'all' | 'today' | 'upcoming' | 'overdue' | 'calendar' | 'stats' | 'habits' | 'completed' | 'archived' | 'deleted' | 'settings'
+  | 'planner'
+  | 'all'
+  | 'today'
+  | 'upcoming'
+  | 'overdue'
+  | 'calendar'
+  | 'stats'
+  | 'habits'
+  | 'completed'
+  | 'archived'
+  | 'deleted'
+  | 'settings'
+  | 'addons'
 
 /** 設定画面を開いたときの一度きりのスクロール先（永続化しない） */
 export type SettingsScrollTarget = 'appearance' | 'account' | 'install' | 'google' | 'notion' | 'canvas'
@@ -193,6 +206,10 @@ export interface TaskState {
   timetable: Timetable
   /** 時間割の設定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null（一度も変えていない既定の値） */
   timetableUpdatedAt: string | null
+  /** 追加機能のオン・オフ（#453、`lib/addons.ts`）。決めていない機能は既定 */
+  addons: Addons
+  /** 追加機能の設定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  addonsUpdatedAt: string | null
   /**
    * 毎週の予定のカード・詳細で選んでいる直す範囲（その予定の id と範囲）。null・ほかの予定は「この予定のみ」。
    * `updateTask` はこの範囲のほかの回にも同じ項目を写す（`SERIES_SHARED_FIELDS`）。カード・詳細を閉じたら null
@@ -403,6 +420,8 @@ export interface TaskState {
   setSeriesEditScope: (taskId: string, scope: SeriesScope | null) => void
   /** 毎週の予定をゴミ箱へ（この予定のみ / 以降すべて / すべて）。消した数を返す */
   deleteEventSeries: (taskId: string, scope: SeriesScope) => number
+  /** 追加機能をオン・オフする */
+  setAddonOn: (id: AddonId, on: boolean) => void
   /** 時間割の設定を保存する（同じ中身なら何もしない） */
   saveTimetable: (timetable: Timetable) => void
   /**

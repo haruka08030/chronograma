@@ -57,6 +57,8 @@ const SEED_TEMPLATES = [
 ]
 /** 週表示の見出しの「時間割」（#279）。マスを押して授業名を書いて保存する手順 */
 const TIMETABLE_BUTTON = 'button:has-text("時間割") >> visible=true'
+/** 時間割は追加機能（#453）。撮るときはオンにしておく */
+const TIMETABLE_ON = { addons: { enabled: { timetable: true } } }
 const addClass = (cell, title) => [
   { click: `[data-timetable-cell="${cell}"]` },
   { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: title } },
@@ -389,37 +391,42 @@ const SCREENS = [
     ],
   },
   // 時間割（#279）: 授業を入れたマス・空きのマスを押して授業名を入れるところ・入れた授業が毎週の予定として出る次の週（スマホは翌日）
-  { name: 'calendar-timetable', view: 'calendar', click: TIMETABLE_BUTTON, steps: SEED_CLASSES },
+  { name: 'calendar-timetable', view: 'calendar', click: TIMETABLE_BUTTON, state: TIMETABLE_ON, steps: SEED_CLASSES },
   {
     name: 'calendar-timetable-cell',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
+    state: TIMETABLE_ON,
     steps: [
       ...SEED_CLASSES,
       { click: '[data-timetable-cell="2:1"]' },
       { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: 'ミクロ経済学' } },
     ],
   },
+  // 追加機能（#453）: 最初はどれもオフ・時間割をオンにしたところ・設定の「追加機能」
+  { name: 'addons', view: 'addons' },
+  { name: 'addons-on', view: 'addons', state: TIMETABLE_ON },
+  { name: 'settings-addons', view: 'settings', state: TIMETABLE_ON },
   // 欠席の数（#452）: 休んだ授業のマスに数・使い切った授業は赤、マスの授業の休める回数、授業の予定のカード（今日の 4 限に入れて押す）
   {
     name: 'calendar-timetable-absence',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
-    state: { timetable: ABSENCE_TIMETABLE },
+    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
     steps: SEED_CLASSES,
   },
   {
     name: 'calendar-timetable-limit',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
-    state: { timetable: ABSENCE_TIMETABLE },
+    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
     steps: [...SEED_CLASSES, { click: '[data-timetable-cell="5:2"]' }],
   },
   {
     name: 'calendar-class-card',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
-    state: { timetable: ABSENCE_TIMETABLE },
+    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
     // 日曜は時間割に無いので、日曜に撮るときは次の月曜の回（週表示は次の週・スマホは翌日へ）
     steps: [
       ...addClass(`${TODAY_WEEKDAY === 0 ? 1 : TODAY_WEEKDAY}:3`, '経済学入門'),
@@ -433,6 +440,7 @@ const SCREENS = [
     name: 'calendar-week-classes',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
+    state: TIMETABLE_ON,
     steps: [
       ...SEED_CLASSES,
       { click: '[role=dialog] button:has-text("閉じる")' },

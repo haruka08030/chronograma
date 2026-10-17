@@ -53,7 +53,7 @@ export function settingSyncStep(
 }
 
 /** ラベル表・他のタイムゾーン・動いているタイマー（`timerSync.ts`）・よく入れる予定（`eventTemplates.ts`）・授業と科目のつながり（`courseLinks.ts`）・時間割（`timetable.ts`） */
-export type SettingKey = 'labels' | 'zones' | 'timer' | 'templates' | 'courses' | 'timetable'
+export type SettingKey = 'labels' | 'zones' | 'timer' | 'templates' | 'courses' | 'timetable' | 'addons'
 
 const syncedKey = (userId: string) => `chronograma-settings-sync-v1:${userId}`
 

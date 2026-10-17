@@ -32,6 +32,7 @@ const SMART_VIEWS: Record<SmartView, true> = {
   archived: true,
   deleted: true,
   settings: true,
+  addons: true,
 }
 const CALENDAR_MODES: Record<CalendarMode, true> = { month: true, week: true, threeDay: true, schedule: true }
 const SORT_MODES: Record<SortMode, true> = { manual: true, dueDate: true, priority: true, title: true, createdAt: true }

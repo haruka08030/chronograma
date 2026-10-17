@@ -28,7 +28,7 @@ import { parseTasksCsv, unknownCsvListNames } from '../lib/importTasksCsv'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { useRememberScroll } from '../hooks/useRememberScroll'
-import { TimetableDialog } from './calendar/TimetableDialog'
+import { AddonsSettingsGroup } from './addons/AddonsSettingsGroup'
 import { FeedbackRow } from './settings/FeedbackDialog'
 
 /**
@@ -141,13 +141,14 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
           )}
         </SettingsGroup>
 
+        {/* スマホは下のタブに追加機能が無いので、ここが入口（上のほうに置く） */}
+        <AddonsSettingsGroup />
+
         <SettingsGroup id="settings-categories" title={t('categories.title')}>
           <CategoryManager />
         </SettingsGroup>
 
         <DailyRhythmSettings />
-
-        <TimetableSettingsGroup />
 
         <TimeZoneSettings />
 
@@ -314,22 +315,6 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
         />
       </div>
     </div>
-  )
-}
-
-/** 時間割（時限・学期・授業、#279）。中身はカレンダーの週表示の「時間割」と同じダイアログ */
-function TimetableSettingsGroup() {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  return (
-    <SettingsGroup id="settings-timetable" title={t('timetable.title')}>
-      <SettingsRow label={t('timetable.settingsRow')} help={t('timetable.settingsHelp')}>
-        <button type="button" onClick={() => setOpen(true)} className={buttonClass({ variant: 'secondary', size: 'md' })}>
-          {t('timetable.open')}
-        </button>
-      </SettingsRow>
-      {open && <TimetableDialog onClose={() => setOpen(false)} />}
-    </SettingsGroup>
   )
 }
 
