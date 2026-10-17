@@ -15,6 +15,7 @@ import {
 } from '../lib/canvas'
 import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
 import { cloudReady } from '../lib/cloudReady'
+import { knownNotConnected, noteIntegrationConnected } from '../lib/integrationHint'
 import { reportFailure } from '../lib/errorReport'
 import { notify } from '../lib/notify'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
@@ -106,6 +107,8 @@ export function useCanvasSync() {
     const run = async (manual = false) => {
       // 取り込みは代表の 1 つのタブだけ（ほかのタブは保存の共有で同じ結果を受け取る）
       if (!manual && !isLeaderTab()) return
+      // つないでいないと分かっていれば呼ばない（設定からの同期・接続は呼ぶ）
+      if (!manual && knownNotConnected('canvas', userId)) return
       if (running) {
         rerun = true
         return
@@ -117,6 +120,7 @@ export function useCanvasSync() {
           rerun = false
           const res = await fetchCanvasItems()
           if (cancelled) return
+          noteIntegrationConnected('canvas', userId, res.connections.length > 0)
           // 取得と反映の間に await を挟まない（この間のローカル編集を取りこぼさない）
           const s = useTaskStore.getState()
           let next = { lists: s.lists, sections: s.sections, tasks: s.tasks }
