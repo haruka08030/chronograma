@@ -31,7 +31,14 @@ vi.mock('./useAutoBackup', async (importOriginal) => ({
 }))
 
 let db: ReturnType<typeof fakeDb>
-const term: Timetable = { periods: [...DEFAULT_PERIODS], termStart: '2026-10-01', termEnd: '2026-11-30', skipHolidays: true }
+const term: Timetable = {
+  periods: [...DEFAULT_PERIODS],
+  termStart: '2026-10-01',
+  termEnd: '2026-11-30',
+  skipHolidays: true,
+  absences: {},
+  absenceLimits: {},
+}
 
 beforeEach(() => {
   vi.useFakeTimers()

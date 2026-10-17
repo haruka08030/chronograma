@@ -411,6 +411,10 @@ export interface TaskState {
   addTimetableClass: (cls: { weekday: number; startTime: string; endTime: string; title: string; color: string | null }) => number
   /** 時間割の授業（その回から後）の名前・ラベルを直す */
   updateTimetableClass: (firstTaskId: string, patch: { title?: string; color?: string | null }) => void
+  /** 授業の回（その予定の名前・日付）を欠席にする・取り消す（#452、`lib/timetable.ts` の `withAbsence`） */
+  setClassAbsent: (taskId: string, absent: boolean) => void
+  /** 授業の休める回数を決める（null は学期の回数の 1/3） */
+  setClassAbsenceLimit: (title: string, limit: number | null) => void
   /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
   updateTask: (

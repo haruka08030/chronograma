@@ -1,6 +1,6 @@
 /** 毎週の予定（授業など、#279）の繰り返しの付け替え・範囲を選んだ削除と、時間割の設定・マスからの授業の出し入れ */
 import { changeSeriesRule, defaultSeriesUntil, occurrenceFrom, seriesDates, seriesScopeIds, sharedSeriesPatch } from '../../lib/eventSeries'
-import { classStartDate, normalizeTimetable } from '../../lib/timetable'
+import { classStartDate, normalizeTimetable, renameAttendance, withAbsence, withAbsenceLimit } from '../../lib/timetable'
 import { newId } from '../../lib/id'
 import { sameValue } from '../../lib/sameValue'
 import { appTodayKey } from '../../lib/timeZone'
@@ -12,7 +12,14 @@ import type { SliceContext } from './sliceTypes'
 
 type EventSeriesActions = Pick<
   TaskState,
-  'setEventRepeat' | 'setSeriesEditScope' | 'deleteEventSeries' | 'saveTimetable' | 'addTimetableClass' | 'updateTimetableClass'
+  | 'setEventRepeat'
+  | 'setSeriesEditScope'
+  | 'deleteEventSeries'
+  | 'saveTimetable'
+  | 'addTimetableClass'
+  | 'updateTimetableClass'
+  | 'setClassAbsent'
+  | 'setClassAbsenceLimit'
 >
 
 export function createEventSeriesSlice({ set, get, undo }: SliceContext): EventSeriesActions {
@@ -97,6 +104,18 @@ export function createEventSeriesSlice({ set, get, undo }: SliceContext): EventS
       pushUndo()
       const now = new Date().toISOString()
       set((st) => ({ tasks: st.tasks.map((t) => (ids.has(t.id) ? applyTaskPatch(t, clean, now) : t)) }))
+      // 欠席と休める回数は授業名で持つので、新しい名前に移す
+      if (clean.title !== undefined) get().saveTimetable(renameAttendance(get().timetable, task.title, clean.title))
+    },
+
+    setClassAbsent: (taskId, absent) => {
+      const task = get().tasks.find((t) => t.id === taskId)
+      if (!task?.scheduledDate) return
+      get().saveTimetable(withAbsence(get().timetable, task.title, task.scheduledDate, absent))
+    },
+
+    setClassAbsenceLimit: (title, limit) => {
+      get().saveTimetable(withAbsenceLimit(get().timetable, title, limit))
     },
   }
 }

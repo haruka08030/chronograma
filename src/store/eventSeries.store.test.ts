@@ -31,7 +31,14 @@ const liveDates = () =>
     .sort()
 const tick = () => new Promise((r) => queueMicrotask(() => r(null)))
 /** 後期（2026-10-01〜2027-01-31）、祝日も入れる */
-const term: Timetable = { periods: [...DEFAULT_PERIODS], termStart: '2026-10-01', termEnd: '2027-01-31', skipHolidays: false }
+const term: Timetable = {
+  periods: [...DEFAULT_PERIODS],
+  termStart: '2026-10-01',
+  termEnd: '2027-01-31',
+  skipHolidays: false,
+  absences: {},
+  absenceLimits: {},
+}
 
 /** 月曜 1 限の授業を入れて、いちばん早い回の id を返す */
 function addMondayClass(opts: Partial<Timetable> = {}) {

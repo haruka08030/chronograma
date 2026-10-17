@@ -68,6 +68,39 @@ const SEED_CLASSES = [
   ...addClass('4:0', '情報科学概論'),
   ...addClass('5:2', '統計学'),
 ]
+/** TIMEZONE の今日の曜日（0=日 … 6=土。ホストの時刻で出すと日付がずれる） */
+const TODAY_WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(
+  new Intl.DateTimeFormat('en-US', { timeZone: TIMEZONE, weekday: 'short' }).format(new Date()),
+)
+/**
+ * 欠席の数（#452）を撮るときの時間割の設定。学期は今日を含む前期・後期（`suggestTerm` と同じ）、
+ * 経済学入門は 2 回休み（上限は学期の 1/3）、統計学は休める 3 回を使い切った
+ */
+const ABSENCE_TIMETABLE = (() => {
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = today.getMonth() + 1
+  const term =
+    m >= 3 && m <= 8
+      ? { termStart: `${y}-04-01`, termEnd: `${y}-07-31` }
+      : m >= 9
+        ? { termStart: `${y}-10-01`, termEnd: `${y + 1}-01-31` }
+        : { termStart: `${y - 1}-10-01`, termEnd: `${y}-01-31` }
+  const daysAgo = (n) => dayKeyOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() - n))
+  return {
+    periods: [
+      { start: '09:00', end: '10:30' },
+      { start: '10:40', end: '12:10' },
+      { start: '13:00', end: '14:30' },
+      { start: '14:40', end: '16:10' },
+      { start: '16:20', end: '17:50' },
+    ],
+    ...term,
+    skipHolidays: false,
+    absences: { 経済学入門: [daysAgo(1), daysAgo(2)], 統計学: [daysAgo(1), daysAgo(2), daysAgo(3)] },
+    absenceLimits: { 統計学: 3 },
+  }
+})()
 /** ラベルの週の目安（分、#291）。種データのラベル名 */
 const SEED_TARGETS = { 授業: 600, 課題: 480, 就活: 180 }
 /** ふりかえりのラベル別の時間の行（スマホでも行が見えるところまで送る） */
@@ -77,7 +110,7 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など） */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -365,6 +398,35 @@ const SCREENS = [
       ...SEED_CLASSES,
       { click: '[data-timetable-cell="2:1"]' },
       { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: 'ミクロ経済学' } },
+    ],
+  },
+  // 欠席の数（#452）: 休んだ授業のマスに数・使い切った授業は赤、マスの授業の休める回数、授業の予定のカード（今日の 4 限に入れて押す）
+  {
+    name: 'calendar-timetable-absence',
+    view: 'calendar',
+    click: TIMETABLE_BUTTON,
+    state: { timetable: ABSENCE_TIMETABLE },
+    steps: SEED_CLASSES,
+  },
+  {
+    name: 'calendar-timetable-limit',
+    view: 'calendar',
+    click: TIMETABLE_BUTTON,
+    state: { timetable: ABSENCE_TIMETABLE },
+    steps: [...SEED_CLASSES, { click: '[data-timetable-cell="5:2"]' }],
+  },
+  {
+    name: 'calendar-class-card',
+    view: 'calendar',
+    click: TIMETABLE_BUTTON,
+    state: { timetable: ABSENCE_TIMETABLE },
+    // 日曜は時間割に無いので、日曜に撮るときは次の月曜の回（週表示は次の週・スマホは翌日へ）
+    steps: [
+      ...addClass(`${TODAY_WEEKDAY === 0 ? 1 : TODAY_WEEKDAY}:3`, '経済学入門'),
+      { click: '[role=dialog] button:has-text("閉じる")' },
+      { wait: 400 },
+      ...(TODAY_WEEKDAY === 0 ? [{ press: 'n' }, { wait: 400 }] : []),
+      { click: '[data-block-id]:has-text("経済学入門") >> visible=true' },
     ],
   },
   {
@@ -968,6 +1030,9 @@ async function main() {
                 await page.click(step.rightClick, { button: 'right' })
               } else if (step.click) {
                 await page.click(step.click)
+              } else if (step.wait) {
+                // 待つ（ミリ秒。閉じる動きが終わるまでなど）
+                await page.waitForTimeout(step.wait)
               } else if (step.press) {
                 // キーを押す（⌘K など。'ControlOrMeta+k'）
                 await page.keyboard.press(step.press)

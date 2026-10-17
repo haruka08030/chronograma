@@ -144,3 +144,47 @@ describe('予定の繰り返しの欄', () => {
     expect(live().map((t) => t.scheduledDate)).toEqual(['2026-10-13', '2026-10-15', '2026-10-20', '2026-10-22', '2026-10-27', '2026-10-29'])
   })
 })
+
+describe('授業の欠席（#452）', () => {
+  const popover = (taskId: string) => (
+    <EventPopover taskId={taskId} anchor={{ top: 100, left: 100, right: 200, bottom: 140 }} onClose={() => {}} onOpenDetail={() => {}} />
+  )
+
+  it('今日の回のカードで欠席にでき、数と残りが出る。これからの回は数だけ', async () => {
+    const user = userEvent.setup({ advanceTimers: () => {} })
+    // 10/8（木）から 1/28 までの木曜 → 休めるのは 1/3 の 5 回
+    S().addTimetableClass({ weekday: 4, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: null })
+    S().saveTimetable({ ...S().timetable, termStart: '2026-10-01', termEnd: '2027-01-31' })
+    const [today, next] = live()
+    const view = render(popover(today!.id))
+    expect(screen.getByText('欠席 0 / 5 回')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '欠席にする' }))
+    expect(S().timetable.absences).toEqual({ 経済学入門: ['2026-10-08'] })
+    expect(screen.getByText('欠席 1 / 5 回')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '欠席を取り消す' }).getAttribute('aria-pressed')).toBe('true')
+    view.unmount()
+
+    render(popover(next!.id))
+    expect(screen.getByText('欠席 1 / 5 回')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '欠席にする' })).toBeNull()
+  })
+
+  it('マスに欠席の数が出て、授業の編集で休める回数を決められる。授業名を直すと欠席も移る', async () => {
+    const user = userEvent.setup({ advanceTimers: () => {} })
+    S().addTimetableClass({ weekday: 4, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: null })
+    S().saveTimetable({ ...S().timetable, termStart: '2026-10-01', termEnd: '2027-01-31' })
+    S().setClassAbsent(live()[0]!.id, true)
+    render(<TimetableDialog onClose={() => {}} />)
+    await user.click(screen.getByRole('button', { name: '木曜 1限 経済学入門 欠席 1 / 5 回' }))
+    const editor = screen.getByRole('dialog', { name: '木曜 1限' })
+    await user.type(within(editor).getByLabelText(/^休める回数（学期 \d+ 回）$/), '2')
+    expect(within(editor).getByText('欠席 1 / 2 回 · あと 1 回')).toBeTruthy()
+    const name = within(editor).getByLabelText('授業名')
+    await user.clear(name)
+    await user.type(name, 'ミクロ経済学')
+    await user.click(within(editor).getByRole('button', { name: '保存' }))
+    expect(S().timetable.absences).toEqual({ ミクロ経済学: ['2026-10-08'] })
+    expect(S().timetable.absenceLimits).toEqual({ ミクロ経済学: 2 })
+    expect(screen.getByRole('button', { name: '木曜 1限 ミクロ経済学 欠席 1 / 2 回 · あと 1 回' })).toBeTruthy()
+  })
+})
