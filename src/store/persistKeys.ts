@@ -77,6 +77,7 @@ export const TRANSIENT_KEYS = [
   'taskDragHoverListId',
   'syncState',
   'lastSyncedAt',
+  'cloudPulledAt',
   'syncRejected',
   'quickAddRequested',
   'quickAddPrefill',

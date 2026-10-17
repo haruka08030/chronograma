@@ -22,6 +22,7 @@ import { DEFAULT_TIMETABLE } from '../../lib/timetable'
 type DataActions = Pick<
   TaskState,
   | 'setSyncState'
+  | 'setCloudPulledAt'
   | 'setSyncRejected'
   | 'setDataOwner'
   | 'resetLocalData'
@@ -65,6 +66,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
   const { pushUndo } = undo
   return {
     setSyncState: (state, lastSyncedAt) => set(lastSyncedAt ? { syncState: state, lastSyncedAt } : { syncState: state }),
+    setCloudPulledAt: (at) => set({ cloudPulledAt: at }),
 
     setSyncRejected: (rows) => set({ syncRejected: rows }),
 
@@ -112,6 +114,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         moveBannerText: null,
         syncState: 'idle',
         lastSyncedAt: null,
+        cloudPulledAt: null,
         dataOwner: null,
       })
     },

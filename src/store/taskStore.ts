@@ -136,6 +136,7 @@ export const useTaskStore = create<TaskState>()(
         taskDragHoverListId: null as string | null,
         syncState: 'idle' as SyncState,
         lastSyncedAt: null as string | null,
+        cloudPulledAt: null as string | null,
         syncRejected: [],
         dataOwner: null as string | null,
         quickAddRequested: false,

@@ -12,6 +12,7 @@ import {
   reconcileNotionPages,
 } from '../lib/notion'
 import { useTaskStore, isAdoptingFromOtherTab, setStateWithImportedLabels } from '../store/taskStore'
+import { cloudReady } from '../lib/cloudReady'
 import { reportFailure } from '../lib/errorReport'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
@@ -200,7 +201,7 @@ export function useNotionSync() {
 
     requestSync = () => void run(true)
 
-    // 初回はクラウド同期が一度終わるのを待つ（時間切れなら待たずに始める）
+    // 初回はクラウドの内容を取り込み終えるのを待つ（送信・設定の同期は待たない。時間切れなら待たずに始める）
     let firstTimer: ReturnType<typeof setTimeout> | undefined
     let unsubFirst: (() => void) | undefined
     const start = () => {
@@ -209,11 +210,11 @@ export function useNotionSync() {
       unsubFirst = undefined
       if (!cancelled) void run()
     }
-    if (useTaskStore.getState().lastSyncedAt) {
+    if (cloudReady(useTaskStore.getState())) {
       start()
     } else {
       unsubFirst = useTaskStore.subscribe((s) => {
-        if (s.lastSyncedAt) start()
+        if (cloudReady(s)) start()
       })
       firstTimer = setTimeout(start, FIRST_SYNC_WAIT_MS)
     }

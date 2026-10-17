@@ -454,13 +454,19 @@ export function useSupabaseSync() {
 
     /** ラベル表・他のタイムゾーン・動いているタイマー・よく入れる予定（タスクとは別に、まとめて 1 つの値として合わせる設定）と 1 日の気分（日ごと） */
     const syncSettings = async () => {
-      await syncLabels()
-      await syncExtraTimeZones()
-      await syncActiveTimer()
-      await syncEventTemplates()
-      await syncCourseLinks()
-      await syncTimetable()
-      await syncDayMoods()
+      // 設定どうしは別の表・別の項目なので同時に合わせる（控えの書き込みは 1 回ずつ同期的なので混ざらない）。
+      // 全部が終わるのを待ってから、最初の失敗を返す（失敗した 1 つで、ほかの設定を止めない）
+      const results = await Promise.allSettled([
+        syncLabels(),
+        syncExtraTimeZones(),
+        syncActiveTimer(),
+        syncEventTemplates(),
+        syncCourseLinks(),
+        syncTimetable(),
+        syncDayMoods(),
+      ])
+      const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+      if (failed) throw failed.reason
     }
 
     /**
@@ -659,6 +665,8 @@ export function useSupabaseSync() {
         deletes = result.deletes
       }
 
+      // クラウドの内容は手元に入った。Notion・Canvas の取り込みは、送信と設定の同期を待たずに始めてよい
+      if (!useTaskStore.getState().cloudPulledAt) useTaskStore.getState().setCloudPulledAt(new Date().toISOString())
       const res = await pushListsTasksHabits(supabase, userId, toPush.lists, toPush.tasks, toPush.habits, toPush.sections, deletes, remote)
       if (cancelled) return true
       // 外部キーで断られた: アカウントが消されていれば行の問題ではない（「送れません」と出さずに片付ける）

@@ -6,6 +6,7 @@ import { PULL_STATE_KEY_PREFIX, readStored } from '../lib/dataStore'
 import { clearLocalAccountState } from '../lib/accountBoundary'
 import { TOMBSTONE_RETENTION_MS } from '../lib/syncPull'
 import { useSupabaseSync } from './useSupabaseSync'
+import { cloudReady } from '../lib/cloudReady'
 
 /**
  * 同期の往復の数（#258）。本物のストアと PostgREST・DB の偽物（`035` の sync_changes_since も真似る）で、
@@ -101,6 +102,20 @@ const title = (id: string) => useTaskStore.getState().tasks.find((t) => t.id ===
 const serverRow = (id: string) => db.tables.tasks!.find((r) => r.id === id)
 
 describe('同期の往復（#258）', () => {
+  it('クラウドの内容を取り込んだら、送信・設定の同期を待たずに Notion・Canvas に合図する（#444）', async () => {
+    useTaskStore.setState({ cloudPulledAt: null, lastSyncedAt: null })
+    let syncedWhenPulled: string | null | undefined
+    const unsub = useTaskStore.subscribe((s, prev) => {
+      if (s.cloudPulledAt && !prev.cloudPulledAt) syncedWhenPulled = s.lastSyncedAt
+    })
+    signIn()
+    await untilSynced(null)
+    unsub()
+    // 合図の時点では、まだ同期は終わっていない
+    expect(syncedWhenPulled).toBeNull()
+    expect(cloudReady(useTaskStore.getState())).toBe(true)
+  })
+
   it('何も変わっていない同期は 1 往復（前は 1 つずつ 9 往復以上）', async () => {
     signIn()
     await untilSynced()
