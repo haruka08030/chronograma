@@ -46,6 +46,7 @@ const HabitsView = lazyNamed(() => import('./components/HabitsView'), 'HabitsVie
 const TaskBinView = lazyNamed(() => import('./components/TaskBinView'), 'TaskBinView')
 const CompletedTasksView = lazyNamed(() => import('./components/CompletedTasksView'), 'CompletedTasksView')
 const SettingsView = lazyNamed(() => import('./components/SettingsView'), 'SettingsView')
+const AddonsView = lazyNamed(() => import('./components/addons/AddonsView'), 'AddonsView')
 const TaskList = lazyNamed(() => import('./components/TaskList'), 'TaskList')
 const SearchResults = lazyNamed(() => import('./components/SearchResults'), 'SearchResults')
 const ShortcutsHelp = lazyNamed(() => import('./components/ShortcutsHelp'), 'ShortcutsHelp')
@@ -120,6 +121,8 @@ export default function App() {
         return <TaskBinView mode="deleted" />
       case 'settings':
         return <SettingsView />
+      case 'addons':
+        return <AddonsView />
       default:
         // いつか・チェックリストも To-Do と同じ一覧（違いは TaskItem・TaskList がリストの種類で出し分ける）
         return <TaskList onOpenNav={() => setSidebarOpen(true)} />

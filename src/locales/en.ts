@@ -161,6 +161,7 @@ export default {
       completed: 'Completed',
       archived: 'Archived',
       deleted: 'Trash',
+      addons: 'Add-ons',
     },
   },
   filter: {
@@ -1311,6 +1312,17 @@ export default {
       one: 'This event',
       following: 'This and following',
       all: 'All events',
+    },
+  },
+  addons: {
+    title: 'Add-ons',
+    intro: 'Only the add-ons you turn on appear in the calendar and the day plan.',
+    open: 'Open',
+    openView: 'Open the add-ons page',
+    switchAria: 'Use {{name}}',
+    timetable: {
+      name: 'Timetable & absences',
+      description: 'Put classes in the weekday × period grid to make weekly events for the term. Counts your absences too.',
     },
   },
   timetable: {

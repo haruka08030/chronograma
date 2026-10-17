@@ -18,6 +18,7 @@ import { downloadTextFile } from '../../lib/downloadFile'
 import { TASK_DEFAULTS, withTaskDefaults } from '../../lib/taskDefaults'
 import { hasExistingData } from '../../lib/onboarding'
 import { DEFAULT_TIMETABLE } from '../../lib/timetable'
+import { DEFAULT_ADDONS } from '../../lib/addons'
 
 type DataActions = Pick<
   TaskState,
@@ -94,6 +95,8 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
           courseLinksUpdatedAt: null,
           timetable: DEFAULT_TIMETABLE,
           timetableUpdatedAt: null,
+          addons: DEFAULT_ADDONS,
+          addonsUpdatedAt: null,
           dayMoods: {},
           googleEventColors: {},
           activeTimer: null,

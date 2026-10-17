@@ -43,6 +43,7 @@
 | [`037_task_carried_days.sql`](037_task_carried_days.sql) | To-Do の続けて持ち越した日数 `tasks.carried_days`（既定 0、0〜3650 `tasks_carried_days_range`）。今日・前の日に置いて終わっていない To-Do を後ろの日へ回した日数の合計で、完了・実行日を外す・いつか / チェックリストへ移すと 0（数えるのはアプリ）。今日の計画の行の「3日目」と週のふりかえりの「持ち越しが多いタスク」 |
 | [`038_realtime_sync_wake.sql`](038_realtime_sync_wake.sql) | 同期する表（`lists` / `list_sections` / `tasks` / `habits` / `sync_tombstones`・設定の表 6 つ・`day_moods`）を Realtime の publication `supabase_realtime` に入れる（無ければ作る）。端末は本人の行（`user_id=eq.<自分>`）の INSERT / UPDATE の通知を同期を起こす合図にだけ使う。DELETE の通知は RLS が効かないので購読せず、消えた行は `sync_tombstones` の通知で知る |
 | [`040_task_dream_id.sql`](040_task_dream_id.sql) | 夢の一歩を予定にして To-Do になった行の元の夢 `tasks.dream_id`（タスクの id、null は無し。外部キーなし、1〜128 字 `tasks_dream_id_check`）。夢の進み具合・次の一歩に数え、行に夢の名前を添える（数えるのはアプリ）。夢を消す・かなえる・やりたいへ移しても外さない |
+| [`041_user_addons.sql`](041_user_addons.sql) | 追加機能のオン・オフ `user_addons`（利用者ごとに 1 行、`addons` は `{ enabled: { 機能: true/false } }` の object、256KB まで `user_addons_size_check`、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
 
 テーブル（最新の形）:
 

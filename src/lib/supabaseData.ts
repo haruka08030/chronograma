@@ -25,6 +25,7 @@ import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZ
 import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
 import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
 import { normalizeTimetable, type RemoteTimetable } from './timetable'
+import { normalizeAddons, type RemoteAddons } from './addons'
 import { readEventSeries, withSeries } from './eventSeries'
 import { readMovedPlans, withMovedPlans } from './movedPlans'
 import { readDreamId, readSomedayTier, withDreamId, withSomedayTier } from './somedayTier'
@@ -554,7 +555,13 @@ function changesFromRows(
 
 /** 利用者ごとに 1 行の設定の表 */
 export type SettingTable =
-  'user_settings' | 'user_extra_time_zones' | 'user_active_timer' | 'user_event_templates' | 'user_course_links' | 'user_timetable'
+  | 'user_settings'
+  | 'user_extra_time_zones'
+  | 'user_active_timer'
+  | 'user_event_templates'
+  | 'user_course_links'
+  | 'user_timetable'
+  | 'user_addons'
 const SETTING_TABLES: readonly SettingTable[] = [
   'user_settings',
   'user_extra_time_zones',
@@ -562,6 +569,7 @@ const SETTING_TABLES: readonly SettingTable[] = [
   'user_event_templates',
   'user_course_links',
   'user_timetable',
+  'user_addons',
 ]
 
 /** `sync_changes_since`（`035`）の 1 回の答え */
@@ -977,7 +985,7 @@ export async function fetchLogLabels(supabase: SupabaseClient, userId: string): 
  */
 export async function pushSettingRow(
   supabase: SupabaseClient,
-  table: 'user_settings' | 'user_extra_time_zones' | 'user_active_timer' | 'user_event_templates' | 'user_course_links' | 'user_timetable',
+  table: SettingTable,
   row: Record<string, unknown> & { user_id: string; updated_at: string },
   base: string | null,
 ): Promise<SettingPushResult> {
@@ -1082,6 +1090,18 @@ export function pushTimetable(
   base: string | null,
 ): Promise<SettingPushResult> {
   return pushSettingRow(supabase, 'user_timetable', { user_id: userId, timetable: value.timetable, updated_at: value.updatedAt }, base)
+}
+
+/** 追加機能のオン・オフ（`user_addons.addons`、`041`）。行が無ければ null */
+export async function fetchAddons(supabase: SupabaseClient, userId: string): Promise<RemoteAddons | null | { error: string }> {
+  const { data, error } = await supabase.from('user_addons').select('addons, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { addons: normalizeAddons(data.addons), updatedAt: String(data.updated_at) }
+}
+
+export function pushAddons(supabase: SupabaseClient, userId: string, value: RemoteAddons, base: string | null): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_addons', { user_id: userId, addons: value.addons, updated_at: value.updatedAt }, base)
 }
 
 /**

@@ -53,6 +53,7 @@ import { createEventTemplatesSlice } from './slices/eventTemplates'
 import { createDayMoodsSlice } from './slices/dayMoods'
 import { normalizeDayMoods, type DayMoods } from '../lib/dayMood'
 import { DEFAULT_TIMETABLE, normalizeTimetable, type Timetable } from '../lib/timetable'
+import { DEFAULT_ADDONS, normalizeAddons, withAddonOn, type Addons } from '../lib/addons'
 import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
@@ -186,6 +187,8 @@ export const useTaskStore = create<TaskState>()(
         dayMoods: {} as DayMoods,
         timetable: DEFAULT_TIMETABLE as Timetable,
         timetableUpdatedAt: null as string | null,
+        addons: DEFAULT_ADDONS as Addons,
+        addonsUpdatedAt: null as string | null,
         seriesEditScope: null,
 
         habits: [],
@@ -209,6 +212,11 @@ export const useTaskStore = create<TaskState>()(
           // 同じ中身なら時刻を付けない（同期で送り直さない）
           if (sameValue(next, get().courseLinks)) return
           set({ courseLinks: next })
+        },
+        setAddonOn: (id, on) => {
+          const next = withAddonOn(get().addons, id, on)
+          if (sameValue(next, get().addons)) return
+          set({ addons: next })
         },
         ...createDayMoodsSlice(ctx),
         ...createEventSeriesSlice(ctx),
@@ -246,6 +254,7 @@ export const useTaskStore = create<TaskState>()(
         merged.courseLinks = normalizeCourseLinks(merged.courseLinks)
         merged.dayMoods = normalizeDayMoods(merged.dayMoods)
         merged.timetable = normalizeTimetable(merged.timetable)
+        merged.addons = normalizeAddons(merged.addons)
         merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
         merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
         merged.logLabelIds = normalizeLabelIds(merged.logLabelIds)
@@ -412,6 +421,12 @@ useTaskStore.subscribe((s, prev) => {
   if (s.timetable === prev.timetable) return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ timetableUpdatedAt: new Date().toISOString() })
+})
+// 追加機能のオン・オフ（#453）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.addons === prev.addons) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ addonsUpdatedAt: new Date().toISOString() })
 })
 // 動いているタイマーを始めた・止めたときも同じ（別の端末とどちらに合わせるかを比べる）
 useTaskStore.subscribe((s, prev) => {

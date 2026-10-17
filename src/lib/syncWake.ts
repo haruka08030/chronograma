@@ -22,6 +22,7 @@ const SETTING_TABLES = [
   'user_event_templates',
   'user_course_links',
   'user_timetable',
+  'user_addons',
 ] as const satisfies readonly SettingTable[]
 
 export const WAKE_TABLES = [

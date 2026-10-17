@@ -4,6 +4,7 @@ import { getSupabase, signOutThisDevice } from '../lib/supabase'
 import {
   decideHydrate,
   fetchCourseLinks,
+  fetchAddons,
   fetchDayMoods,
   fetchEventTemplates,
   fetchExtraTimeZones,
@@ -11,6 +12,7 @@ import {
   fetchMinSyncVersion,
   fetchTimetable,
   pushCourseLinks,
+  pushAddons,
   pushDayMoods,
   pushEventTemplates,
   pushExtraTimeZones,
@@ -61,6 +63,7 @@ import { reanchorTasks } from '../lib/taskTimeZone'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
 import { planCourseLinkSync } from '../lib/courseLinks'
+import { planAddonsSync } from '../lib/addons'
 import { planTimetableSync } from '../lib/timetable'
 import { createDayMoodPullState, dayMoodSince, runDayMoodSync } from '../lib/dayMood'
 import { hasExistingData } from '../lib/onboarding'
@@ -90,6 +93,7 @@ const SETTING_TABLE: Record<SettingKey, SettingTable> = {
   templates: 'user_event_templates',
   courses: 'user_course_links',
   timetable: 'user_timetable',
+  addons: 'user_addons',
 }
 const SETTING_KEY_OF = Object.fromEntries(Object.entries(SETTING_TABLE).map(([k, t]) => [t, k])) as Record<SettingTable, SettingKey>
 
@@ -162,6 +166,7 @@ function settingsSent(userId: string): boolean {
     ['templates', s.eventTemplatesUpdatedAt],
     ['courses', s.courseLinksUpdatedAt],
     ['timetable', s.timetableUpdatedAt],
+    ['addons', s.addonsUpdatedAt],
   ]
   return (
     local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key)) &&
@@ -429,6 +434,22 @@ export function useSupabaseSync() {
         // 一度も変えていない既定の値は送らない（`planTimetableSync`）。サーバーにも行が無ければ取りに行かない
         emptyWhenUnset: true,
       })
+    /** 追加機能のオン・オフ（#453） */
+    const syncAddons = () =>
+      syncSetting({
+        key: 'addons',
+        fetch: () => fetchAddons(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planAddonsSync({ addons: st.addons, updatedAt: st.addonsUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().addonsUpdatedAt,
+        applyLocal: ({ addons, updatedAt }) => asIncomingChange(() => useTaskStore.setState({ addons, addonsUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ addonsUpdatedAt: at })),
+        push: (p) => pushAddons(supabase, userId, p, p.base),
+        // 一度も変えていなければ送らない（`planAddonsSync`）。サーバーにも行が無ければ取りに行かない
+        emptyWhenUnset: true,
+      })
     /** 1 日の気分とひとこと（日ごとに 1 行、#324） */
     const syncDayMoods = () =>
       runDayMoodSync(
@@ -463,6 +484,7 @@ export function useSupabaseSync() {
         syncEventTemplates(),
         syncCourseLinks(),
         syncTimetable(),
+        syncAddons(),
         syncDayMoods(),
       ])
       const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
@@ -793,6 +815,7 @@ export function useSupabaseSync() {
         state.eventTemplates === prev.eventTemplates &&
         state.courseLinks === prev.courseLinks &&
         state.timetable === prev.timetable &&
+        state.addons === prev.addons &&
         state.dayMoods === prev.dayMoods
       )
         return

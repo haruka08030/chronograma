@@ -150,6 +150,7 @@ export default {
       completed: '完了済み',
       archived: 'アーカイブ済み',
       deleted: 'ゴミ箱',
+      addons: '追加機能',
     },
   },
   filter: {
@@ -1263,6 +1264,17 @@ export default {
       one: 'この予定のみ',
       following: 'これ以降すべて',
       all: 'すべて',
+    },
+  },
+  addons: {
+    title: '追加機能',
+    intro: 'オンにした機能だけが、カレンダーや今日の計画に出ます。',
+    open: '開く',
+    openView: '追加機能の画面を開く',
+    switchAria: '{{name}}を使う',
+    timetable: {
+      name: '時間割・欠席',
+      description: '曜日と時限のマスに授業を入れると、学期の間の毎週の予定になります。休んだ回数も数えます。',
     },
   },
   timetable: {
