@@ -134,6 +134,8 @@ export interface TaskState {
   googleConnected: boolean
   googleAccessToken: string | null
   googleConnectionError: string | null
+  /** つながっていたのに切れた（Google が断った）。つなぎ直すか、自分で外すまで「もう一度つなぐ」を出す */
+  googleReconnectNeeded: boolean
   /** Google の予定を書き換えられる権限（calendar.events.owned など）があるか。古い接続は読み取りのみ */
   googleCanWrite: boolean
 
@@ -285,6 +287,7 @@ export interface TaskState {
   setGoogleConnected: (connected: boolean) => void
   setGoogleAccessToken: (token: string | null) => void
   setGoogleConnectionError: (error: string | null) => void
+  setGoogleReconnectNeeded: (needed: boolean) => void
   setGoogleCanWrite: (canWrite: boolean) => void
 
   /** 足した習慣の id を返す */

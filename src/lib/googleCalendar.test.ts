@@ -81,7 +81,7 @@ describe('fetchCalendarEvents', () => {
     expect(actions()).toEqual(['events'])
   })
 
-  it('認証切れ（409）では今までどおり連携を外す', async () => {
+  it('認証切れ（409）でも連携は外さない（合鍵を消さず、画面が「もう一度接続する」を出す。#449）', async () => {
     invoke
       .mockResolvedValueOnce(
         failWith(409, {
@@ -94,10 +94,10 @@ describe('fetchCalendarEvents', () => {
       )
       .mockResolvedValueOnce({ data: { ok: true }, error: null })
     await expect(fetchCalendarEvents(new Date(), new Date())).rejects.toThrow(/authorization expired/)
-    expect(actions()).toEqual(['events', 'disconnect'])
+    expect(actions()).toEqual(['events'])
   })
 
-  it('古い関数の 502（認証切れ）でも外す', async () => {
+  it('古い関数の 502（認証切れ）でも外さない', async () => {
     invoke
       .mockResolvedValueOnce(
         failWith(502, {
@@ -109,7 +109,7 @@ describe('fetchCalendarEvents', () => {
       )
       .mockResolvedValueOnce({ data: { ok: true }, error: null })
     await expect(fetchCalendarEvents(new Date(), new Date())).rejects.toThrow()
-    expect(actions()).toEqual(['events', 'disconnect'])
+    expect(actions()).toEqual(['events'])
   })
 })
 

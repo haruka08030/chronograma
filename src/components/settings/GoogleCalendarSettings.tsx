@@ -8,7 +8,7 @@ import { ERROR_TEXT } from '../ui/textClass'
 /** Google カレンダー連携。カレンダー画面では接続中を点でしか示さないので、状態の確認と切断はここで行う */
 export function GoogleCalendarSettings() {
   const { t } = useTranslation()
-  const { user, clientId, connected, loading, error, connect, disconnect } = useGoogleConnect()
+  const { user, clientId, connected, reconnectNeeded, loading, error, connect, disconnect } = useGoogleConnect()
 
   if (!isSupabaseConfigured || !clientId) return null
 
@@ -21,6 +21,23 @@ export function GoogleCalendarSettings() {
           <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void disconnect()}>
             {t('integrations.disconnect')}
           </button>
+        </SettingsRow>
+      ) : reconnectNeeded ? (
+        // 切れたまま。つなぎ直すのを先に、使わないなら外せるように
+        <SettingsRow label={t('googleReconnect.settingsLabel')}>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={() => void disconnect()}>
+              {t('integrations.disconnect')}
+            </button>
+            <button
+              type="button"
+              className={buttonClass({ variant: 'primary', size: 'md' })}
+              disabled={loading}
+              onClick={() => void connect()}
+            >
+              {loading ? t('planVsActual.connecting') : t('googleReconnect.reconnect')}
+            </button>
+          </div>
         </SettingsRow>
       ) : (
         <SettingsRow label={t('googleSettings.notConnected')}>

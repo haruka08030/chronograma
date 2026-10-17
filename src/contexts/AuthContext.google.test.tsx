@@ -75,4 +75,13 @@ describe('Google の連携の確かめ', () => {
     expect(sb.status).toHaveBeenCalledTimes(1)
     expect(await connected()).toBe(false)
   })
+
+  it('前に切れたままなら、確かめてつながらなければ「もう一度接続する」を出す（#449）', async () => {
+    localStorage.setItem('chronograma.googleConnected', 'u1:lost')
+    sb.status.mockResolvedValueOnce(false)
+    await startApp()
+    expect(sb.status).toHaveBeenCalledTimes(1)
+    const { useTaskStore } = await import('../store/taskStore')
+    expect(useTaskStore.getState().googleReconnectNeeded).toBe(true)
+  })
 })

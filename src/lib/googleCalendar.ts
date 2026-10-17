@@ -280,28 +280,16 @@ async function loadCalendarEvents(timeMin: Date, timeMax: Date): Promise<Fetched
     truncated?: boolean
     error?: string
   }
-  let payload: EventsPayload
-  try {
-    payload = await invokeGoogleCalendar<EventsPayload>({
-      action: 'events',
-      // 範囲はアプリのタイムゾーンの壁時計で作られているので、本当の瞬間に戻す
-      timeMin: fromAppWall(timeMin).toISOString(),
-      timeMax: fromAppWall(timeMax).toISOString(),
-      timeZone: appTimeZone(),
-    })
-    // 古い関数は失敗も 200 で { events: [], error } を返す
-    if (payload.error) throw new Error(payload.error)
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e)
-    if (shouldDisconnectAfterFetchError(message)) {
-      try {
-        await disconnectGoogleCalendar()
-      } catch {
-        /* ignore */
-      }
-    }
-    throw e
-  }
+  // 断られても、ここでは連携を外さない（外すと合鍵まで消え、つなぎ直すまで戻らない）。呼んだ側が「もう一度つなぐ」を出す
+  const payload = await invokeGoogleCalendar<EventsPayload>({
+    action: 'events',
+    // 範囲はアプリのタイムゾーンの壁時計で作られているので、本当の瞬間に戻す
+    timeMin: fromAppWall(timeMin).toISOString(),
+    timeMax: fromAppWall(timeMax).toISOString(),
+    timeZone: appTimeZone(),
+  })
+  // 古い関数は失敗も 200 で { events: [], error } を返す
+  if (payload.error) throw new Error(payload.error)
   if (payload.truncated) console.warn('[google] too many events in the range; later events were left out')
   // 自分で色を付けていない予定はカレンダーの色
   lastCalendarHex = calendarColorHex(payload.calendarColor, payload.calendarColorId)

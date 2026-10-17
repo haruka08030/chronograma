@@ -23,6 +23,7 @@ export function useGoogleConnect() {
   const { user } = useAuth()
   const connected = useTaskStore((s) => s.googleConnected)
   const connectionError = useTaskStore((s) => s.googleConnectionError)
+  const reconnectNeeded = useTaskStore((s) => s.googleReconnectNeeded)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const setGoogleConnectionError = useTaskStore((s) => s.setGoogleConnectionError)
   const [loading, setLoading] = useState(false)
@@ -90,6 +91,7 @@ export function useGoogleConnect() {
     setGoogleConnected(false)
     setGoogleConnectionError(null)
     setError(null)
+    useTaskStore.getState().setGoogleReconnectNeeded(false)
     useTaskStore.getState().setCalendarEvents([])
   }
 
@@ -98,6 +100,8 @@ export function useGoogleConnect() {
     clientId: getClientId(),
     redirectUri: getGoogleRedirectUri(),
     connected,
+    /** つながっていたのに切れた（「もう一度接続する」を出す） */
+    reconnectNeeded: !connected && reconnectNeeded,
     loading,
     error: error ?? connectionError,
     connect,

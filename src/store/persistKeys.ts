@@ -87,6 +87,7 @@ export const TRANSIENT_KEYS = [
   'googleConnected',
   'googleAccessToken',
   'googleConnectionError',
+  'googleReconnectNeeded',
   'googleCanWrite',
   // 毎週の予定のカード・詳細を開いている間だけ（閉じたら「この予定のみ」に戻る）
   'seriesEditScope',

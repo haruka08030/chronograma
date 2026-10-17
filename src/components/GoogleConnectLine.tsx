@@ -10,7 +10,8 @@ import { notify } from '../lib/notify'
 /**
  * カレンダー上の Google カレンダー連携の 1 行。
  * 未接続なら「並べて比べられます · 接続する ×」。× で閉じたら出さない（接続は設定の「Google カレンダー」から）。
- * 接続中は何も出さず（日付バーの点で示す）、問題があるときだけ赤い 1 行と切断を出す。切断は設定からもできる。
+ * 接続中は何も出さず（日付バーの点で示す）、問題があるときだけ赤い 1 行を出す（切断は設定から）。
+ * つながっていたのに切れたら、何が起きたかと「もう一度接続する」を出す（× では消さない。つなぎ直すか設定で外すまで）。
  */
 export function GoogleConnectLine({
   hideInvite = false,
@@ -22,7 +23,7 @@ export function GoogleConnectLine({
   const openSettingsWithScroll = useTaskStore((s) => s.openSettingsWithScroll)
   const dismissed = useTaskStore((s) => s.googleConnectLineDismissed)
   const dismiss = useTaskStore((s) => s.dismissGoogleConnectLine)
-  const { user, clientId, redirectUri, connected, loading, error, connect, disconnect } = useGoogleConnect()
+  const { user, clientId, redirectUri, connected, reconnectNeeded, loading, error, connect } = useGoogleConnect()
 
   if (!clientId) {
     // 環境変数の不足はデプロイ側の問題なので、エンドユーザーには何も見せない
@@ -40,13 +41,23 @@ export function GoogleConnectLine({
     return (
       <div className="flex shrink-0 items-center gap-2 px-4 py-2 text-xs md:px-6">
         <span className={`min-w-0 flex-1 ${ERROR_TEXT}`}>{error}</span>
+      </div>
+    )
+  }
+
+  if (reconnectNeeded) {
+    return (
+      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 py-1 pl-4 pr-2 text-xs md:pl-6 md:pr-4">
+        <span className={`min-w-0 flex-1 md:flex-none ${ERROR_TEXT} ${PHRASE_WRAP}`}>{t('googleReconnect.line')}</span>
         <button
           type="button"
-          onClick={() => void disconnect()}
-          className="shrink-0 text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+          onClick={() => void connect()}
+          disabled={loading}
+          className="shrink-0 rounded-md px-1.5 py-0.5 font-medium text-accent-600 transition-colors hover:bg-accent-50 disabled:opacity-50 dark:text-accent-400 dark:hover:bg-accent-500/10"
         >
-          {t('integrations.disconnect')}
+          {loading ? t('planVsActual.connecting') : t('googleReconnect.reconnect')}
         </button>
+        {error && <span className={`w-full ${ERROR_TEXT}`}>{error}</span>}
       </div>
     )
   }

@@ -1389,7 +1389,7 @@ export default {
     supabaseNotConfigured: 'クラウド連携が未設定です。先にログインしてから接続してください。',
     notConnected: 'Google カレンダーに接続されていません。もう一度接続してください。',
     rateLimited: 'Google カレンダーへのアクセスが多すぎます。少し待ってからもう一度お試しください。',
-    tokenExpired: 'Google カレンダーの接続が切れました。一度「接続を解除」してから、もう一度接続してください。',
+    tokenExpired: 'Google カレンダーとの接続が切れました。設定の「Google カレンダー」から、もう一度接続してください。',
     oauthRefreshMissing:
       'Google の認証トークンを取得できませんでした。Google アカウントの連携アプリから権限を削除してから再接続してください。',
     scopeNotGranted: 'Google カレンダーへのアクセスが許可されていません。再接続してカレンダー権限を承認してください。',
@@ -1485,6 +1485,12 @@ export default {
     services: 'Google カレンダー・Notion・Canvas',
     disconnect: '接続を解除',
     more: 'その他の連携',
+  },
+  googleReconnect: {
+    lost: 'Google カレンダーとの接続が切れました',
+    line: 'Google カレンダーとの接続が切れたため、予定を出せません。',
+    reconnect: 'もう一度接続する',
+    settingsLabel: '接続が切れています',
   },
   googleSettings: {
     title: 'Google カレンダー',

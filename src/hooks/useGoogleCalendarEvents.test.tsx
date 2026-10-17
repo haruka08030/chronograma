@@ -39,6 +39,7 @@ beforeEach(() => {
   mocks.fetch.mockReset()
   useTaskStore.getState().setCalendarEvents([])
   useTaskStore.getState().setGoogleConnected(true)
+  useTaskStore.getState().setGoogleReconnectNeeded(false)
 })
 
 describe('useGoogleCalendarEvents', () => {
@@ -74,5 +75,27 @@ describe('useGoogleCalendarEvents', () => {
     renderHook(() => useGoogleCalendarEvents(new Date(2026, 8, 28), new Date(2026, 10, 8, 23, 59, 59)))
     await act(async () => {})
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('接続が切れたら外さずに「もう一度接続する」を出し、知らせ、次に開いたときのために覚える（#449）', async () => {
+    mocks.fetch.mockRejectedValue(new Error('Google Calendar authorization expired. Disconnect and reconnect.'))
+    renderHook(() => useGoogleCalendarEvents(from, to))
+    await act(async () => {})
+    const s = useTaskStore.getState()
+    expect(s.googleConnected).toBe(false)
+    expect(s.googleReconnectNeeded).toBe(true)
+    expect(s.googleConnectionError).toBeNull()
+    expect(localStorage.getItem('chronograma.googleConnected')).toBe('u1:lost')
+    // つなぎ直したら消える
+    s.setGoogleConnected(true)
+    expect(useTaskStore.getState().googleReconnectNeeded).toBe(false)
+  })
+
+  it('一時的な失敗では「もう一度接続する」を出さない', async () => {
+    mocks.fetch.mockRejectedValue(new Error('Google Calendar request failed'))
+    renderHook(() => useGoogleCalendarEvents(from, to))
+    await act(async () => {})
+    expect(useTaskStore.getState().googleConnected).toBe(true)
+    expect(useTaskStore.getState().googleReconnectNeeded).toBe(false)
   })
 })
