@@ -3,6 +3,7 @@ import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { withServerTiming } from '../_shared/serverTiming.ts'
+import { runInBackground } from '../_shared/background.ts'
 import { collectEventPages, type EventPage } from './pages.ts'
 import { withAccessToken, type AccessTokenDeps } from './accessToken.ts'
 import { classifyGoogleError, GoogleApiError, isRetryableGoogleError, parseGoogleErrorReasons } from './googleError.ts'
@@ -151,13 +152,6 @@ async function fetchCalendarColor(accessToken: string): Promise<{ calendarColor:
   } catch {
     return { calendarColor: null, calendarColorId: null }
   }
-}
-
-declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined
-
-/** 応答を返したあとも続ける（Supabase の EdgeRuntime.waitUntil）。無い環境ではそのまま流す */
-function runInBackground(p: Promise<unknown>): void {
-  if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(p)
 }
 
 /** 保存してある接続を読む操作（回数制限を数えるのと同時に読み始める） */
