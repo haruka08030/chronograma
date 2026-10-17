@@ -116,7 +116,7 @@ export function useCanvasSync() {
     /** `manual`: 設定の「今すぐ同期」など。代表でないタブからでも取り込む */
     const run = async (manual = false) => {
       // 取り込みは代表の 1 つのタブだけ（ほかのタブは保存の共有で同じ結果を受け取る）
-      if (!manual && !isLeaderTab()) return
+      if (!manual && !(await isLeaderTab())) return
       // つないでいないと分かっていれば呼ばない（設定からの同期・接続は呼ぶ）
       if (!manual && knownNotConnected('canvas', userId)) return
       if (running) {
