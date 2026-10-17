@@ -9,6 +9,17 @@ export const INTEGRATION_HINT_PREFIX = 'chronograma.integrationOff.'
 /** つないでいないと分かってから、確かめ直すまで */
 export const RECHECK_MS = 12 * 60 * 60 * 1000
 
+/**
+ * 画面に戻ったときに取り直すのは、前に取り始めてからこれだけ空いたときだけ（#448）。
+ * タブを行き来するたびに全部を取り直し、取得中ならもう 1 回積んでいた
+ */
+export const REVISIT_MIN_MS = 60_000
+
+/** 画面に戻ったので取り直すか（取得中・前に取り始めてすぐなら取り直さない） */
+export function shouldRefetchOnReturn(running: boolean, lastStartedAt: number, now = Date.now()): boolean {
+  return !running && now - lastStartedAt >= REVISIT_MIN_MS
+}
+
 const key = (service: IntegrationService, userId: string) => `${INTEGRATION_HINT_PREFIX}${service}.${userId}`
 
 /** つないでいないと分かっていて、まだ確かめ直さなくてよい */
