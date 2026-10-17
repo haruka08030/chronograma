@@ -8,6 +8,7 @@ import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZon
 import { fromDateKey } from './dateKey'
 import { minutesToTime, pad2, timeToMinutes } from './clockTime'
 import { forgetGoogleConnected } from './googleConnectedHint'
+import { clearGoogleEventCache, dropCachedGoogleEvent } from './googleEventCache'
 
 type GoogleCalendarPayload = {
   ok?: boolean
@@ -167,6 +168,7 @@ export function shouldDisconnectAfterFetchError(message: string): boolean {
 export async function disconnectGoogleCalendar(): Promise<void> {
   // 次に開いたときは、いきなり予定を取りに行かずに確かめる
   forgetGoogleConnected()
+  clearGoogleEventCache()
   const sb = getSupabase()
   if (!sb) return
   await invokeGoogleCalendar({ action: 'disconnect' })
@@ -394,6 +396,8 @@ export function applyTimingLocally(e: CalendarEvent, t: GoogleEventTiming): Cale
 async function writeGoogle(body: Record<string, unknown>): Promise<CalendarEvent | null> {
   writesInFlight++
   writeGeneration++
+  // 覚えている予定は書き込む前のもの。次に開いたとき、動かす前の位置が一瞬出ないように外す
+  if (typeof body.eventId === 'string') dropCachedGoogleEvent(body.eventId)
   try {
     const payload = await invokeGoogleCalendar<{ ok?: boolean; event?: CalendarEvent | null; error?: string }>({
       ...body,
