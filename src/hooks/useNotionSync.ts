@@ -96,7 +96,7 @@ export function useNotionSync() {
     /** `manual`: 設定の「今すぐ同期」など。代表でないタブからでも取り込む */
     const run = async (manual = false) => {
       // 取り込みは代表の 1 つのタブだけ
-      if (!manual && !isLeaderTab()) return
+      if (!manual && !(await isLeaderTab())) return
       // つないでいないと分かっていれば呼ばない（設定からの同期・接続は呼ぶ）
       if (!manual && knownNotConnected('notion', userId)) {
         setSyncState({ connected: false, configured: false, error: null })
