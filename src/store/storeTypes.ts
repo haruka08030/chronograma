@@ -540,6 +540,12 @@ export interface TaskState {
   /** 最後に同期が成功した時刻（ISO）。一度も成功していなければ null */
   lastSyncedAt: string | null
   setSyncState: (state: SyncState, lastSyncedAt?: string) => void
+  /**
+   * 開いてから初めてクラウドの内容を取り込み終えた時刻（永続化しない）。Notion・Canvas の取り込みはこれを待つ
+   * （クラウドの To-Do が届く前に取り込むと二重に作る）。送信・設定の同期までは待たない
+   */
+  cloudPulledAt: string | null
+  setCloudPulledAt: (at: string) => void
   /** 最後の同期でサーバーに受け付けられなかった行（永続化しない）。手元には残っている */
   syncRejected: SyncRejectedRow[]
   setSyncRejected: (rows: SyncRejectedRow[]) => void
