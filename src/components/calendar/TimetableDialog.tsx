@@ -2,19 +2,25 @@ import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import {
+  ABSENCE_LIMIT_MAX,
   TIMETABLE_PERIOD_MAX,
   TIMETABLE_WEEKDAYS,
+  attendanceText,
+  attendanceTone,
   cellKey,
+  classAttendance,
   classStartDate,
   isValidPeriod,
   suggestTerm,
   timetableClasses,
+  type ClassAttendance,
   type Timetable,
   type TimetableClass,
   type TimetablePeriod,
 } from '../../lib/timetable'
 import { defaultSeriesUntil, seriesDates } from '../../lib/eventSeries'
-import { lmsCourses } from '../../lib/courseLinks'
+import { courseKey, lmsCourses } from '../../lib/courseLinks'
+import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { colorVars } from '../../lib/logCategoryColors'
 import { planHex } from '../../lib/planVisual'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
@@ -56,6 +62,15 @@ export function TimetableDialog({ onClose }: { onClose: () => void }) {
   const tasks = useTaskStore((s) => s.tasks)
   const timetable = useMemo(() => withTerm(saved, today), [saved, today])
   const classes = useMemo(() => timetableClasses(tasks, timetable, today), [tasks, timetable, today])
+  // 欠席の数（授業名ごと、#452）。数えるのは保存した学期で（カードと同じ）
+  const attendance = useMemo(() => {
+    const out = new Map<string, ClassAttendance>()
+    for (const c of classes.values()) {
+      const key = courseKey(c.title)
+      if (!out.has(key)) out.set(key, classAttendance(tasks, saved, c.title))
+    }
+    return out
+  }, [classes, tasks, saved])
   const df = useDateFormat()
   // 最初はたたんでマスを先に見せる（スマホでは設定の欄が画面の大半を取る）。見出しに学期を出し、決めていなければ「学期を決める」
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -94,6 +109,7 @@ export function TimetableDialog({ onClose }: { onClose: () => void }) {
               period={p}
               sep={sep}
               classes={classes}
+              attendance={attendance}
               weekdayLabels={weekdayLabels}
               onCell={(weekday) => setEditing({ weekday, period: i })}
             />
@@ -113,6 +129,7 @@ export function TimetableDialog({ onClose }: { onClose: () => void }) {
           period={timetable.periods[editing.period]!}
           timetable={timetable}
           current={classes.get(cellKey(editing.weekday, editing.period)) ?? null}
+          attendance={attendance}
           onClose={() => setEditing(null)}
         />
       )}
@@ -125,6 +142,7 @@ function PeriodRow({
   period,
   sep,
   classes,
+  attendance,
   weekdayLabels,
   onCell,
 }: {
@@ -132,6 +150,7 @@ function PeriodRow({
   period: TimetablePeriod
   sep: string
   classes: Map<string, TimetableClass>
+  attendance: Map<string, ClassAttendance>
   weekdayLabels: string[]
   onCell: (weekday: number) => void
 }) {
@@ -149,13 +168,16 @@ function PeriodRow({
       {TIMETABLE_WEEKDAYS.map((d) => {
         const c = classes.get(cellKey(d, index))
         const place = t('timetable.cellPlace', { weekday: weekdayLabels[d - 1], n: index + 1 })
+        // 欠席のある授業だけ数を出す（休んでいない授業のマスは名前だけ）
+        const a = c ? attendance.get(courseKey(c.title)) : undefined
+        const absences = a && a.absent > 0 ? a : null
         return (
           <button
             key={d}
             type="button"
             data-timetable-cell={cellKey(d, index)}
             onClick={() => onCell(d)}
-            aria-label={c ? `${place} ${c.title}` : `${place} ${t('timetable.empty')}`}
+            aria-label={c ? `${place} ${c.title}${absences ? ` ${attendanceText(absences, t)}` : ''}` : `${place} ${t('timetable.empty')}`}
             title={c ? `${c.title}  ${c.startTime}${sep}${c.endTime}` : undefined}
             className={`min-h-[3.25rem] rounded-md p-1 text-left text-[11px] leading-tight transition-colors sm:min-h-[3.75rem] sm:text-xs ${
               c
@@ -165,7 +187,17 @@ function PeriodRow({
             style={c ? colorVars(planHex(c)) : undefined}
           >
             {c ? (
-              <span className="line-clamp-3 break-words font-medium">{c.title}</span>
+              <>
+                <span className="line-clamp-3 break-words font-medium">{c.title}</span>
+                {absences && (
+                  <span
+                    aria-hidden
+                    className={`mt-0.5 block tabular-nums ${attendanceTone(absences) === 'future' ? 'opacity-70' : DUE_TONE_CLASS[attendanceTone(absences)]}`}
+                  >
+                    {t('timetable.cellAttendance', { absent: absences.absent, limit: absences.limit })}
+                  </span>
+                )}
+              </>
             ) : (
               <span aria-hidden className="flex h-full items-center justify-center opacity-0 group-hover:opacity-100">
                 <PlusIcon className="h-3.5 w-3.5" />
@@ -294,6 +326,7 @@ function ClassEditor({
   period,
   timetable,
   current,
+  attendance,
   onClose,
 }: {
   weekday: number
@@ -301,6 +334,7 @@ function ClassEditor({
   period: TimetablePeriod
   timetable: Timetable
   current: TimetableClass | null
+  attendance: Map<string, ClassAttendance>
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -312,6 +346,10 @@ function ClassEditor({
   const addTimetableClass = useTaskStore((s) => s.addTimetableClass)
   const updateTimetableClass = useTaskStore((s) => s.updateTimetableClass)
   const deleteEventSeries = useTaskStore((s) => s.deleteEventSeries)
+  const setClassAbsenceLimit = useTaskStore((s) => s.setClassAbsenceLimit)
+  const att = current ? attendance.get(courseKey(current.title)) : undefined
+  // 休める回数。空は決めない（学期の回数の 1/3）
+  const [limit, setLimit] = useState(att?.limitSet ? String(att.limit) : '')
   const [title, setTitle] = useState(current?.title ?? '')
   const [color, setColor] = useState<string | null>(current?.color ?? null)
   const colorText = usePlanColorText(color)
@@ -330,6 +368,11 @@ function ClassEditor({
     const name = title.trim()
     if (!name) return
     if (current) {
+      // 休める回数は今の名前に決めてから名前を直す（直すと新しい名前に移る）
+      const n = limit.trim() === '' ? null : Number(limit)
+      if (att && (n === null ? att.limitSet : Number.isFinite(n) && (!att.limitSet || n !== att.limit))) {
+        setClassAbsenceLimit(current.title, n)
+      }
       updateTimetableClass(current.firstTaskId, { title: name, color })
     } else {
       // 案のままの学期は、授業を入れたときに保存する（ほかの端末でも同じ学期になる）
@@ -399,6 +442,30 @@ function ClassEditor({
           label={t('labels.pickerAria')}
         />
       </div>
+      {current && att && att.total > 0 && (
+        <label className="mt-3 flex items-center gap-2">
+          <span className={sectionLabelClass('field')}>{t('timetable.absenceLimit')}</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={ABSENCE_LIMIT_MAX}
+            value={limit}
+            onChange={(e) => setLimit(e.target.value)}
+            onKeyDown={(e) => {
+              if (isSubmitEnter(e)) save()
+            }}
+            placeholder={String(Math.floor(att.total / 3))}
+            aria-label={t('timetable.absenceLimitAria', { total: att.total })}
+            className={fieldClass({ size: 'sm' }, 'w-16 tabular-nums')}
+          />
+          <span className={META_TEXT}>
+            {limit.trim() === ''
+              ? t('timetable.absenceLimitDefault', { total: att.total })
+              : attendanceText({ ...att, limit: Number(limit) || 0, remaining: (Number(limit) || 0) - att.absent }, t)}
+          </span>
+        </label>
+      )}
       {!current && count === 0 && (
         <p role="alert" className={`mt-3 ${ERROR_TEXT}`}>
           {t('timetable.noDays')}
