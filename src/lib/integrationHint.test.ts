@@ -23,3 +23,12 @@ describe('integrationHint（#445）', () => {
     expect(knownNotConnected('notion', 'u1', 2)).toBe(false)
   })
 })
+
+describe('shouldRefetchOnReturn（#448）', () => {
+  it('取得中・前に取り始めて 1 分たっていなければ、戻っても取り直さない', async () => {
+    const { REVISIT_MIN_MS, shouldRefetchOnReturn } = await import('./integrationHint')
+    expect(shouldRefetchOnReturn(true, 0, REVISIT_MIN_MS * 10)).toBe(false)
+    expect(shouldRefetchOnReturn(false, 1000, 1000 + REVISIT_MIN_MS - 1)).toBe(false)
+    expect(shouldRefetchOnReturn(false, 1000, 1000 + REVISIT_MIN_MS)).toBe(true)
+  })
+})

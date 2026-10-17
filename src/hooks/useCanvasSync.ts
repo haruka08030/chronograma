@@ -16,7 +16,7 @@ import {
 import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
 import { cloudReady } from '../lib/cloudReady'
 import { needsReconnect } from '../lib/integrationReconnect'
-import { knownNotConnected, noteIntegrationConnected } from '../lib/integrationHint'
+import { knownNotConnected, noteIntegrationConnected, shouldRefetchOnReturn } from '../lib/integrationHint'
 import { reportFailure } from '../lib/errorReport'
 import { notify } from '../lib/notify'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
@@ -107,6 +107,8 @@ export function useCanvasSync() {
     let cancelled = false
     let running = false
     let rerun = false
+    /** 前に取り込みを始めた時刻（画面に戻ったときの取り直しの間隔に使う） */
+    let lastStartedAt = 0
     /** 自動で完了にしたタスク。ユーザーの完了ではないので Canvas に書き戻さない */
     const autoCompleted = new Set<string>()
     const pendingWrite = new Map<string, ReturnType<typeof setTimeout>>()
@@ -124,6 +126,7 @@ export function useCanvasSync() {
         return
       }
       running = true
+      lastStartedAt = Date.now()
       setSyncState({ syncing: true })
       try {
         do {
@@ -262,7 +265,7 @@ export function useCanvasSync() {
     }
 
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void run()
+      if (document.visibilityState === 'visible' && shouldRefetchOnReturn(running, lastStartedAt)) void run()
     }
     document.addEventListener('visibilitychange', onVisible)
     const poll = setInterval(() => {

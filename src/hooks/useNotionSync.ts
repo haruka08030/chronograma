@@ -15,7 +15,7 @@ import { useTaskStore, isAdoptingFromOtherTab, setStateWithImportedLabels } from
 import { cloudReady } from '../lib/cloudReady'
 import { needsReconnect } from '../lib/integrationReconnect'
 import { notify } from '../lib/notify'
-import { knownNotConnected, noteIntegrationConnected } from '../lib/integrationHint'
+import { knownNotConnected, noteIntegrationConnected, shouldRefetchOnReturn } from '../lib/integrationHint'
 import { reportFailure } from '../lib/errorReport'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
@@ -89,6 +89,8 @@ export function useNotionSync() {
     let cancelled = false
     let running = false
     let rerun = false
+    /** 前に取り込みを始めた時刻（画面に戻ったときの取り直しの間隔に使う） */
+    let lastStartedAt = 0
     /** 自動で完了にしたタスク。ユーザーの完了ではないので Notion に書き戻さない */
     const autoCompleted = new Set<string>()
     const pendingAdvance = new Map<string, { timer: ReturnType<typeof setTimeout>; pageId: string; status: string }>()
@@ -107,6 +109,7 @@ export function useNotionSync() {
         return
       }
       running = true
+      lastStartedAt = Date.now()
       setSyncState({ syncing: true })
       try {
         do {
@@ -238,8 +241,9 @@ export function useNotionSync() {
 
     // スマホではタブを閉じても pagehide が来ないことがあるので、隠れたときにも送る
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void run()
-      else flushPending()
+      if (document.visibilityState === 'visible') {
+        if (shouldRefetchOnReturn(running, lastStartedAt)) void run()
+      } else flushPending()
     }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('pagehide', flushPending)
