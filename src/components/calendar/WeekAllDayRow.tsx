@@ -29,6 +29,9 @@ import { ChevronDownIcon, ChevronUpIcon, FlagIcon } from '../icons'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { dueToneOf } from '../../lib/dueTone'
 import { HolidayLabel } from './HolidayLabel'
+import { DueMark } from './DueMark'
+import { useDues } from '../../hooks/useDues'
+import { duesOn } from '../../lib/dues'
 
 /** たたんだときに 1 日に出す行数（超える日は 1 行減らして「他 N 件」）。締切の印は数えずに必ず出す */
 const COLLAPSED_ROWS = 3
@@ -79,8 +82,10 @@ export function WeekAllDayRow({
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   /** 件数の多い日もすべて出すか（たたむと 1 日 3 行まで。Google カレンダーと同じ） */
   const [expanded, setExpanded] = useState(false)
+  const dues = useDues()
   const dayItems = (key: string) => ({
     holiday: holidayName(key),
+    dues: duesOn(dues, key),
     events: (eventsByDate.get(key) ?? []).filter((e) => e.isAllDay),
     // 終えたもの（✓）は後ろへ。たたんだときに残るのはまだやるもの
     tasks: singleDay ? [] : [...(allDayByDate.get(key) ?? [])].sort((a, b) => Number(a.completed) - Number(b.completed)),
@@ -88,7 +93,7 @@ export function WeekAllDayRow({
   })
   const overflows = gridDays.some((day) => {
     const d = dayItems(toDateKey(day))
-    return Number(d.holiday !== null) + d.events.length + d.tasks.length > COLLAPSED_ROWS
+    return Number(d.holiday !== null) + d.dues.length + d.events.length + d.tasks.length > COLLAPSED_ROWS
   })
   const collapsed = overflows && !expanded
   return (
@@ -113,9 +118,10 @@ export function WeekAllDayRow({
       <div className={`flex-1 grid ${gridColsClass}`}>
         {gridDays.map((day) => {
           const key = toDateKey(day)
-          const { holiday, events: dayAllDayEvents, tasks: dayAllDay, due: dayDue } = dayItems(key)
+          const { holiday, dues: dayDues, events: dayAllDayEvents, tasks: dayAllDay, due: dayDue } = dayItems(key)
           const items: ReactNode[] = [
             ...(holiday ? [<HolidayLabel key="holiday" name={holiday} className="px-1.5 py-0.5" />] : []),
+            ...dayDues.map((d) => <DueMark key={`due-${d.id}`} item={d} dateKey={key} className="px-1.5 py-0.5" />),
             ...dayAllDayEvents.map((e) => (
               // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道
               <div

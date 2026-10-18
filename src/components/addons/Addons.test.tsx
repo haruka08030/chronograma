@@ -37,11 +37,42 @@ describe('追加機能の画面と設定（#453）', () => {
 
   it('設定でも同じオン・オフで、最後の行から追加機能の画面へ', async () => {
     const user = userEvent.setup()
-    useTaskStore.setState({ addons: { enabled: { timetable: true } } })
+    useTaskStore.setState({ addons: { enabled: { timetable: true }, dues: [] } })
     render(<AddonsSettingsGroup />)
     await user.click(screen.getByRole('switch', { name: '時間割・欠席を使う' }))
     expect(useTaskStore.getState().addons.enabled).toEqual({ timetable: false })
     await user.click(screen.getByRole('button', { name: '追加機能の画面を開く' }))
     expect(useTaskStore.getState().selectedView).toBe('addons')
+  })
+})
+
+describe('引き落とし・期限の日（#454）', () => {
+  it('オンにして開き、足すと一覧に出る。今日の計画には近いものだけ出る', async () => {
+    const user = userEvent.setup()
+    const { PlannerDues } = await import('../today/PlannerDues')
+    useTaskStore.setState({ addons: { enabled: { dues: true }, dues: [] } })
+    const today = (await import('../../lib/timeZone')).appTodayKey()
+    render(
+      <>
+        <AddonsView />
+        <PlannerDues dateKey={today} />
+      </>,
+    )
+    await user.click(screen.getAllByRole('button', { name: '開く' })[0]!)
+    await user.click(screen.getByRole('button', { name: '足す' }))
+    await user.type(screen.getByLabelText('名前'), '家賃の引き落とし')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(useTaskStore.getState().addons.dues).toMatchObject([{ title: '家賃の引き落とし', date: today, repeat: 'none', notifyDays: 1 }])
+    expect(screen.getByRole('list', { name: '引き落とし・期限' }).textContent).toContain('家賃の引き落とし今日')
+  })
+
+  it('オフなら今日の計画に出さない', async () => {
+    const { PlannerDues } = await import('../today/PlannerDues')
+    const today = (await import('../../lib/timeZone')).appTodayKey()
+    useTaskStore.setState({
+      addons: { enabled: { dues: false }, dues: [{ id: 'a', title: '家賃', date: today, repeat: 'none', notifyDays: 0 }] },
+    })
+    render(<PlannerDues dateKey={today} />)
+    expect(screen.queryByRole('list', { name: '引き落とし・期限' })).toBeNull()
   })
 })

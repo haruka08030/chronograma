@@ -57,8 +57,26 @@ const SEED_TEMPLATES = [
 ]
 /** 週表示の見出しの「時間割」（#279）。マスを押して授業名を書いて保存する手順 */
 const TIMETABLE_BUTTON = 'button:has-text("時間割") >> visible=true'
+/** TIMEZONE の今日から n 日後の日付キー */
+const tzDayKey = (n) => {
+  const [y, m, d] = new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE }).format(new Date()).split('-').map(Number)
+  return dayKeyOf(new Date(y, m - 1, d + n))
+}
+/** 引き落とし・期限の日（#454）をオンにして、今日・明日・3 日後・先のものを入れた状態 */
+const DUES_ON = {
+  addons: {
+    enabled: { dues: true },
+    dues: [
+      { id: 'due-scholar', title: '奨学金の引き落とし', date: tzDayKey(0), repeat: 'none', notifyDays: 0 },
+      { id: 'due-trial', title: 'Amazon 無料体験の終わり', date: tzDayKey(1), repeat: 'none', notifyDays: 3 },
+      { id: 'due-rent', title: '家賃の引き落とし', date: tzDayKey(3), repeat: 'monthly', notifyDays: 3 },
+      { id: 'due-netflix', title: 'Netflix', date: tzDayKey(9), repeat: 'monthly', notifyDays: 0 },
+      { id: 'due-passport', title: 'パスポートの期限', date: '2029-03-01', repeat: 'none', notifyDays: 30 },
+    ],
+  },
+}
 /** 時間割は追加機能（#453）。撮るときはオンにしておく */
-const TIMETABLE_ON = { addons: { enabled: { timetable: true } } }
+const TIMETABLE_ON = { addons: { enabled: { timetable: true }, dues: [] } }
 const addClass = (cell, title) => [
   { click: `[data-timetable-cell="${cell}"]` },
   { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: title } },
@@ -403,6 +421,11 @@ const SCREENS = [
       { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: 'ミクロ経済学' } },
     ],
   },
+  // 引き落とし・期限の日（#454）: 一覧・今日の計画の行・月と週のカレンダーの印
+  { name: 'addons-dues', view: 'addons', state: DUES_ON, steps: [{ click: '[data-addon="dues"] button:has-text("開く")' }] },
+  { name: 'planner-dues', view: 'planner', state: DUES_ON },
+  { name: 'calendar-month-dues', view: 'calendar', calendarMode: 'month', state: DUES_ON },
+  { name: 'calendar-week-dues', view: 'calendar', state: DUES_ON },
   // 追加機能（#453）: 最初はどれもオフ・時間割をオンにしたところ・設定の「追加機能」
   { name: 'addons', view: 'addons' },
   { name: 'addons-on', view: 'addons', state: TIMETABLE_ON },

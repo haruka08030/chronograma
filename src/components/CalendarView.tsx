@@ -46,6 +46,9 @@ import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import { tip } from '../lib/tooltip'
 import { useHolidayName } from '../hooks/useHolidayName'
 import { HolidayLabel } from './calendar/HolidayLabel'
+import { DueMark } from './calendar/DueMark'
+import { useDues } from '../hooks/useDues'
+import { duesOn } from '../lib/dues'
 import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
 import { calendarWeekEnd, monthGridDays, weekdayLabelsFrom } from '../lib/weekStart'
 import { formatDate } from '../lib/dateFormat'
@@ -96,6 +99,7 @@ export function CalendarView({
   useTouchContextMenu(swipeRef, (target) => !target.closest('[data-touch-menu]'))
   const { t } = useTranslation()
   const holidayName = useHolidayName()
+  const dues = useDues()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
@@ -336,6 +340,10 @@ export function CalendarView({
                 </div>
                 <div className={`space-y-0.5 ${inMonth ? '' : 'opacity-60'}`}>
                   {holiday && <HolidayLabel name={holiday} wrap className="px-0.5 md:hidden" />}
+                  {/* 引き落とし・期限の日（追加機能、#454）。祝日と同じく枠も塗りも無い 1 行 */}
+                  {duesOn(dues, key).map((d) => (
+                    <DueMark key={d.id} item={d} dateKey={key} className="px-0.5" />
+                  ))}
                   {(() => {
                     const recs = recordsByDate.get(key)
                     if (!recs) return null

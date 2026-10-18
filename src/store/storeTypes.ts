@@ -12,6 +12,7 @@ import type { EventTemplate } from '../lib/eventTemplates'
 import type { CourseLink } from '../lib/courseLinks'
 import type { Timetable } from '../lib/timetable'
 import type { AddonId, Addons } from '../lib/addons'
+import type { DueItem } from '../lib/dues'
 import type { SeriesRule, SeriesScope } from '../lib/eventSeries'
 import type { DayMoods, Mood } from '../lib/dayMood'
 import type { CandidateView } from '../lib/plannerCandidates'
@@ -422,6 +423,10 @@ export interface TaskState {
   deleteEventSeries: (taskId: string, scope: SeriesScope) => number
   /** 追加機能をオン・オフする */
   setAddonOn: (id: AddonId, on: boolean) => void
+  /** 引き落とし・期限の日を足す・直す（同じ id があれば置き換える、#454） */
+  saveDue: (item: DueItem) => void
+  /** 引き落とし・期限の日を消す */
+  deleteDue: (id: string) => void
   /** 時間割の設定を保存する（同じ中身なら何もしない） */
   saveTimetable: (timetable: Timetable) => void
   /**
