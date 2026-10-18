@@ -54,6 +54,7 @@ import { createDayMoodsSlice } from './slices/dayMoods'
 import { normalizeDayMoods, type DayMoods } from '../lib/dayMood'
 import { DEFAULT_TIMETABLE, normalizeTimetable, type Timetable } from '../lib/timetable'
 import { DEFAULT_ADDONS, normalizeAddons, withAddonOn, type Addons } from '../lib/addons'
+import { normalizeDues } from '../lib/dues'
 import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
@@ -217,6 +218,18 @@ export const useTaskStore = create<TaskState>()(
           const next = withAddonOn(get().addons, id, on)
           if (sameValue(next, get().addons)) return
           set({ addons: next })
+        },
+        saveDue: (item) => {
+          const cur = get().addons
+          const has = cur.dues.some((d) => d.id === item.id)
+          const dues = normalizeDues(has ? cur.dues.map((d) => (d.id === item.id ? item : d)) : [...cur.dues, item])
+          if (sameValue(dues, cur.dues)) return
+          set({ addons: { ...cur, dues } })
+        },
+        deleteDue: (id) => {
+          const cur = get().addons
+          if (!cur.dues.some((d) => d.id === id)) return
+          set({ addons: { ...cur, dues: cur.dues.filter((d) => d.id !== id) } })
         },
         ...createDayMoodsSlice(ctx),
         ...createEventSeriesSlice(ctx),
