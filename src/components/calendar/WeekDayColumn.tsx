@@ -11,7 +11,7 @@ import { layoutPlanAndLog } from '../../lib/overlapLayout'
 import { recordHex } from '../../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex } from '../../lib/planVisual'
-import { habitToPlannedItem } from '../../lib/habitSlots'
+import { habitToPlannedItem, isPointHabitOn } from '../../lib/habitSlots'
 import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
 import { isAppToday, isNowOnDay } from '../../lib/timeZone'
 import { SELECTED_COLUMN, TODAY_COLUMN } from '../../lib/dayMarker'
@@ -145,8 +145,9 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     seg: googleEventSegmentOnDay(e, key) ?? { startTime: e.startTime!, endTime: e.endTime! },
   }))
   const today = isAppToday(day)
-  // 時間を決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）
+  // 始まりと終わりを決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）。時刻ひとつの習慣は習慣の段（`WeekHabitRow`）
   const dayHabitSlots = habits.flatMap((h) => {
+    if (isPointHabitOn(h, key)) return []
     const slot = habitToPlannedItem(h, key, habitIndex)
     return slot ? [{ habit: h, slot, done: habitDayStatus(h, key, habitIndex) !== 'missed' }] : []
   })

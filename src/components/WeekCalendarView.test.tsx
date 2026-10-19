@@ -389,6 +389,49 @@ describe('WeekCalendarView: 習慣の枠', () => {
     fireEvent.contextMenu(block(), { clientX: 100, clientY: 100 })
     expect(screen.getByRole('menu')).toBeInTheDocument()
   })
+
+  it('時刻ひとつの習慣は格子に置かず、習慣の段に時刻つきで出す', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const id = useTaskStore.getState().addHabit({
+      title: 'Stretch',
+      color: '#0B8043',
+      timeMode: 'fixed',
+      startTime: '07:00',
+      endTime: null,
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: undefined,
+    })
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    expect(view.container.querySelector('[data-datekey] [data-block-id^="habit-slot::"]')).toBeNull()
+    expect(screen.getByText('Habits')).toBeInTheDocument()
+    expect(screen.getAllByText('Stretch')).toHaveLength(3)
+    // 10/7 の 7:00 は始まっているので ✓ で達成
+    const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${id}::2026-10-07"]`)!
+    fireEvent.click(within(chip).getByRole('button', { name: 'Done as planned (log it)' }))
+    expect(useTaskStore.getState().habits[0]!.completedDates).toContain('2026-10-07')
+    // 押すとカード
+    fireEvent.click(chip)
+    expect(await screen.findByRole('dialog', { name: 'Stretch' })).toBeInTheDocument()
+  })
+
+  it('今日の計画（1 日表示）には習慣の段を出さない', () => {
+    useTaskStore.setState({ habits: [], tasks: [] })
+    useTaskStore.getState().addHabit({
+      title: 'Stretch',
+      color: '#0B8043',
+      timeMode: 'fixed',
+      startTime: '22:00',
+      endTime: null,
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: undefined,
+    })
+    render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
+    expect(screen.queryByText('Habits')).toBeNull()
+  })
 })
 
 describe('WeekCalendarView: 終日の行をたたんでも締切は出す', () => {
