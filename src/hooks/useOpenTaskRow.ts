@@ -4,7 +4,7 @@ import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { useIsCoarsePointer } from './useMediaQuery'
 
 /**
- * タスクの行を押したとき（今日の計画・To-Do で共通）。
+ * 今日の計画のタスクの行を押したとき（To-Do 一覧は PC もスマホも詳細を開く）。
  * 指で押す画面では、全画面の詳細ではなく短いシート（今日やる・明日へ / 記録開始 / 完了 / 予定日 / 期限 / 詳細を開く）を出す。
  * 行を押すのはたいてい「終えた・明日へ・始める」なので、詳細はシートの下から開く。PC と完了済みの行はそのまま詳細
  */

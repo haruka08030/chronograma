@@ -274,7 +274,7 @@ export const TaskItem = memo(function TaskItem({
     setEditValue(task.title)
     setEditing(true)
   }, [task.title])
-  // 題名を押したときも行と同じ（PC は詳細、指はシート。`useOpenTaskRow`）。名前の変更は PC はダブルクリックか F2、スマホは詳細から。
+  // 題名を押したときも行と同じ（To-Do 一覧は詳細、今日の計画の指はシート。`useOpenTaskRow`）。名前の変更は PC はダブルクリックか F2、スマホは詳細から。
   // 行に動きが無い所（詳細のサブタスク）は押すと名前の変更
   const hasRowAction = !!onRowClick || !!onClick
   const singleClickRef = useRef<number | undefined>(undefined)

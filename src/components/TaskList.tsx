@@ -13,13 +13,12 @@ import { QuickAdd } from './QuickAdd'
 import { isLogTask, type Task } from '../types/task'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { useTodayToggle } from '../hooks/useTodayToggle'
-import { useOpenTaskRow } from '../hooks/useOpenTaskRow'
 import { CheckCircleIcon, CheckIcon } from './icons'
 import { SelectionBar } from './ui/SelectionBar'
 import { EmptyState } from './ui/EmptyState'
 import { ExampleChips } from './ui/ExampleChips'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
-import { openTaskMenu } from '../lib/overlays'
+import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { openTimeSlotForTask } from '../lib/timeSlotTarget'
 import { useTaskListDnd } from '../hooks/useTaskListDnd'
 import { useLiftedRowId } from '../hooks/useTouchLift'
@@ -77,8 +76,6 @@ export function TaskList({
   const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const sections = useTaskStore((s) => s.sections)
-  // 行を押したとき: PC は詳細、スマホは短いシート（今日の計画と同じ）
-  const openDetail = useOpenTaskRow()
   const [pendingAutoEditTaskId, setPendingAutoEditTaskId] = useState<string | null>(null)
   /** 選択の解除（下の useTaskListSelection が入れる。ドラッグの処理はそれより前に作るので参照で受ける） */
   const clearSelectionRef = useRef<() => void>(() => {})
@@ -248,7 +245,8 @@ export function TaskList({
   const { selected, clearSelection, makeRowClick, makeSelection, soloIds, listboxProps } = useTaskListSelection({
     rowIds: flatActiveIds,
     rangeIds: flatCombined,
-    openDetail,
+    // 行を押したら PC もスマホも詳細（一覧では中身を見に来る。操作は ⋯・スワイプ・長押しで。短いシートは今日の計画だけ）
+    openDetail: openTaskDetail,
     toggleRow: toggleTask,
     removeRows: deleteTasks,
     completeRows: bulk.toggleComplete,
