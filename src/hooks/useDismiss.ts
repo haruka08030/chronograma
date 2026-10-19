@@ -10,6 +10,8 @@ type Entry = {
   /** この押下で閉じるか */
   isOutside: (target: Node) => boolean
   close: () => void
+  /** 外の押下を閉じる代わりに受け持つ（受け持ったら true。`onOutsidePress`） */
+  press: (e: PointerEvent) => boolean
   /** 閉じた押下を下に届けないか */
   swallow: () => boolean
   /** 開いた押下が終わってから拾う */
@@ -24,6 +26,7 @@ function onPointerDown(e: PointerEvent) {
   if (!top?.armed || !(e.target instanceof Node) || !top.isOutside(e.target)) return
   // シート・背景のある面は閉じるだけ（下のボタン・行には押下もクリックも届けない）
   if (top.swallow()) swallowPress(e)
+  if (top.press(e)) return
   top.close()
 }
 
@@ -48,6 +51,7 @@ export function useDismiss({
   backdrop,
   swallow = false,
   onEscape,
+  onOutsidePress,
 }: {
   open: boolean
   onClose: () => void
@@ -58,16 +62,20 @@ export function useDismiss({
   swallow?: boolean | (() => boolean)
   /** Esc で閉じるとき（省略時は `onClose`）。外を押したら保存・Esc は取り消し、のカードで使う */
   onEscape?: () => void
+  /** 外を押したとき、閉じる前に呼ぶ。true を返したら閉じない（詳細を開いたまま下の行の詳細に替える、など）。押下は `swallow` のとおり */
+  onOutsidePress?: (e: PointerEvent) => boolean
 }): HotkeyLayer {
   const closeRef = useRef(onClose)
   const insideRef = useRef(inside)
   const backdropRef = useRef(backdrop)
   const swallowRef = useRef(swallow)
+  const pressRef = useRef(onOutsidePress)
   useEffect(() => {
     closeRef.current = onClose
     insideRef.current = inside
     backdropRef.current = backdrop
     swallowRef.current = swallow
+    pressRef.current = onOutsidePress
   })
 
   const layer = useEscapeLayer(onEscape ?? onClose, open)
@@ -81,6 +89,7 @@ export function useDismiss({
         return !(target as Element).closest?.('[data-popover-keep]')
       },
       close: () => closeRef.current(),
+      press: (e) => pressRef.current?.(e) ?? false,
       swallow: () => {
         const x = swallowRef.current
         return backdropRef.current !== undefined || (typeof x === 'function' ? x() : x)
