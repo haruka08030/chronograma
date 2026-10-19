@@ -20,7 +20,7 @@ import { tip } from '../lib/tooltip'
 import { ChildDueChip } from './ui/ChildDueChip'
 import { useChildDue } from '../hooks/useChildDue'
 import { recurrenceLabel } from '../lib/recurrenceLabel'
-import { startTaskDrag } from '../lib/taskDrag'
+import { isTinyDrag, startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { fromDateKey } from '../lib/dateKey'
 import { formatShortDateWeekday } from '../lib/dateFormat'
@@ -247,6 +247,11 @@ export const TaskItem = memo(function TaskItem({
     return { text: timePart ? `${datePart} ${timePart}` : datePart, tone: dateTone(d) }
   }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t, dayKey])
   const [isDragging, setIsDragging] = useState(false)
+  /** 行を押した所と時刻・ドラッグ中の最後の位置（少し動いただけのドラッグを押したことにする。`isTinyDrag`） */
+  const pressRef = useRef<{ x: number; y: number; t: number } | null>(null)
+  const dragPosRef = useRef<{ x: number; y: number } | null>(null)
+  const stopTrackRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => stopTrackRef.current?.(), [])
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -254,14 +259,31 @@ export const TaskItem = memo(function TaskItem({
       startTaskDrag(e, task.id, group)
       startNativeTaskDragGhost(e, task.title || '', group.length)
       setIsDragging(true)
+      // dragend の座標は Firefox で 0 になるので、dragover で追う
+      dragPosRef.current = null
+      const track = (ev: DragEvent) => {
+        dragPosRef.current = { x: ev.clientX, y: ev.clientY }
+      }
+      window.addEventListener('dragover', track, true)
+      stopTrackRef.current = () => window.removeEventListener('dragover', track, true)
     },
     [task.id, task.title, dragGroupIds],
   )
 
-  const handleDragEnd = useCallback(() => {
+  const pressRow = (e: React.MouseEvent) => {
+    if (editing) return
+    if (onRowClick) onRowClick(e)
+    else onClick?.()
+  }
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    stopTrackRef.current?.()
+    stopTrackRef.current = null
     setIsDragging(false)
     onNativeDragEnd?.()
-  }, [onNativeDragEnd])
+    const press = pressRef.current
+    if (press && isTinyDrag(press, dragPosRef.current ?? press, performance.now(), e.dataTransfer.dropEffect)) pressRow(e)
+  }
 
   const rowNativeDraggable = !hasSortableHandle
 
@@ -389,11 +411,10 @@ export const TaskItem = memo(function TaskItem({
           swipe.onClickCapture(e)
           longPress.onClickCapture(e)
         }}
-        onClick={(e) => {
-          if (editing) return
-          if (onRowClick) onRowClick(e)
-          else onClick?.()
+        onMouseDown={(e) => {
+          pressRef.current = { x: e.clientX, y: e.clientY, t: performance.now() }
         }}
+        onClick={pressRow}
       >
         {rowHex && (
           // 丸の中と同じ薄い色。ベタ塗りだとここだけポップに浮く
