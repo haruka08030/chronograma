@@ -1389,6 +1389,7 @@ export default {
     blockTimeAnnounce: '「{{title}}」{{start}}–{{end}}',
     lanePlan: '予定',
     laneLog: '記録',
+    habitRow: '習慣',
     allDay: '終日',
     allDayExpand: 'すべて表示',
     allDayCollapse: 'たたむ',

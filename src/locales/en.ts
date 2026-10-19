@@ -1444,6 +1444,7 @@ export default {
     blockTimeAnnounce: '“{{title}}” {{start}}–{{end}}',
     lanePlan: 'Plan',
     laneLog: 'Record',
+    habitRow: 'Habits',
     allDay: 'All day',
     allDayExpand: 'Show all',
     allDayCollapse: 'Collapse',

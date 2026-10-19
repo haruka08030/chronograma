@@ -1,6 +1,6 @@
 import type { Habit } from '../types/habit'
 import { isHabitDueOnDate } from './habitSchedule'
-import { plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
+import { habitDayStatus, habitTimesOn, plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
 import type { PlannedItem } from '../types/plannedItem'
 import { fromDateKey } from './dateKey'
 
@@ -34,4 +34,24 @@ export function habitToPlannedItem(habit: Habit, dateKey: string, records?: Habi
     endTime: times.endTime,
     source: 'habit',
   }
+}
+
+/** その日の時間が始まりの時刻だけの習慣か。タイムラインでは格子に置かず、終日の行の下の習慣の段に出す */
+export function isPointHabitOn(habit: Habit, dateKey: string): boolean {
+  return habitTimesOn(habit, dateKey)?.endTime === null
+}
+
+/** 習慣の段に出す、その日の時刻ひとつの習慣（時刻順） */
+export function pointHabitsOn(
+  habits: Habit[],
+  dateKey: string,
+  records: HabitRecordIndex,
+): { habit: Habit; slot: PlannedItem; done: boolean }[] {
+  return habits
+    .flatMap((habit) => {
+      if (!isPointHabitOn(habit, dateKey)) return []
+      const slot = habitToPlannedItem(habit, dateKey, records)
+      return slot ? [{ habit, slot, done: habitDayStatus(habit, dateKey, records) !== 'missed' }] : []
+    })
+    .sort((a, b) => a.slot.startTime.localeCompare(b.slot.startTime))
 }

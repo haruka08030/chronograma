@@ -40,6 +40,7 @@ import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { WeekDayHeader } from './calendar/WeekDayHeader'
 import { WeekAllDayRow } from './calendar/WeekAllDayRow'
 import { WeekDayColumn } from './calendar/WeekDayColumn'
+import { WeekHabitRow } from './calendar/WeekHabitRow'
 import { useWeekBuckets } from '../hooks/useWeekBuckets'
 import { dayPlanTally } from '../lib/movedPlans'
 import { unplannedListIds } from '../lib/listKind'
@@ -531,6 +532,18 @@ export function WeekCalendarView({
               setAllDayAddDate={setAllDayAddDate}
               openGoogleCard={openGoogleCard}
               openCard={openCard}
+            />
+          )}
+          {/* 今日の計画の 1 日表示では習慣は左の一覧に出るので出さない */}
+          {!singleDay && (
+            <WeekHabitRow
+              gridDays={gridDays}
+              gutterWidth={gutterWidth}
+              gridColsClass={gridColsClass}
+              habitIndex={habitIndex}
+              logLimitMin={logLimitMin}
+              openHabitCard={openHabitCard}
+              openHabitMenu={openHabitMenu}
             />
           )}
 
