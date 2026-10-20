@@ -58,12 +58,15 @@ export function HabitSlotPopover({
   }, [])
 
   const times = habit ? plannedRecordTimes(habit, dateKey) : null
-  if (!habit || !times) return null
+  // 時間を決めていない習慣は習慣の段のチップ（時刻なし）から開く
+  const untimed = habit?.timeMode === 'none'
+  if (!habit || (!times && !untimed)) return null
   const done = habitDayStatus(habit, dateKey, buildHabitRecordIndex(tasks.filter(isLogTask))) !== 'missed'
-  // タイムラインの ✓ と同じ: 始まった枠だけ予定どおり達成にできる（今より先の記録は作らない）。▶ は終わるまで
+  // タイムラインの ✓ と同じ: 始まった枠だけ予定どおり達成にできる（今より先の記録は作らない）。▶ は終わるまで。
+  // 時間なしは今日と過ぎた日に ✓、▶ は今日だけ
   const limit = logLimitAt(now)(dateKey)
-  const started = limit === null || timeToMinutes(times.startTime) < limit
-  const ended = limit === null || (times.endTime !== '00:00' && timeToMinutes(times.endTime) <= limit)
+  const started = !times ? limit === null || limit > 0 : limit === null || timeToMinutes(times.startTime) < limit
+  const ended = !times ? limit === null : limit === null || (times.endTime !== '00:00' && timeToMinutes(times.endTime) <= limit)
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 170)
   const start = () => {
     const { timeLogTagPresets, logCategoryColors, startTimer } = useTaskStore.getState()
@@ -99,13 +102,18 @@ export function HabitSlotPopover({
         <div className="min-w-0">
           <p className="break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100">{habit.title}</p>
           <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
-            {df.monthDayWeekdayLong(dateKey)} · {isPointHabitOn(habit, dateKey) ? times.startTime : `${times.startTime} – ${times.endTime}`}
+            {df.monthDayWeekdayLong(dateKey)}
+            {times && ` · ${isPointHabitOn(habit, dateKey) ? times.startTime : `${times.startTime} – ${times.endTime}`}`}
           </p>
           <CardActions
             complete={
               done || started
                 ? {
-                    label: done ? t('weekCalendar.habitUndo') : t('weekCalendar.habitDoneAsPlanned'),
+                    label: done
+                      ? t('weekCalendar.habitUndo')
+                      : untimed
+                        ? t('weekCalendar.habitMarkDone')
+                        : t('weekCalendar.habitDoneAsPlanned'),
                     onClick: () => {
                       toggleHabitDate(habit.id, dateKey)
                       onClose()

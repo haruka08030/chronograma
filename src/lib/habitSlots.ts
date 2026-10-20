@@ -63,3 +63,15 @@ export function pointHabitsOn(
 export function isPlacedPointHabitOn(habit: Habit, dateKey: string): boolean {
   return !habit.goalMinutes && habitUsualTimesOn(habit, dateKey)?.endTime === null && habitTimesOn(habit, dateKey)?.endTime != null
 }
+
+/** 習慣の段に出す、その日にやる時間を決めていない習慣（並びは習慣の順。週に◯回・休み・アーカイブは今日の計画と同じ） */
+export function untimedHabitsOn(
+  habits: Habit[],
+  dateKey: string,
+  records: HabitRecordIndex,
+): { habit: Habit; id: string; done: boolean }[] {
+  return habits.flatMap((habit) => {
+    if (habit.timeMode !== 'none' || !isHabitDueOnDate(habit, fromDateKey(dateKey), records)) return []
+    return [{ habit, id: habitSlotId(habit.id, dateKey), done: habitDayStatus(habit, dateKey, records) !== 'missed' }]
+  })
+}

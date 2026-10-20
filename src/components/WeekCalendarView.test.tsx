@@ -557,6 +557,37 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(tile!.style.height).toBe(`${0.5 * HOUR_HEIGHT}px`)
   })
 
+  it('時間を決めていない習慣も、習慣の段に時刻なしで出す（時刻つきの後ろ。✓ で達成、押すとカード）', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const add = (title: string, startTime: string | null) =>
+      useTaskStore.getState().addHabit({
+        title,
+        color: '#0B8043',
+        timeMode: startTime ? 'fixed' : 'none',
+        startTime,
+        endTime: null,
+        frequency: { type: 'daily' },
+        weekdayTimes: undefined,
+        goalMinutes: undefined,
+      })
+    const puff = add('Wash puff', null)
+    add('Stretch', '22:00')
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    const cell = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-07"]`)!.parentElement!
+    expect([...cell.children].map((c) => c.textContent)).toEqual(['22:00 Stretch', 'Wash puff'])
+    const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-07"]`)!
+    expect(chip.getAttribute('draggable')).toBe('false')
+    fireEvent.click(within(chip).getByRole('button', { name: 'Mark done' }))
+    expect(useTaskStore.getState().habits.find((h) => h.id === puff)!.completedDates).toContain('2026-10-07')
+    // 先の日はまだ ✓ を出さない
+    const future = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-08"]`)!
+    expect(within(future).queryByRole('button')).toBeNull()
+    fireEvent.click(future)
+    expect(await screen.findByRole('dialog', { name: 'Wash puff' })).toBeInTheDocument()
+  })
+
   it('今日の計画（1 日表示）には習慣の段を出さない', () => {
     useTaskStore.setState({ habits: [], tasks: [] })
     useTaskStore.getState().addHabit({

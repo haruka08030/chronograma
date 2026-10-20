@@ -1407,6 +1407,7 @@ export default {
     freeTimeOverHint: 'この日に置いた To-Do（{{planned}}）が空き（{{free}}）を超えています',
     habitDoneAsPlanned: '予定どおり達成（記録する）',
     habitPlace: '時間に置く',
+    habitMarkDone: '達成にする',
     habitUndo: '達成を取り消す',
     dueMark: '「{{title}}」の締切',
     dueMarkTime: '「{{title}}」の締切（{{time}} まで）',
