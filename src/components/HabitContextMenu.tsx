@@ -4,12 +4,14 @@ import { isHabitRestOn } from '../types/habit'
 import { habitRestRunEnd } from '../lib/habitSchedule'
 import { buildHabitRecordIndex, habitDayStatus } from '../lib/habitTiming'
 import { appToday } from '../lib/timeZone'
+import { habitSlotId, isPlacedPointHabitOn } from '../lib/habitSlots'
+import { unplaceHabitSlot } from '../lib/timelineBlockEdit'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 import { MenuLabel } from './ui/Menu'
 import { DatePickerBody } from './DatePickerBody'
-import { ArchiveIcon, CalendarIcon, CheckIcon, PencilIcon, RestoreIcon, TrashIcon } from './icons'
+import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, PencilIcon, RestoreIcon, TrashIcon } from './icons'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 
@@ -25,6 +27,7 @@ export function HabitContextMenu({
   dateKey,
   onClose,
   onEdit,
+  onTimeline = false,
 }: {
   x: number
   y: number
@@ -33,6 +36,8 @@ export function HabitContextMenu({
   dateKey?: string | null
   onClose: () => void
   onEdit: () => void
+  /** タイムラインの枠で開いた。格子に置いた時刻ひとつの習慣なら「習慣の段に戻す」を出す */
+  onTimeline?: boolean
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
@@ -114,6 +119,17 @@ export function HabitContextMenu({
         run: () => toggleHabitDate(habit.id, todayKey),
       },
       rest,
+      ...(onTimeline && dateKey && isPlacedPointHabitOn(habit, dateKey)
+        ? [
+            {
+              kind: 'leaf' as const,
+              id: 'unplace',
+              label: t('habits.unplace'),
+              icon: <ClockIcon className={ICON} />,
+              run: () => unplaceHabitSlot(habitSlotId(habit.id, dateKey)),
+            },
+          ]
+        : []),
       {
         kind: 'leaf',
         id: 'archive',

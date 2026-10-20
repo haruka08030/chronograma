@@ -2,13 +2,13 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { HabitRecordIndex } from '../../lib/habitTiming'
-import { pointHabitsOn } from '../../lib/habitSlots'
+import { isPlacedPointHabitOn, pointHabitsOn } from '../../lib/habitSlots'
 import { colorVars } from '../../lib/logCategoryColors'
 import { planVisualState } from '../../lib/planVisual'
 import { timeToMinutes } from '../../lib/timeGrid'
 import { toDateKey } from '../../lib/dateKey'
 import { CalendarCheck } from '../timeline/CalendarCheck'
-import { startTaskDrag } from '../../lib/taskDrag'
+import { DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/taskDrag'
 
 /**
  * 終日の行の下の習慣の段。始まりの時刻だけを決めた習慣は長さを持たないので、格子に枠を置かず時刻つきのチップで並べる。
@@ -23,6 +23,7 @@ export function WeekHabitRow({
   logLimitMin,
   openHabitCard,
   openHabitMenu,
+  dropKey,
 }: {
   gridDays: Date[]
   gutterWidth: number
@@ -31,15 +32,22 @@ export function WeekHabitRow({
   logLimitMin: (key: string) => number | null
   openHabitCard: (slotId: string, el?: Element | null) => void
   openHabitMenu: (slotId: string, x: number, y: number) => boolean
+  /** 格子の枠を戻そうとしている日（その日のマスを落とし先の色にする） */
+  dropKey: string | null
 }) {
   const { t } = useTranslation()
   const habits = useTaskStore((s) => s.habits)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const byDay = useMemo(
-    () => gridDays.map((day) => ({ key: toDateKey(day), chips: pointHabitsOn(habits, toDateKey(day), habitIndex) })),
+    () =>
+      gridDays.map((day) => {
+        const key = toDateKey(day)
+        return { key, chips: pointHabitsOn(habits, key, habitIndex), placed: habits.some((h) => isPlacedPointHabitOn(h, key)) }
+      }),
     [gridDays, habits, habitIndex],
   )
-  if (!byDay.some((d) => d.chips.length > 0)) return null
+  // 全部の日を格子に置いても、戻す落とし先として段は残す（ドラッグ中に格子がずれないように）
+  if (!byDay.some((d) => d.chips.length > 0 || d.placed)) return null
   return (
     <div className="flex flex-shrink-0 border-b border-zinc-200 px-2 dark:border-zinc-800">
       <div style={{ width: gutterWidth }} className="flex-shrink-0 pr-2 pt-1 text-right text-[10px] text-zinc-400">
@@ -49,7 +57,11 @@ export function WeekHabitRow({
         {byDay.map(({ key, chips }) => {
           const limit = logLimitMin(key)
           return (
-            <div key={key} className="min-h-[24px] space-y-0.5 border-l border-zinc-200 px-0.5 py-0.5 dark:border-zinc-700">
+            <div
+              key={key}
+              className={`min-h-[24px] space-y-0.5 border-l border-zinc-200 px-0.5 py-0.5 transition-colors dark:border-zinc-700
+                ${dropKey === key ? DROP_HIGHLIGHT_CLASS : ''}`}
+            >
               {chips.map(({ habit, slot, done }) => {
                 // 始まった（記録にできる）時刻からは ✓ で予定どおり達成
                 const started = limit === null || timeToMinutes(slot.startTime) < limit

@@ -1,6 +1,6 @@
 import type { Habit } from '../types/habit'
 import { isHabitDueOnDate } from './habitSchedule'
-import { habitDayStatus, habitTimesOn, plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
+import { habitDayStatus, habitTimesOn, habitUsualTimesOn, plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
 import type { PlannedItem } from '../types/plannedItem'
 import { fromDateKey } from './dateKey'
 
@@ -54,4 +54,9 @@ export function pointHabitsOn(
       return slot ? [{ habit, slot, done: habitDayStatus(habit, dateKey, records) !== 'missed' }] : []
     })
     .sort((a, b) => a.slot.startTime.localeCompare(b.slot.startTime))
+}
+
+/** 時刻ひとつの習慣を、その日だけ格子に置いた（終わりのある枠にした）か。習慣の段のチップに戻せる */
+export function isPlacedPointHabitOn(habit: Habit, dateKey: string): boolean {
+  return habitUsualTimesOn(habit, dateKey)?.endTime === null && habitTimesOn(habit, dateKey)?.endTime != null
 }

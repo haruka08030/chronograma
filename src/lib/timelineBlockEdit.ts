@@ -4,7 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
 import { canCopyOnDrop, placeCopies } from './dragCopy'
 import type { CalendarEvent } from '../types/calendarEvent'
-import { parseHabitSlotId, habitToPlannedItem } from './habitSlots'
+import { isPlacedPointHabitOn, parseHabitSlotId, habitToPlannedItem } from './habitSlots'
 import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
 import { canEditGoogleEvent, moveGoogleEvent } from './googleEventEdit'
 import { googleEventTiming, movedGoogleEventTiming } from './googleCalendar'
@@ -264,4 +264,15 @@ export function nudgeBlockByKey(id: string, e: Pick<KeyboardEvent, 'key' | 'shif
   const res = nudgeTimelineBlock(id, e.shiftKey ? 'resize' : 'move', dir)
   if (res) announce(i18n.t('weekCalendar.blockTimeAnnounce', { title: res.title, start: res.startTime, end: res.endTime }))
   return res
+}
+
+/** 格子に置いた時刻ひとつの習慣を、その日のチップに戻す（「元に戻す」付き） */
+export function unplaceHabitSlot(slotId: string): boolean {
+  const slot = parseHabitSlotId(slotId)
+  if (!slot) return false
+  const { habits, clearHabitDayTime } = useTaskStore.getState()
+  const habit = habits.find((h) => h.id === slot.habitId)
+  if (!habit || !isPlacedPointHabitOn(habit, slot.dateKey)) return false
+  clearHabitDayTime(habit.id, slot.dateKey, { key: 'undo.habitUnplaced', params: { name: habit.title, date: shortDate(slot.dateKey) } })
+  return true
 }

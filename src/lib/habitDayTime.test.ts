@@ -113,6 +113,10 @@ describe('setHabitDayTime', () => {
     expect(get().timeOverrides).toEqual({ [DAY]: { startTime: '18:00', endTime: '19:00' } })
     expect(isPointHabitOn(get(), DAY)).toBe(false)
     expect(isPointHabitOn(get(), OTHER)).toBe(true)
+    // チップに戻す
+    useTaskStore.getState().clearHabitDayTime('gym', DAY)
+    expect(get()).not.toHaveProperty('timeOverrides')
+    expect(isPointHabitOn(get(), DAY)).toBe(true)
   })
 
   it('✓ で作る記録はその日の時間になり、その時間で達成になる', () => {

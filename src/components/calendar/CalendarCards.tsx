@@ -25,6 +25,7 @@ export function CalendarCards({ cards }: { cards: CalendarCardsState }) {
           dateKey={habitMenu.dateKey}
           onClose={closeHabitMenu}
           onEdit={() => requestHabitEdit(habitMenu.habitId)}
+          onTimeline
         />
       )}
     </>
