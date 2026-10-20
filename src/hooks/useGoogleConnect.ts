@@ -11,6 +11,7 @@ import {
   getGoogleRedirectUri,
 } from '../lib/googleCalendar'
 import { askConfirm } from '../lib/confirmDialog'
+import { clearPushQueues } from '../lib/googlePushQueue'
 
 const CONNECT_TIMEOUT_MS = 15_000
 
@@ -93,6 +94,9 @@ export function useGoogleConnect() {
     setError(null)
     useTaskStore.getState().setGoogleReconnectNeeded(false)
     useTaskStore.getState().setCalendarEvents([])
+    // 外したら、まだ送っていない変更も送らない（つなぎ直しても、つなぐ前の変更は送らない）
+    clearPushQueues()
+    useTaskStore.getState().setGooglePushFailed(0)
   }
 
   return {

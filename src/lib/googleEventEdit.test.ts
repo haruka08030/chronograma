@@ -28,6 +28,7 @@ vi.mock('./googleCalendar', () => ({
   createGoogleEvent: vi.fn(),
   updateGoogleEvent: vi.fn(),
   localizeGoogleError: (raw: string) => raw,
+  googleWriteFailure: () => 'failed',
 }))
 
 const { removeGoogleEvent, undoGoogleDelete, withoutPendingDeletes } = await import('./googleEventEdit')

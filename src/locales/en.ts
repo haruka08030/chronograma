@@ -1612,6 +1612,11 @@ export default {
     notConnected: 'Not connected',
     disconnectConfirm: 'Disconnect Google Calendar? Your events stay in Google Calendar (they just stop showing here).',
   },
+  googlePush: {
+    failed: "{{count}} events couldn't be sent to Google",
+    failed_one: "{{count}} event couldn't be sent to Google",
+    retry: 'Try again',
+  },
   notion: {
     title: 'Notion',
     needsLogin: 'Sign in first to connect Notion.',

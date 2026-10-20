@@ -41,10 +41,36 @@ export function wasGoogleConnectionLost(userId: string): boolean {
   }
 }
 
+/**
+ * 予定を書き換える許可があるか（`<ID>:1` / `<ID>:0`）。カレンダーの画面を開く前から、アプリの予定を Google に送れるようにする。
+ * 分からなければ null
+ */
+const WRITE_KEY = 'chronograma.googleCanWrite'
+
+export function rememberGoogleCanWrite(userId: string, canWrite: boolean): void {
+  try {
+    localStorage.setItem(WRITE_KEY, `${userId}:${canWrite ? 1 : 0}`)
+  } catch {
+    /* 覚えられなければ、次も確かめるだけ */
+  }
+}
+
+export function googleCanWriteHint(userId: string): boolean | null {
+  try {
+    const v = localStorage.getItem(WRITE_KEY)
+    if (v === `${userId}:1`) return true
+    if (v === `${userId}:0`) return false
+    return null
+  } catch {
+    return null
+  }
+}
+
 /** つながっていない・自分で外した・ログアウトした */
 export function forgetGoogleConnected(): void {
   try {
     localStorage.removeItem(KEY)
+    localStorage.removeItem(WRITE_KEY)
   } catch {
     /* 消せなくても、次の予定の取得が断れば消える */
   }

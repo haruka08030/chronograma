@@ -21,7 +21,7 @@ import {
   signOutThisDevice,
 } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
-import { rememberGoogleConnected, wasGoogleConnected, wasGoogleConnectionLost } from '../lib/googleConnectedHint'
+import { googleCanWriteHint, rememberGoogleConnected, wasGoogleConnected, wasGoogleConnectionLost } from '../lib/googleConnectedHint'
 import { clearDeletedAccount, clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { readFunctionErrorBody } from '../lib/functionError'
 import { detachWebPush } from '../lib/webPush'
@@ -109,6 +109,8 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent, userId: strin
   // この端末で前につながっていたなら、聞かずにすぐ予定を取りに行く（つながっていなければ予定の取得が断り、連携を外す）
   if (wasGoogleConnected(userId)) {
     useTaskStore.getState().setGoogleConnected(true)
+    // 書き込めると分かっていれば、カレンダーを開く前からアプリの予定を Google に送る
+    if (googleCanWriteHint(userId)) useTaskStore.getState().setGoogleCanWrite(true)
     return
   }
 

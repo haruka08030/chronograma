@@ -265,6 +265,8 @@ async function upsertGoogleEvent(accessToken: string, eventId: string, fields: R
 const RATE_LIMITED_CODE = 'google_rate_limited'
 const RATE_LIMITED_MESSAGE = 'Google Calendar: too many requests. Wait a moment, then try again.'
 const AUTH_EXPIRED_MESSAGE = 'Google Calendar authorization expired. Disconnect and reconnect.'
+const NOT_CONNECTED_MESSAGE = 'Google Calendar not connected. Reconnect in settings.'
+const WRITE_SCOPE_MESSAGE = 'Google Calendar write scope not granted. Reconnect and approve calendar access.'
 
 /** 予定の取得の失敗。前と同じ形（events: [] と connected）に code を足して返す */
 function eventsError(status: number, connected: boolean, code: string, error: string): Response {
@@ -360,7 +362,7 @@ Deno.serve(
         // 回数制限や本文の誤りで先に返したとき、読み込みの失敗が「誰も受け取らない失敗」にならないように
         connection?.catch(() => {})
         if (!(await timing.time('rate', () => withinRateLimit(admin, user.id, RATE_LIMITS.google)))) {
-          return errorResponse(429, 'Too many requests. Wait a moment, then try again.')
+          return errorResponse(429, 'Too many requests. Wait a moment, then try again.', RATE_LIMITED_CODE)
         }
         if (!body) return errorResponse(400, BAD_JSON)
 
@@ -490,7 +492,8 @@ Deno.serve(
 
           try {
             await timing.time('token', () => refreshGoogleAccessToken(row.refresh_token))
-            return jsonResponse({ connected: true })
+            // canWrite: 予定を書き換える許可があるか（カレンダーを開かなくても、アプリの予定を Google に送れるか分かる）
+            return jsonResponse({ connected: true, canWrite: hasWriteScope(row.scope) })
           } catch (e) {
             // 取り消された・期限切れのときだけ連携を外す。通信の失敗や Google の一時的なエラー、
             // サーバーの設定ミスで全員の連携を外さない
@@ -518,10 +521,7 @@ Deno.serve(
             return errorResponse(500, 'Failed to load Google connection')
           }
           if (!row?.refresh_token) {
-            return jsonResponse(
-              { ok: false, events: [], connected: false, error: 'Google Calendar not connected. Reconnect in settings.' },
-              409,
-            )
+            return eventsError(409, false, 'google_not_connected', NOT_CONNECTED_MESSAGE)
           }
 
           try {
@@ -560,12 +560,8 @@ Deno.serve(
             console.error('[google] load connection failed', fetchError.message)
             return errorResponse(500, 'Failed to load Google connection')
           }
-          if (!row?.refresh_token) {
-            return errorResponse(409, 'Google Calendar not connected. Reconnect in settings.')
-          }
-          if (!hasWriteScope(row.scope)) {
-            return errorResponse(409, 'Google Calendar write scope not granted. Reconnect and approve calendar access.')
-          }
+          if (!row?.refresh_token) return errorResponse(409, NOT_CONNECTED_MESSAGE, 'google_not_connected')
+          if (!hasWriteScope(row.scope)) return errorResponse(409, WRITE_SCOPE_MESSAGE, 'google_scope_missing')
           const eventId = (body.eventId as string | undefined)?.trim() || null
           if (action !== 'create' && !eventId) return errorResponse(400, 'eventId is required')
           // upsert の ID はアプリが決める（Google の ID に使える英小文字 a〜v と数字、5〜1024 文字）
@@ -593,11 +589,7 @@ Deno.serve(
             if (kind === 'auth_expired') return errorResponse(409, AUTH_EXPIRED_MESSAGE, 'google_auth_expired')
             // 権限（scope）不足と、他人の予定で変更できないのを分ける
             if (kind === 'scope') {
-              return errorResponse(
-                409,
-                'Google Calendar write scope not granted. Reconnect and approve calendar access.',
-                'google_scope_missing',
-              )
+              return errorResponse(409, WRITE_SCOPE_MESSAGE, 'google_scope_missing')
             }
             if (kind === 'forbidden') return errorResponse(409, 'Google Calendar event is read-only for you.', 'google_read_only')
             console.error('[google] write failed', e instanceof Error ? e.message : String(e))

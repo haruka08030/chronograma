@@ -181,6 +181,7 @@ export const useTaskStore = create<TaskState>()(
         googleConnectionError: null,
         googleReconnectNeeded: false,
         googleCanWrite: false,
+        googlePushFailed: 0,
         activeTimer: null,
         activeTimerUpdatedAt: null as string | null,
         completePromptTaskId: null as string | null,
