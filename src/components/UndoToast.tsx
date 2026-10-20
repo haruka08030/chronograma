@@ -82,6 +82,8 @@ export function UndoToast() {
 
   /** 何を消したか: 1 件ならタイトル、まとめてなら件数（一緒に消えたサブタスクは数えない） */
   function deletedMessage() {
+    // 文を決めて消したもの（Google で消された予定など）
+    if (recentDeletes.length === 1 && recentDeletes[0].label) return toastText(t, recentDeletes[0].label)
     const ids = new Set(deletedIds)
     const roots = deletedTasks.filter((x) => !x.parentId || !ids.has(x.parentId))
     if (roots.length === 1 && roots[0].title.trim()) return t('undo.taskDeleted', { title: toastTitle(roots[0].title) })

@@ -2,7 +2,15 @@ import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured, sendFunctionOnLeave } from '../lib/supabase'
 import { deleteGoogleEvent, googleCalendarStatus, upsertGoogleEvent } from '../lib/googleCalendar'
-import { changedForGoogle, changedForGoogleSkip, googleEventIdForTask, googleFieldsForTask, shouldBeOnGoogle } from '../lib/googlePush'
+import {
+  changedForGoogle,
+  changedForGoogleSkip,
+  googleEventIdForTask,
+  googleFieldsForTask,
+  googleSignature,
+  shouldBeOnGoogle,
+} from '../lib/googlePush'
+import { trashGoogleDeleted } from '../lib/googleDeleted'
 import {
   LEAVE_SEND_MAX,
   enqueuePush,
@@ -113,11 +121,11 @@ export function useGooglePush() {
       )
     }
 
-    const sendOne = async (taskId: string) => {
+    const sendOne = async (taskId: string, revive: boolean) => {
       // 送る時点の中身を送る（待っている間に直したものもまとめて 1 回）
       const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
       const eventId = googleEventIdForTask(taskId)
-      if (task && shouldBeOnGoogle(task, skipKeys())) await upsertGoogleEvent(eventId, googleFieldsForTask(task))
+      if (task && shouldBeOnGoogle(task, skipKeys())) await upsertGoogleEvent(eventId, googleFieldsForTask(task), revive)
       else await deleteGoogleEvent(eventId)
     }
 
@@ -130,12 +138,20 @@ export function useGooglePush() {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return
       sending = true
       let status
+      // Google で消されていた予定（アプリでもゴミ箱に入れる）
+      const deleted: string[] = []
       try {
-        status = await pushPass(userId, sendOne, () => cancelled)
+        status = await pushPass(
+          userId,
+          sendOne,
+          () => cancelled,
+          (id) => deleted.push(id),
+        )
       } finally {
         sending = false
         if (!cancelled) publishFailed()
       }
+      if (deleted.length > 0 && !cancelled) void trashGoogleDeleted(deleted)
       if (cancelled || status === 'cancelled') return
       const store = useTaskStore.getState()
       if (status === 'auth') {
@@ -179,7 +195,11 @@ export function useGooglePush() {
         ...(skipChanged ? changedForGoogleSkip(state.tasks, googleSkipKeys(prev.addons.googleSkip), nextSkip, appTodayKey()) : []),
       ]
       if (ids.length === 0) return
-      enqueuePush(userId, ids)
+      // 前は Google に置いていなかった予定（ゴミ箱から戻した・送らない名前から外したなど）は、Google で消えていても戻す
+      const prevSkip = skipChanged ? googleSkipKeys(prev.addons.googleSkip) : nextSkip
+      const before = new Map(prev.tasks.map((t) => [t.id, t]))
+      const revive = new Set(ids.filter((id) => googleSignature(before.get(id), prevSkip) === 'off'))
+      enqueuePush(userId, ids, revive)
       publishFailed()
       schedule(SEND_DELAY_MS)
     })
@@ -188,7 +208,8 @@ export function useGooglePush() {
     const flushOnLeave = () => {
       const token = accessTokenRef.current
       if (!token || !canSend()) return
-      const ids = sendablePushIds(loadPushQueue(userId)).slice(0, LEAVE_SEND_MAX)
+      const queue = loadPushQueue(userId)
+      const ids = sendablePushIds(queue).slice(0, LEAVE_SEND_MAX)
       if (ids.length === 0) return
       clearTimeout(timer)
       const tasks = useTaskStore.getState().tasks
@@ -198,7 +219,13 @@ export function useGooglePush() {
         sendFunctionOnLeave(
           'google-calendar',
           task && shouldBeOnGoogle(task, skipKeys())
-            ? { action: 'upsert', eventId, fields: googleFieldsForTask(task), timeZone: appTimeZone() }
+            ? {
+                action: 'upsert',
+                eventId,
+                fields: googleFieldsForTask(task),
+                timeZone: appTimeZone(),
+                revive: queue[taskId]?.revive === true,
+              }
             : { action: 'delete', eventId },
           token,
         )

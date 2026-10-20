@@ -113,7 +113,7 @@ export interface TaskState {
    * 直近の削除（トーストの「元に戻す」用）。消したタスクの id だけを持ち、中身はいつも `tasks` の `deletedAt` から読む
    * （タスクの写しを持つと、再読み込み・他のタブの取り込みのあとに中身とずれる）。保存しない
    */
-  recentDeletes: { ids: string[]; at: number; undoId?: number }[]
+  recentDeletes: { ids: string[]; at: number; undoId?: number; label?: ToastText }[]
   quickAddRequested: boolean
   /** 共有（share_target）から開いたとき、追加欄に入れておく中身。追加欄が読んだら消す */
   quickAddPrefill: QuickAddPrefill | null
@@ -505,7 +505,8 @@ export interface TaskState {
   duplicateTasks: (ids: string[], place?: (src: Task) => Partial<Task>) => string[]
   /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に recentDeletes にも積む */
   deleteTask: (id: string) => void
-  deleteTasks: (ids: string[]) => void
+  /** `label` はトーストの文（無ければ消したものの名前・件数） */
+  deleteTasks: (ids: string[], label?: ToastText) => void
   /** チェックリストの「全部戻す」: 完了をまとめて外す（繰り返しの次回は作らない）。Undo は 1 段 */
   uncheckTasks: (ids: string[]) => void
   /** いつか → 「やること」（未分類）へ移して予定日を付ける。子を移したときは親から外して 1 件にする。Undo は 1 段 */

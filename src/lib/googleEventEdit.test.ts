@@ -18,20 +18,21 @@ const store = vi.hoisted(() => {
   return s
 })
 const deleteGoogleEvent = vi.hoisted(() => vi.fn(async () => {}))
+const updateGoogleEvent = vi.hoisted(() => vi.fn(async () => null))
 
 vi.mock('../store/taskStore', () => ({ useTaskStore: { getState: () => store } }))
 vi.mock('../i18n/config', () => ({ default: { t: (k: string) => k } }))
 vi.mock('./useTimelineDrop', () => ({ GOOGLE_EVENT_DND_TYPE: 'x' }))
 vi.mock('./googleCalendar', () => ({
   deleteGoogleEvent,
-  applyTimingLocally: vi.fn(),
+  applyTimingLocally: vi.fn((e: CalendarEvent) => e),
   createGoogleEvent: vi.fn(),
-  updateGoogleEvent: vi.fn(),
+  updateGoogleEvent,
   localizeGoogleError: (raw: string) => raw,
-  googleWriteFailure: () => 'failed',
+  googleWriteFailure: (e: unknown) => (e instanceof Error && e.message === 'deleted' ? 'deleted' : 'failed'),
 }))
 
-const { removeGoogleEvent, undoGoogleDelete, withoutPendingDeletes } = await import('./googleEventEdit')
+const { moveGoogleEvent, removeGoogleEvent, renameGoogleEvent, undoGoogleDelete, withoutPendingDeletes } = await import('./googleEventEdit')
 const { UNDO_WINDOW_MS } = await import('./undoWindow')
 
 const event = (id: string): CalendarEvent =>
@@ -86,5 +87,26 @@ describe('Google の予定の削除（「元に戻す」の間は Google に送�
     await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS)
     expect(store.calendarEvents.map((e) => e.id).sort()).toEqual(['a', 'b'])
     expect(store.showMoveBanner).toHaveBeenCalled()
+  })
+})
+
+describe('Google で消されていた予定を直した（#494）', () => {
+  beforeEach(() => {
+    store.calendarEvents = [event('a'), event('b')]
+    store.showMoveBanner.mockClear()
+    updateGoogleEvent.mockReset()
+  })
+
+  it('名前を変えようとしたら消されていた: 戻さずに一覧から外して知らせる', async () => {
+    updateGoogleEvent.mockRejectedValueOnce(new Error('deleted'))
+    await renameGoogleEvent(event('a'), 'new')
+    expect(store.calendarEvents.map((e) => e.id)).toEqual(['b'])
+    expect(store.showMoveBanner).toHaveBeenCalledWith('googleEdit.deletedInGoogle')
+  })
+
+  it('ほかの失敗は元に戻す', async () => {
+    updateGoogleEvent.mockRejectedValueOnce(new Error('boom'))
+    await moveGoogleEvent(event('a'), { date: '2026-10-03', startTime: null, endTime: null })
+    expect(store.calendarEvents.map((e) => e.id).sort()).toEqual(['a', 'b'])
   })
 })

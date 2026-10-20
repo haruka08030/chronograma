@@ -5,7 +5,9 @@ import { useTaskStore } from '../store/taskStore'
 import { fetchCalendarEvents, googleWriteGeneration, localizeGoogleError, shouldDisconnectAfterFetchError } from '../lib/googleCalendar'
 import { cacheGoogleEvents, cachedGoogleEvents, rangeKey } from '../lib/googleEventCache'
 import { withoutPendingDeletes } from '../lib/googleEventEdit'
-import { withoutPushedEvents } from '../lib/googlePush'
+import { taskIdForGoogleEventId, withoutPushedEvents } from '../lib/googlePush'
+import { trashGoogleDeleted } from '../lib/googleDeleted'
+import { loadPushQueue } from '../lib/googlePushQueue'
 import { appTimeZone } from '../lib/timeZone'
 import { markGoogleConnectionLost, rememberGoogleCanWrite } from '../lib/googleConnectedHint'
 import { notify } from '../lib/notify'
@@ -75,7 +77,7 @@ export function useGoogleCalendarEvents(timeMin: Date, timeMax: Date) {
     const doFetch = async () => {
       const generation = googleWriteGeneration()
       try {
-        const { events, canWrite } = await fetchCalendarEvents(new Date(minMs), new Date(maxMs))
+        const { events, canWrite, deletedPushed } = await fetchCalendarEvents(new Date(minMs), new Date(maxMs))
         if (cancelled) return
         setGoogleCanWrite(canWrite)
         if (owner) rememberGoogleCanWrite(owner, canWrite)
@@ -85,6 +87,18 @@ export function useGoogleCalendarEvents(timeMin: Date, timeMax: Date) {
         if (owner) cacheGoogleEvents(owner, rangeKey(new Date(minMs), new Date(maxMs), timeZone), events)
         // アプリの予定から作った Google の予定は、アプリの予定として出ている
         show(events)
+        // Google で消されたアプリの予定は、アプリでもゴミ箱に入れる（まだ送っていない変更のある予定は除く）
+        if (owner && deletedPushed.length > 0) {
+          const ids: string[] = []
+          const deletedAt = new Map<string, string>()
+          for (const e of deletedPushed) {
+            const id = taskIdForGoogleEventId(e.id)
+            if (!id) continue
+            ids.push(id)
+            if (e.updated) deletedAt.set(id, e.updated)
+          }
+          void trashGoogleDeleted(ids, { pending: new Set(Object.keys(loadPushQueue(owner))), deletedAt })
+        }
         prefetchNeighbors()
       } catch (e) {
         if (cancelled) return

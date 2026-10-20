@@ -3,7 +3,7 @@ import type { CalendarEvent } from '../types/calendarEvent'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
 import { reportFailure } from './errorReport'
-import { functionErrorMessage, readFunctionErrorBody } from './functionError'
+import { classifyFunctionError, functionErrorMessage } from './functionError'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
 import { fromDateKey } from './dateKey'
 import { minutesToTime, pad2, timeToMinutes } from './clockTime'
@@ -21,10 +21,13 @@ type GoogleCalendarPayload = {
 /** 関数が断ったときのエラー。`code` は関数が付けた見分け（`google_auth_expired` など。付いていなければ null） */
 export class GoogleCalendarError extends Error {
   readonly code: string | null
-  constructor(message: string, code: string | null) {
+  /** 関数まで届かなかった（待てば直る） */
+  readonly network: boolean
+  constructor(message: string, code: string | null, network = false) {
     super(message)
     this.name = 'GoogleCalendarError'
     this.code = code
+    this.network = network
   }
 }
 
@@ -36,8 +39,8 @@ async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(body: Recor
 
   // 関数は失敗を 4xx / 5xx で返す（本文は { ok: false, error, code? }）。古い関数は 200 で { ok: false } を返す
   if (error) {
-    const code = (await readFunctionErrorBody(error))?.code
-    throw new GoogleCalendarError(await functionErrorMessage(error), typeof code === 'string' && code ? code : null)
+    const info = await classifyFunctionError(error)
+    throw new GoogleCalendarError(await functionErrorMessage(error), info.code, info.kind === 'network')
   }
 
   const payload = (data ?? {}) as T
@@ -70,6 +73,7 @@ const FAILURE_BY_CODE: Record<string, GoogleWriteFailure> = {
 
 /** 関数の `code` で見分ける。code の無いエラーは、回線の失敗・送りすぎと、前の版の関数が code を付けずに返す 2 つだけ文言で見る */
 export function googleWriteFailure(e: unknown): GoogleWriteFailure {
+  if (e instanceof GoogleCalendarError && e.network) return 'network'
   const code = e instanceof GoogleCalendarError ? e.code : null
   if (code) return FAILURE_BY_CODE[code] ?? 'failed'
   const message = e instanceof Error ? e.message : String(e)
@@ -310,7 +314,21 @@ export function googleWriteGeneration(): number {
   return writesInFlight > 0 ? -1 : writeGeneration
 }
 
-type FetchedEvents = { events: CalendarEvent[]; canWrite: boolean }
+/** Google で消されたアプリの予定（Google の ID と、消された時刻） */
+export type DeletedPushedEvent = { id: string; updated: string | null }
+
+/** `deletedPushed` は前の版の関数は返さない（空） */
+type FetchedEvents = { events: CalendarEvent[]; canWrite: boolean; deletedPushed: DeletedPushedEvent[] }
+
+function readDeletedPushed(raw: unknown): DeletedPushedEvent[] {
+  if (!Array.isArray(raw)) return []
+  const out: DeletedPushedEvent[] = []
+  for (const x of raw) {
+    const e = x as Partial<DeletedPushedEvent> | null
+    if (e && typeof e.id === 'string') out.push({ id: e.id, updated: typeof e.updated === 'string' ? e.updated : null })
+  }
+  return out
+}
 
 /** 取得中の範囲。同じ範囲を同時に何度も頼まれたら（画面に戻ったときの focus と visibilitychange など）、1 回の取得を分け合う */
 const fetchesInFlight = new Map<string, Promise<FetchedEvents>>()
@@ -334,6 +352,7 @@ async function loadCalendarEvents(timeMin: Date, timeMax: Date): Promise<Fetched
     calendarColorId?: string | null
     connected?: boolean
     canWrite?: boolean
+    deletedPushed?: unknown
     /** 範囲の予定が多すぎて、関数がページ送りの上限で止めた（後ろの予定が欠けている） */
     truncated?: boolean
     error?: string
@@ -354,6 +373,7 @@ async function loadCalendarEvents(timeMin: Date, timeMax: Date): Promise<Fetched
   return {
     events: (payload.events ?? []).map(normalizeCalendarEventTimes).map(withColors),
     canWrite: payload.canWrite === true,
+    deletedPushed: readDeletedPushed(payload.deletedPushed),
   }
 }
 
@@ -475,7 +495,10 @@ export async function deleteGoogleEvent(eventId: string): Promise<void> {
   await writeGoogle({ action: 'delete', eventId })
 }
 
-/** ID を決めて Google の予定を作る・直す（消した予定も戻す）。アプリの予定を Google に送るのに使う */
-export async function upsertGoogleEvent(eventId: string, fields: Record<string, unknown>): Promise<CalendarEvent | null> {
-  return writeGoogle({ action: 'upsert', eventId, fields })
+/**
+ * ID を決めて Google の予定を作る・直す。アプリの予定を Google に送るのに使う。
+ * Google で消された予定は戻さず `google_deleted` で断られる。`revive`（アプリが Google から消した予定）なら戻す
+ */
+export async function upsertGoogleEvent(eventId: string, fields: Record<string, unknown>, revive = false): Promise<CalendarEvent | null> {
+  return writeGoogle({ action: 'upsert', eventId, fields, revive })
 }

@@ -13,7 +13,8 @@ export const MAX_PUSH_TRIES = 5
 /** タブを閉じるときに、応答を待たずに送る数の上限 */
 export const LEAVE_SEND_MAX = 20
 
-export type PushEntry = { at: number; tries: number }
+/** `revive`: アプリが Google から消した予定（ゴミ箱から戻した・送らない名前から外した）。Google で消えていても戻す */
+export type PushEntry = { at: number; tries: number; revive?: boolean }
 export type PushQueue = Record<string, PushEntry>
 
 const PREFIX = 'chronograma.googlePush.'
@@ -31,7 +32,9 @@ export function loadPushQueue(userId: string): PushQueue {
     if (!raw || typeof raw !== 'object') return out
     for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
       const e = v as Partial<PushEntry> | null
-      if (e && typeof e.at === 'number' && typeof e.tries === 'number') out[id] = { at: e.at, tries: e.tries }
+      if (e && typeof e.at === 'number' && typeof e.tries === 'number') {
+        out[id] = e.revive ? { at: e.at, tries: e.tries, revive: true } : { at: e.at, tries: e.tries }
+      }
     }
     return out
   } catch {
@@ -63,11 +66,14 @@ function stamp(): number {
   return lastStamp
 }
 
-/** 送る予定を入れる。前に送れなかったものも、直したら数え直す */
-export function enqueuePush(userId: string, ids: readonly string[]): void {
+/** 送る予定を入れる。前に送れなかったものも、直したら数え直す。`revive` は Google で消えていても戻す予定 */
+export function enqueuePush(userId: string, ids: readonly string[], revive: ReadonlySet<string> = new Set()): void {
   if (ids.length === 0) return
   updatePushQueue(userId, (q) => {
-    for (const id of ids) q[id] = { at: stamp(), tries: 0 }
+    for (const id of ids) {
+      const back = revive.has(id) || q[id]?.revive === true
+      q[id] = back ? { at: stamp(), tries: 0, revive: true } : { at: stamp(), tries: 0 }
+    }
   })
 }
 
@@ -133,25 +139,35 @@ export function clearPushQueues(): void {
  */
 export type PushPassStatus = 'done' | 'retry' | 'wait' | 'auth' | 'scope' | 'cancelled'
 
-/** 待っているものを順に送る。`send` は 1 件を Google に送る（作る・直す・消す） */
+/**
+ * 待っているものを順に送る。`send` は 1 件を Google に送る（作る・直す・消す。`revive` なら消えていても戻す）。
+ * Google で消されていた予定は待ちから外して `onDeleted` に渡す（アプリでもゴミ箱に入れる）
+ */
 export async function pushPass(
   userId: string,
-  send: (taskId: string) => Promise<void>,
+  send: (taskId: string, revive: boolean) => Promise<void>,
   isCancelled: () => boolean = () => false,
+  onDeleted: (taskId: string) => void = () => {},
 ): Promise<PushPassStatus> {
   let failed = false
   for (const id of sendablePushIds(loadPushQueue(userId))) {
     if (isCancelled()) return 'cancelled'
     // ほかのタブが送り終えていれば飛ばす
-    const at = loadPushQueue(userId)[id]?.at
-    if (at === undefined) continue
+    const entry = loadPushQueue(userId)[id]
+    if (!entry) continue
+    const { at } = entry
     try {
-      await send(id)
+      await send(id, entry.revive === true)
       settlePush(userId, id, at)
     } catch (e) {
       const kind = googleWriteFailure(e)
       if (kind === 'read_only') {
         dropPush(userId, id)
+        continue
+      }
+      if (kind === 'deleted') {
+        dropPush(userId, id)
+        onDeleted(id)
         continue
       }
       if (kind === 'not_connected' || kind === 'auth_expired') return 'auth'

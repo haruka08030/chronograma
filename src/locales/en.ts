@@ -610,6 +610,7 @@ export default {
   },
   googleEdit: {
     failed: "Couldn't update Google Calendar",
+    deletedInGoogle: 'This event was deleted in Google',
     needWriteAccess: 'To change Google events, reconnect Google and allow editing',
     readOnlyEvent: "You're not the organizer, so this event can't be changed",
     reconnectHint: 'Reconnect Google to edit events here',
@@ -1629,6 +1630,12 @@ export default {
     title: 'Google Calendar',
     notConnected: 'Not connected',
     disconnectConfirm: 'Disconnect Google Calendar? Your events stay in Google Calendar (they just stop showing here).',
+  },
+  googleDeleted: {
+    moved: 'Moved {{count}} events deleted in Google to the trash',
+    moved_one: 'Moved {{count}} event deleted in Google to the trash',
+    confirm: '{{count}} events were deleted in Google. Move them to the trash here too?',
+    confirmAction: 'Move to trash',
   },
   googlePush: {
     failed: "{{count}} events couldn't be sent to Google",

@@ -139,6 +139,29 @@ describe('pushPass', () => {
     expect(failedPushCount(loadPushQueue(U))).toBe(0)
   })
 
+  it('Google で消されていた予定は待ちから外して知らせ、次を送る（#494）', async () => {
+    enqueuePush(U, ['gone', 'b'])
+    const deleted: string[] = []
+    const send = vi.fn(async (id: string) => {
+      if (id === 'gone') throw fail('google_deleted')
+    })
+    expect(await pushPass(U, send, undefined, (id) => deleted.push(id))).toBe('done')
+    expect(deleted).toEqual(['gone'])
+    expect(ids()).toEqual([])
+  })
+
+  it('アプリが Google から消した予定は「戻す」を付けて送り、直しても付けたまま', async () => {
+    enqueuePush(U, ['a'], new Set(['a']))
+    enqueuePush(U, ['a'])
+    enqueuePush(U, ['b'])
+    const send = vi.fn<(id: string, revive: boolean) => Promise<void>>(async () => {})
+    await pushPass(U, send)
+    expect(send.mock.calls).toEqual([
+      ['a', true],
+      ['b', false],
+    ])
+  })
+
   it('ほかのタブが送り終えたものは送らない', async () => {
     enqueuePush(U, ['a', 'b'])
     const send = vi.fn(async (id: string) => {

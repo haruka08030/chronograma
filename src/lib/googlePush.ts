@@ -21,6 +21,19 @@ export function googleEventIdForTask(taskId: string): string {
   return PREFIX + hex
 }
 
+/** Google の予定の ID からアプリの予定の ID（アプリの予定から作ったものでなければ null） */
+export function taskIdForGoogleEventId(eventId: string): string | null {
+  const hex = eventId.slice(PREFIX.length)
+  if (!eventId.startsWith(PREFIX) || hex.length === 0 || hex.length % 2 !== 0 || !/^[0-9a-f]+$/.test(hex)) return null
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return null
+  }
+}
+
 /** アプリの予定から作った Google の予定（繰り返しの回は `<ID>_<日時>`） */
 export function isPushedGoogleEvent(e: Pick<CalendarEvent, 'id'>): boolean {
   return e.id.startsWith(PREFIX)
