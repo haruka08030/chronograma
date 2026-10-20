@@ -34,6 +34,7 @@ import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { useShortcutsHelpRequest } from './lib/shortcuts'
 import { useAppDnd } from './hooks/useAppDnd'
 import { useAppTheme } from './hooks/useAppTheme'
+import { MobileSyncNotice } from './components/MobileSyncNotice'
 import { useReminders } from './hooks/useReminders'
 import { useFollowToday } from './hooks/useFollowToday'
 import { useQuickStartLaunch } from './hooks/useQuickStartLaunch'
@@ -155,6 +156,7 @@ export default function App() {
           ref={mainRef}
           className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0"
         >
+          <MobileSyncNotice />
           {!hideGlobalHeader && (
             <PartBoundary name="search" resetKey={partKey}>
               <SearchBox inputRef={searchRef} />
