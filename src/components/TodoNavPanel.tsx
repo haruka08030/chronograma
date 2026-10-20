@@ -270,10 +270,11 @@ function ColorLabelRow({
         onClick={(e) => onEdit(e.currentTarget.parentElement ?? e.currentTarget)}
         aria-expanded={isEditing}
         {...tip(t('labels.editOne'), { name: true })}
-        className="gc-dot ml-3 h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 rounded-full touch-manipulation
-          md:h-3 md:w-3 md:min-h-[12px] md:min-w-[12px]"
-        style={colorVars(label.hex)}
-      />
+        // 丸は上の行のアイコンと同じ 16px の枠の中に 12px。押せる範囲は周りに広げる（行の高さは変えない）
+        className="relative ml-3 flex h-4 w-4 shrink-0 touch-manipulation items-center justify-center after:absolute after:-inset-2"
+      >
+        <span aria-hidden className="gc-dot h-3 w-3 rounded-full" style={colorVars(label.hex)} />
+      </button>
       <button
         type="button"
         onClick={onSelect}
@@ -302,7 +303,9 @@ function NoLabelRow({ count, isSelected, onSelect }: { count: number; isSelected
             : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
         }`}
     >
-      <span aria-hidden className="h-5 w-5 shrink-0 rounded-full border border-dashed border-zinc-400 md:h-3 md:w-3 dark:border-zinc-500" />
+      <span aria-hidden className="flex h-4 w-4 shrink-0 items-center justify-center">
+        <span className="h-3 w-3 rounded-full border border-dashed border-zinc-400 dark:border-zinc-500" />
+      </span>
       <span className="min-w-0 flex-1 truncate">{t('labels.none')}</span>
       <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{count}</span>
     </button>
