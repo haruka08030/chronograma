@@ -86,6 +86,7 @@ function TaskEventMenuBody({
       extra: (close) => (
         <ColorPalette
           bare
+          fill
           selectedHex={color.current}
           onChoose={(h) => {
             color.choose(h)
@@ -221,6 +222,7 @@ export function GoogleEventMenu({ x, y, eventId, onClose }: { x: number; y: numb
             extra: (close: () => void) => (
               <ColorPalette
                 bare
+                fill
                 selectedHex={event.color ?? DEFAULT_GOOGLE_EVENT_HEX}
                 onChoose={(h) => {
                   setGoogleEventColor(event, h, scope)
