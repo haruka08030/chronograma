@@ -841,6 +841,8 @@ export default {
     notificationsNeedInstall: 'Add to your Home Screen to use notifications',
     notificationsNeedInstallHint: 'See how to add it',
     notificationsDenied: 'Notifications are blocked. Allow them in your browser site settings.',
+    pushActive: 'Arrives even when the app is closed',
+    pushTabOnly: 'Arrives only while the app is open',
     dailyCapacity: 'Hours to plan per day',
     dailyCapacityRecent_one: 'Last 2 weeks: {{time}} logged on average on days with records ({{count}} day)',
     dailyCapacityRecent: 'Last 2 weeks: {{time}} logged on average on days with records ({{count}} days)',

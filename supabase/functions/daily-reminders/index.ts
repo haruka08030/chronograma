@@ -448,7 +448,7 @@ Deno.serve(async (req) => {
     for (const f of outcome.failed) {
       console.error('[daily-reminders] send failed', (f.error as { statusCode?: number }).statusCode, f.error)
     }
-    // 購読が失効（アプリ削除・権限取り消し）したら消す
+    // 購読が失効した・受け付けられない（`isGoneStatus`）なら消す。アプリを開けば端末が付け直す
     if (outcome.gone) {
       await removeSub(sub.endpoint)
       return

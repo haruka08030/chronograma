@@ -15,6 +15,29 @@ const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | unde
 let pushActive = false
 export const isWebPushActive = () => pushActive
 
+/**
+ * この端末の通知の届き方（通知の設定に出す）。
+ * - active: アプリを閉じていても届く
+ * - failed: 購読・保存に失敗した（開いている間だけ）
+ * - unsupported: このブラウザは Web Push を使えない（開いている間だけ）
+ * - tab-only: 未ログイン・通知が未許可など（開いている間だけ）
+ * - off: 通知を全部切っている / unknown: まだ確かめていない
+ */
+export type WebPushStatus = 'unknown' | 'off' | 'active' | 'failed' | 'unsupported' | 'tab-only'
+let pushStatus: WebPushStatus = 'unknown'
+const statusListeners = new Set<() => void>()
+export const webPushStatus = () => pushStatus
+export function subscribeWebPushStatus(listener: () => void): () => void {
+  statusListeners.add(listener)
+  return () => statusListeners.delete(listener)
+}
+function setPush(status: WebPushStatus) {
+  pushActive = status === 'active'
+  if (status === pushStatus) return
+  pushStatus = status
+  statusListeners.forEach((l) => l())
+}
+
 export function isWebPushSupported(): boolean {
   return (
     Boolean(VAPID_PUBLIC_KEY) &&
@@ -66,13 +89,23 @@ export function resyncWebPush(): Promise<void> {
  * 権限が未許可なら何もしない（許可ダイアログはユーザー操作から出す）。
  */
 export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
-  const { userId, reminders, eventReminderMinutes, dueReminders, recordPrompts, hasTaskReminders, activeTimer, lang } = args
   lastSyncArgs = args
-  pushActive = false
+  // 同期の途中は前の状態のまま（途中で「無効」にすると、その間にタブの通知も出て二重になる）。
+  // 重なって呼ばれたら、最後に始めたものの結果だけ使う
+  const generation = ++syncGeneration
+  const status = await syncSubscription(args)
+  if (generation === syncGeneration) setPush(status)
+}
+
+let syncGeneration = 0
+
+async function syncSubscription(args: SyncWebPushArgs): Promise<WebPushStatus> {
+  const { userId, reminders, eventReminderMinutes, dueReminders, recordPrompts, hasTaskReminders, activeTimer, lang } = args
   const supabase = getSupabase()
-  if (!userId || !supabase || !isWebPushSupported() || Notification.permission !== 'granted') return
+  if (!isWebPushSupported()) return 'unsupported'
+  if (!userId || !supabase || Notification.permission !== 'granted') return 'tab-only'
   const reg = await readyRegistration()
-  if (!reg) return
+  if (!reg) return 'tab-only'
 
   const wantsAny = Boolean(
     reminders.planTime ||
@@ -91,7 +124,7 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
       if (error) reportFailure('push', 'delete', error.message)
       await sub.unsubscribe()
     }
-    return
+    return 'off'
   }
 
   if (!sub) {
@@ -103,7 +136,7 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
     } catch (err) {
       console.error('[push] subscribe failed', err)
       reportFailure('push', 'subscribe', err)
-      return
+      return 'failed'
     }
   }
 
@@ -131,9 +164,46 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
   if (error) {
     console.error('[push] save failed', error.message)
     reportFailure('push', 'save', error.message, { code: error.code ?? null })
-    return
+    return 'failed'
   }
-  pushActive = true
+  return 'active'
+}
+
+/** アプリを開いた・表に戻ったときに付け直す間隔の下限（フォーカスのたびに保存しない） */
+const RESYNC_MIN_MS = 10 * 60_000
+let lastResyncAt = 0
+
+/**
+ * 購読を確かめ直す（表に戻ったとき・SW がブラウザによる購読の更新を知らせたとき）。
+ * ブラウザが購読を更新すると、サーバーの古い購読は失効して消えるので、新しい購読を保存し直さないと通知が黙って止まる。
+ * `force` でなければ、前に確かめてから少し間をあける（失敗していれば待たない）
+ */
+export function refreshWebPush(force = false): Promise<void> {
+  const now = Date.now()
+  if (!force && pushStatus === 'active' && now - lastResyncAt < RESYNC_MIN_MS) return Promise.resolve()
+  lastResyncAt = now
+  return resyncWebPush()
+}
+
+/**
+ * SW からの「購読を付け直した」（`pushsubscriptionchange`）を受けて、新しい購読を保存し、古い購読の行を消す。
+ * 外すときの関数を返す
+ */
+export function listenForPushResubscribe(): () => void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return () => {}
+  const onMessage = (e: MessageEvent<{ type?: string; oldEndpoint?: string | null }>) => {
+    if (e.data?.type !== 'push-resubscribed') return
+    const old = typeof e.data.oldEndpoint === 'string' ? e.data.oldEndpoint : null
+    void (async () => {
+      if (old) {
+        const { error } = (await getSupabase()?.from('push_subscriptions').delete().eq('endpoint', old)) ?? { error: null }
+        if (error) reportFailure('push', 'resubscribe:delete', error.message)
+      }
+      await refreshWebPush(true)
+    })()
+  }
+  navigator.serviceWorker.addEventListener('message', onMessage)
+  return () => navigator.serviceWorker.removeEventListener('message', onMessage)
 }
 
 /**
@@ -142,7 +212,8 @@ export async function syncWebPush(args: SyncWebPushArgs): Promise<void> {
  * 行は消せるうち（ログアウト前）に消し、消せなくても購読を解除すれば endpoint が失効してサーバーが片付ける。
  */
 export async function detachWebPush(): Promise<void> {
-  pushActive = false
+  syncGeneration++
+  setPush('unknown')
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
   try {
     const reg = await readyRegistration()

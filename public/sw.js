@@ -158,6 +158,29 @@ self.addEventListener('push', (event) => {
   )
 })
 
+/**
+ * ブラウザが購読を更新・失効させたとき。同じ鍵で付け直し、開いている画面に知らせて新しい購読を保存してもらう
+ * （SW にはログインの鍵が無いので、保存は画面が行う。開いている画面が無ければ、次に開いたときに画面が付け直す）。
+ * 付け直さないと、サーバーは古い購読を失効として消し、通知が黙って止まる
+ */
+self.addEventListener('pushsubscriptionchange', (event) => {
+  const oldSub = event.oldSubscription || null
+  const key = oldSub && oldSub.options ? oldSub.options.applicationServerKey : null
+  event.waitUntil(
+    (event.newSubscription
+      ? Promise.resolve(event.newSubscription)
+      : key
+        ? self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+        : Promise.resolve(null)
+    )
+      .catch(() => null)
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then((wins) => {
+        for (const w of wins) w.postMessage({ type: 'push-resubscribed', oldEndpoint: oldSub ? oldSub.endpoint : null })
+      }),
+  )
+})
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const data = event.notification.data || {}

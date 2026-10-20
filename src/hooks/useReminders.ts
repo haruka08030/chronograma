@@ -3,7 +3,7 @@ import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import { useAuth } from '../contexts/AuthContext'
 import { checkLocalReminders } from '../lib/localReminders'
-import { isWebPushActive, syncWebPush } from '../lib/webPush'
+import { isWebPushActive, listenForPushResubscribe, refreshWebPush, syncWebPush } from '../lib/webPush'
 import { unplannedListIds } from '../lib/listKind'
 import { subscribeAppClock } from '../lib/appClock'
 import { openTaskFromNotification, openWrapUpFromNotification } from '../lib/notificationLaunch'
@@ -41,6 +41,18 @@ export function useReminders() {
       lang: i18n.resolvedLanguage ?? 'ja',
     })
   }, [userId, dailyReminders, eventReminderMinutes, notificationsEnabled, recordPrompts, hasTaskReminders, activeTimer, appTimeZoneSetting])
+  // 購読はブラウザが黙って更新・失効させることがある。表に戻ったとき・SW が付け直したときに確かめ直して保存する
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refreshWebPush()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    const stopListening = listenForPushResubscribe()
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      stopListening()
+    }
+  }, [])
   useEffect(() => {
     const tick = () => {
       if (isWebPushActive()) return
