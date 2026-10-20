@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useGoogleConnect } from '../../hooks/useGoogleConnect'
+import { retryGooglePush } from '../../hooks/useGooglePush'
+import { useTaskStore } from '../../store/taskStore'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { SettingsGroup, SettingsRow } from './SettingsPrimitives'
 import { buttonClass } from '../ui/buttonClass'
@@ -9,6 +11,7 @@ import { ERROR_TEXT } from '../ui/textClass'
 export function GoogleCalendarSettings() {
   const { t } = useTranslation()
   const { user, clientId, connected, reconnectNeeded, loading, error, connect, disconnect } = useGoogleConnect()
+  const pushFailed = useTaskStore((s) => s.googlePushFailed)
 
   if (!isSupabaseConfigured || !clientId) return null
 
@@ -48,6 +51,13 @@ export function GoogleCalendarSettings() {
             onClick={() => void connect()}
           >
             {loading ? t('planVsActual.connecting') : t('planVsActual.googleConnectShort')}
+          </button>
+        </SettingsRow>
+      )}
+      {user && connected && pushFailed > 0 && (
+        <SettingsRow label={t('googlePush.failed', { count: pushFailed })}>
+          <button type="button" className={buttonClass({ variant: 'secondary', size: 'md' })} onClick={retryGooglePush}>
+            {t('googlePush.retry')}
           </button>
         </SettingsRow>
       )}

@@ -3,7 +3,7 @@ import type { CalendarEvent } from '../types/calendarEvent'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import { isNetworkErrorMessage } from './errorMessages'
 import { reportFailure } from './errorReport'
-import { functionErrorMessage } from './functionError'
+import { functionErrorMessage, readFunctionErrorBody } from './functionError'
 import { appTimeZone, fromAppWall, instantFromWall, wallInZone } from './timeZone'
 import { fromDateKey } from './dateKey'
 import { minutesToTime, pad2, timeToMinutes } from './clockTime'
@@ -15,6 +15,17 @@ type GoogleCalendarPayload = {
   connected?: boolean
   events?: CalendarEvent[]
   error?: string
+  code?: string
+}
+
+/** 関数が断ったときのエラー。`code` は関数が付けた見分け（`google_auth_expired` など。付いていなければ null） */
+export class GoogleCalendarError extends Error {
+  readonly code: string | null
+  constructor(message: string, code: string | null) {
+    super(message)
+    this.name = 'GoogleCalendarError'
+    this.code = code
+  }
 }
 
 async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(body: Record<string, unknown>): Promise<T> {
@@ -23,14 +34,52 @@ async function invokeGoogleCalendar<T extends GoogleCalendarPayload>(body: Recor
 
   const { data, error } = await sb.functions.invoke('google-calendar', { body })
 
-  // 関数は失敗を 4xx / 5xx で返す（本文は { ok: false, error }）。古い関数は 200 で { ok: false } を返す
-  if (error) throw new Error(await functionErrorMessage(error))
+  // 関数は失敗を 4xx / 5xx で返す（本文は { ok: false, error, code? }）。古い関数は 200 で { ok: false } を返す
+  if (error) {
+    const code = (await readFunctionErrorBody(error))?.code
+    throw new GoogleCalendarError(await functionErrorMessage(error), typeof code === 'string' && code ? code : null)
+  }
 
   const payload = (data ?? {}) as T
   if (payload.error && payload.ok === false) {
-    throw new Error(payload.error)
+    throw new GoogleCalendarError(payload.error, payload.code ?? null)
   }
   return payload
+}
+
+/**
+ * Google への書き込みが断られた理由。
+ * - `not_connected` / `auth_expired`: つながっていない・切れた（つなぎ直すまで送れない）
+ * - `scope`: 書き込みの許可が無い
+ * - `read_only`: その予定を変える権限が無い（その予定だけ送れない）
+ * - `deleted`: Google で消された予定
+ * - `rate_limited` / `network`: 待てば送れる
+ * - `failed`: それ以外（Google の一時的な失敗など）
+ */
+export type GoogleWriteFailure =
+  'not_connected' | 'auth_expired' | 'scope' | 'read_only' | 'deleted' | 'rate_limited' | 'network' | 'failed'
+
+const FAILURE_BY_CODE: Record<string, GoogleWriteFailure> = {
+  google_not_connected: 'not_connected',
+  google_auth_expired: 'auth_expired',
+  google_scope_missing: 'scope',
+  google_read_only: 'read_only',
+  google_deleted: 'deleted',
+  google_rate_limited: 'rate_limited',
+}
+
+/** 関数の `code` で見分ける。code の無いエラーは、回線の失敗・送りすぎと、前の版の関数が code を付けずに返す 2 つだけ文言で見る */
+export function googleWriteFailure(e: unknown): GoogleWriteFailure {
+  const code = e instanceof GoogleCalendarError ? e.code : null
+  if (code) return FAILURE_BY_CODE[code] ?? 'failed'
+  const message = e instanceof Error ? e.message : String(e)
+  // 関数まで届かなかった（supabase-js の FunctionsFetchError）
+  if (isNetworkErrorMessage(message) || /failed to send a request to the edge function/i.test(message)) return 'network'
+  if (isGoogleRateLimitMessage(message)) return 'rate_limited'
+  // 前の版の関数（code なし）: つながっていない・書き込みの許可が無い
+  if (/google calendar not connected/i.test(message)) return 'not_connected'
+  if (/write scope not granted/i.test(message)) return 'scope'
+  return 'failed'
 }
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
@@ -172,6 +221,15 @@ export async function disconnectGoogleCalendar(): Promise<void> {
   const sb = getSupabase()
   if (!sb) return
   await invokeGoogleCalendar({ action: 'disconnect' })
+}
+
+/**
+ * つながっているか・予定を書き換えられるか。`canWrite` は前の版の関数が返さないので、分からなければ null。
+ * 聞けなかったら投げる
+ */
+export async function googleCalendarStatus(): Promise<{ connected: boolean; canWrite: boolean | null }> {
+  const payload = await invokeGoogleCalendar<{ connected?: boolean; canWrite?: boolean }>({ action: 'status' })
+  return { connected: payload.connected === true, canWrite: typeof payload.canWrite === 'boolean' ? payload.canWrite : null }
 }
 
 export async function isGoogleCalendarConnected(): Promise<boolean> {

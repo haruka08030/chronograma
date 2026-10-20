@@ -5,6 +5,7 @@ import {
   applyTimingLocally,
   createGoogleEvent,
   deleteGoogleEvent,
+  googleWriteFailure,
   localizeGoogleError,
   updateGoogleEvent,
   type GoogleEventTiming,
@@ -45,7 +46,7 @@ function remove(id: string) {
 function report(e: unknown) {
   const raw = e instanceof Error ? e.message : ''
   const s = useTaskStore.getState()
-  if (raw.toLowerCase().includes('write scope not granted')) s.setGoogleCanWrite(false)
+  if (googleWriteFailure(e) === 'scope') s.setGoogleCanWrite(false)
   const localized = raw ? localizeGoogleError(raw, i18n.t.bind(i18n)) : ''
   s.showMoveBanner(localized && localized !== raw ? localized : i18n.t('googleEdit.failed'))
 }

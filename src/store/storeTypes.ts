@@ -152,6 +152,8 @@ export interface TaskState {
   googleReconnectNeeded: boolean
   /** Google の予定を書き換えられる権限（calendar.events.owned など）があるか。古い接続は読み取りのみ */
   googleCanWrite: boolean
+  /** 何度送っても Google に送れなかったアプリの予定の数（`lib/googlePushQueue.ts`） */
+  googlePushFailed: number
 
   activeTimer: ActiveTimer | null
   /** 手元でタイマーを始めた・止めた時刻（端末間でどちらに合わせるかを比べる、`timerSync.ts`）。同期で届いた変更では付けない */
@@ -307,6 +309,7 @@ export interface TaskState {
   setGoogleConnectionError: (error: string | null) => void
   setGoogleReconnectNeeded: (needed: boolean) => void
   setGoogleCanWrite: (canWrite: boolean) => void
+  setGooglePushFailed: (count: number) => void
 
   /** 足した習慣の id を返す */
   addHabit: (

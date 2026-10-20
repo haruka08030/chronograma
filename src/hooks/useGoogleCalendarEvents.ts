@@ -7,7 +7,7 @@ import { cacheGoogleEvents, cachedGoogleEvents, rangeKey } from '../lib/googleEv
 import { withoutPendingDeletes } from '../lib/googleEventEdit'
 import { withoutPushedEvents } from '../lib/googlePush'
 import { appTimeZone } from '../lib/timeZone'
-import { markGoogleConnectionLost } from '../lib/googleConnectedHint'
+import { markGoogleConnectionLost, rememberGoogleCanWrite } from '../lib/googleConnectedHint'
 import { notify } from '../lib/notify'
 import type { CalendarEvent } from '../types/calendarEvent'
 
@@ -78,6 +78,7 @@ export function useGoogleCalendarEvents(timeMin: Date, timeMax: Date) {
         const { events, canWrite } = await fetchCalendarEvents(new Date(minMs), new Date(maxMs))
         if (cancelled) return
         setGoogleCanWrite(canWrite)
+        if (owner) rememberGoogleCanWrite(owner, canWrite)
         setGoogleConnectionError(null)
         // 取得中にアプリから書き換えたなら、その結果を古い取得で巻き戻さない
         if (!unchangedSince(generation)) return

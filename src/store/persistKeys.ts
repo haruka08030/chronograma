@@ -92,6 +92,7 @@ export const TRANSIENT_KEYS = [
   'googleConnectionError',
   'googleReconnectNeeded',
   'googleCanWrite',
+  'googlePushFailed',
   // 毎週の予定のカード・詳細を開いている間だけ（閉じたら「この予定のみ」に戻る）
   'seriesEditScope',
 ] as const satisfies readonly (keyof TaskState)[]

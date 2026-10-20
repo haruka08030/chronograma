@@ -1,11 +1,29 @@
 import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured, sendFunctionOnLeave } from '../lib/supabase'
-import { deleteGoogleEvent, upsertGoogleEvent } from '../lib/googleCalendar'
+import { deleteGoogleEvent, googleCalendarStatus, upsertGoogleEvent } from '../lib/googleCalendar'
 import { changedForGoogle, changedForGoogleSkip, googleEventIdForTask, googleFieldsForTask, shouldBeOnGoogle } from '../lib/googlePush'
+import {
+  LEAVE_SEND_MAX,
+  enqueuePush,
+  failedPushCount,
+  loadPushQueue,
+  pushPass,
+  pushQueueKey,
+  resetFailedPush,
+  sendablePushIds,
+} from '../lib/googlePushQueue'
+import {
+  googleCanWriteHint,
+  markGoogleConnectionLost,
+  rememberGoogleCanWrite,
+  wasGoogleConnected,
+  wasGoogleConnectionLost,
+} from '../lib/googleConnectedHint'
 import { googleSkipKeys } from '../lib/googleSkip'
 import { isIncomingChange } from '../lib/changeOrigin'
-import { reportFailure } from '../lib/errorReport'
+import { notify } from '../lib/notify'
+import i18n from '../i18n/config'
 import { appTimeZone, appTodayKey } from '../lib/timeZone'
 import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
 
@@ -15,36 +33,19 @@ const SEND_DELAY_MS = 1_500
 const RETRY_MIN_MS = 10_000
 const RETRY_MAX_MS = 5 * 60_000
 
-const queueKey = (userId: string) => `chronograma.googlePush.${userId}`
+/** 「もう一度送る」を押した（`retryGooglePush`） */
+const RETRY_EVENT = 'chronograma:google-push-retry'
 
-function loadQueue(userId: string): Set<string> {
-  try {
-    const raw = JSON.parse(localStorage.getItem(queueKey(userId)) ?? '[]') as unknown
-    return new Set(Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [])
-  } catch {
-    return new Set()
-  }
-}
-
-function saveQueue(userId: string, queue: Set<string>) {
-  try {
-    if (queue.size === 0) localStorage.removeItem(queueKey(userId))
-    else localStorage.setItem(queueKey(userId), JSON.stringify([...queue]))
-  } catch {
-    /* 保存できなくても、開いている間は送る */
-  }
-}
-
-/** もう一度送っても直らない失敗（接続が無い・書き込みの許可が無い・他人の予定） */
-function isPermanentFailure(message: string): boolean {
-  const m = message.toLowerCase()
-  return m.includes('not connected') || m.includes('scope not granted') || m.includes('read-only') || m.includes('reconnect')
+/** 何度送っても送れなかった予定を、もう一度送る */
+export function retryGooglePush(): void {
+  window.dispatchEvent(new Event(RETRY_EVENT))
 }
 
 /**
  * この端末で作った・直した・消したアプリの予定を Google カレンダーにも反映する（`lib/googlePush.ts`）。
- * 送るのは Google につないで書き込みを許可しているときだけ。同期・ほかのタブで届いた変更は、変えた端末が送るので送らない。
- * 送れなかったものはこの端末に覚えておき、つながったとき・画面に戻ったとき・次に開いたときに送り直す。
+ * Google につないでいれば（切れていても）変えた予定は待ちに入れて端末に覚え（`lib/googlePushQueue.ts`）、
+ * 送るのは書き込みを許可しているときだけ。同期・ほかのタブで届いた変更は、変えた端末が送るので送らない。
+ * 送れなかったものは、つながったとき・画面に戻ったとき・次に開いたときに送り直す。
  */
 export function useGooglePush() {
   const { user, session, loading } = useAuth()
@@ -62,7 +63,8 @@ export function useGooglePush() {
     let sending = false
     let timer: ReturnType<typeof setTimeout> | undefined
     let retryMs = RETRY_MIN_MS
-    const queue = loadQueue(userId)
+    /** 書き込めるかを関数に聞いた（つながるたびに 1 回） */
+    let probed = false
     // 送らない名前（同じ並びのあいだは作り直さない）
     let skipNames = useTaskStore.getState().addons.googleSkip
     let skip = googleSkipKeys(skipNames)
@@ -79,64 +81,97 @@ export function useGooglePush() {
       const s = useTaskStore.getState()
       return s.googleConnected && s.googleCanWrite
     }
+    /** 変えた予定を待ちに入れるか: この端末で Google につないでいる（切れていても）、書き込めないと分かっていない */
+    const mayQueue = () => {
+      const s = useTaskStore.getState()
+      const linked = s.googleConnected || s.googleReconnectNeeded || wasGoogleConnected(userId) || wasGoogleConnectionLost(userId)
+      return linked && (s.googleCanWrite || googleCanWriteHint(userId) !== false)
+    }
+    const hasSendable = () => sendablePushIds(loadPushQueue(userId)).length > 0
+    const publishFailed = () => useTaskStore.getState().setGooglePushFailed(failedPushCount(loadPushQueue(userId)))
 
     const schedule = (ms: number) => {
       clearTimeout(timer)
       timer = setTimeout(() => void flush(), ms)
     }
 
+    /** つながっているのに書き込めるか分からない（カレンダーを開いていない）: 関数に聞く */
+    const probeWrite = () => {
+      const s = useTaskStore.getState()
+      if (probed || !s.googleConnected || s.googleCanWrite) return
+      probed = true
+      googleCalendarStatus().then(
+        ({ connected, canWrite }) => {
+          if (cancelled || !connected || canWrite === null) return
+          rememberGoogleCanWrite(userId, canWrite)
+          // 書き込めると分かったら、購読から送り始める
+          if (canWrite) useTaskStore.getState().setGoogleCanWrite(true)
+        },
+        () => {
+          probed = false
+        },
+      )
+    }
+
+    const sendOne = async (taskId: string) => {
+      // 送る時点の中身を送る（待っている間に直したものもまとめて 1 回）
+      const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
+      const eventId = googleEventIdForTask(taskId)
+      if (task && shouldBeOnGoogle(task, skipKeys())) await upsertGoogleEvent(eventId, googleFieldsForTask(task))
+      else await deleteGoogleEvent(eventId)
+    }
+
     const flush = async () => {
-      if (cancelled || sending || queue.size === 0 || !canSend()) return
+      if (cancelled || sending || !hasSendable()) return
+      if (!canSend()) {
+        probeWrite()
+        return
+      }
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return
       sending = true
-      let failed = false
+      let status
       try {
-        for (const taskId of [...queue]) {
-          if (cancelled) return
-          // 送る時点の中身を送る（待っている間に直したものもまとめて 1 回）
-          const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
-          const eventId = googleEventIdForTask(taskId)
-          try {
-            if (task && shouldBeOnGoogle(task, skipKeys())) await upsertGoogleEvent(eventId, googleFieldsForTask(task))
-            else await deleteGoogleEvent(eventId)
-            queue.delete(taskId)
-          } catch (e) {
-            const message = e instanceof Error ? e.message : String(e)
-            if (isPermanentFailure(message)) {
-              if (message.toLowerCase().includes('scope not granted')) useTaskStore.getState().setGoogleCanWrite(false)
-              queue.clear()
-              return
-            }
-            console.error('[google] push', e)
-            reportFailure('integration', 'google:push', e)
-            failed = true
-            break
-          }
-        }
+        status = await pushPass(userId, sendOne, () => cancelled)
       } finally {
-        saveQueue(userId, queue)
         sending = false
+        if (!cancelled) publishFailed()
       }
-      if (cancelled) return
-      if (failed) {
+      if (cancelled || status === 'cancelled') return
+      const store = useTaskStore.getState()
+      if (status === 'auth') {
+        // 切れた。待ちは残し、つなぎ直したら送る（予定の取得で切れたと分かったときと同じ）
+        store.setGoogleConnected(false)
+        store.setGoogleReconnectNeeded(true)
+        markGoogleConnectionLost(userId)
+        notify(i18n.t('googleReconnect.lost'))
+        return
+      }
+      if (status === 'scope') {
+        // 書き込みの許可が無い。待ちは残し、許可されたら送る
+        rememberGoogleCanWrite(userId, false)
+        store.setGoogleCanWrite(false)
+        return
+      }
+      if (status === 'retry' || status === 'wait') {
         schedule(retryMs)
         retryMs = Math.min(retryMs * 2, RETRY_MAX_MS)
-      } else {
-        retryMs = RETRY_MIN_MS
-        // 送っている間に増えたもの
-        if (queue.size > 0) schedule(SEND_DELAY_MS)
+        return
       }
+      retryMs = RETRY_MIN_MS
+      // 送っている間に増えたもの
+      if (hasSendable()) schedule(SEND_DELAY_MS)
     }
 
     const unsub = useTaskStore.subscribe((state, prev) => {
+      if (state.googleConnected !== prev.googleConnected) probed = false
       // つながった・書き込めるようになったら、残っているものを送る
       if (state.googleCanWrite !== prev.googleCanWrite || state.googleConnected !== prev.googleConnected) {
-        if (canSend() && queue.size > 0) schedule(SEND_DELAY_MS)
+        if (state.googleConnected && hasSendable()) schedule(SEND_DELAY_MS)
       }
       const skipChanged = state.addons.googleSkip !== prev.addons.googleSkip
       if (state.tasks === prev.tasks && !skipChanged) return
       if (isIncomingChange() || isAdoptingFromOtherTab()) return
-      if (!canSend()) return
+      if (!mayQueue()) return
       const nextSkip = skipKeys()
       const ids = [
         ...(state.tasks === prev.tasks ? [] : changedForGoogle(prev.tasks, state.tasks, nextSkip)),
@@ -144,18 +179,20 @@ export function useGooglePush() {
         ...(skipChanged ? changedForGoogleSkip(state.tasks, googleSkipKeys(prev.addons.googleSkip), nextSkip, appTodayKey()) : []),
       ]
       if (ids.length === 0) return
-      ids.forEach((id) => queue.add(id))
-      saveQueue(userId, queue)
+      enqueuePush(userId, ids)
+      publishFailed()
       schedule(SEND_DELAY_MS)
     })
 
-    /** 待っているものを応答を待たずに送る（届かなければ覚えたまま、次に開いたときに送る） */
+    /** 待っているものを応答を待たずに送る（届かなければ覚えたまま、次に開いたときに送る）。一度に送る数は抑える */
     const flushOnLeave = () => {
       const token = accessTokenRef.current
-      if (!token || queue.size === 0 || !canSend()) return
+      if (!token || !canSend()) return
+      const ids = sendablePushIds(loadPushQueue(userId)).slice(0, LEAVE_SEND_MAX)
+      if (ids.length === 0) return
       clearTimeout(timer)
       const tasks = useTaskStore.getState().tasks
-      for (const taskId of queue) {
+      for (const taskId of ids) {
         const task = tasks.find((t) => t.id === taskId)
         const eventId = googleEventIdForTask(taskId)
         sendFunctionOnLeave(
@@ -174,18 +211,36 @@ export function useGooglePush() {
       else flushOnLeave()
     }
     const onOnline = () => void flush()
+    const onRetry = () => {
+      resetFailedPush(userId)
+      publishFailed()
+      retryMs = RETRY_MIN_MS
+      void flush()
+    }
+    // ほかのタブが待ちを変えた: 送れなかった数を合わせ、増えていれば送る
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== pushQueueKey(userId)) return
+      publishFailed()
+      if (hasSendable()) schedule(SEND_DELAY_MS)
+    }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('pagehide', flushOnLeave)
     window.addEventListener('online', onOnline)
-    if (queue.size > 0) schedule(SEND_DELAY_MS)
+    window.addEventListener(RETRY_EVENT, onRetry)
+    window.addEventListener('storage', onStorage)
+    publishFailed()
+    if (hasSendable()) schedule(SEND_DELAY_MS)
 
     return () => {
       cancelled = true
       clearTimeout(timer)
       unsub()
+      useTaskStore.getState().setGooglePushFailed(0)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('pagehide', flushOnLeave)
       window.removeEventListener('online', onOnline)
+      window.removeEventListener(RETRY_EVENT, onRetry)
+      window.removeEventListener('storage', onStorage)
     }
   }, [userId, loading])
 }

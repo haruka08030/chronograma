@@ -1554,6 +1554,10 @@ export default {
     disconnectConfirm:
       'Google カレンダーとの接続を解除しますか？ Google カレンダーの予定はそのまま残ります（このアプリには出なくなります）。',
   },
+  googlePush: {
+    failed: 'Google に送れていない予定が {{count}} 件',
+    retry: 'もう一度送る',
+  },
   notion: {
     title: 'Notion',
     needsLogin: 'Notion と連携するには、まずログインが必要です。',

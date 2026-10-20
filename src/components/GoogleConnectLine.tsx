@@ -7,11 +7,13 @@ import { CloseIcon } from './icons'
 import { tip } from '../lib/tooltip'
 import { notify } from '../lib/notify'
 import { ReconnectLine } from './ReconnectLine'
+import { retryGooglePush } from '../hooks/useGooglePush'
 
 /**
  * カレンダー上の Google カレンダー連携の 1 行。
  * 未接続なら「並べて比べられます · 接続する ×」。× で閉じたら出さない（接続は設定の「Google カレンダー」から）。
  * 接続中は何も出さず（日付バーの点で示す）、問題があるときだけ赤い 1 行を出す（切断は設定から）。
+ * 何度送っても Google に送れなかったアプリの予定があれば、その数と「もう一度送る」を灰色の 1 行で出す。
  * つながっていたのに切れたら、何が起きたかと「もう一度接続する」を出す（× では消さない。つなぎ直すか設定で外すまで）。
  */
 export function GoogleConnectLine({
@@ -25,6 +27,7 @@ export function GoogleConnectLine({
   const dismissed = useTaskStore((s) => s.googleConnectLineDismissed)
   const dismiss = useTaskStore((s) => s.dismissGoogleConnectLine)
   const { user, clientId, redirectUri, connected, reconnectNeeded, loading, error, connect } = useGoogleConnect()
+  const pushFailed = useTaskStore((s) => s.googlePushFailed)
 
   if (!clientId) {
     // 環境変数の不足はデプロイ側の問題なので、エンドユーザーには何も見せない
@@ -38,7 +41,19 @@ export function GoogleConnectLine({
   }
 
   if (connected) {
-    if (!error) return null
+    if (!error) {
+      if (pushFailed === 0) return null
+      // 何度送っても Google に送れなかったアプリの予定。急がないので赤くしない
+      return (
+        <ReconnectLine
+          quiet
+          className="pl-4 pr-2 md:pl-6 md:pr-4"
+          message={t('googlePush.failed', { count: pushFailed })}
+          actionLabel={t('googlePush.retry')}
+          onAction={retryGooglePush}
+        />
+      )
+    }
     return (
       <div className="flex shrink-0 items-center gap-2 px-4 py-2 text-xs md:px-6">
         <span className={`min-w-0 flex-1 ${ERROR_TEXT}`}>{error}</span>

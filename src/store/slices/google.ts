@@ -12,6 +12,7 @@ type GoogleActions = Pick<
   | 'setGoogleConnectionError'
   | 'setGoogleReconnectNeeded'
   | 'setGoogleCanWrite'
+  | 'setGooglePushFailed'
   | 'setGoogleUndo'
 >
 
@@ -42,6 +43,7 @@ export function createGoogleSlice({ set }: SliceContext): GoogleActions {
     setGoogleConnectionError: (error) => set({ googleConnectionError: error }),
     setGoogleReconnectNeeded: (needed) => set({ googleReconnectNeeded: needed }),
     setGoogleCanWrite: (canWrite) => set({ googleCanWrite: canWrite }),
+    setGooglePushFailed: (count) => set((s) => (s.googlePushFailed === count ? s : { googlePushFailed: count })),
 
     setGoogleUndo: (next) => set({ googleUndo: next ? { ...next, at: Date.now() } : null }),
   }
