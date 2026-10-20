@@ -641,7 +641,14 @@ export function WeekCalendarView({
         </div>
       </div>
 
-      <OverlaySuspense>
+      {/* 読めなかったら、遅れて読むカード（予定・Google の予定・作成）を閉じる */}
+      <OverlaySuspense
+        onLoadFailed={() => {
+          cards.closeCard()
+          cards.closeGoogleCard()
+          timelineDrag.dismissPopup()
+        }}
+      >
         <CalendarCards cards={cards} />
         {timelineDrag.popup && createAnchor && (
           <QuickCreatePopover

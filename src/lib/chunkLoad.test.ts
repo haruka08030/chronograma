@@ -1,4 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+const { flushPendingEdits, hasTypingInProgress } = vi.hoisted(() => ({
+  flushPendingEdits: vi.fn(),
+  hasTypingInProgress: vi.fn(() => false),
+}))
+vi.mock('./pendingEdits', () => ({ flushPendingEdits, hasTypingInProgress }))
+
 import { STALE_CHUNK_RELOAD_INTERVAL_MS, STALE_CHUNK_RELOAD_KEY, isChunkLoadError, reloadForStaleChunk } from './chunkLoad'
 
 describe('isChunkLoadError', () => {
@@ -24,6 +30,8 @@ describe('reloadForStaleChunk', () => {
   beforeEach(() => {
     store.clear()
     reload.mockReset()
+    flushPendingEdits.mockReset()
+    hasTypingInProgress.mockReset().mockReturnValue(false)
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-05T10:00:00Z'))
     vi.stubGlobal('sessionStorage', {
@@ -51,6 +59,22 @@ describe('reloadForStaleChunk', () => {
     vi.setSystemTime(Date.now() + STALE_CHUNK_RELOAD_INTERVAL_MS)
     expect(reloadForStaleChunk()).toBe(true)
     expect(reload).toHaveBeenCalledTimes(2)
+  })
+
+  it('読み込み直す前に書きかけをストアに入れる', () => {
+    flushPendingEdits.mockImplementation(() => expect(reload).not.toHaveBeenCalled())
+    expect(reloadForStaleChunk()).toBe(true)
+    expect(flushPendingEdits).toHaveBeenCalledTimes(1)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('欄に打っている途中なら読み込み直さない（次に開いたときに取り直す）', () => {
+    hasTypingInProgress.mockReturnValue(true)
+    expect(reloadForStaleChunk()).toBe(false)
+    expect(reload).not.toHaveBeenCalled()
+    // 見送った分は数えない（打ち終わってから開けば読み込み直せる）
+    hasTypingInProgress.mockReturnValue(false)
+    expect(reloadForStaleChunk()).toBe(true)
   })
 
   it('オフラインでは読み込み直さない', () => {

@@ -682,6 +682,7 @@ export default {
     restore: '自動バックアップから戻す',
     restoreConfirm: '{{date}} の自動バックアップで置き換えて開き直します。よろしいですか？',
     noBackup: '戻せる自動バックアップがありません。',
+    restoreFailed: '戻せませんでした。データを書き出してから、再読み込みしてください。',
     partFailed: 'この部分でエラーが起きたので閉じました。データは消えていません。',
     reload: '再読み込み',
     goToday: '今日を開く',

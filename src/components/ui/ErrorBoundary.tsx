@@ -36,7 +36,13 @@ async function restoreLatest(): Promise<string | null> {
 }
 
 export class ErrorBoundary extends Component<
-  { scope: 'app' | 'screen'; resetKey?: string; onLeave?: () => void; children: ReactNode },
+  {
+    scope: 'app' | 'screen'
+    resetKey?: string
+    /** 「今日を開く」。今日の画面にいるとき（押しても同じ画面）は渡さない */
+    onLeave?: () => void
+    children: ReactNode
+  },
   { error: Error | null; restoreError: string | null }
 > {
   state: { error: Error | null; restoreError: string | null } = { error: null, restoreError: null }
@@ -81,14 +87,15 @@ export class ErrorBoundary extends Component<
           {t(loadFailed ? 'crash.loadFailed' : scope === 'app' ? 'crash.appHelp' : 'crash.screenHelp')}
         </p>
         <div className="mt-1 flex flex-wrap justify-center gap-2">
-          {loadFailed && (
+          {/* 画面のエラーには常に「もう一度」（一時的なエラーなら描き直せば戻る。今日の画面そのものが落ちたときの逃げ道にも） */}
+          {(loadFailed || scope === 'screen') && (
             <button type="button" className={buttonClass({ variant: 'primary', size: 'md' })} onClick={() => this.retry()}>
               {t('crash.retry')}
             </button>
           )}
           <button
             type="button"
-            className={buttonClass({ variant: loadFailed ? 'secondary' : 'primary', size: 'md' })}
+            className={buttonClass({ variant: loadFailed || scope === 'screen' ? 'secondary' : 'primary', size: 'md' })}
             onClick={() => window.location.reload()}
           >
             {t('crash.reload')}
@@ -101,7 +108,15 @@ export class ErrorBoundary extends Component<
               <button
                 type="button"
                 className={buttonClass({ variant: 'secondary', size: 'md' })}
-                onClick={() => void restoreLatest().then((restoreError) => this.setState({ restoreError }))}
+                onClick={() =>
+                  void restoreLatest().then(
+                    (restoreError) => this.setState({ restoreError }),
+                    (err: unknown) => {
+                      console.error('[crash] restore failed', err)
+                      this.setState({ restoreError: i18n.t('crash.restoreFailed') })
+                    },
+                  )
+                }
               >
                 {t('crash.restore')}
               </button>
