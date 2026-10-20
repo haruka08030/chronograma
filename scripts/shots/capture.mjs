@@ -1011,7 +1011,7 @@ async function main() {
               const clicks = Array.isArray(screen.click) ? screen.click : [screen.click]
               for (const [i, sel] of clicks.entries()) {
                 await page.click(sel, i === 0 && screen.clickAt ? { position: screen.clickAt } : undefined)
-                // PC で題名を押すと、ダブルクリックを待ってから詳細が開く（TaskItem の DOUBLE_CLICK_MS）
+                // 開く動き・読み込みを待つ
                 await page.waitForTimeout(600)
               }
             }
