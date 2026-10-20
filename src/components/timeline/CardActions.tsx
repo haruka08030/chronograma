@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { PlayIcon } from '../icons'
+import { ClockIcon, PlayIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 
 /**
@@ -11,6 +11,7 @@ export function CardActions({
   complete,
   onStart,
   startDisabled = false,
+  place,
 }: {
   /** 始まった予定を記録にする（主役のボタン） */
   record?: { label: string; onClick: () => void }
@@ -20,9 +21,11 @@ export function CardActions({
   onStart?: () => void
   /** 同じものを記録中 */
   startDisabled?: boolean
+  /** 時間に置く（習慣の段のチップを格子の枠にする） */
+  place?: { label: string; onClick: () => void }
 }) {
   const { t } = useTranslation()
-  if (!record && !complete && !onStart) return null
+  if (!record && !complete && !onStart && !place) return null
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {record && (
@@ -40,6 +43,12 @@ export function CardActions({
         <button type="button" disabled={startDisabled} onClick={onStart} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
           <PlayIcon className="h-3 w-3" />
           {t('eventCard.startLog')}
+        </button>
+      )}
+      {place && (
+        <button type="button" onClick={place.onClick} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
+          <ClockIcon className="h-3 w-3" />
+          {place.label}
         </button>
       )}
     </div>

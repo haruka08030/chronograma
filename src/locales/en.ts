@@ -1440,6 +1440,7 @@ export default {
     habitDoneAsPlanned: 'Done as planned (log it)',
     dueMark: '“{{title}}” is due',
     dueMarkTime: '“{{title}}” is due by {{time}}',
+    habitPlace: 'Place on timeline',
     habitUndo: 'Mark as not done',
     eventToRecord: 'Turn into a record',
     blockTimeAnnounce: '“{{title}}” {{start}}–{{end}}',

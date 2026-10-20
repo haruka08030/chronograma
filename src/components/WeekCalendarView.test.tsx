@@ -483,6 +483,29 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(screen.queryByRole('menuitem', { name: /Move back to Habits row/ })).toBeNull()
   })
 
+  it('チップのカードの「時間に置く」で、習慣の時刻から目標の長さの枠になる（指でも置ける）', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const id = useTaskStore.getState().addHabit({
+      title: 'Stretch',
+      color: '#0B8043',
+      timeMode: 'fixed',
+      startTime: '07:00',
+      endTime: null,
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: 20,
+    })
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    const slotId = `habit-slot::${id}::2026-10-08`
+    fireEvent.click(view.container.querySelector<HTMLElement>(`[data-block-id="${slotId}"]`)!)
+    const card = await screen.findByRole('dialog', { name: 'Stretch' })
+    fireEvent.click(within(card).getByRole('button', { name: 'Place on timeline' }))
+    expect(useTaskStore.getState().habits[0]!.timeOverrides?.['2026-10-08']).toEqual({ startTime: '07:00', endTime: '07:20' })
+    expect(view.container.querySelector(`[data-datekey="2026-10-08"] [data-block-id="${slotId}"]`)).not.toBeNull()
+  })
+
   it('今日の計画（1 日表示）には習慣の段を出さない', () => {
     useTaskStore.setState({ habits: [], tasks: [] })
     useTaskStore.getState().addHabit({

@@ -5,12 +5,12 @@ import { isLogTask, type Task } from '../types/task'
 import { canCopyOnDrop, placeCopies } from './dragCopy'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { isPlacedPointHabitOn, parseHabitSlotId, habitToPlannedItem } from './habitSlots'
-import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
+import { buildHabitRecordIndex, habitDayStatus, habitTimesOn } from './habitTiming'
 import { canEditGoogleEvent, moveGoogleEvent } from './googleEventEdit'
 import { googleEventTiming, movedGoogleEventTiming } from './googleCalendar'
 import { googleEventCrossesDay } from './googleEventSpan'
 import { SNAP_MINUTES, timeToMinutes } from './timeGrid'
-import { minutesToTime } from './clockTime'
+import { endWithinDay, minutesToTime } from './clockTime'
 import { toDateKey } from './dateKey'
 import { shortDate } from './moveToast'
 import { zonedNow } from './timeZone'
@@ -274,5 +274,20 @@ export function unplaceHabitSlot(slotId: string): boolean {
   const habit = habits.find((h) => h.id === slot.habitId)
   if (!habit || !isPlacedPointHabitOn(habit, slot.dateKey)) return false
   clearHabitDayTime(habit.id, slot.dateKey, { key: 'undo.habitUnplaced', params: { name: habit.title, date: shortDate(slot.dateKey) } })
+  return true
+}
+
+/**
+ * 習慣の段のチップを、その日だけ習慣の時刻からの枠にする（カードの「時間に置く」。指ではドラッグできないため）。
+ * 長さは「1 回の目標」、無ければ既定の予定の長さ
+ */
+export function placeHabitSlot(slotId: string): boolean {
+  const slot = parseHabitSlotId(slotId)
+  if (!slot) return false
+  const { habits, defaultBlockMinutes } = useTaskStore.getState()
+  const habit = habits.find((h) => h.id === slot.habitId)
+  const times = habit ? habitTimesOn(habit, slot.dateKey) : null
+  if (!habit || !times || times.endTime !== null) return false
+  setHabitDayTimeFromSlot(slot, times.startTime, endWithinDay(times.startTime, habit.goalMinutes ?? defaultBlockMinutes))
   return true
 }
