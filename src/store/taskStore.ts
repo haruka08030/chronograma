@@ -14,7 +14,14 @@ import { normalizeLabelIds } from '../lib/labelIds'
 import { normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/courseLinks'
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
-import { createPersistStorage, markRawKnown, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
+import {
+  blockPersisting,
+  createPersistStorage,
+  markRawKnown,
+  readChangedRaw,
+  setPersistWriteHandlers,
+  withoutPersisting,
+} from '../lib/persistStorage'
 import { RECOVERED_LOCAL_KEY, onOtherTabChange, readStored, refreshStored, usingIndexedDb, writeStored } from '../lib/dataStore'
 import { mergeRecoveredState } from './recoverLocal'
 import {
@@ -37,7 +44,7 @@ import {
 import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, TaskState } from './storeTypes'
 import type { SyncState } from '../types/sync'
 import { defaultLogCategories, initialLists } from './storeDefaults'
-import { migrateTaskState } from './migrate'
+import { migratePersistedState, migrateTaskState } from './migrate'
 import { createUndoHistory } from './undo'
 import { createSectionsSlice } from './slices/sections'
 import { createTaskTreeSlice } from './slices/taskTree'
@@ -258,10 +265,11 @@ export const useTaskStore = create<TaskState>()(
       version: STORE_VERSION,
       storage: createPersistStorage<TaskState>(),
       // 読み込み（migrate）に失敗すると初期状態のまま動き、次の保存で元のデータを上書きしていた。
-      // 上書きされる前に、保存されていた中身を別のキーへ写しておく（設定 → データ の書き出しとは別に残る）
+      // 保存を止め（#485）、保存されていた中身を別のキーへ写しておく（バナーから書き出せる。`StorageFullBanner`）
       onRehydrateStorage: () => (_state, error) => {
         if (!error) return
         console.error('[storage] could not load saved data', error)
+        blockPersisting('unreadable')
         preserveUnreadableStorage('load', error)
       },
       // 一覧が配列でない・中身が壊れた行は、画面を描く前（読み込んだ直後の処理）で落ちて真っ白になる。
@@ -297,7 +305,7 @@ export const useTaskStore = create<TaskState>()(
         }
         return merged
       },
-      migrate: migrateTaskState,
+      migrate: migratePersistedState,
       // 保存するのはデータと設定だけ（一覧は persistKeys.ts）。画面の状態は別の保存先、通知・同期の状態は保存しない
       partialize: (state) => pickKeys(state as unknown as Record<string, unknown>, DATA_KEYS) as unknown as TaskState,
     },
