@@ -70,3 +70,11 @@ describe('毎日の控え（#257）', () => {
     expect(await listAutoBackups('u1')).toHaveLength(1)
   })
 })
+
+describe('To-Do が 0 件のとき（#486）', () => {
+  it('習慣・リストなどがあれば控える。何も無ければ控えない', async () => {
+    expect(await saveAutoBackup('beforeSignOut', '2026-10-13', [], '{"habits":[1]}', 'u1', true)).toBe(true)
+    expect(await saveAutoBackup('beforeSignOut', '2026-10-13', [], '{}', 'u1')).toBe(false)
+    expect((await listAutoBackups('u1')).map((b) => b.kind)).toEqual(['beforeSignOut'])
+  })
+})

@@ -23,7 +23,7 @@ import {
   type SyncRound,
 } from '../lib/supabaseData'
 import { loadSettingSyncedAt, runSettingSync, type SettingKey, type SettingSyncDeps } from '../lib/settingSync'
-import { clearAccountData, clearDeletedAccount, clearPreviousAccount, isAccountGone } from '../lib/accountBoundary'
+import { backupBeforeClearing, clearAccountData, clearDeletedAccount, clearPreviousAccount, isAccountGone } from '../lib/accountBoundary'
 import { askConfirm } from '../lib/confirmDialog'
 import i18n from '../i18n/config'
 import { requestPersistentStorage } from '../lib/persistentStorage'
@@ -269,6 +269,11 @@ export function useSupabaseSync() {
     let lastBeforeSyncBackup = -Infinity
     /** サーバーの行を大量に消してよいと答えた（送るのに失敗して回り直しても聞き直さない。同期し終えたら戻す） */
     let massDeleteApproved = false
+    /**
+     * 手元を消す前の控えを取れず、利用者が取消を選んだ（#486）。手元のデータを消さず、このアカウントにも送らない
+     * （開き直すともう一度聞く）
+     */
+    let holdLocal = false
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
@@ -278,7 +283,7 @@ export function useSupabaseSync() {
         const nextIds = new Set(next.tasks.map((t) => t.id))
         if (cur.tasks.some((t) => !nextIds.has(t.id))) {
           lastBeforeSyncBackup = Date.now()
-          backupNow('beforeSync')
+          void backupNow('beforeSync')
         }
       }
       const listIds = new Set(next.lists.map((l) => l.id))
@@ -512,6 +517,7 @@ export function useSupabaseSync() {
     const syncOnce = (): Promise<boolean> => withSyncLock(userId, syncOnceLocked)
 
     const syncOnceLocked = async (): Promise<boolean> => {
+      if (holdLocal) return false
       // 待っている間に他のタブが同期して保存した内容（手元のデータと控え）にそろえてから始める
       adoptOtherTabChanges()
       // 差分を取る（変わった行と消えた行の印だけ）。この端末でこの人として初めての同期は全部を取る。
@@ -582,7 +588,11 @@ export function useSupabaseSync() {
         // 別の人のデータが残っている（ログアウトの処理を通らずにアカウントが替わった）。
         // 混ぜてこの人のアカウントに送らないよう、控えを取ってから空にして、この人のデータを取り込む
         // 前の人の通知の購読もここで外す（ログアウトの道しか外していなかった）
-        clearPreviousAccount()
+        if (!(await clearPreviousAccount())) {
+          holdLocal = true
+          return false
+        }
+        if (cancelled) return true
       }
       // ログインせずに作ったデータは、前回同期の控え（baseline）と比べると、この人のクラウドの行が
       // 全部「この端末で消された」に見える。初回同期と同じく、両方を残して取り込む
@@ -645,10 +655,15 @@ export function useSupabaseSync() {
           } else {
             // 入れない: アカウントには送らず、持ち主のいない控え（ログアウトすると自動バックアップに出る）に残して、
             // 手元はアカウントの内容だけにする。ラベル表・他のタイムゾーン・取り消しの履歴もログインする前のものなので初期に戻す
-            backupNow('beforeSignIn', null)
+            // 控えを取り終えてから消す。取れずに取消を選んだら消さない（#486）
+            if (!(await backupBeforeClearing('beforeSignIn', null))) {
+              holdLocal = true
+              return false
+            }
+            if (cancelled) return true
             applyingRef.current = true
             try {
-              clearAccountData(null, { backup: false })
+              void clearAccountData(null, { backup: false })
             } finally {
               applyingRef.current = false
             }
@@ -679,7 +694,8 @@ export function useSupabaseSync() {
         if (!massDeleteApproved && isMassDelete(local, remote, baseline, result.deletes)) {
           // サーバーの行を大量に消す（#484）。読めなかった行・取り違えた控えで全端末から消さないよう、消える行も入れた控えを取ってから確かめる
           const count = Object.values(result.deletes).reduce((n, ids) => n + ids.length, 0)
-          backupNow('beforeSync', userId, mergeWithoutBaseline(local, remote))
+          await backupNow('beforeSync', userId, mergeWithoutBaseline(local, remote))
+          if (cancelled) return true
           const ok = await askConfirm({
             title: i18n.t('sync.massDeleteTitle', { count }),
             message: i18n.t('sync.massDelete', { count }),

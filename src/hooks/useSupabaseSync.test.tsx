@@ -37,7 +37,7 @@ vi.mock('../lib/errorReport', async (importOriginal) => ({
 }))
 vi.mock('./useAutoBackup', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./useAutoBackup')>()),
-  backupNow: vi.fn(),
+  backupNow: vi.fn(async () => true),
 }))
 
 // 通知の購読（Service Worker）は jsdom に無いので、外したか・購読し直したかだけ見る
@@ -159,6 +159,28 @@ describe('useSupabaseSync', () => {
       )
     })
 
+    it('入れないと答えても、控えを取れず取消を選んだら手元を消さず、アカウントにも送らない（#486）', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('r1', { title: 'from account' }))
+      useTaskStore.getState().addTask('someone else offline')
+      vi.mocked(backupNow).mockResolvedValueOnce(false)
+      // 入れるか → 入れない。控えを取れなかったので書き出して進むか → 取消
+      confirm.ask.mockResolvedValue(false)
+
+      signIn('u1')
+      for (let i = 0; i < 50 && confirm.ask.mock.calls.length < 2; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10)
+        })
+      }
+
+      expect(confirm.ask).toHaveBeenCalledTimes(2)
+      expect(confirm.ask.mock.calls[1]![0].confirmLabel).toBe(i18n.t('accountBackup.exportAndContinue'))
+      expect(storeTitles()).toEqual(['someone else offline'])
+      expect(serverTitles('u1')).toEqual(['from account'])
+      expect(useTaskStore.getState().dataOwner).toBeNull()
+    })
+
     it('アカウントが空なら聞かずに送る', async () => {
       useTaskStore.getState().addTask('made offline')
 
@@ -213,7 +235,7 @@ describe('useSupabaseSync', () => {
       env.user = null
       hook.rerender()
       useTaskStore.getState().addTask('left over')
-      clearLocalAccountState('u1')
+      await clearLocalAccountState('u1')
       expect(useTaskStore.getState().tasks).toEqual([])
       expect(beforeSignOutBackups()).toEqual([])
     })
@@ -468,7 +490,7 @@ describe('useSupabaseSync', () => {
 
       env.user = null
       hook.rerender()
-      clearLocalAccountState('u1')
+      await clearLocalAccountState('u1')
       expect(useTaskStore.getState().timeLogTagPresets).not.toContain('A社 面接')
       expect(useTaskStore.getState().logLabelsUpdatedAt).toBeNull()
       expect(push.detach).toHaveBeenCalled()

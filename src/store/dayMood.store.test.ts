@@ -13,7 +13,7 @@ vi.mock('../i18n/config', () => ({
   default: { t: (k: string, o?: { returnObjects?: boolean }) => (o?.returnObjects ? [] : k), language: 'ja' },
 }))
 vi.mock('../lib/webPush', () => ({ detachWebPush: vi.fn(async () => {}), resyncWebPush: vi.fn(async () => {}) }))
-vi.mock('../hooks/useAutoBackup', () => ({ backupNow: vi.fn() }))
+vi.mock('../hooks/useAutoBackup', () => ({ backupNow: vi.fn(async () => true) }))
 
 const { useTaskStore } = await import('./taskStore')
 const { DATA_KEYS } = await import('./persistKeys')
@@ -62,12 +62,12 @@ describe('1 日の気分（#324）', () => {
     expect(DATA_KEYS).toContain('dayMoods')
   })
 
-  it('ログアウト・アカウントが替わったら前の人の気分は手元から消える', () => {
+  it('ログアウト・アカウントが替わったら前の人の気分は手元から消える', async () => {
     S().setDayMood(DAY, { mood: 1, note: '内緒' })
-    clearLocalAccountState('u1')
+    await clearLocalAccountState('u1')
     expect(S().dayMoods).toEqual({})
     S().setDayMood(DAY, { mood: 1, note: '内緒' })
-    clearPreviousAccount()
+    await clearPreviousAccount()
     expect(S().dayMoods).toEqual({})
   })
 })

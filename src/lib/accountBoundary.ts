@@ -13,6 +13,8 @@ import { clearSignedOutLeftovers, clearSyncMirrors } from './deviceCleanup'
 import { forgetGoogleConnected } from './googleConnectedHint'
 import { clearGoogleEventCache } from './googleEventCache'
 import { clearDialogDrafts } from './dialogDrafts'
+import { askConfirm } from './confirmDialog'
+import i18n from '../i18n/config'
 
 /** もう無いと分かったアカウント（別の端末で消された）。この後の SIGNED_OUT で控えを取らない */
 const goneAccounts = new Set<string>()
@@ -50,7 +52,7 @@ export async function isAccountGone(sb: SupabaseClient, jwt?: string): Promise<b
  */
 export async function clearDeletedAccount(userId: string): Promise<void> {
   goneAccounts.add(userId)
-  clearAccountData(userId, { backup: false })
+  await clearAccountData(userId, { backup: false })
   clearBaseline(userId)
   clearSettingSyncedAt(userId)
   clearSyncMirrors()
@@ -58,17 +60,52 @@ export async function clearDeletedAccount(userId: string): Promise<void> {
 }
 
 /**
- * 手元のその人のデータ（タスク・リスト・習慣・セクション・ラベル表・他のタイムゾーン・予定の色）とダイアログの書きかけを空にする。
- * 送れていなかった変更が消えないよう、データがあれば先に端末内に控えを取る（持ち主は `owner`）
+ * 手元を消す前の控え（#486）。控えを取り終えるまで待ち、取れなければ消さずに、書き出してから進むかを聞く。
+ * 進んでよければ true（書き出すと答えたら書き出してから）、取消なら false
  */
-export function clearAccountData(owner: string | null, opts: { backup?: boolean } = {}): void {
+export async function backupBeforeClearing(kind: 'beforeSignOut' | 'beforeSignIn', owner: string | null): Promise<boolean> {
+  if (await backupNow(kind, owner)) return true
+  const ok = await askConfirm({
+    title: i18n.t('accountBackup.failedTitle'),
+    message: i18n.t('accountBackup.failed'),
+    confirmLabel: i18n.t('accountBackup.exportAndContinue'),
+  })
+  if (!ok) return false
+  useTaskStore.getState().exportData()
+  return true
+}
+
+/** 消している途中（控えを待っている・聞いている間）。ログアウトのボタンと SIGNED_OUT の両方から来るので 1 回にまとめる */
+let clearing: Promise<boolean> | null = null
+
+/**
+ * 手元のその人のデータ（タスク・リスト・習慣・セクション・ラベル表・他のタイムゾーン・予定の色）を空にし、空にしたかを返す。
+ * 送れていなかった変更が消えないよう、データがあれば先に端末内に控えを取り、取り終えてから消す（持ち主は `owner`）。
+ * 控えを取れず、利用者が取消を選んだら消さずに false。`backup: false` は控えを待たないので、呼んだその場で空にする
+ */
+export function clearAccountData(owner: string | null, opts: { backup?: boolean } = {}): Promise<boolean> {
   const store = useTaskStore.getState()
   // 一度も同期できていない（dataOwner が null の）データも、ログインしていた人のものなので消す。控えは残る
   const hasData = store.dataOwner !== null || store.tasks.length > 0 || store.habits.length > 0
-  if (hasData && opts.backup !== false) backupNow('beforeSignOut', store.dataOwner ?? owner)
-  store.resetLocalData()
-  // 閉じたダイアログの書きかけも次の人に見せない
-  clearDialogDrafts()
+  if (!hasData || opts.backup === false) {
+    store.resetLocalData()
+    // 閉じたダイアログの書きかけも次の人に見せない
+    clearDialogDrafts()
+    return Promise.resolve(true)
+  }
+  if (clearing) return clearing
+  const run = (async () => {
+    try {
+      if (!(await backupBeforeClearing('beforeSignOut', store.dataOwner ?? owner))) return false
+      useTaskStore.getState().resetLocalData()
+      clearDialogDrafts()
+      return true
+    } finally {
+      clearing = null
+    }
+  })()
+  clearing = run
+  return run
 }
 
 /**
@@ -76,7 +113,7 @@ export function clearAccountData(owner: string | null, opts: { backup?: boolean 
  * 保存データの写し・連携の前回取り込んだ値（題名）・前回同期の控えの中身も消す（`deviceCleanup.ts`。共用の端末で次の人の手元に残さない）。
  * Google の連携はサーバー側のアカウントに付いているので切らない（1 台でログアウトすると全端末の連携が外れた）
  */
-export function clearLocalAccountState(userId: string | null): void {
+export async function clearLocalAccountState(userId: string | null): Promise<void> {
   const store = useTaskStore.getState()
   store.setGoogleConnected(false)
   forgetGoogleConnected()
@@ -88,15 +125,18 @@ export function clearLocalAccountState(userId: string | null): void {
   void detachWebPush()
   // 消えたアカウントのデータは控えない（消した人の写しを端末に残さない）
   const gone = userId !== null && goneAccounts.delete(userId)
-  clearAccountData(userId, { backup: !gone })
+  // 控えを取れずに取消を選んだら、手元のデータも前回同期の控えなども残す
+  if (!(await clearAccountData(userId, { backup: !gone }))) return
   clearSignedOutLeftovers()
 }
 
 /**
  * ログアウトせずにアカウントが替わった（別のアカウントのログインのリンクを開いたなど）。前の人のデータを控えて空にし、
- * 前の人の通知の購読を外してから、今の人で購読し直す（前の人の endpoint の行は RLS で今の人には書けない）
+ * 前の人の通知の購読を外してから、今の人で購読し直す（前の人の endpoint の行は RLS で今の人には書けない）。
+ * 控えを取れずに取消を選んだら空にせず false
  */
-export function clearPreviousAccount(): void {
-  clearAccountData(null)
+export async function clearPreviousAccount(): Promise<boolean> {
+  if (!(await clearAccountData(null))) return false
   void detachWebPush().then(() => resyncWebPush())
+  return true
 }

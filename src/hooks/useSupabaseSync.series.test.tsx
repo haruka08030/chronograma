@@ -27,7 +27,7 @@ vi.mock('../lib/errorReport', async (importOriginal) => ({
 }))
 vi.mock('./useAutoBackup', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./useAutoBackup')>()),
-  backupNow: vi.fn(),
+  backupNow: vi.fn(async () => true),
 }))
 
 let db: ReturnType<typeof fakeDb>
