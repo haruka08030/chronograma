@@ -36,6 +36,7 @@ export function UndoToast() {
   const googleUndo = useTaskStore((s) => s.googleUndo)
   const setGoogleUndo = useTaskStore((s) => s.setGoogleUndo)
   const undoLastOperation = useTaskStore((s) => s.undoLastOperation)
+  const undoOperation = useTaskStore((s) => s.undoOperation)
   const undoDelete = useTaskStore((s) => s.undoDelete)
   const clearDeletedTasks = useTaskStore((s) => s.clearDeletedTasks)
   const clearUndoBanner = useTaskStore((s) => s.clearUndoBanner)
@@ -102,9 +103,13 @@ export function UndoToast() {
             if (kind === 'google') {
               undoGoogleDelete()
             } else if (kind === 'deleted') {
-              if (!undoLastOperation()) undoDelete()
+              // トーストに出ている削除だけを戻す（あとにした別の操作は残す）。新しい削除から順に
+              for (const batch of [...recentDeletes].reverse()) {
+                if (batch.undoId === undefined || !undoOperation(batch.undoId)) undoDelete()
+              }
             } else {
-              undoLastOperation()
+              if (undoBanner?.undoId !== undefined) undoOperation(undoBanner.undoId)
+              else undoLastOperation()
               clearUndoBanner()
             }
             setVisible(false)

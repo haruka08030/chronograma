@@ -50,11 +50,13 @@ export function createEventSeriesSlice({ set, get, undo }: SliceContext): EventS
       const ids = seriesScopeIds(s0.tasks, task, scope)
       const targets = s0.tasks.filter((t) => ids.has(t.id) && !t.deletedAt)
       if (targets.length === 0) return 0
-      pushUndo(targets.length > 1 ? { key: 'undo.eventsDeleted', params: { title: task.title, count: targets.length } } : undefined)
+      const undoId = pushUndo(
+        targets.length > 1 ? { key: 'undo.eventsDeleted', params: { title: task.title, count: targets.length } } : undefined,
+      )
       const nowIso = new Date().toISOString()
       set((s) => ({
         tasks: s.tasks.map((t) => (ids.has(t.id) && !t.deletedAt ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t)),
-        recentDeletes: [...s.recentDeletes, { ids: targets.map((t) => t.id), at: Date.now() }],
+        recentDeletes: [...s.recentDeletes, { ids: targets.map((t) => t.id), at: Date.now(), undoId }],
       }))
       return targets.length
     },

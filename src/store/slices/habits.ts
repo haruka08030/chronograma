@@ -157,8 +157,8 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         return
       }
       // その日の習慣の記録（チェックで作った記録・同じ名前の記録）も一緒に外す。ゴミ箱から戻せる
-      pushUndo()
-      const env = { now: new Date().toISOString(), deletedAt: Date.now() }
+      const undoId = pushUndo()
+      const env = { now: new Date().toISOString(), deletedAt: Date.now(), undoId }
       set((s) => uncheckHabitDatePatch(s, habitId, dateKey, env) ?? s)
     },
     completeHabitAsPlanned: (habitId, dateKey) => {

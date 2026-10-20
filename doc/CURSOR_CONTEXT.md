@@ -210,6 +210,10 @@
 - **⌘/Ctrl+⇧Z**: 直前に ⌘Z で戻した操作をやり直す（`redoLastOperation()`、
   redo スタックも最大約 50 段）。新しいデータ操作（`pushUndo`）が走ると redo
   スタックはクリアされる。入力欄フォーカス時はブラウザ標準を優先
+- **「元に戻す」トースト**: トーストは自分の取り消し項目の番号（`undoBanner.undoId`・`recentDeletes[].undoId`。
+  `pushUndo` の戻り値）を持ち、`undoOperation(id)` でその操作だけを戻す（あとにした別の操作は残す）。
+  あとの操作も同じ行を変えていたら、その操作が変えた項目だけを戻す（`rebaseEntry`）。
+  他のタブの変更を取り込んでも ⌘Z の履歴は残す（行ごとに戻すので、取り込んだ行は戻さない）
 
 ### DnD（`DndContext`）
 
