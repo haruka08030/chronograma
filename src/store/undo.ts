@@ -18,7 +18,15 @@ const MAX_UNDO = 50
 const COLLECTIONS = ['tasks', 'lists', 'sections', 'habits'] as const
 type CollectionKey = (typeof COLLECTIONS)[number]
 /** ⌘Z で戻す端末の設定（行ではなく値ごと） */
-const SETTINGS = ['timeLogTagPresets', 'logCategoryColors', 'logLabelTargets', 'logLabelIds'] as const
+const SETTINGS = [
+  'timeLogTagPresets',
+  'logCategoryColors',
+  'logLabelTargets',
+  'logLabelIds',
+  'eventTemplates',
+  'timetable',
+  'addons',
+] as const
 type SettingKey = (typeof SETTINGS)[number]
 
 type Row = { id: string; updatedAt?: string }
@@ -68,6 +76,9 @@ function dataView(s: TaskState): DataView {
     logCategoryColors: s.logCategoryColors,
     logLabelTargets: s.logLabelTargets,
     logLabelIds: s.logLabelIds,
+    eventTemplates: s.eventTemplates,
+    timetable: s.timetable,
+    addons: s.addons,
   }
 }
 

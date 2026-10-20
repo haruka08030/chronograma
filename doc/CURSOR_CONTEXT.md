@@ -214,6 +214,12 @@
   `pushUndo` の戻り値）を持ち、`undoOperation(id)` でその操作だけを戻す（あとにした別の操作は残す）。
   あとの操作も同じ行を変えていたら、その操作が変えた項目だけを戻す（`rebaseEntry`）。
   他のタブの変更を取り込んでも ⌘Z の履歴は残す（行ごとに戻すので、取り込んだ行は戻さない）
+- **取り消しの対象**: 行は `tasks` / `lists` / `sections` / `habits`、値ごとに戻す設定はラベル表（`timeLogTagPresets` /
+  `logCategoryColors` / `logLabelTargets` / `logLabelIds`）・よく入れる予定 `eventTemplates`・時間割 `timetable`（欠席・休める回数も）・
+  追加機能 `addons`（支払い・期限の日）。トーストを出すもの: 繰り返しの変更で外れた回（「N 回分を削除しました」）・「全部外す」（「N 件のチェックを外しました」）・
+  ラベルの削除（名前を空にしたラベルも数える）・支払いの削除。動いている記録の「破棄」は ⌘Z の履歴に入れず、破棄した 1 つを取っておき
+  トーストから戻す（`undoBanner.restoreTimer`・`restoreDiscardedTimer`。ほかの記録が動いていれば戻さない）。
+  取り込みの控え（`importRollback`）とバックアップにはラベルの週の目安 `logLabelTargets` も入る（無いファイルは今の目安のまま）
 
 ### DnD（`DndContext`）
 

@@ -52,6 +52,7 @@ const mondays: EventSeries = { id: 's1', weekdays: [1], until: '2026-11-02', ski
 /** 2026-10-05 から 11-02 までの月曜（10/12 はスポーツの日） */
 const MONDAYS = ['2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02']
 const series = (list: string[], s = mondays) => list.map((d, i) => event(`c${i}`, d, s))
+const live = (tasks: Task[]) => tasks.filter((t) => !t.deletedAt)
 const dates = (tasks: Task[]) =>
   tasks
     .filter((t) => !t.deletedAt)
@@ -148,7 +149,11 @@ describe('繰り返しを付ける・変える・やめる', () => {
   it('最初の回から曜日を変えると、当てはまらない回を外して足りない日の回を作る（同じ印のまま）', () => {
     const out = changeSeriesRule(series(MONDAYS), 'c0', { weekdays: [1, 3], until: '2026-10-14', skipHolidays: false }, NOW, ids())!
     expect(dates(out)).toEqual(['2026-10-05', '2026-10-07', '2026-10-12', '2026-10-14'])
-    expect(new Set(out.map((t) => t.series!.id))).toEqual(new Set(['s1']))
+    expect(new Set(live(out).map((t) => t.series!.id))).toEqual(new Set(['s1']))
+    // 外れた回（10/19 から後の月曜）はゴミ箱へ入れ、繰り返しの印は外す
+    const trashed = out.filter((t) => t.deletedAt)
+    expect(trashed.map((t) => t.scheduledDate)).toEqual(['2026-10-19', '2026-10-26', '2026-11-02'])
+    expect(trashed.every((t) => !t.series && t.deletedAt === NOW)).toBe(true)
   })
 
   it('途中の回から変えると、その回から後を新しい印に分け、前の回の終わりの日を前の回の最後の日にする', () => {
@@ -156,7 +161,7 @@ describe('繰り返しを付ける・変える・やめる', () => {
     const before = out.filter((t) => t.series?.id === 's1')
     expect(before.map((t) => t.scheduledDate)).toEqual(['2026-10-05', '2026-10-12'])
     expect(before.every((t) => t.series!.until === '2026-10-12')).toBe(true)
-    const after = out.filter((t) => t.series?.id !== 's1')
+    const after = live(out).filter((t) => t.series?.id !== 's1')
     // その回（10/19 月）は残し、火曜の回を作る
     expect(after.map((t) => t.scheduledDate).sort()).toEqual(['2026-10-19', '2026-10-20', '2026-10-27', '2026-11-03'])
     expect(new Set(after.map((t) => t.series!.id)).size).toBe(1)
@@ -171,7 +176,7 @@ describe('繰り返しを付ける・変える・やめる', () => {
   it('祝日を除くに変えると、祝日の回を外す', () => {
     const out = changeSeriesRule(series(MONDAYS), 'c0', { ...mondays, skipHolidays: true }, NOW, ids())!
     expect(dates(out)).not.toContain('2026-10-12')
-    expect(out.every((t) => t.series!.skipHolidays)).toBe(true)
+    expect(live(out).every((t) => t.series!.skipHolidays)).toBe(true)
   })
 
   it('やめると、その回より後を外し、その回は繰り返さない予定になる', () => {

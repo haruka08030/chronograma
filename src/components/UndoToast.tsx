@@ -37,6 +37,7 @@ export function UndoToast() {
   const setGoogleUndo = useTaskStore((s) => s.setGoogleUndo)
   const undoLastOperation = useTaskStore((s) => s.undoLastOperation)
   const undoOperation = useTaskStore((s) => s.undoOperation)
+  const restoreDiscardedTimer = useTaskStore((s) => s.restoreDiscardedTimer)
   const undoDelete = useTaskStore((s) => s.undoDelete)
   const clearDeletedTasks = useTaskStore((s) => s.clearDeletedTasks)
   const clearUndoBanner = useTaskStore((s) => s.clearUndoBanner)
@@ -108,7 +109,8 @@ export function UndoToast() {
                 if (batch.undoId === undefined || !undoOperation(batch.undoId)) undoDelete()
               }
             } else {
-              if (undoBanner?.undoId !== undefined) undoOperation(undoBanner.undoId)
+              if (undoBanner?.restoreTimer) restoreDiscardedTimer()
+              else if (undoBanner?.undoId !== undefined) undoOperation(undoBanner.undoId)
               else undoLastOperation()
               clearUndoBanner()
             }

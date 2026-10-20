@@ -166,7 +166,8 @@ export function occurrenceFrom(base: Task, date: string, series: EventSeries, id
  * - 繰り返しを変える: その回から後で当てはまらなくなった回を外し（1 回だけ消した回の日は作り直さない）、足りない日の回を作る。
  *   その回より前の回があれば、その回から後は新しい印にして分ける（前の回の終わりの日は前の回の最後の日にする）
  * - やめる（`rule` が null）: その回より後の回を外し、その回は繰り返さない予定にする
- * 外した回は行ごと消す（作り直しの一部なのでゴミ箱には入れない。元に戻すは ⌘Z・取り消しの通知）
+ * 外した回はゴミ箱へ入れる（回ごとのメモ・場所も戻せるように）。繰り返しの印は外す
+ * （印を残すと、あとで同じ日を戻したときに「1 回だけ消した回」と読み違えて作り直さない）
  */
 export function changeSeriesRule(
   tasks: readonly Task[],
@@ -201,6 +202,8 @@ export function changeSeriesRule(
     lastEarlier && t.series && t.series.until !== lastEarlier ? { ...t, series: { ...t.series, until: lastEarlier }, updatedAt: now } : t
   const isEarlier = (t: Task) => sameSeries(t) && !t.deletedAt && (t.scheduledDate ?? '') < date
   const isFollowing = (t: Task) => sameSeries(t) && (t.scheduledDate ?? '') >= date
+  /** 外れた回: ゴミ箱へ入れ、繰り返しの印は外す */
+  const dropped = (t: Task): Task => withSeries({ ...t, deletedAt: now, updatedAt: now }, null)
 
   if (!rule) {
     const out: Task[] = []
@@ -210,6 +213,7 @@ export function changeSeriesRule(
         out.push(withSeries({ ...t, updatedAt: now }, null))
         changed = true
       } else if (isFollowing(t) && !t.deletedAt) {
+        out.push(dropped(t))
         changed = true
       } else if (isEarlier(t)) {
         const next = closeEarlier(t)
@@ -233,9 +237,12 @@ export function changeSeriesRule(
       out.push(same ? t : { ...t, series, updatedAt: now })
       if (!same) changed = true
     } else if (isFollowing(t)) {
-      // 当てはまらなくなった回。消した回はゴミ箱に残す
+      // 当てはまらなくなった回はゴミ箱へ。前から消してあった回はそのまま
       if (t.deletedAt) out.push(t)
-      else changed = true
+      else {
+        out.push(dropped(t))
+        changed = true
+      }
     } else if (isEarlier(t)) {
       const next = closeEarlier(t)
       if (next !== t) changed = true

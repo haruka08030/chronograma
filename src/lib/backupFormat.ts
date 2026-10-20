@@ -20,6 +20,7 @@ import { readEventSeries } from './eventSeries'
 import { readMovedPlans } from './movedPlans'
 import { readDreamId, readSomedayTier } from './somedayTier'
 import { isLabelId, normalizeLabelIds } from './labelIds'
+import { normalizeLabelTargets } from './labelTargets'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -44,6 +45,8 @@ export interface BackupExportInput {
   logCategoryColors: Record<string, string>
   /** ラベルの id（#365）。名前を変えたラベルだけ */
   logLabelIds?: Record<string, string>
+  /** ラベルの週の目安（名前 → 分） */
+  logLabelTargets?: Record<string, number>
 }
 
 export interface BackupImportResult {
@@ -56,6 +59,8 @@ export interface BackupImportResult {
   logCategoryColors: Record<string, string> | null
   /** ラベルの id（#365）。旧バックアップには無い（名前から決まる id になり、行は名前・色から付け直す） */
   logLabelIds: Record<string, string>
+  /** ラベルの週の目安。旧バックアップには無い（無ければ今の目安のまま） */
+  logLabelTargets?: Record<string, number>
 }
 
 /** 取り込めない理由。画面側で文言にする（`backupProblemText`） */
@@ -363,6 +368,7 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
     timeLogTagPresets: input.timeLogTagPresets,
     logCategoryColors: input.logCategoryColors,
     logLabelIds: input.logLabelIds ?? {},
+    ...(input.logLabelTargets ? { logLabelTargets: input.logLabelTargets } : {}),
   }
 }
 
@@ -412,6 +418,7 @@ export function readBackupJson(json: string): BackupReadResult {
       : null
 
   const logLabelIds = normalizeLabelIds(data.logLabelIds)
+  const logLabelTargets = data.logLabelTargets === undefined ? undefined : normalizeLabelTargets(data.logLabelTargets)
 
   // 形は合っていても、中身の食い違うものは取り込まない（どこが悪いかを返す）
   const duplicateLists = findDuplicateIds(lists, (l) => l.name)
@@ -460,6 +467,7 @@ export function readBackupJson(json: string): BackupReadResult {
       timeLogTagPresets,
       logCategoryColors,
       logLabelIds,
+      ...(logLabelTargets ? { logLabelTargets } : {}),
     },
   }
 }

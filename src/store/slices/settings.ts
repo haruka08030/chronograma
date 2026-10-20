@@ -89,7 +89,13 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     },
     saveLogLabels: (rows) => {
       // 消したラベルがあれば「元に戻す」で知らせる（ほかの削除と同じく、確認は出さずに戻せるようにする）
-      const nextNames = new Set(rows.flatMap((r) => [r.name.trim(), r.from ?? '']).filter(Boolean))
+      // 名前を空にした行は消したラベル（元の名前 `from` も残さない）
+      const nextNames = new Set(
+        rows
+          .filter((r) => r.name.trim())
+          .flatMap((r) => [r.name.trim(), r.from ?? ''])
+          .filter(Boolean),
+      )
       const removed = get().timeLogTagPresets.filter((n) => !nextNames.has(n))
       pushUndo(
         removed.length === 1
