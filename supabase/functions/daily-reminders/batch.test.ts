@@ -158,6 +158,8 @@ describe('sendJobs', () => {
     })
     expect(out).toEqual({ delivered: [], gone: true, failed: [] })
     expect(isGoneStatus(fail(404))).toBe(true)
+    // 壊れた購読・鍵の不一致・大きすぎる中身も、送り直しても同じなので止める（毎回の実行を失敗にしない）
+    for (const status of [400, 403, 413]) expect(isGoneStatus(fail(status))).toBe(true)
     expect(isGoneStatus(fail(429))).toBe(false)
     expect(isGoneStatus(new Error('timeout'))).toBe(false)
   })

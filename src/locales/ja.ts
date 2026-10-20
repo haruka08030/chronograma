@@ -816,6 +816,8 @@ export default {
     notificationsNeedInstall: 'ホーム画面に追加すると通知を使えます',
     notificationsNeedInstallHint: '追加のしかたを見る',
     notificationsDenied: 'ブラウザで通知がブロックされています。サイトの設定から許可してください。',
+    pushActive: 'アプリを閉じていても届きます',
+    pushTabOnly: 'アプリを開いている間だけ届きます',
     dailyCapacity: '1 日に計画する時間の目安',
     dailyCapacityRecent: '直近 2 週、記録のある日の平均は {{time}}（{{count}} 日）',
     capacityHours: '{{count}} 時間',

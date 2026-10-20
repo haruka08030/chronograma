@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { requestPermission } from '../lib/notifications'
+import { subscribeWebPushStatus, webPushStatus } from '../lib/webPush'
 import { isIosBrowserNotInstalled } from '../lib/onboardingNudge'
 import { SettingsGroup, SettingsLinkRow, SettingsRow, Switch } from './settings/SettingsPrimitives'
 import { fieldClass } from './ui/fieldClass'
@@ -53,6 +54,14 @@ export function DailyRhythmSettings() {
   const off = unsupported || denied
   // iPhone / iPad の Safari は、ホーム画面に追加して開くと通知が使える（「対応していません」ではない）
   const needsInstall = unsupported && isIosBrowserNotInstalled()
+  // 閉じていても届くか、開いている間だけか（通知を使っているときだけ、見出しの下に小さく）
+  const push = useSyncExternalStore(subscribeWebPushStatus, webPushStatus)
+  const pushText =
+    push === 'active'
+      ? t('settings.pushActive')
+      : push === 'failed' || push === 'tab-only' || push === 'unsupported'
+        ? t('settings.pushTabOnly')
+        : undefined
 
   /** オンにするときだけ通知の許可を聞く */
   const turnOn = async (apply: () => void) => {
@@ -71,7 +80,7 @@ export function DailyRhythmSettings() {
               ? t('settings.notificationsUnsupported')
               : denied
                 ? t('settings.notificationsDenied')
-                : undefined
+                : pushText
         }
       >
         {needsInstall && (
