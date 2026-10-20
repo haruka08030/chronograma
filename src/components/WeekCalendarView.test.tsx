@@ -506,6 +506,37 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(view.container.querySelector(`[data-datekey="2026-10-08"] [data-block-id="${slotId}"]`)).not.toBeNull()
   })
 
+  it('全部の日を格子に置くと、スマホは空の段を出さず、PC は落とし先として残す', () => {
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const id = useTaskStore.getState().addHabit({
+      title: 'Stretch',
+      color: '#0B8043',
+      timeMode: 'fixed',
+      startTime: '07:00',
+      endTime: null,
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: undefined,
+    })
+    for (const day of ['2026-10-07', '2026-10-08', '2026-10-09']) useTaskStore.getState().setHabitDayTime(id, day, '09:00', '10:00')
+    const mobile = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    expect(screen.queryByText('Habits')).toBeNull()
+    mobile.unmount()
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('min-width: 768px'),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    })) as unknown as typeof window.matchMedia
+    try {
+      render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+      expect(screen.getByText('Habits')).toBeInTheDocument()
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
   it('今日の計画（1 日表示）には習慣の段を出さない', () => {
     useTaskStore.setState({ habits: [], tasks: [] })
     useTaskStore.getState().addHabit({

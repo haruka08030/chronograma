@@ -24,6 +24,7 @@ export function WeekHabitRow({
   openHabitCard,
   openHabitMenu,
   dropKey,
+  keepEmpty,
 }: {
   gridDays: Date[]
   gutterWidth: number
@@ -34,6 +35,8 @@ export function WeekHabitRow({
   openHabitMenu: (slotId: string, x: number, y: number) => boolean
   /** 格子の枠を戻そうとしている日（その日のマスを落とし先の色にする） */
   dropKey: string | null
+  /** チップが無くても、格子に置いた日があれば段を残す（PC。ドラッグで戻す落とし先） */
+  keepEmpty: boolean
 }) {
   const { t } = useTranslation()
   const habits = useTaskStore((s) => s.habits)
@@ -46,8 +49,8 @@ export function WeekHabitRow({
       }),
     [gridDays, habits, habitIndex],
   )
-  // 全部の日を格子に置いても、戻す落とし先として段は残す（ドラッグ中に格子がずれないように）
-  if (!byDay.some((d) => d.chips.length > 0 || d.placed)) return null
+  // PC は全部の日を格子に置いても、戻す落とし先として段は残す（ドラッグ中に格子がずれないように）。スマホは空なら出さない
+  if (!byDay.some((d) => d.chips.length > 0 || (keepEmpty && d.placed))) return null
   return (
     <div className="flex flex-shrink-0 border-b border-zinc-200 px-2 dark:border-zinc-800">
       <div style={{ width: gutterWidth }} className="flex-shrink-0 pr-2 pt-1 text-right text-[10px] text-zinc-400">
