@@ -12,7 +12,7 @@ import { hasOtherUsersBaseline, loadBaseline, saveBaseline } from './syncMerge'
 import { clearLocalAccountState } from './accountBoundary'
 
 vi.mock('./webPush', () => ({ detachWebPush: vi.fn(() => Promise.resolve()), resyncWebPush: vi.fn(() => Promise.resolve()) }))
-vi.mock('../hooks/useAutoBackup', () => ({ backupNow: vi.fn() }))
+vi.mock('../hooks/useAutoBackup', () => ({ backupNow: vi.fn(async () => true) }))
 
 const keys = (prefix: string) =>
   Object.keys(localStorage)
@@ -78,10 +78,10 @@ describe('ログアウトの片付け（#256）', () => {
     for (const id of ['u0', 'u1']) expect(localStorage.getItem(`chronograma-sync-baseline-v1:${id}`)).toBe('null')
   })
 
-  it('ログアウトすると、前の人の題名を含むものが端末に残らない', () => {
+  it('ログアウトすると、前の人の題名を含むものが端末に残らない', async () => {
     useTaskStore.getState().setDataOwner('u1')
     seedLeftovers()
-    clearLocalAccountState('u1')
+    await clearLocalAccountState('u1')
     const rest = Object.keys(localStorage)
       .map((k) => localStorage.getItem(k) ?? '')
       .join('\n')

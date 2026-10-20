@@ -1180,6 +1180,11 @@ export default {
     unreadable: '保存されていたデータを読み込めなかったため、変更を保存していません。元のデータを書き出しておいてください。',
     export: '書き出す',
   },
+  accountBackup: {
+    failedTitle: 'バックアップを取れませんでした',
+    failed: 'このまま進むと、この端末のデータが消えます。先にデータを書き出しますか。',
+    exportAndContinue: '書き出して進む',
+  },
   account: {
     emailRequired: 'メールアドレスを入力してください',
     genericError: 'エラーが発生しました。もう一度お試しください。',

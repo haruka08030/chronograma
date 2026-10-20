@@ -38,7 +38,7 @@ vi.mock('../lib/webPush', async (importOriginal) => ({
 }))
 vi.mock('../hooks/useAutoBackup', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/useAutoBackup')>()),
-  backupNow: vi.fn(),
+  backupNow: vi.fn(async () => true),
 }))
 
 const { AuthProvider } = await import('./AuthContext')

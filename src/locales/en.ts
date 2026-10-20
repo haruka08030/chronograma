@@ -1229,6 +1229,11 @@ export default {
     unreadable: 'Your saved data couldn’t be loaded, so changes aren’t being saved. Export the original data to keep it.',
     export: 'Export',
   },
+  accountBackup: {
+    failedTitle: "Couldn't back up your data",
+    failed: 'Continuing will remove the data on this device. Export it first?',
+    exportAndContinue: 'Export and continue',
+  },
   account: {
     emailRequired: 'Enter your email address.',
     genericError: 'Something went wrong. Please try again.',

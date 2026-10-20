@@ -29,7 +29,7 @@ vi.mock('../lib/errorReport', async (importOriginal) => ({
 }))
 vi.mock('./useAutoBackup', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./useAutoBackup')>()),
-  backupNow: vi.fn(),
+  backupNow: vi.fn(async () => true),
 }))
 // 通知の購読（Service Worker）は jsdom に無い
 vi.mock('../lib/webPush', async (importOriginal) => ({
@@ -188,7 +188,7 @@ describe('同期の往復（#258）', () => {
     const first = signIn()
     await untilSynced()
     first.unmount()
-    clearLocalAccountState('u1')
+    await clearLocalAccountState('u1')
     expect(readStored(`${PULL_STATE_KEY_PREFIX}u1`)).toBeNull()
     signIn()
     await untilSynced()
