@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { EVENT_TEMPLATE_MAX, EVENT_TEMPLATE_TITLE_MAX, isValidTemplateRange, type EventTemplate } from '../../lib/eventTemplates'
@@ -16,6 +16,7 @@ import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { ERROR_TEXT, HINT_TEXT } from '../ui/textClass'
+import { useDialogDraft } from '../../hooks/useDialogDraft'
 
 /** 足したばかりの行の時刻（よくあるシフトの形。あとで変える） */
 const NEW_START = '09:00'
@@ -96,14 +97,15 @@ function TemplateRow({
 
 /**
  * よく入れる予定の登録（#311）。ラベルの編集（`LabelsDialog`）と同じく、行を並べて ＋ で足し、保存でまとめて反映する。
- * 1 行は 名前・始まり〜終わり・ラベル（予定の色）。名前が空の行は保存しない
+ * 1 行は 名前・始まり〜終わり・ラベル（予定の色）。名前が空の行は保存しない。
+ * 外側・Esc で閉じても書きかけは残す（`useDialogDraft`）。キャンセルで捨てる
  */
 export function EventTemplatesDialog({ onClose, onSaved }: { onClose: () => void; onSaved?: (templates: EventTemplate[]) => void }) {
   const { t } = useTranslation()
   const saved = useTaskStore((s) => s.eventTemplates)
   const saveEventTemplates = useTaskStore((s) => s.saveEventTemplates)
   // 初めて開いたときは空の行を 1 つ（何を書けばよいかが見える）
-  const [rows, setRows] = useState<EventTemplate[]>(() =>
+  const [rows, setRows, discardDraft] = useDialogDraft<EventTemplate[]>('event-templates', () =>
     saved.length > 0 ? saved : [{ id: newId(), title: '', startTime: NEW_START, endTime: NEW_END, color: null }],
   )
   const listRef = useRef<HTMLUListElement>(null)
@@ -125,7 +127,12 @@ export function EventTemplatesDialog({ onClose, onSaved }: { onClose: () => void
   const save = () => {
     if (!canSave) return
     saveEventTemplates(rows)
+    discardDraft()
     onSaved?.(useTaskStore.getState().eventTemplates)
+    onClose()
+  }
+  const cancel = () => {
+    discardDraft()
     onClose()
   }
 
@@ -163,7 +170,7 @@ export function EventTemplatesDialog({ onClose, onSaved }: { onClose: () => void
           <PlusIcon className="h-5 w-5" />
         </button>
         <span className="flex-1" />
-        <button type="button" onClick={onClose} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+        <button type="button" onClick={cancel} className={buttonClass({ variant: 'ghost', size: 'md' })}>
           {t('common.cancel')}
         </button>
         <button type="button" onClick={save} disabled={!canSave} className={buttonClass({ variant: 'primary', size: 'md' })}>

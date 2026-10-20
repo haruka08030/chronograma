@@ -7,7 +7,7 @@ import { HabitFormFields } from './HabitFormFields'
 import { canSubmitHabitForm, habitFromForm, type HabitFormState } from './habitFormState'
 
 /**
- * 習慣を追加するカード。中身は閉じても残す（名前だけ消す）ので、持ち主は習慣の画面。
+ * 習慣を追加するカード。中身は閉じても残す（`useDialogDraft`）ので、持ち主は習慣の画面。
  * 開いたら名前の欄にフォーカスする。足したら `onAdded` に新しい習慣の id を渡す（閉じて表のその行を見せるのは持ち主）
  */
 export function HabitComposer({

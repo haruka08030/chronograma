@@ -23,7 +23,7 @@ import { HabitTrend } from './habits/HabitTrend'
 import { HabitDetailSheet } from './habits/HabitDetailSheet'
 import { ArchivedHabits } from './habits/ArchivedHabits'
 import { useHabitMenu } from './habits/useHabitMenu'
-import { EMPTY_HABIT_FORM, useHabitForm } from './habits/habitFormState'
+import { EMPTY_HABIT_FORM, useHabitFormDraft } from './habits/habitFormState'
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { usePresence } from '../hooks/usePresence'
@@ -47,8 +47,8 @@ export function HabitsView() {
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   const todayKey = useAppTodayKey()
 
-  // 追加フォームの中身は閉じても残す（閉じたときは名前だけ消す）
-  const [newForm, patchNewForm] = useHabitForm(EMPTY_HABIT_FORM)
+  // 追加フォームの中身は閉じても・画面を離れても残す（`useDialogDraft`）。足したら書きかけを捨て、名前だけ消して続けて足せるようにする
+  const [newForm, patchNewForm, discardNewForm] = useHabitFormDraft('habit-new', EMPTY_HABIT_FORM)
   const [showComposer, setShowComposer] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const { habitMenu, closeHabitMenu, menuProps } = useHabitMenu()
@@ -66,10 +66,7 @@ export function HabitsView() {
   const sheetValue = useMemo(() => (detail && detailHabit ? { ...detail, habit: detailHabit } : null), [detail, detailHabit])
   const sheet = usePresence(sheetValue)
 
-  const closeComposer = useCallback(() => {
-    patchNewForm({ title: '' })
-    setShowComposer(false)
-  }, [patchNewForm])
+  const closeComposer = useCallback(() => setShowComposer(false), [])
 
   /** いま足した習慣。足したらカードを閉じ、今週の表のその行までスクロールしてふわっと出す */
   const [addedId, setAddedId] = useState<string | null>(null)
@@ -89,11 +86,12 @@ export function HabitsView() {
   }, [setSelectedCalendarDateKey, todayKey])
   const onAdded = useCallback(
     (habitId: string) => {
+      discardNewForm({ ...newForm, title: '' })
       closeComposer()
       goToday()
       setAddedId(habitId)
     },
-    [closeComposer, goToday],
+    [closeComposer, discardNewForm, goToday, newForm],
   )
   useEffect(() => {
     if (!addedId) return

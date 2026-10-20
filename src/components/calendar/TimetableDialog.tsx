@@ -42,6 +42,7 @@ import { fieldClass } from '../ui/fieldClass'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT } from '../ui/textClass'
+import { useDialogDraft } from '../../hooks/useDialogDraft'
 
 /** 学期を決めていなければ案（前期・後期）で埋めたもの。保存は授業を入れたとき・学期を直したとき */
 function withTerm(tt: Timetable, today: string): Timetable {
@@ -318,7 +319,8 @@ function TimetableSettings({ timetable }: { timetable: Timetable }) {
 
 /**
  * マスを押したときの授業の入力（名前・ラベル）。空きのマスは学期の間の毎週の予定を作り、入っているマスは名前・ラベルを直す・消す
- * （直す・消すのは今日から後の回。過ぎた回はそのまま残す）
+ * （直す・消すのは今日から後の回。過ぎた回はそのまま残す）。
+ * 外側・Esc で閉じても書きかけは残す（`useDialogDraft`、マスと授業ごと）。保存・削除・キャンセルで捨てる
  */
 function ClassEditor({
   weekday,
@@ -348,10 +350,17 @@ function ClassEditor({
   const deleteEventSeries = useTaskStore((s) => s.deleteEventSeries)
   const setClassAbsenceLimit = useTaskStore((s) => s.setClassAbsenceLimit)
   const att = current ? attendance.get(courseKey(current.title)) : undefined
-  // 休める回数。空は決めない（学期の回数の 1/3）
-  const [limit, setLimit] = useState(att?.limitSet ? String(att.limit) : '')
-  const [title, setTitle] = useState(current?.title ?? '')
-  const [color, setColor] = useState<string | null>(current?.color ?? null)
+  const [draft, setDraft, discardDraft] = useDialogDraft(
+    `timetable-class:${cellKey(weekday, periodIndex)}:${current?.firstTaskId ?? 'new'}`,
+    () => ({
+      title: current?.title ?? '',
+      color: current?.color ?? null,
+      // 休める回数。空は決めない（学期の回数の 1/3）
+      limit: att?.limitSet ? String(att.limit) : '',
+    }),
+  )
+  const { title, color, limit } = draft
+  const patch = (p: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...p }))
   const colorText = usePlanColorText(color)
   const courses = useMemo(() => lmsCourses(tasks), [tasks])
   const inputRef = useRef<HTMLInputElement>(null)
@@ -379,6 +388,11 @@ function ClassEditor({
       if (!savedTimetable.termStart || !savedTimetable.termEnd) saveTimetable(timetable)
       addTimetableClass({ weekday, startTime: period.start, endTime: period.end, title: name, color })
     }
+    discardDraft()
+    onClose()
+  }
+  const cancel = () => {
+    discardDraft()
     onClose()
   }
 
@@ -393,6 +407,7 @@ function ClassEditor({
     )
       return
     deleteEventSeries(current.firstTaskId, 'following')
+    discardDraft()
     onClose()
   }
 
@@ -414,7 +429,7 @@ function ClassEditor({
         <input
           ref={inputRef}
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => patch({ title: e.target.value })}
           onKeyDown={(e) => {
             if (isSubmitEnter(e)) save()
           }}
@@ -436,7 +451,7 @@ function ClassEditor({
         <ColorLabelSelect
           current={color}
           currentText={colorText}
-          onChoose={setColor}
+          onChoose={(c) => patch({ color: c })}
           defaultLabel={t('labels.none')}
           defaultHex={NEUTRAL_HEX}
           label={t('labels.pickerAria')}
@@ -451,7 +466,7 @@ function ClassEditor({
             min={0}
             max={ABSENCE_LIMIT_MAX}
             value={limit}
-            onChange={(e) => setLimit(e.target.value)}
+            onChange={(e) => patch({ limit: e.target.value })}
             onKeyDown={(e) => {
               if (isSubmitEnter(e)) save()
             }}
@@ -478,7 +493,7 @@ function ClassEditor({
           </button>
         )}
         <span className="flex-1" />
-        <button type="button" onClick={onClose} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+        <button type="button" onClick={cancel} className={buttonClass({ variant: 'ghost', size: 'md' })}>
           {t('common.cancel')}
         </button>
         <button

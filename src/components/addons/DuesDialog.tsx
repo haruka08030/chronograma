@@ -15,6 +15,7 @@ import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { HINT_TEXT, META_TEXT } from '../ui/textClass'
+import { useDialogDraft } from '../../hooks/useDialogDraft'
 
 /**
  * 引き落とし・期限の日の一覧（#454、追加機能の「開く」）。次の日が近い順に並べ、押すと直す。＋ で足す。
@@ -90,21 +91,30 @@ export function DuesDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-/** 1 件を足す・直す */
+/** 1 件を足す・直す。外側・Esc で閉じても書きかけは残す（`useDialogDraft`、1 件ごと）。保存・削除・キャンセルで捨てる */
 function DueEditor({ item, today, onClose }: { item: DueItem | null; today: string; onClose: () => void }) {
   const { t } = useTranslation()
   const saveDue = useTaskStore((s) => s.saveDue)
   const deleteDue = useTaskStore((s) => s.deleteDue)
-  const [title, setTitle] = useState(item?.title ?? '')
-  const [date, setDate] = useState(item?.date ?? today)
-  const [repeat, setRepeat] = useState<DueRepeat>(item?.repeat ?? 'none')
-  const [notifyDays, setNotifyDays] = useState(item?.notifyDays ?? 1)
+  const [draft, setDraft, discardDraft] = useDialogDraft(`due:${item?.id ?? 'new'}`, () => ({
+    title: item?.title ?? '',
+    date: item?.date ?? today,
+    repeat: item?.repeat ?? ('none' as DueRepeat),
+    notifyDays: item?.notifyDays ?? 1,
+  }))
+  const { title, date, repeat, notifyDays } = draft
+  const patch = (p: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...p }))
   const inputRef = useRef<HTMLInputElement>(null)
 
   const save = () => {
     const name = title.trim()
     if (!name || !date) return
     saveDue({ id: item?.id ?? newId(), title: name, date, repeat, notifyDays })
+    discardDraft()
+    onClose()
+  }
+  const cancel = () => {
+    discardDraft()
     onClose()
   }
 
@@ -116,7 +126,7 @@ function DueEditor({ item, today, onClose }: { item: DueItem | null; today: stri
         <input
           ref={inputRef}
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => patch({ title: e.target.value })}
           onKeyDown={(e) => {
             if (isSubmitEnter(e)) save()
           }}
@@ -130,7 +140,7 @@ function DueEditor({ item, today, onClose }: { item: DueItem | null; today: stri
         <Segmented
           ariaLabel={t('dues.repeat')}
           value={repeat}
-          onChange={setRepeat}
+          onChange={(v) => patch({ repeat: v })}
           options={[
             { value: 'none', label: t('dues.repeatNone') },
             { value: 'monthly', label: t('dues.repeatMonthly') },
@@ -141,11 +151,11 @@ function DueEditor({ item, today, onClose }: { item: DueItem | null; today: stri
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
         <div>
           <span className={sectionLabelClass('field', 'mb-1 block')}>{repeat === 'none' ? t('dues.date') : t('dues.firstDate')}</span>
-          <DateField value={date} onChange={setDate} ariaLabel={t('dues.date')} className={fieldClass({ size: 'sm' })} />
+          <DateField value={date} onChange={(v) => patch({ date: v })} ariaLabel={t('dues.date')} className={fieldClass({ size: 'sm' })} />
         </div>
         <label>
           <span className={sectionLabelClass('field', 'mb-1 block')}>{t('dues.notify')}</span>
-          <select value={notifyDays} onChange={(e) => setNotifyDays(Number(e.target.value))} className={fieldClass({ size: 'sm' })}>
+          <select value={notifyDays} onChange={(e) => patch({ notifyDays: Number(e.target.value) })} className={fieldClass({ size: 'sm' })}>
             {DUE_NOTIFY_OPTIONS.map((n) => (
               <option key={n} value={n}>
                 {n === 0 ? t('dues.notifySameDay') : t('dues.notifyFrom', { count: n })}
@@ -160,6 +170,7 @@ function DueEditor({ item, today, onClose }: { item: DueItem | null; today: stri
             type="button"
             onClick={() => {
               deleteDue(item.id)
+              discardDraft()
               onClose()
             }}
             className={buttonClass({ variant: 'danger', size: 'md' })}
@@ -168,7 +179,7 @@ function DueEditor({ item, today, onClose }: { item: DueItem | null; today: stri
           </button>
         )}
         <span className="flex-1" />
-        <button type="button" onClick={onClose} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+        <button type="button" onClick={cancel} className={buttonClass({ variant: 'ghost', size: 'md' })}>
           {t('common.cancel')}
         </button>
         <button type="button" onClick={save} disabled={!title.trim() || !date} className={buttonClass({ variant: 'primary', size: 'md' })}>

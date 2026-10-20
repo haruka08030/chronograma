@@ -24,7 +24,7 @@ import { buttonClass } from '../ui/buttonClass'
 import { CARD_TITLE_CLASS } from '../ui/headingClass'
 import { ArchiveIcon, CheckIcon, PencilIcon, TrashIcon } from '../icons'
 import { HabitFormFields } from './HabitFormFields'
-import { canSubmitHabitForm, habitFormFrom, habitFromForm, useHabitForm } from './habitFormState'
+import { canSubmitHabitForm, habitFormFrom, habitFromForm, useHabitFormDraft } from './habitFormState'
 import { useHabitGoalText } from './useHabitGoalText'
 import { useWeekStartsOn } from '../../hooks/useWeekStartsOn'
 import { monthGridDays, weekdayLabelsFrom } from '../../lib/weekStart'
@@ -226,15 +226,23 @@ function HabitMonth({ habit: h, habitRecords, todayKey }: { habit: Habit; habitR
   )
 }
 
-/** 編集（シートの中身を入れ替える）。中身は開いたときの習慣の値から始める */
+/**
+ * 編集（シートの中身を入れ替える）。中身は開いたときの習慣の値から始める。
+ * シートを閉じる・Esc で戻っても書きかけは残し、次に編集を開いたら続きから（習慣ごと、`useDialogDraft`）。保存・キャンセルで捨てる
+ */
 function HabitDetailEdit({ habit, onDone }: { habit: Habit; onDone: () => void }) {
   const { t } = useTranslation()
   const updateHabit = useTaskStore((s) => s.updateHabit)
-  const [form, patch] = useHabitForm(() => habitFormFrom(habit))
+  const [form, patch, discardDraft] = useHabitFormDraft(`habit-edit:${habit.id}`, () => habitFormFrom(habit))
   const disabled = !canSubmitHabitForm(form)
   const save = () => {
     if (!canSubmitHabitForm(form)) return
     updateHabit(habit.id, habitFromForm(form))
+    discardDraft()
+    onDone()
+  }
+  const cancel = () => {
+    discardDraft()
     onDone()
   }
   return (
@@ -254,7 +262,7 @@ function HabitDetailEdit({ habit, onDone }: { habit: Habit; onDone: () => void }
         <button type="button" onClick={save} disabled={disabled} className={buttonClass({ variant: 'primary', size: 'md' })}>
           {t('common.save')}
         </button>
-        <button type="button" onClick={onDone} className={buttonClass({ variant: 'secondary', size: 'md' })}>
+        <button type="button" onClick={cancel} className={buttonClass({ variant: 'secondary', size: 'md' })}>
           {t('common.cancel')}
         </button>
       </div>

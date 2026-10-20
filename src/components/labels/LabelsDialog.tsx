@@ -14,6 +14,7 @@ import { LABEL_NAME_INPUT_CLASS } from './labelNameInputClass'
 import { REVEAL_ON_HOVER } from '../ui/revealClass'
 import { CATEGORY_MAX_LENGTH } from '../../lib/textLimits'
 import { parseTargetHours, targetHoursInput } from '../../lib/labelTargets'
+import { useDialogDraft } from '../../hooks/useDialogDraft'
 
 let nextRowId = 0
 
@@ -30,7 +31,8 @@ interface Row {
 /**
  * Google カレンダーの「ラベル」と同じ編集画面: 色 ▾ ＋ 名前 ＋ 削除 の行を並べ、＋ で行を足し、保存でまとめて反映。
  * 最初は今のラベルの下に、まだ名前の無い色の行を空欄で並べる（色に名前を付ける感覚で書ける）。
- * 名前の右に任意の「週に◯時間」の目安（#291）。週のふりかえりのラベル別の行で記録と並べる
+ * 名前の右に任意の「週に◯時間」の目安（#291）。週のふりかえりのラベル別の行で記録と並べる。
+ * 外側・Esc で閉じても書きかけは残す（`useDialogDraft`）。キャンセルで捨てる
  */
 export function LabelsDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
@@ -38,7 +40,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
   const colors = useTaskStore((s) => s.logCategoryColors)
   const targets = useTaskStore((s) => s.logLabelTargets)
   const saveLogLabels = useTaskStore((s) => s.saveLogLabels)
-  const [rows, setRows] = useState<Row[]>(() => [
+  const [rows, setRows, discardDraft] = useDialogDraft<Row[]>('labels', () => [
     ...presets.map((n) => ({ id: nextRowId++, from: n, name: n, hex: categoryHex(n, colors), target: targetHoursInput(targets[n]) })),
     ...unnamedColorKeys(presets, colors).map((k) => ({
       id: nextRowId++,
@@ -74,6 +76,11 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
         weeklyTargetMinutes: parseTargetHours(r.target) ?? null,
       })),
     )
+    discardDraft()
+    onClose()
+  }
+  const cancel = () => {
+    discardDraft()
     onClose()
   }
 
@@ -153,7 +160,7 @@ export function LabelsDialog({ onClose }: { onClose: () => void }) {
             <PlusIcon className="h-5 w-5" />
           </button>
           <span className="flex-1" />
-          <button type="button" onClick={onClose} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+          <button type="button" onClick={cancel} className={buttonClass({ variant: 'ghost', size: 'md' })}>
             {t('common.cancel')}
           </button>
           <button type="button" onClick={save} className={buttonClass({ variant: 'primary', size: 'md' })}>
