@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore } from '../../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
 import type { HabitRecordIndex } from '../../lib/habitTiming'
 import { isPlacedPointHabitOn, pointHabitsOn } from '../../lib/habitSlots'
 import { colorVars } from '../../lib/logCategoryColors'
@@ -39,7 +39,7 @@ export function WeekHabitRow({
   keepEmpty: boolean
 }) {
   const { t } = useTranslation()
-  const habits = useTaskStore((s) => s.habits)
+  const habits = useTaskStore(selectLiveHabits)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const byDay = useMemo(
     () =>

@@ -1,5 +1,6 @@
 /** タスクの追加・完了・編集・一括操作・ゴミ箱・アーカイブ */
 import { somedayTierOf, withDreamId, withSomedayTier } from '../../lib/somedayTier'
+import { isHabitDeleted } from '../../types/habit'
 import { isEventTask, type Task } from '../../types/task'
 import { INBOX_ID, TRASH_KEEP_DAYS } from '../storeConstants'
 import {
@@ -364,28 +365,36 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
     },
     emptyDeleted: () => {
       const s0 = get()
-      if (!s0.tasks.some((t) => t.deletedAt)) return
+      if (!s0.tasks.some((t) => t.deletedAt) && !s0.habits.some(isHabitDeleted)) return
       pushUndo()
       set((s) => ({
         tasks: s.tasks.filter((t) => !t.deletedAt),
+        habits: s.habits.some(isHabitDeleted) ? s.habits.filter((h) => !isHabitDeleted(h)) : s.habits,
         recentDeletes: [],
       }))
     },
     purgeExpiredDeleted: (now = Date.now()) => {
       const cutoff = now - TRASH_KEEP_DAYS * 24 * 60 * 60_000
       // 時刻が読めないものは消さない
+      const isExpired = (deletedAt: string | null | undefined) => !!deletedAt && Date.parse(deletedAt) < cutoff
       const expired = new Set(
         get()
-          .tasks.filter((t) => t.deletedAt && Date.parse(t.deletedAt) < cutoff)
+          .tasks.filter((t) => isExpired(t.deletedAt))
           .map((t) => t.id),
       )
-      if (expired.size === 0) return 0
+      const expiredHabits = new Set(
+        get()
+          .habits.filter((h) => isExpired(h.deletedAt))
+          .map((h) => h.id),
+      )
+      if (expired.size === 0 && expiredHabits.size === 0) return 0
       // 自動の片付けなので ⌘Z の履歴には積まない
       set((s) => ({
-        tasks: s.tasks.filter((t) => !expired.has(t.id)),
+        tasks: expired.size > 0 ? s.tasks.filter((t) => !expired.has(t.id)) : s.tasks,
+        habits: expiredHabits.size > 0 ? s.habits.filter((h) => !expiredHabits.has(h.id)) : s.habits,
         recentDeletes: withoutIds(s.recentDeletes, expired),
       }))
-      return expired.size
+      return expired.size + expiredHabits.size
     },
     archiveTask: (id) => {
       get().archiveTasks([id])

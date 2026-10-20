@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { useNavShortcut } from '../lib/shortcuts'
 import { isHabitActive } from '../types/habit'
 import { HABIT_WEEK_STARTS_ON, habitWeekDates } from '../lib/habitSchedule'
@@ -37,7 +37,7 @@ export function HabitsView() {
   const scrollRef = useRef<HTMLDivElement>(null)
   useRememberScroll(scrollRef, 'habits')
   const df = useDateFormat()
-  const allHabits = useTaskStore((s) => s.habits)
+  const allHabits = useTaskStore(selectLiveHabits)
   // アーカイブした習慣は表に入れず、下の「アーカイブ」にだけ出す
   const habits = useMemo(() => allHabits.filter(isHabitActive), [allHabits])
   const archivedHabits = useMemo(() => allHabits.filter((h) => !isHabitActive(h)), [allHabits])

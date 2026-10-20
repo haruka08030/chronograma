@@ -70,6 +70,8 @@ interface HabitRow {
   weekday_times?: unknown
   /** 時間の目標（分、`031`）。古い DB には無い。無い・null は無し */
   goal_minutes?: number | null
+  /** ゴミ箱に入れた時刻（`042`）。古い DB には無い。無い・null はゴミ箱に無い */
+  deleted_at?: string | null
 }
 
 interface TaskRow {
@@ -200,6 +202,7 @@ function rowToHabit(row: HabitRow): Habit {
     ...withRestDates(row.rest_dates),
     ...withWeekdayTimes(row.weekday_times),
     ...withGoalMinutes(row.goal_minutes),
+    ...(typeof row.deleted_at === 'string' ? { deletedAt: row.deleted_at } : {}),
   }
 }
 
@@ -244,6 +247,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     rest_dates: h.restDates ?? null,
     weekday_times: h.weekdayTimes ?? null,
     goal_minutes: h.goalMinutes ?? null,
+    deleted_at: h.deletedAt ?? null,
   }
 }
 

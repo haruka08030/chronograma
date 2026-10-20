@@ -97,6 +97,11 @@ export interface Habit {
   completedDates: string[]
   /** アーカイブした時刻（ISO）。null は使用中。アーカイブした習慣は今日の計画・一覧・タイムライン・統計から外れ、達成日は残す */
   archivedAt: string | null
+  /**
+   * ゴミ箱に入れた時刻（ISO）。入れた習慣はどの画面・統計にも出さず、ゴミ箱から達成日ごと戻せる。
+   * `TRASH_KEEP_DAYS` 日たつと完全に消す。ゴミ箱に無ければ項目ごと無い
+   */
+  deletedAt?: string
   /** 日ごとの時間（タイムラインで枠を動かした日だけ）。無い日は上の時間。1 日も無ければ項目ごと無い */
   timeOverrides?: HabitTimeOverrides
   /**
@@ -126,6 +131,11 @@ export function readHabitGoalMinutes(raw: unknown): number | undefined {
 /** その日を休みにした習慣か */
 export function isHabitRestOn(habit: Pick<Habit, 'restDates'>, dateKey: string): boolean {
   return habit.restDates?.includes(dateKey) ?? false
+}
+
+/** ゴミ箱にあるか */
+export function isHabitDeleted(habit: Pick<Habit, 'deletedAt'>): boolean {
+  return typeof habit.deletedAt === 'string' && habit.deletedAt.length > 0
 }
 
 /** 使用中か（アーカイブしていない）。古いデータで項目が無いものも使用中 */
