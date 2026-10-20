@@ -227,6 +227,7 @@ export function TaskContextMenu({
           extra: (close) => (
             <ColorPalette
               bare
+              fill
               selectedHex={sharedColor ?? null}
               onChoose={(hex) => {
                 done(() => bulk.setLabel(taskIds, hex))()
