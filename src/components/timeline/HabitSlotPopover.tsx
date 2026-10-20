@@ -15,8 +15,8 @@ import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
 import { buildHabitRecordIndex, habitDayStatus, plannedRecordTimes } from '../../lib/habitTiming'
-import { isPointHabitOn } from '../../lib/habitSlots'
-import { logLimitAt } from '../../lib/timelineBlockEdit'
+import { habitSlotId, isPointHabitOn } from '../../lib/habitSlots'
+import { logLimitAt, placeHabitSlot } from '../../lib/timelineBlockEdit'
 import { timeToMinutes } from '../../lib/timeGrid'
 import { isLogTask } from '../../types/task'
 import { requestHabitEdit } from '../../lib/habitEditRequest'
@@ -26,7 +26,7 @@ const WIDTH = 300
 
 /**
  * タイムラインの習慣の枠を押したときの小さなカード（予定のカードと同じ形）。
- * 始まった枠は ✓（予定どおり達成・取り消し）、終わる前は ▶ 記録を開始、✎ で習慣の画面の編集へ。キー: Esc 閉じる / e 編集
+ * 始まった枠は ✓（予定どおり達成・取り消し）、終わる前は ▶ 記録を開始、習慣の段のチップは「時間に置く」、✎ で習慣の画面の編集へ。キー: Esc 閉じる / e 編集
  */
 export function HabitSlotPopover({
   habitId,
@@ -114,6 +114,18 @@ export function HabitSlotPopover({
                 : undefined
             }
             onStart={done || ended ? undefined : start}
+            // 習慣の段のチップ（時刻だけの習慣）は、その日だけ枠にできる（指ではドラッグできないので）
+            place={
+              !done && isPointHabitOn(habit, dateKey)
+                ? {
+                    label: t('weekCalendar.habitPlace'),
+                    onClick: () => {
+                      placeHabitSlot(habitSlotId(habit.id, dateKey))
+                      onClose()
+                    },
+                  }
+                : undefined
+            }
           />
         </div>
         <span />

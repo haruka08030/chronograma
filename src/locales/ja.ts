@@ -1383,6 +1383,7 @@ export default {
     freeTimeHint: 'この日の空き {{free}}（1 日に計画する時間の目安から、予定と Google の予定を引いた時間）',
     freeTimeOverHint: 'この日に置いた To-Do（{{planned}}）が空き（{{free}}）を超えています',
     habitDoneAsPlanned: '予定どおり達成（記録する）',
+    habitPlace: '時間に置く',
     habitUndo: '達成を取り消す',
     dueMark: '「{{title}}」の締切',
     dueMarkTime: '「{{title}}」の締切（{{time}} まで）',
