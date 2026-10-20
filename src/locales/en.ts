@@ -1466,6 +1466,7 @@ export default {
     dueMark: '“{{title}}” is due',
     dueMarkTime: '“{{title}}” is due by {{time}}',
     habitPlace: 'Place on timeline',
+    habitMarkDone: 'Mark done',
     habitUndo: 'Mark as not done',
     eventToRecord: 'Turn into a record',
     blockTimeAnnounce: '“{{title}}” {{start}}–{{end}}',
