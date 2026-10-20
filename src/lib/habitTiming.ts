@@ -100,7 +100,8 @@ function isoWeekdayOf(dateKey: string): HabitWeekday {
 
 /**
  * その日の時間（時間を決めた習慣だけ）。その日だけの時間があればそれ、無ければその曜日のいつもの時間（`habitUsualTimesOn`）。
- * 範囲の習慣で、その日の時間に終わりが無い（時刻ひとつのときに動かした）なら、いつもの長さのまま開始をずらす
+ * 範囲の習慣で、その日の時間に終わりが無い（時刻ひとつのときに動かした）なら、いつもの長さのまま開始をずらす。
+ * 時刻ひとつの習慣も、習慣の段から格子に置いた日は終わりを持つ
  */
 export function habitTimesOn(habit: Habit, dateKey: string): { startTime: string; endTime: string | null } | null {
   const usual = habitUsualTimesOn(habit, dateKey)
@@ -108,8 +109,8 @@ export function habitTimesOn(habit: Habit, dateKey: string): { startTime: string
   const o = habit.timeOverrides?.[dateKey]
   if (!o) return usual
   const startTime = o.startTime
-  if (usual.endTime === null) return { startTime, endTime: null }
   if (o.endTime) return { startTime, endTime: o.endTime }
+  if (usual.endTime === null) return { startTime, endTime: null }
   const length = (timeToMinutes(usual.endTime) - timeToMinutes(usual.startTime) + 1440) % 1440
   return { startTime, endTime: minutesToTime((timeToMinutes(startTime) + length) % 1440) }
 }

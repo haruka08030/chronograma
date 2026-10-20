@@ -72,11 +72,12 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       const habit = get().habits.find((h) => h.id === id)
       const current = habit ? habitTimesOn(habit, dateKey) : null
       if (!habit || !current) return
-      const next = { startTime, endTime: current.endTime === null ? null : endTime }
+      // 時刻ひとつの習慣も終わりを持たせる（習慣の段から格子に置いた日は枠になる）
+      const next = { startTime, endTime }
       if (next.startTime === current.startTime && next.endTime === current.endTime) return
       // その曜日のいつもの時間に戻したら、その日だけの時間は消す
       const base = habitUsualTimesOn(habit, dateKey)!
-      const usual = next.startTime === base.startTime && (next.endTime === null || next.endTime === base.endTime)
+      const usual = next.startTime === base.startTime && next.endTime === base.endTime
       const overrides: HabitTimeOverrides = { ...habit.timeOverrides }
       if (usual) delete overrides[dateKey]
       else overrides[dateKey] = next

@@ -47,14 +47,14 @@ export type BlockEditContext = {
 }
 
 /** 習慣の枠を動かした・伸ばした: その日だけの時間にする */
-function setHabitDayTimeFromSlot(slot: { habitId: string; dateKey: string }, startTime: string, endTime: string) {
+/** 習慣の枠をその日だけの時間にする（枠を動かす・伸ばす、習慣の段のチップを格子に置く） */
+export function setHabitDayTimeFromSlot(slot: { habitId: string; dateKey: string }, startTime: string, endTime: string) {
   const { habits, setHabitDayTime } = useTaskStore.getState()
   const habit = habits.find((h) => h.id === slot.habitId)
   if (!habit) return
-  const time = habit.timeMode === 'range' ? `${startTime}–${endTime}` : startTime
   setHabitDayTime(habit.id, slot.dateKey, startTime, endTime, {
     key: 'undo.habitDayTime',
-    params: { name: habit.title, date: shortDate(slot.dateKey), time },
+    params: { name: habit.title, date: shortDate(slot.dateKey), time: `${startTime}–${endTime}` },
   })
 }
 

@@ -15,7 +15,7 @@ vi.mock('../i18n/config', () => ({
 
 const { useTaskStore } = await import('../store/taskStore')
 const { buildHabitRecordIndex, habitDayStatus, habitTimesOn, plannedRecordTimes } = await import('./habitTiming')
-const { habitSlotId, habitToPlannedItem, parseHabitSlotId } = await import('./habitSlots')
+const { habitSlotId, habitToPlannedItem, isPointHabitOn, parseHabitSlotId } = await import('./habitSlots')
 const { normalizeHabitRow } = await import('./backupFormat')
 const { readHabitTimeOverrides } = await import('../types/habit')
 
@@ -55,10 +55,13 @@ describe('その日だけの時間（habitTimesOn）', () => {
     expect(habitTimesOn(gym({ timeOverrides: { [DAY]: { startTime: '23:00', endTime: null } } }), DAY)?.endTime).toBe('00:30')
   })
 
-  it('時刻ひとつの習慣は開始だけを使い、時間を決めていない習慣は null', () => {
-    const fixed = gym({ timeMode: 'fixed', endTime: null, timeOverrides: { [DAY]: { startTime: '07:00', endTime: '08:00' } } })
+  it('時刻ひとつの習慣は開始だけを使い（格子に置いた日は終わりも）、時間を決めていない習慣は null', () => {
+    const fixed = gym({ timeMode: 'fixed', endTime: null, timeOverrides: { [DAY]: { startTime: '07:00', endTime: null } } })
     expect(habitTimesOn(fixed, DAY)).toEqual({ startTime: '07:00', endTime: null })
     expect(plannedRecordTimes(fixed, DAY)).toEqual({ startTime: '07:00', endTime: '07:15' })
+    const placed = gym({ timeMode: 'fixed', endTime: null, timeOverrides: { [DAY]: { startTime: '07:00', endTime: '08:00' } } })
+    expect(habitTimesOn(placed, DAY)).toEqual({ startTime: '07:00', endTime: '08:00' })
+    expect(plannedRecordTimes(placed, DAY)).toEqual({ startTime: '07:00', endTime: '08:00' })
     expect(habitTimesOn(gym({ timeMode: 'none', startTime: null, endTime: null }), DAY)).toBeNull()
   })
 
@@ -99,14 +102,17 @@ describe('setHabitDayTime', () => {
     expect(get()).not.toHaveProperty('timeOverrides')
   })
 
-  it('同じ時間なら何もしない（取り消しの履歴を積まない）。時刻ひとつの習慣は終わりを見ない', () => {
+  it('同じ時間なら何もしない（取り消しの履歴を積まない）', () => {
     useTaskStore.getState().setHabitDayTime('gym', DAY, '18:00', '19:30')
     expect(get().updatedAt).toBe(OLD)
+  })
+
+  it('時刻ひとつの習慣は、置いた時間（終わりも）をその日の枠にする', () => {
     useTaskStore.setState({ habits: [gym({ timeMode: 'fixed', endTime: null })] })
-    useTaskStore.getState().setHabitDayTime('gym', DAY, '07:00', '07:15')
-    expect(get().timeOverrides).toEqual({ [DAY]: { startTime: '07:00', endTime: null } })
-    useTaskStore.getState().setHabitDayTime('gym', DAY, '18:00', '18:15')
-    expect(get()).not.toHaveProperty('timeOverrides')
+    useTaskStore.getState().setHabitDayTime('gym', DAY, '18:00', '19:00')
+    expect(get().timeOverrides).toEqual({ [DAY]: { startTime: '18:00', endTime: '19:00' } })
+    expect(isPointHabitOn(get(), DAY)).toBe(false)
+    expect(isPointHabitOn(get(), OTHER)).toBe(true)
   })
 
   it('✓ で作る記録はその日の時間になり、その時間で達成になる', () => {
