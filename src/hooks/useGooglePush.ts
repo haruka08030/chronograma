@@ -2,10 +2,11 @@ import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured, sendFunctionOnLeave } from '../lib/supabase'
 import { deleteGoogleEvent, upsertGoogleEvent } from '../lib/googleCalendar'
-import { changedForGoogle, googleEventIdForTask, googleFieldsForTask, shouldBeOnGoogle } from '../lib/googlePush'
+import { changedForGoogle, changedForGoogleSkip, googleEventIdForTask, googleFieldsForTask, shouldBeOnGoogle } from '../lib/googlePush'
+import { googleSkipKeys } from '../lib/googleSkip'
 import { isIncomingChange } from '../lib/changeOrigin'
 import { reportFailure } from '../lib/errorReport'
-import { appTimeZone } from '../lib/timeZone'
+import { appTimeZone, appTodayKey } from '../lib/timeZone'
 import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
 
 /** 続けて直したときにまとめて 1 回にする */
@@ -62,6 +63,17 @@ export function useGooglePush() {
     let timer: ReturnType<typeof setTimeout> | undefined
     let retryMs = RETRY_MIN_MS
     const queue = loadQueue(userId)
+    // 送らない名前（同じ並びのあいだは作り直さない）
+    let skipNames = useTaskStore.getState().addons.googleSkip
+    let skip = googleSkipKeys(skipNames)
+    const skipKeys = () => {
+      const names = useTaskStore.getState().addons.googleSkip
+      if (names !== skipNames) {
+        skipNames = names
+        skip = googleSkipKeys(names)
+      }
+      return skip
+    }
 
     const canSend = () => {
       const s = useTaskStore.getState()
@@ -85,7 +97,7 @@ export function useGooglePush() {
           const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
           const eventId = googleEventIdForTask(taskId)
           try {
-            if (task && shouldBeOnGoogle(task)) await upsertGoogleEvent(eventId, googleFieldsForTask(task))
+            if (task && shouldBeOnGoogle(task, skipKeys())) await upsertGoogleEvent(eventId, googleFieldsForTask(task))
             else await deleteGoogleEvent(eventId)
             queue.delete(taskId)
           } catch (e) {
@@ -121,10 +133,16 @@ export function useGooglePush() {
       if (state.googleCanWrite !== prev.googleCanWrite || state.googleConnected !== prev.googleConnected) {
         if (canSend() && queue.size > 0) schedule(SEND_DELAY_MS)
       }
-      if (state.tasks === prev.tasks) return
+      const skipChanged = state.addons.googleSkip !== prev.addons.googleSkip
+      if (state.tasks === prev.tasks && !skipChanged) return
       if (isIncomingChange() || isAdoptingFromOtherTab()) return
       if (!canSend()) return
-      const ids = changedForGoogle(prev.tasks, state.tasks)
+      const nextSkip = skipKeys()
+      const ids = [
+        ...(state.tasks === prev.tasks ? [] : changedForGoogle(prev.tasks, state.tasks, nextSkip)),
+        // 送らない名前を変えた: その名前の予定を Google から消す・送る
+        ...(skipChanged ? changedForGoogleSkip(state.tasks, googleSkipKeys(prev.addons.googleSkip), nextSkip, appTodayKey()) : []),
+      ]
       if (ids.length === 0) return
       ids.forEach((id) => queue.add(id))
       saveQueue(userId, queue)
@@ -142,7 +160,7 @@ export function useGooglePush() {
         const eventId = googleEventIdForTask(taskId)
         sendFunctionOnLeave(
           'google-calendar',
-          task && shouldBeOnGoogle(task)
+          task && shouldBeOnGoogle(task, skipKeys())
             ? { action: 'upsert', eventId, fields: googleFieldsForTask(task), timeZone: appTimeZone() }
             : { action: 'delete', eventId },
           token,

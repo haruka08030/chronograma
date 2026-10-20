@@ -973,6 +973,7 @@ export default {
     label: 'ラベル',
     open: '詳細を開く',
     duplicate: '複製',
+    googleSkip: 'この名前は Google に送らない',
     doToday: '今日やる',
     toTomorrow: '明日へ回す',
     toNextDay: '翌日へ回す',

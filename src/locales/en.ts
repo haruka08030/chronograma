@@ -1002,6 +1002,7 @@ export default {
     label: 'Label',
     open: 'Open details',
     duplicate: 'Duplicate',
+    googleSkip: "Don't send this name to Google",
     doToday: 'Do today',
     toTomorrow: 'Move to tomorrow',
     toNextDay: 'Move to the next day',

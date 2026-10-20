@@ -9,9 +9,10 @@ import { canEditGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit
 import { useTaskColor } from '../../hooks/useTaskColor'
 import { ColorPalette } from '../labels/ColorPalette'
 import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
-import { CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
+import { CalendarIcon, CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
 import { useScheduleEntry } from '../../hooks/useScheduleEntry'
 import { deleteTaskAsking } from '../../lib/seriesScope'
+import { isGoogleSkipped } from '../../lib/googleSkip'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 
@@ -22,7 +23,8 @@ function Dot({ hex }: { hex: string }) {
 
 /**
  * タイムラインの予定・記録を右クリックしたときのメニュー（押して出るカードと同じ操作を、カードを開かずに）。
- * 予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・複製・削除。記録: 色（＝ラベル）・詳細・削除
+ * 予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・複製・（Google に送っているとき）この名前は Google に送らない・削除。
+ * 記録: 色（＝ラベル）・詳細・削除
  */
 export function TaskEventMenu({
   x,
@@ -61,8 +63,12 @@ function TaskEventMenuBody({
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   const duplicateTasks = useTaskStore((s) => s.duplicateTasks)
-  const isLog = isLogTask(task)
   const isEvent = isEventTask(task)
+  // 予定を Google に送っているときだけ（To-Do・記録は送らない）
+  const googleSending = useTaskStore((s) => isEvent && s.googleConnected && s.googleCanWrite)
+  const googleSkipped = useTaskStore((s) => isGoogleSkipped(s.addons.googleSkip, task.title))
+  const setGoogleSkip = useTaskStore((s) => s.setGoogleSkip)
+  const isLog = isLogTask(task)
   const color = useTaskColor(task, !isLog)
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
   const { canLogAsPlanned, ended } = planTiming(task)
@@ -164,6 +170,19 @@ function TaskEventMenuBody({
             },
           },
         ]),
+    // 名前ごとに Google に送らない（移動・面接対策のような段取りの予定、#461）
+    ...(googleSending && task.title.trim()
+      ? [
+          {
+            kind: 'leaf' as const,
+            id: 'google-skip',
+            label: t('taskMenu.googleSkip'),
+            icon: <CalendarIcon className={ICON} />,
+            checked: googleSkipped,
+            run: () => setGoogleSkip(task.title, !googleSkipped),
+          },
+        ]
+      : []),
     {
       kind: 'leaf',
       id: 'delete',

@@ -4,8 +4,15 @@ import { TASK_DEFAULTS } from './taskDefaults'
 
 vi.mock('./timeZone', async (orig) => ({ ...(await orig<typeof import('./timeZone')>()), appTimeZone: () => 'Asia/Tokyo' }))
 
-const { changedForGoogle, googleColorIdForHex, googleEventIdForTask, googleFieldsForTask, isPushedGoogleEvent } =
-  await import('./googlePush')
+const {
+  changedForGoogle,
+  changedForGoogleSkip,
+  shouldBeOnGoogle,
+  googleColorIdForHex,
+  googleEventIdForTask,
+  googleFieldsForTask,
+  isPushedGoogleEvent,
+} = await import('./googlePush')
 
 const event = (id: string, over: Partial<Task> = {}): Task =>
   ({
@@ -105,5 +112,37 @@ describe('changedForGoogle', () => {
     const a = event('a', { timeZoneAnchor: 'Asia/Tokyo' })
     const moved = { ...a, scheduledDate: '2026-10-13', startTime: '21:00', endTime: '22:30', timeZoneAnchor: 'America/New_York' }
     expect(changedForGoogle([a], [moved])).toEqual([])
+  })
+})
+
+describe('送らない名前（#461）', () => {
+  const skip = new Set(['移動'])
+
+  it('送らない名前の予定は Google に置かない（全角半角・空白の違いは同じ名前）', () => {
+    expect(shouldBeOnGoogle(event('a', { title: '移動' }), skip)).toBe(false)
+    expect(shouldBeOnGoogle(event('a', { title: ' 移動 ' }), skip)).toBe(false)
+    expect(shouldBeOnGoogle(event('a', { title: '新宿へ移動' }), skip)).toBe(true)
+    expect(shouldBeOnGoogle(event('a', { title: '移動' }))).toBe(true)
+  })
+
+  it('名前を変えて送らない名前になれば消し、外れれば送る', () => {
+    const a = event('a', { title: '電車' })
+    expect(changedForGoogle([a], [{ ...a, title: '移動' }], skip)).toEqual(['a'])
+    expect(changedForGoogle([{ ...a, title: '移動' }], [a], skip)).toEqual(['a'])
+    // 送らない予定を直しても送らない
+    const m = event('m', { title: '移動' })
+    expect(changedForGoogle([m], [{ ...m, startTime: '09:00' }], skip)).toEqual([])
+  })
+
+  it('送らないにした名前は日を問わず消し、戻した名前は今日から先だけ送る', () => {
+    const past = event('p', { title: '移動', scheduledDate: '2026-10-01' })
+    const future = event('f', { title: '移動', scheduledDate: '2026-10-20' })
+    const other = event('o', { title: '面接', scheduledDate: '2026-10-20' })
+    const todo = event('t', { title: '移動', kind: 'todo' })
+    const gone = event('g', { title: '移動', deletedAt: '2026-10-02T00:00:00Z' })
+    const tasks = [past, future, other, todo, gone]
+    expect(changedForGoogleSkip(tasks, new Set(), skip, '2026-10-19')).toEqual(['p', 'f'])
+    expect(changedForGoogleSkip(tasks, skip, new Set(), '2026-10-19')).toEqual(['f'])
+    expect(changedForGoogleSkip(tasks, skip, skip, '2026-10-19')).toEqual([])
   })
 })
