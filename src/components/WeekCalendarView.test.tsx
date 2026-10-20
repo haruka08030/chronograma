@@ -483,7 +483,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(screen.queryByRole('menuitem', { name: /Move back to Habits row/ })).toBeNull()
   })
 
-  it('チップのカードの「時間に置く」で、習慣の時刻から目標の長さの枠になる（指でも置ける）', async () => {
+  it('チップのカードの「時間に置く」で、習慣の時刻から既定の長さの枠になる（指でも置ける）', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
     useTaskStore.setState({ habits: [], tasks: [] })
@@ -495,14 +495,14 @@ describe('WeekCalendarView: 習慣の枠', () => {
       endTime: null,
       frequency: { type: 'daily' },
       weekdayTimes: undefined,
-      goalMinutes: 20,
+      goalMinutes: undefined,
     })
     const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
     const slotId = `habit-slot::${id}::2026-10-08`
     fireEvent.click(view.container.querySelector<HTMLElement>(`[data-block-id="${slotId}"]`)!)
     const card = await screen.findByRole('dialog', { name: 'Stretch' })
     fireEvent.click(within(card).getByRole('button', { name: 'Place on timeline' }))
-    expect(useTaskStore.getState().habits[0]!.timeOverrides?.['2026-10-08']).toEqual({ startTime: '07:00', endTime: '07:20' })
+    expect(useTaskStore.getState().habits[0]!.timeOverrides?.['2026-10-08']).toEqual({ startTime: '07:00', endTime: '08:00' })
     expect(view.container.querySelector(`[data-datekey="2026-10-08"] [data-block-id="${slotId}"]`)).not.toBeNull()
   })
 
@@ -535,6 +535,26 @@ describe('WeekCalendarView: 習慣の枠', () => {
     } finally {
       window.matchMedia = original
     }
+  })
+
+  it('開始時刻と「1 回の目標」がある習慣は、習慣の段でなく最初から格子の枠（開始〜開始＋目標）', () => {
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const id = useTaskStore.getState().addHabit({
+      title: 'Reading',
+      color: '#0B8043',
+      timeMode: 'fixed',
+      startTime: '21:00',
+      endTime: null,
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: 30,
+    })
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    expect(screen.queryByText('Habits')).toBeNull()
+    const tile = view.container.querySelector<HTMLElement>(`[data-datekey="2026-10-08"] [data-block-id="habit-slot::${id}::2026-10-08"]`)
+    expect(tile).not.toBeNull()
+    expect(tile!.textContent).toContain('21:00')
+    expect(tile!.style.height).toBe(`${0.5 * HOUR_HEIGHT}px`)
   })
 
   it('今日の計画（1 日表示）には習慣の段を出さない', () => {
