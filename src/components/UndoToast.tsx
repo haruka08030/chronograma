@@ -99,7 +99,7 @@ export function UndoToast() {
       className={`fixed left-1/2 z-50 -translate-x-1/2 ${toast.closing ? 'animate-toast-out' : 'animate-toast-in'} ${stacked}`}
       inert={toast.closing}
     >
-      <div className={`mx-3 flex max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}>
+      <div className={`mx-3 flex w-max max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}>
         <span className="min-w-0 line-clamp-2">{toast.shown}</span>
         <button
           onClick={() => {

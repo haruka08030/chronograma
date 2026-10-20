@@ -72,7 +72,7 @@ export function CanvasSubmittedToast() {
     >
       <div
         role="status"
-        className={`mx-3 flex max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}
+        className={`mx-3 flex w-max max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}
       >
         <span className="min-w-0 line-clamp-3">{toast.shown}</span>
         <button

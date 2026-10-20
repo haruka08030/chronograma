@@ -28,7 +28,7 @@ export function MoveToast() {
     <div
       className={`pointer-events-none fixed left-1/2 z-[60] -translate-x-1/2 ${toast.closing ? 'animate-toast-out' : 'animate-toast-in'} ${stacked}`}
     >
-      <div className={`max-w-[min(90vw,20rem)] rounded-xl px-4 py-2.5 text-center text-sm ${INVERSE_SURFACE}`} role="status">
+      <div className={`w-max max-w-[min(90vw,20rem)] rounded-xl px-4 py-2.5 text-center text-sm ${INVERSE_SURFACE}`} role="status">
         {toastText(t, toast.shown)}
       </div>
     </div>
