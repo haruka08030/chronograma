@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { fromDateKey } from '../lib/dateKey'
@@ -415,6 +415,43 @@ describe('WeekCalendarView: 習慣の枠', () => {
     // 押すとカード
     fireEvent.click(chip)
     expect(await screen.findByRole('dialog', { name: 'Stretch' })).toBeInTheDocument()
+  })
+
+  it('習慣の段のチップをその日の格子に落とすと、その日だけ枠になる（ほかの日には置かない）', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const id = useTaskStore.getState().addHabit({
+      title: 'Stretch',
+      color: '#0B8043',
+      timeMode: 'fixed',
+      startTime: '07:00',
+      endTime: null,
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: undefined,
+    })
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    const slotId = `habit-slot::${id}::2026-10-08`
+    const transfer = {
+      types: ['application/x-task-id'],
+      getData: (t: string) => (t === 'application/x-task-id' ? slotId : ''),
+      dropEffect: 'none',
+      effectAllowed: 'copyMove',
+    }
+    const column = (day: string) => view.container.querySelector<HTMLElement>(`[data-datekey="${day}"]`)!
+    // jsdom の DragEvent は clientY を持たないので足す
+    const drop = (el: HTMLElement) => {
+      const ev = createEvent.drop(el, { dataTransfer: transfer })
+      Object.defineProperty(ev, 'clientY', { value: 0 })
+      fireEvent(el, ev)
+    }
+    drop(column('2026-10-09'))
+    expect(useTaskStore.getState().habits[0]!.timeOverrides).toBeUndefined()
+    drop(column('2026-10-08'))
+    expect(useTaskStore.getState().habits[0]!.timeOverrides?.['2026-10-08']).toEqual({ startTime: '00:00', endTime: '01:00' })
+    expect(column('2026-10-08').querySelector(`[data-block-id="${slotId}"]`)).not.toBeNull()
+    expect(screen.getAllByText('Stretch')).toHaveLength(3)
   })
 
   it('今日の計画（1 日表示）には習慣の段を出さない', () => {

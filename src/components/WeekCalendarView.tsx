@@ -5,7 +5,7 @@ import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { timeToMinutes } from '../lib/timeGrid'
 import { durationMinutesForTaskId } from '../lib/taskTimeRange'
-import { applyBlockMove, applyBlockResize, logLimitAt, nudgeBlockByKey } from '../lib/timelineBlockEdit'
+import { applyBlockMove, applyBlockResize, logLimitAt, nudgeBlockByKey, setHabitDayTimeFromSlot } from '../lib/timelineBlockEdit'
 import { canCopyOnDrop, isCopyModifierHeld, placeCopies, useCopyModifier } from '../lib/dragCopy'
 import { useHotkey } from '../hooks/useHotkey'
 import { SHORTCUTS } from '../lib/shortcuts'
@@ -297,10 +297,12 @@ export function WeekCalendarView({
   usePinchHourHeight(scrollRef, timelineDrag.handlePointerCancel)
 
   // 落とすときにだけ読む。tasks に依存させると、変更のたびに列（memo）に渡す落とす処理が変わる
-  const getTaskDuration = useCallback(
-    (taskId: string): number | null => durationMinutesForTaskId(useTaskStore.getState().tasks, taskId),
-    [],
-  )
+  const getTaskDuration = useCallback((taskId: string): number | null => {
+    // 習慣の段のチップは目標の分数、無ければ既定の予定の長さ
+    const slot = parseHabitSlotId(taskId)
+    if (slot) return useTaskStore.getState().habits.find((h) => h.id === slot.habitId)?.goalMinutes ?? null
+    return durationMinutesForTaskId(useTaskStore.getState().tasks, taskId)
+  }, [])
 
   /** 時刻つきの予定を時間グリッドより上（終日の行）へ持っていったときの落とし先の日 */
   const [allDayMoveKey, setAllDayMoveKey] = useState<string | null>(null)
@@ -378,6 +380,12 @@ export function WeekCalendarView({
   // 列（memo）に渡す落とす処理が描くたびに変わらないよう、作り直さない（読むのはストアと ref だけ）
   const onDrop = useCallback(
     (taskId: string, dateKey: string, startTime: string, endTime: string) => {
+      // 習慣の段のチップ: その日の格子に置くと、その日だけその時間の枠になる（ほかの日には置かない）
+      const habitSlot = parseHabitSlotId(taskId)
+      if (habitSlot) {
+        if (habitSlot.dateKey === dateKey) setHabitDayTimeFromSlot(habitSlot, startTime, endTime)
+        return
+      }
       if (dropLaneRef.current === 'log') {
         // 記録の列に落とした = その時間にやった（今より先は不可）。記録だけ作り、To-Do は途中までのこともあるので完了にするか聞く
         const task = useTaskStore.getState().tasks.find((x) => x.id === taskId)

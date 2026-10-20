@@ -8,10 +8,12 @@ import { planVisualState } from '../../lib/planVisual'
 import { timeToMinutes } from '../../lib/timeGrid'
 import { toDateKey } from '../../lib/dateKey'
 import { CalendarCheck } from '../timeline/CalendarCheck'
+import { startTaskDrag } from '../../lib/taskDrag'
 
 /**
  * 終日の行の下の習慣の段。始まりの時刻だけを決めた習慣は長さを持たないので、格子に枠を置かず時刻つきのチップで並べる。
- * 押すと習慣の枠と同じカード、右クリック（タッチは長押し）で同じメニュー。その週に 1 つも無ければ出さない
+ * 押すと習慣の枠と同じカード、右クリック（タッチは長押し）で同じメニュー。その日の格子へドラッグすると、その日だけその時間の枠になる。
+ * その週に 1 つも無ければ出さない
  */
 export function WeekHabitRow({
   gridDays,
@@ -58,14 +60,16 @@ export function WeekHabitRow({
                     key={slot.id}
                     data-block-id={slot.id}
                     data-touch-menu
+                    draggable
+                    onDragStart={(e) => startTaskDrag(e, slot.id)}
                     onClick={(e) => openHabitCard(slot.id, e.currentTarget)}
                     onContextMenu={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
                       openHabitMenu(slot.id, e.clientX, e.clientY)
                     }}
-                    className={`${!done && state === 'upcoming' ? 'gc-plan' : 'gc-missed'} flex cursor-pointer items-center gap-1 rounded px-1 py-0.5
-                      text-[10px] leading-tight transition-[filter] hover:brightness-95`}
+                    className={`${!done && state === 'upcoming' ? 'gc-plan' : 'gc-missed'} flex cursor-grab items-center gap-1 rounded px-1 py-0.5
+                      text-[10px] leading-tight transition-[filter] hover:brightness-95 active:cursor-grabbing`}
                     style={colorVars(habit.color)}
                   >
                     {(done || started) && (

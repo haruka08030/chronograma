@@ -15,6 +15,7 @@ import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
 import { buildHabitRecordIndex, habitDayStatus, plannedRecordTimes } from '../../lib/habitTiming'
+import { isPointHabitOn } from '../../lib/habitSlots'
 import { logLimitAt } from '../../lib/timelineBlockEdit'
 import { timeToMinutes } from '../../lib/timeGrid'
 import { isLogTask } from '../../types/task'
@@ -98,7 +99,7 @@ export function HabitSlotPopover({
         <div className="min-w-0">
           <p className="break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100">{habit.title}</p>
           <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
-            {df.monthDayWeekdayLong(dateKey)} · {times.startTime} – {times.endTime}
+            {df.monthDayWeekdayLong(dateKey)} · {isPointHabitOn(habit, dateKey) ? times.startTime : `${times.startTime} – ${times.endTime}`}
           </p>
           <CardActions
             complete={
