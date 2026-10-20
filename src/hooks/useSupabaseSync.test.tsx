@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
+import { blockPersisting, unblockPersistingForTests } from '../lib/persistStorage'
 import { loadBaseline, saveBaseline } from '../lib/syncMerge'
 import { fakeDb, inboxRow, taskRow } from '../test/fakeSupabaseDb'
 import { clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
@@ -719,5 +720,22 @@ describe('useSupabaseSync', () => {
       expect(confirm.ask).not.toHaveBeenCalled()
       expect(serverTitles('u1')).not.toContain('task 0')
     })
+  })
+
+  it('保存を止めている間（新しい版のデータ・読めなかったデータ、#485）は同期しない', async () => {
+    db.tables.lists!.push({ ...inboxRow })
+    db.tables.tasks!.push(taskRow('r1', { title: 'from account' }))
+    blockPersisting('newer')
+    try {
+      signIn('u1')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3_000)
+      })
+      expect(db.selects).toHaveLength(0)
+      expect(storeTitles()).toEqual([])
+      expect(loadBaseline('u1')).toBeNull()
+    } finally {
+      unblockPersistingForTests()
+    }
   })
 })

@@ -28,6 +28,7 @@
   IndexedDB か BroadcastChannel が使えない・開けない（8 秒）・移せない端末は localStorage のまま（旧キーは `migrateLegacyPersistKey`）。
   書き終える前にページを離れると（トランザクションが中断されることがある）、書き終えていない分を localStorage `chronograma-data-unsaved` に置き、次に開いたときに IndexedDB の書いた時刻（`meta` の `at:{キー}`）より新しければ書く。
   他のタブの書き込みは BroadcastChannel（localStorage のときは storage イベント）で知り、IndexedDB から読み直して取り込む
+  版の違う本体を読むとき（`migrate.ts` の `migratePersistedState`）: 古い版は移す前の本体を `chronograma-storage-before-migration-{時刻}` に写してから移す。新しい版（`STORE_VERSION` より大きい）は移さずに保存を止める（`persistStorage.ts` の `blockPersisting('newer')`）。読めない・移せないときも保存を止め（`unreadable`）、本体を `chronograma-storage-unreadable-{時刻}` に写す。止めている間は開き直すまで保存も同期もしない。画面上のバナー（`StorageFullBanner`）は、新しい版なら再読み込み、読めなければ写しの書き出し（`latestStorageCopy`）を出す
 - **オプション**: **Supabase** でメール **マジックリンク**（コード入力も可）または **Google**（`signInWithOAuth`、implicit で `#access_token` に戻る。カレンダー連携の `?code&state` とは別）でログインし、**リスト
   / タスク / 習慣** のクラウド同期。Google ログインはカレンダーの権限を求めない。未設定時は認証が noop 相当でローカルのみ
 

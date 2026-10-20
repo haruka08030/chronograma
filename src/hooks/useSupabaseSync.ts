@@ -27,6 +27,7 @@ import { clearAccountData, clearDeletedAccount, clearPreviousAccount, isAccountG
 import { askConfirm } from '../lib/confirmDialog'
 import i18n from '../i18n/config'
 import { requestPersistentStorage } from '../lib/persistentStorage'
+import { persistBlocked } from '../lib/persistStorage'
 import { SYNC_PROTOCOL_VERSION, isAppOutdatedError } from '../lib/syncVersion'
 import { noteAppVersion } from '../lib/versionSeen'
 import { afterPush, loadPullState, missingWithoutTombstone, pullRemote, savePullState } from '../lib/syncPull'
@@ -770,6 +771,8 @@ export function useSupabaseSync() {
      * 失敗したら未送信の変更が残るので、バックオフで自力再送する（オフライン対策）。
      */
     const sync = async () => {
+      // 保存を止めている間（読めなかった・新しい版のデータ、#485）は同期しない。控えだけ書くと、本体と食い違って次の同期で行を消す
+      if (persistBlocked()) return
       if (running) {
         rerun = true
         return
