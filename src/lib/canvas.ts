@@ -2,7 +2,7 @@ import { readFunctionErrorBody } from './functionError'
 import type { Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import { getSupabase } from './supabase'
+import { getSupabase, sendFunctionOnLeave } from './supabase'
 import { instantFromWall, isValidTimeZone, wallInZone } from './timeZone'
 import { feedUrlProblem } from '../../supabase/functions/canvas/feedUrl.ts'
 import { CANVAS_LIST_ID, isCanvasListId, parseCanvasTaskId } from './canvasIds'
@@ -141,6 +141,10 @@ export const disconnectCanvas = (connectionId: string) => invokeConnections<Canv
 export const fetchCanvasItems = () => invokeConnections<CanvasItemsPayload>({ action: 'items' })
 export const markCanvasComplete = (connectionId: string, type: string, id: string, complete: boolean) =>
   invokeCanvas<{ ok: true }>({ action: 'complete', connectionId, type, id, complete })
+
+/** タブを閉じるときの `markCanvasComplete`。応答は待たない */
+export const markCanvasCompleteOnLeave = (connectionId: string, type: string, id: string, complete: boolean, accessToken: string) =>
+  sendFunctionOnLeave('canvas', { action: 'complete', connectionId, type, id, complete }, accessToken)
 
 export function canvasTaskId(connectionId: string, type: string, id: string): string {
   return `canvas-${connectionId}-${type}-${id}`

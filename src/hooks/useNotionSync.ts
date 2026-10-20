@@ -8,6 +8,7 @@ import {
   advanceNotionPageOnLeave,
   fetchNotionPages,
   NotionRequestError,
+  notionTaskId,
   parseNotionTaskId,
   reconcileNotionPages,
 } from '../lib/notion'
@@ -20,6 +21,7 @@ import { reportFailure } from '../lib/errorReport'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
 import { NOTION_PULLED_PREFIX, loadPulled, savePulled } from '../lib/externalFields'
+import { WRITE_BACK_PREFIX, writeBackQueue } from '../lib/writeBackQueue'
 import type { SyncStatus } from '../types/sync'
 
 /** Notion は 1 秒 3 回までなので、開いている間の取り込みは控えめに */
@@ -28,6 +30,8 @@ const POLL_MS = 5 * 60_000
 const ADVANCE_DELAY_MS = 5_000
 /** 初回はクラウド同期の取得を待つ（新しい端末で、取得前に作ったタスクが上書きされないように） */
 const FIRST_SYNC_WAIT_MS = 10_000
+/** 保存した設定が今のデータベースと合わない（Notion でステータスの名前を変えた・消した）。設定を見直すまで出す */
+export const NOTION_CONFIG_CHANGED = 'notion_config_changed'
 
 export type NotionSyncState = SyncStatus & {
   /** null はまだ確認していない */
@@ -51,6 +55,10 @@ export function requestNotionSync() {
 
 /** 前回 Notion から取り込んだタイトル・期限（この端末だけ。ユーザーが変えた値を上書きしないため） */
 const notionPulledKey = (userId: string) => `${NOTION_PULLED_PREFIX}${userId}`
+
+/** まだ Notion に届いていない「完了で進める」（この端末だけ。届くまで間隔をあけて送り直す） */
+type AdvancePayload = { pageId: string; status: string }
+const notionAdvanceKey = (userId: string) => `${WRITE_BACK_PREFIX}notion:${userId}`
 
 /** Notion の接続が切れていて、つなぎ直さないと直らない */
 export function useNotionReconnectNeeded(): boolean {
@@ -94,6 +102,20 @@ export function useNotionSync() {
     /** 自動で完了にしたタスク。ユーザーの完了ではないので Notion に書き戻さない */
     const autoCompleted = new Set<string>()
     const pendingAdvance = new Map<string, { timer: ReturnType<typeof setTimeout>; pageId: string; status: string }>()
+    /** 送り直し待ち。進めるのはサーバーが「まだそのステータスか」を見てからなので、何度送っても二重には進まない */
+    const advanceQueue = writeBackQueue<AdvancePayload>(notionAdvanceKey(userId))
+    /** 送っている最中のもの（同じものを同時に 2 回送らない） */
+    const sending = new Set<string>()
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+
+    /** 設定が合わなくなったことを知らせたか（直るまでに何度も知らせない） */
+    let configNoticeShown = false
+    /** 設定が合わなくなったことを、1 回だけ知らせる（設定には直るまで出す） */
+    const noteConfigChanged = () => {
+      setSyncState({ error: NOTION_CONFIG_CHANGED })
+      if (!configNoticeShown) notify(i18n.t('notion.configChangedNotice'))
+      configNoticeShown = true
+    }
 
     /** `manual`: 設定の「今すぐ同期」など。代表でないタブからでも取り込む */
     const run = async (manual = false) => {
@@ -123,6 +145,7 @@ export function useNotionSync() {
           }
           if (!res.configured) {
             setSyncState({ connected: true, configured: false, error: null })
+            if (res.configChanged) noteConfigChanged()
             continue
           }
           // 取得と反映の間に await を挟まない（この間のローカル編集を取りこぼさない）
@@ -141,6 +164,8 @@ export function useNotionSync() {
             },
             titleFor: (p) => i18n.t('notion.taskTitle', { name: p.title || i18n.t('notion.untitled'), status: p.status }),
             pulled: loadPulled(notionPulledKey(userId)),
+            // 設定が合わないときは「要アクションでなくなった」が本当か分からないので、完了にしない
+            autoComplete: !res.configChanged,
           })
           savePulled(notionPulledKey(userId), result.pulled)
           result.autoCompletedIds.forEach((id) => autoCompleted.add(id))
@@ -150,6 +175,13 @@ export function useNotionSync() {
             else setStateWithImportedLabels({ tasks: result.tasks, ...labels })
           }
           setSyncState({ connected: true, configured: true, lastSyncedAt: new Date().toISOString(), error: null })
+          if (res.configChanged) noteConfigChanged()
+          else {
+            configNoticeShown = false
+            // 届いていない「進める」を、待ち時間を待たずに送り直す（いま Notion に届くと分かったので）。
+            // もう要アクションに無い行は、ほかで進んだので送らない
+            void flushAdvances(new Set(res.pages.map((p) => notionTaskId(p.pageId, p.status))), true)
+          }
         } while (rerun && !cancelled)
       } catch (e) {
         if (cancelled) return
@@ -165,6 +197,67 @@ export function useNotionSync() {
       }
     }
 
+    /** 1 件送る。送れたら送り直し待ちから外し、送れなければ間隔をあけて次に回す。進めたら true */
+    const sendAdvance = async (taskId: string, p: AdvancePayload): Promise<boolean> => {
+      if (sending.has(taskId)) return false
+      sending.add(taskId)
+      try {
+        const r = await advanceNotionPage(p.pageId, p.status)
+        advanceQueue.done(taskId)
+        if (r.configChanged && !cancelled) noteConfigChanged()
+        return r.advanced
+      } catch (e) {
+        advanceQueue.fail(taskId)
+        console.error('[notion] advance', e)
+        reportFailure('integration', 'notion:advance', e, { code: e instanceof NotionRequestError ? e.code : null })
+        if (!cancelled) setSyncState({ error: e instanceof NotionRequestError && e.code ? e.code : String(e) })
+        return false
+      } finally {
+        sending.delete(taskId)
+        if (!cancelled) scheduleRetry()
+      }
+    }
+
+    /**
+     * 送り直し待ちのうち、いま送ってよいものを送る。
+     * `actionIds` は取り込んだばかりの要アクションの行（無い行は Notion 側で既に進んでいるので送らずに外す）。
+     * `now`: 次に送ってよい時刻を待たずに全部送る（回線が戻った・Notion に届くと分かったとき）
+     */
+    const flushAdvances = async (actionIds?: ReadonlySet<string>, now = false) => {
+      let advanced = false
+      for (const [taskId, e] of now ? advanceQueue.all() : advanceQueue.due()) {
+        if (cancelled) return
+        // 猶予中のものは、猶予が明けたときに送る
+        if (pendingAdvance.has(taskId)) continue
+        // 完了を戻した・消したものは進めない
+        const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
+        if ((task && !task.completed) || (actionIds && !actionIds.has(taskId))) {
+          advanceQueue.done(taskId)
+          continue
+        }
+        // まだ手元に読み込まれていないだけかもしれないので、見つからないものは次に回す（古くなれば捨てる）
+        if (!task) continue
+        if (await sendAdvance(taskId, e.payload)) advanced = true
+      }
+      // 進めた先が要アクションなら、次の段階のタスクをすぐ出す
+      if (advanced && !cancelled) void run()
+    }
+
+    /** 送り直しは代表のタブだけ（取り込みと同じ。同じ端末のタブで送り直し待ちを分け合う） */
+    const retryAsLeader = (now = false) => {
+      void isLeaderTab().then((leader) => {
+        if (leader && !cancelled) void flushAdvances(undefined, now)
+      })
+    }
+
+    /** 次に送ってよい時刻に、送り直しを起こす */
+    function scheduleRetry() {
+      clearTimeout(retryTimer)
+      const at = advanceQueue.nextDueAt()
+      if (at === null || cancelled) return
+      retryTimer = setTimeout(() => retryAsLeader(), Math.max(1_000, at - Date.now()))
+    }
+
     const advance = (taskId: string, pageId: string, status: string) => {
       clearTimeout(pendingAdvance.get(taskId)?.timer)
       pendingAdvance.set(taskId, {
@@ -174,30 +267,27 @@ export function useNotionSync() {
           pendingAdvance.delete(taskId)
           const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
           if (!task?.completed) return
-          advanceNotionPage(pageId, status)
-            .then((r) => {
-              // 進めた先が要アクションなら、次の段階のタスクをすぐ出す
-              if (r.advanced && !cancelled) void run()
-            })
-            .catch((e) => {
-              console.error('[notion] advance', e)
-              reportFailure('integration', 'notion:advance', e, { code: e instanceof NotionRequestError ? e.code : null })
-              if (!cancelled) setSyncState({ error: e instanceof NotionRequestError && e.code ? e.code : String(e) })
-            })
+          // 送れなかったら、閉じても次に開いたときに送り直せるよう先に覚えておく
+          advanceQueue.put(taskId, { pageId, status })
+          void sendAdvance(taskId, { pageId, status }).then((advanced) => {
+            if (advanced && !cancelled) void run()
+          })
         }, ADVANCE_DELAY_MS),
       })
     }
 
-    /** 猶予中のものを待たずに送る（届かなければ Notion は元のまま。次に開いても進めはしない） */
+    /**
+     * 猶予中のものを待たずに送る。応答は待てないので送り直し待ちにも積んでおき、次に開いたときにもう一度送る
+     * （届いていればサーバーが「もう進んでいる」と見て何もしない）
+     */
     const flushPending = () => {
       const token = accessTokenRef.current
-      if (!token) return
       for (const [taskId, p] of [...pendingAdvance]) {
         clearTimeout(p.timer)
         pendingAdvance.delete(taskId)
-        if (useTaskStore.getState().tasks.find((t) => t.id === taskId)?.completed) {
-          advanceNotionPageOnLeave(p.pageId, p.status, token)
-        }
+        if (!useTaskStore.getState().tasks.find((t) => t.id === taskId)?.completed) continue
+        advanceQueue.put(taskId, { pageId: p.pageId, status: p.status })
+        if (token) advanceNotionPageOnLeave(p.pageId, p.status, token)
       }
     }
 
@@ -245,8 +335,12 @@ export function useNotionSync() {
         if (shouldRefetchOnReturn(running, lastStartedAt)) void run()
       } else flushPending()
     }
+    // 回線が戻ったら、送り直し待ちをすぐ送る
+    const onOnline = () => retryAsLeader(true)
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('pagehide', flushPending)
+    window.addEventListener('online', onOnline)
+    scheduleRetry()
     const poll = setInterval(() => {
       if (document.visibilityState === 'visible') void run()
     }, POLL_MS)
@@ -258,8 +352,10 @@ export function useNotionSync() {
       unsubFirst?.()
       clearInterval(poll)
       pendingAdvance.forEach((p) => clearTimeout(p.timer))
+      clearTimeout(retryTimer)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('pagehide', flushPending)
+      window.removeEventListener('online', onOnline)
       unsub()
     }
   }, [userId, loading])

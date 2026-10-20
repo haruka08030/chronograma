@@ -46,6 +46,8 @@ export type NotionPagesPayload =
   | {
       connected: true
       configured: boolean
+      /** 保存した設定が今のデータベースと合わない（Notion でステータスの名前を変えた・消した）。古い関数は返さない */
+      configChanged?: boolean
       databaseTitle: string
       datesEnabled?: boolean
       pages: NotionPage[]
@@ -82,7 +84,7 @@ export const saveNotionConfig = (config: NotionConfig) => invokeNotion<NotionSta
 export const disconnectNotion = () => invokeNotion<{ ok: true }>({ action: 'disconnect' })
 export const fetchNotionPages = () => invokeNotion<NotionPagesPayload>({ action: 'pages' })
 export const advanceNotionPage = (pageId: string, fromStatus: string) =>
-  invokeNotion<{ advanced: boolean; to?: string }>({ action: 'advance', pageId, fromStatus })
+  invokeNotion<{ advanced: boolean; to?: string; configChanged?: boolean }>({ action: 'advance', pageId, fromStatus })
 
 /** タブを閉じるときの `advanceNotionPage`。応答は待たない */
 export const advanceNotionPageOnLeave = (pageId: string, fromStatus: string, accessToken: string) =>
@@ -148,6 +150,11 @@ export function reconcileNotionPages(
     titleFor: (page: NotionPage) => string
     /** 前回取り込んだ値。渡すと、ユーザーが変えたタイトル・期限は上書きしない（`externalPatch`） */
     pulled?: Readonly<Record<string, PulledFields>>
+    /**
+     * false なら、要アクションでなくなったタスクを完了にしない。設定が今のデータベースと合わないとき
+     * （ステータスの名前を変えた・消した）は「無くなった」が本当か分からないので、黙って完了にしない
+     */
+    autoComplete?: boolean
   },
 ): NotionReconcileResult {
   const byId = new Map(state.tasks.map((t) => [t.id, t]))
@@ -214,7 +221,7 @@ export function reconcileNotionPages(
   }
 
   const autoCompletedIds: string[] = []
-  for (const t of state.tasks) {
+  for (const t of opts.autoComplete === false ? [] : state.tasks) {
     if (t.completed || t.archivedAt || t.deletedAt || wanted.has(t.id)) continue
     if (!parseNotionTaskId(t.id)) continue
     updates.set(t.id, { ...t, completed: true, completedAt: opts.now, updatedAt: opts.now })

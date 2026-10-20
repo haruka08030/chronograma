@@ -56,6 +56,14 @@ describe('reconcileNotionPages', () => {
     expect(r.autoCompletedIds).toEqual([first.tasks[0].id])
   })
 
+  it('設定が合わない（ステータスの名前を変えた）ときは、無くなった行を完了にしない', () => {
+    const first = reconcileOnce([page(PAGE_A, 'ES を出す')])
+    const r = reconcileNotionPages(first, { databaseTitle: '就活', datesEnabled: true, pages: [] }, { ...opts, autoComplete: false })
+    expect(r.tasks[0].completed).toBe(false)
+    expect(r.autoCompletedIds).toEqual([])
+    expect(r.changed).toBe(false)
+  })
+
   it('makes a fresh task when the same row reaches the next action status', () => {
     const first = reconcileOnce([page(PAGE_A, 'ES を出す')])
     const r = reconcileNotionPages(first, { databaseTitle: '就活', datesEnabled: true, pages: [page(PAGE_A, '面接を受ける')] }, opts)
