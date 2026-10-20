@@ -427,6 +427,8 @@ export interface TaskState {
   saveDue: (item: DueItem) => void
   /** 引き落とし・期限の日を消す */
   deleteDue: (id: string) => void
+  /** この名前の予定を Google カレンダーに送らない・送る（#461） */
+  setGoogleSkip: (title: string, skip: boolean) => void
   /** 時間割の設定を保存する（同じ中身なら何もしない） */
   saveTimetable: (timetable: Timetable) => void
   /**

@@ -55,6 +55,7 @@ import { normalizeDayMoods, type DayMoods } from '../lib/dayMood'
 import { DEFAULT_TIMETABLE, normalizeTimetable, type Timetable } from '../lib/timetable'
 import { DEFAULT_ADDONS, normalizeAddons, withAddonOn, type Addons } from '../lib/addons'
 import { normalizeDues } from '../lib/dues'
+import { withGoogleSkip } from '../lib/googleSkip'
 import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
@@ -230,6 +231,12 @@ export const useTaskStore = create<TaskState>()(
           const cur = get().addons
           if (!cur.dues.some((d) => d.id === id)) return
           set({ addons: { ...cur, dues: cur.dues.filter((d) => d.id !== id) } })
+        },
+        setGoogleSkip: (title, skip) => {
+          const cur = get().addons
+          const googleSkip = withGoogleSkip(cur.googleSkip, title, skip)
+          if (sameValue(googleSkip, cur.googleSkip)) return
+          set({ addons: { ...cur, googleSkip } })
         },
         ...createDayMoodsSlice(ctx),
         ...createEventSeriesSlice(ctx),
