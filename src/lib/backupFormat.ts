@@ -21,6 +21,7 @@ import { readMovedPlans } from './movedPlans'
 import { readDreamId, readSomedayTier } from './somedayTier'
 import { isLabelId, normalizeLabelIds } from './labelIds'
 import { normalizeLabelTargets } from './labelTargets'
+import { readTimeZone } from './timeZone'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -260,8 +261,9 @@ export function normalizeTaskRow(raw: unknown): Task | null {
     location: typeof row.location === 'string' ? row.location : null,
     estimateMinutes: readEstimateMinutes(row.estimateMinutes ?? row.estimate_minutes),
     carriedDays: readCarriedDays(row.carriedDays ?? row.carried_days),
-    timeZone: typeof row.timeZone === 'string' ? row.timeZone : null,
-    timeZoneAnchor: typeof row.timeZoneAnchor === 'string' ? row.timeZoneAnchor : null,
+    // 知らないタイムゾーン名は無いものとして読む（いまのタイムゾーンで書いたとみなす）
+    timeZone: readTimeZone(row.timeZone),
+    timeZoneAnchor: readTimeZone(row.timeZoneAnchor),
     sectionId: typeof sectionRaw === 'string' ? sectionRaw : null,
     parentId: typeof parentRaw === 'string' ? parentRaw : null,
     dueTime: readTime(dueTimeRaw),

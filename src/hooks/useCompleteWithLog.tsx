@@ -79,7 +79,7 @@ export function useCompleteWithLog() {
 
   const modal = draft ? (
     <PartBoundary name="completeWithLog" onCrash={() => setDraft(null)}>
-      <OverlaySuspense>
+      <OverlaySuspense onLoadFailed={() => setDraft(null)}>
         <CompleteWithLogModal
           draft={draft}
           onClose={() => {

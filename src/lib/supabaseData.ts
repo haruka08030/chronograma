@@ -15,7 +15,7 @@ import {
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
-import { appTimeZone } from './timeZone'
+import { appTimeZone, readTimeZone } from './timeZone'
 import { withLogCategory } from './taskDefaults'
 import type { LogLabelRow, RemoteLabels } from './labelSync'
 import { validTargetMinutes } from './labelTargets'
@@ -320,8 +320,9 @@ function rowToTaskFields(row: TaskRow): Task {
     kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true, row.is_event === true),
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
     sourceTaskId: typeof row.source_task_id === 'string' ? row.source_task_id : null,
-    timeZone: typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null,
-    timeZoneAnchor: typeof row.time_zone_anchor === 'string' && row.time_zone_anchor ? row.time_zone_anchor : null,
+    // 知らないタイムゾーン名は無いものとして読む（いまのタイムゾーンで書いたとみなす）
+    timeZone: readTimeZone(row.time_zone),
+    timeZoneAnchor: readTimeZone(row.time_zone_anchor),
     reminders: parseReminders(row.reminders),
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
     deletedAt: typeof row.deleted_at === 'string' ? row.deleted_at : null,

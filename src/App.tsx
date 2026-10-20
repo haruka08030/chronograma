@@ -165,10 +165,15 @@ export default function App() {
             <ErrorBoundary
               scope="screen"
               resetKey={partKey}
-              onLeave={() => {
-                setSearchQuery('')
-                useTaskStore.getState().selectView('planner')
-              }}
+              // 今日の画面そのものが落ちたときは「今日を開く」を出さない（押しても同じ画面）。「もう一度」は常に出る
+              onLeave={
+                selectedView === 'planner' && !searchQuery.trim()
+                  ? undefined
+                  : () => {
+                      setSearchQuery('')
+                      useTaskStore.getState().selectView('planner')
+                    }
+              }
             >
               {/* 画面を切り替えたら、空白から急に変わらずふわっと出す（リストを替えただけでは作り直さない） */}
               <div key={searchQuery.trim() ? 'search' : (selectedView ?? 'list')} className="flex min-h-0 flex-1 flex-col animate-fade-in">
