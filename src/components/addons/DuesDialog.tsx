@@ -1,9 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { differenceInCalendarDays } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
-import { DUE_NOTIFY_OPTIONS, DUE_TITLE_MAX, nextDueDate, type DueItem, type DueRepeat } from '../../lib/dues'
-import { fromDateKey } from '../../lib/dateKey'
+import { DUE_NOTIFY_OPTIONS, DUE_TITLE_MAX, daysBetween, nextDueDate, type DueItem, type DueRepeat } from '../../lib/dues'
 import { newId } from '../../lib/id'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { useAppTodayKey } from '../../hooks/useAppClock'
@@ -47,7 +45,7 @@ export function DuesDialog({ onClose }: { onClose: () => void }) {
         {rows.length === 0 && <p className={`px-2 py-3 ${HINT_TEXT}`}>{t('dues.empty')}</p>}
         <ul>
           {rows.map(({ item, next }) => {
-            const days = next ? differenceInCalendarDays(fromDateKey(next), fromDateKey(today)) : null
+            const days = next ? daysBetween(today, next) : null
             return (
               <li key={item.id}>
                 <button

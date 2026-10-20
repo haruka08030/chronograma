@@ -1,7 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { differenceInCalendarDays } from 'date-fns'
-import { dueSoonTone, type DueItem } from '../../lib/dues'
-import { fromDateKey } from '../../lib/dateKey'
+import { daysBetween, dueSoonTone, type DueItem } from '../../lib/dues'
 import { tip } from '../../lib/tooltip'
 import { useAppTodayKey } from '../../hooks/useAppClock'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
@@ -25,7 +23,7 @@ export function DueMark({
 }) {
   const { t } = useTranslation()
   const today = useAppTodayKey()
-  const days = differenceInCalendarDays(fromDateKey(dateKey), fromDateKey(today))
+  const days = daysBetween(today, dateKey)
   const tone = days < 0 ? 'past' : dueSoonTone(days)
   return (
     <span

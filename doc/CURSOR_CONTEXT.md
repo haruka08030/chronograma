@@ -110,6 +110,7 @@
   朝のまとめ（`dailyReminders.planTime`）・予定の前（`eventReminderMinutes`）・締切の前（`notificationsEnabled`、前日 20:00 ＋ 3 時間前）・
   予定のあとの記録の確認（`recordPrompts`、通知の「予定どおり / 記録する」→ `logPlanAsPlanned` / `RecordPromptHost`）・
   タイマーの止め忘れ（3 時間）・「あと何分」の時間（`timerEndDue`。タブを開いていれば Web Push があっても `useReminders` が終わりの時刻に `checkTimerEnd`（`src/lib/timerEndAlert.ts`）で通知と音を出し、全部の購読の `timer_end_notified_for` に印を付ける）。タスクごとの通知は `Task.reminders`（`TaskRemindersField`、null は既定）。
+  引き落とし・期限の日（追加機能、#454）は Web Push だけ: 知らせ始める日（`notifyDays` 日前）と当日のものを、朝のまとめの時刻（オフなら締切の通知がオンの人に 8:00）に 1 日 1 通（`daily-reminders/dues.ts` の `duesToNotify`、印は `reminder_sent` の `dues|日付`）。日付の決め方はアプリ（`src/lib/dues.ts`）と同じものを使う。
   Web Push 購読中は Edge Function、それ以外は `App` が 30 秒ごとに `checkLocalReminders`（`src/lib/localReminders.ts`）。
   「今日の計画」でタスクが 1 件以上あるときに一度だけおすすめの通知をまとめてオンにする案内。`dailyCapacityMinutes`（既定 8h）を
   超えて計画すると穏やかに警告。設定は `DailyRhythmSettings`。日の集計は `getDayPlan`（`src/lib/dayPlan.ts`）
