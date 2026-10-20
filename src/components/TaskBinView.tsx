@@ -218,6 +218,8 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
               className="flex items-center gap-3 rounded-xl border border-zinc-200 px-3 py-2.5 dark:border-zinc-800"
               data-habit-row={h.id}
             >
+              {/* 習慣は選べないが、To-Do の行の選択の枠（PC だけ幅を取る）の分を空けて題名の頭をそろえる */}
+              <span aria-hidden className="hidden h-4 w-4 shrink-0 md:block" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">{h.title || '\u00A0'}</p>
                 <div className={`mt-1 flex flex-wrap items-center gap-2 ${META_TEXT}`}>
