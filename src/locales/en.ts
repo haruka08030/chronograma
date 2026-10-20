@@ -1034,6 +1034,8 @@ export default {
     deleteForeverCount: 'Permanently delete {{count}}',
     emptyDeleted: 'Trash is empty',
     emptyArchived: 'No archived tasks',
+    habit: 'Habit',
+    permanentConfirmHabit: 'Permanently delete this habit? This cannot be undone.',
   },
   dueDatePicker: {
     title: 'Choose due date',
@@ -1160,6 +1162,7 @@ export default {
     listDeleted: 'Deleted “{{name}}”',
     habitDeleted: 'Deleted “{{name}}”',
     habitArchived: 'Archived “{{name}}”',
+    habitsRestored: 'Restored {{count}} habits',
     habitRest: 'Set “{{name}}” to rest',
     habitRestCleared: 'Ended the rest for “{{name}}”',
     habitRecorded: 'Logged “{{name}}”',

@@ -321,6 +321,7 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
   const restDates = readHabitRestDates(rec.restDates)
   const weekdayTimes = readHabitWeekdayTimes(rec.weekdayTimes)
   const goalMinutes = readHabitGoalMinutes(rec.goalMinutes)
+  const deletedAt = typeof rec.deletedAt === 'string' && !Number.isNaN(Date.parse(rec.deletedAt)) ? rec.deletedAt : null
   // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
     id,
@@ -340,6 +341,8 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
     ...(restDates ? { restDates } : {}),
     ...(weekdayTimes ? { weekdayTimes } : {}),
     ...(goalMinutes ? { goalMinutes } : {}),
+    // ゴミ箱に無い習慣には無い
+    ...(deletedAt ? { deletedAt } : {}),
   }
 }
 

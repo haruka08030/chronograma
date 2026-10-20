@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { getDayReviews, type LabelSource } from '../lib/weekReview'
 import { summarizeSleep, type SleepNight } from '../lib/sleep'
 import { computeDayInsights, INSIGHT_DAYS, insightDateKeys, type DayInsight } from '../lib/dayInsights'
@@ -11,7 +11,7 @@ import { useAppTodayKey } from './useAppClock'
 /** 日の違いの行（`computeDayInsights`）。睡眠カードが出すかどうかを決めるのにも使う */
 export function useDayInsights(): DayInsight[] {
   const tasks = useTaskStore((s) => s.tasks)
-  const habits = useTaskStore((s) => s.habits)
+  const habits = useTaskStore(selectLiveHabits)
   const lists = useTaskStore((s) => s.lists)
   const dayMoods = useTaskStore((s) => s.dayMoods)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)

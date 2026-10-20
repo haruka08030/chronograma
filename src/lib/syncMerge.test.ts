@@ -292,6 +292,16 @@ describe('同じ行を両方の端末で変えたとき（項目ごと）', () =
   })
 })
 
+describe('習慣のゴミ箱（#489）', () => {
+  it('手元でゴミ箱に入れ、あちらで名前を変えても、ゴミ箱に入ったまま名前も残す', () => {
+    const baseline = baselineFrom(snapshot({ habits: [habit('h1', { title: 'ジム' })] }))
+    const local = snapshot({ habits: [habit('h1', { title: 'ジム', deletedAt: T1, updatedAt: T1 })] })
+    const remote = snapshot({ habits: [habit('h1', { title: 'ジム（夜）', updatedAt: T2 })] })
+
+    expect(mergeSnapshots(local, remote, baseline).merged.habits[0]).toMatchObject({ title: 'ジム（夜）', deletedAt: T1 })
+  })
+})
+
 describe('前の版の控え（種類を isTimeLog・isSleep で持っていた）', () => {
   /** 前の版の形のタスク（kind の代わりに 2 つの印） */
   const legacy = (t: Task) => {

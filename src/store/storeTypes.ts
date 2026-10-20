@@ -331,7 +331,12 @@ export interface TaskState {
    * 「元に戻す」付きのトースト
    */
   setHabitRest: (id: string, from: string, to: string, rest: boolean) => void
+  /** ゴミ箱へ（達成日は残す）。「元に戻す」付きのトースト */
   deleteHabit: (id: string) => void
+  /** ゴミ箱から戻す（達成日ごと）。2 件以上なら件数のトースト */
+  restoreDeletedHabits: (ids: string[]) => void
+  /** ゴミ箱から完全に削除 */
+  permanentlyDeleteHabits: (ids: string[]) => void
   /** 今日の計画・一覧・タイムライン・統計から外す（達成日は残す）。「元に戻す」付きのトースト */
   archiveHabit: (id: string) => void
   /** アーカイブから戻す */
@@ -512,9 +517,9 @@ export interface TaskState {
   permanentlyDeleteTask: (id: string) => void
   /** ゴミ箱からまとめて完全に削除（対象と全子孫）。Undo は 1 段 */
   permanentlyDeleteTasks: (ids: string[]) => void
-  /** ゴミ箱を空にする（deletedAt を持つ全タスクを完全削除） */
+  /** ゴミ箱を空にする（deletedAt を持つ全タスク・習慣を完全削除） */
   emptyDeleted: () => void
-  /** ゴミ箱に入れてから `TRASH_KEEP_DAYS` 日たったタスクを完全に削除する（起動時。同期でサーバーからも消える）。消した件数 */
+  /** ゴミ箱に入れてから `TRASH_KEEP_DAYS` 日たったタスク・習慣を完全に削除する（起動時。同期でサーバーからも消える）。消した件数 */
   purgeExpiredDeleted: (now?: number) => number
   /** 名前を入れずに離れた新規タスクを、無かったことにする（ゴミ箱に入れず、取り消し履歴も残さない） */
   discardBlankTask: (id: string) => void

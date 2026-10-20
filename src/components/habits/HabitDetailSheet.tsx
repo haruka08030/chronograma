@@ -122,7 +122,7 @@ function HabitDetailView({
           <ArchiveIcon className="h-4 w-4" />
           {t('habits.archive')}
         </button>
-        {/* 削除は確認なしで消して「元に戻す」で戻せる（右クリックのメニューと同じ） */}
+        {/* 削除は確認なしでゴミ箱へ。「元に戻す」・ゴミ箱から戻せる（右クリックのメニューと同じ） */}
         <button
           type="button"
           onClick={() => {

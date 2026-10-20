@@ -44,6 +44,7 @@
 | [`038_realtime_sync_wake.sql`](038_realtime_sync_wake.sql) | 同期する表（`lists` / `list_sections` / `tasks` / `habits` / `sync_tombstones`・設定の表 6 つ・`day_moods`）を Realtime の publication `supabase_realtime` に入れる（無ければ作る）。端末は本人の行（`user_id=eq.<自分>`）の INSERT / UPDATE の通知を同期を起こす合図にだけ使う。DELETE の通知は RLS が効かないので購読せず、消えた行は `sync_tombstones` の通知で知る |
 | [`040_task_dream_id.sql`](040_task_dream_id.sql) | 夢の一歩を予定にして To-Do になった行の元の夢 `tasks.dream_id`（タスクの id、null は無し。外部キーなし、1〜128 字 `tasks_dream_id_check`）。夢の進み具合・次の一歩に数え、行に夢の名前を添える（数えるのはアプリ）。夢を消す・かなえる・やりたいへ移しても外さない |
 | [`041_user_addons.sql`](041_user_addons.sql) | 追加機能のオン・オフ `user_addons`（利用者ごとに 1 行、`addons` は `{ enabled: { 機能: true/false } }` の object、256KB まで `user_addons_size_check`、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
+| [`042_habit_deleted_at.sql`](042_habit_deleted_at.sql) | 習慣のゴミ箱 `habits.deleted_at`（null はゴミ箱に無い）。ゴミ箱の習慣はどの画面・統計にも出さず、達成日は残る。30 日たつとアプリが行ごと消す |
 
 テーブル（最新の形）:
 

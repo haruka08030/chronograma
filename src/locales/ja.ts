@@ -1003,6 +1003,8 @@ export default {
     deleteForeverCount: '{{count}} 件を完全に削除',
     emptyDeleted: 'ゴミ箱は空です',
     emptyArchived: 'アーカイブ済みのタスクはありません',
+    habit: '習慣',
+    permanentConfirmHabit: 'この習慣を完全に削除しますか？この操作は取り消せません。',
   },
   dueDatePicker: {
     title: '締切を選択',
@@ -1121,6 +1123,7 @@ export default {
     listDeleted: '「{{name}}」を削除しました',
     habitDeleted: '「{{name}}」を削除しました',
     habitArchived: '「{{name}}」をアーカイブしました',
+    habitsRestored: '習慣 {{count}} 件を戻しました',
     habitRest: '「{{name}}」を休みにしました',
     habitRestCleared: '「{{name}}」の休みを外しました',
     habitRecorded: '「{{name}}」を記録しました',

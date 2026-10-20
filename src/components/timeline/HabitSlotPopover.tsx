@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore } from '../../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
 import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from './anchoredCard'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
@@ -41,7 +41,7 @@ export function HabitSlotPopover({
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
-  const habit = useTaskStore((s) => s.habits.find((h) => h.id === habitId) ?? null)
+  const habit = useTaskStore((s) => selectLiveHabits(s).find((h) => h.id === habitId) ?? null)
   const tasks = useTaskStore((s) => s.tasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const now = useNow()
