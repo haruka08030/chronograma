@@ -52,6 +52,21 @@ describe('習慣の画面: 新しい習慣のフォーム', () => {
     expect(screen.getByText(/No habits yet/)).toBeInTheDocument()
   })
 
+  it('閉じても書きかけの名前は残り、画面を離れて戻っても続きから（#491）', async () => {
+    const user = userEvent.setup()
+    const first = render(<HabitsView />)
+    await user.click(screen.getByRole('button', { name: '+ Add habit' }))
+    await user.keyboard('Stretch')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: '+ Add habit' }))
+    expect(screen.getByDisplayValue('Stretch')).toBeInTheDocument()
+    first.unmount()
+
+    render(<HabitsView />)
+    await user.click(screen.getByRole('button', { name: '+ Add habit' }))
+    expect(screen.getByDisplayValue('Stretch')).toBeInTheDocument()
+  })
+
   it('空のときは例のボタン。押すとその名前で追加のカードが開く', async () => {
     const user = userEvent.setup()
     render(<HabitsView />)

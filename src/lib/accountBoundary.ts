@@ -12,6 +12,7 @@ import { clearAutoBackups } from './autoBackup'
 import { clearSignedOutLeftovers, clearSyncMirrors } from './deviceCleanup'
 import { forgetGoogleConnected } from './googleConnectedHint'
 import { clearGoogleEventCache } from './googleEventCache'
+import { clearDialogDrafts } from './dialogDrafts'
 
 /** もう無いと分かったアカウント（別の端末で消された）。この後の SIGNED_OUT で控えを取らない */
 const goneAccounts = new Set<string>()
@@ -57,7 +58,7 @@ export async function clearDeletedAccount(userId: string): Promise<void> {
 }
 
 /**
- * 手元のその人のデータ（タスク・リスト・習慣・セクション・ラベル表・他のタイムゾーン・予定の色）を空にする。
+ * 手元のその人のデータ（タスク・リスト・習慣・セクション・ラベル表・他のタイムゾーン・予定の色）とダイアログの書きかけを空にする。
  * 送れていなかった変更が消えないよう、データがあれば先に端末内に控えを取る（持ち主は `owner`）
  */
 export function clearAccountData(owner: string | null, opts: { backup?: boolean } = {}): void {
@@ -66,6 +67,8 @@ export function clearAccountData(owner: string | null, opts: { backup?: boolean 
   const hasData = store.dataOwner !== null || store.tasks.length > 0 || store.habits.length > 0
   if (hasData && opts.backup !== false) backupNow('beforeSignOut', store.dataOwner ?? owner)
   store.resetLocalData()
+  // 閉じたダイアログの書きかけも次の人に見せない
+  clearDialogDrafts()
 }
 
 /**
