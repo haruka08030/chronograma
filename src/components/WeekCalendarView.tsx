@@ -345,10 +345,11 @@ export function WeekCalendarView({
     setEdgeDir(edgeDirAt(e.clientX, e.clientY))
     const habitSlot = parseHabitSlotId(d.taskId)
     if (habitSlot) {
-      // 習慣の枠は、格子に置いた時刻ひとつの習慣だけ習慣の段へ戻せる（どの日の上でもその枠の日のチップに戻す）
+      // 習慣の枠は、格子に置いた時刻ひとつの習慣だけ習慣の段へ戻せる（どの日の上でもその枠の日のチップに戻す）。
+      // スマホは空の段を出さないので、戻すのは長押しメニューだけ
       const habit = useTaskStore.getState().habits.find((h) => h.id === habitSlot.habitId)
       const gridTop = scrollRef.current?.getBoundingClientRect().top ?? 0
-      const back = !singleDay && !!habit && isPlacedPointHabitOn(habit, habitSlot.dateKey) && e.clientY < gridTop
+      const back = isDesktop && !singleDay && !!habit && isPlacedPointHabitOn(habit, habitSlot.dateKey) && e.clientY < gridTop
       setHabitRowMoveKey(back ? habitSlot.dateKey : null)
       return
     }
@@ -576,6 +577,7 @@ export function WeekCalendarView({
               openHabitCard={openHabitCard}
               openHabitMenu={openHabitMenu}
               dropKey={habitRowMoveKey}
+              keepEmpty={isDesktop}
             />
           )}
 
