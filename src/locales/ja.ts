@@ -1579,6 +1579,7 @@ export default {
     pickStatusesFirst: '要アクションのステータスを選ぶと同期が始まります',
     taskTitle: '{{name}}：{{status}}',
     untitled: '（無題）',
+    configChangedNotice: 'Notion の設定を見直してください',
     errors: {
       generic: 'Notion と通信できませんでした。少し待ってからもう一度お試しください。',
       notion_unauthorized: 'シークレットが正しくありません。インテグレーションの画面からコピーし直してください。',
@@ -1586,6 +1587,7 @@ export default {
       notion_bad_url: 'データベースの URL を読み取れませんでした。データベースを開いた状態のリンクを貼ってください。',
       notion_rate_limited: 'Notion へのアクセスが多すぎます。少し待ってから同期してください。',
       notion_api: 'Notion からエラーが返りました。少し待ってからもう一度お試しください。',
+      notion_config_changed: 'Notion のステータスの名前が変わったか、消えています。要アクションと進め先を選び直してください。',
     },
   },
   canvas: {

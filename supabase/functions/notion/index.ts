@@ -1,9 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
 import { withCors } from '../_shared/cors.ts'
-import { BAD_JSON, errorResponse, integrationErrorStatus, jsonResponse, readJsonBody } from '../_shared/http.ts'
+import { BAD_JSON, errorResponse, integrationErrorStatus, jsonResponse, readJsonBody, retryAfterMs } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { withServerTiming } from '../_shared/serverTiming.ts'
 import { needsReseal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
+import { configDrifted, sanitizeConfig, type NotionConfig, type SchemaProperty } from './config.ts'
 
 /**
  * Notion 連携。1 人 1 データベースを読み、「要アクション」のステータスの行をタスクとして返す。
@@ -17,15 +18,8 @@ const NOTION_VERSION = '2022-06-28'
 
 type StatusKind = 'status' | 'select'
 
-type NotionConfig = {
-  statusProperty: string | null
-  dateProperty: string | null
-  actionStatuses: string[]
-  /** 完了にしたときの進め先。キーは要アクションのステータス */
-  nextStatus: Record<string, string>
-}
-
-type SchemaProperty = { name: string; type: string; options?: string[] }
+/** 送りすぎ（429）で Notion が「この秒数待って」と言ったとき、1 回だけ待つ上限 */
+const MAX_RETRY_AFTER_MS = 5_000
 
 type NotionProperty = {
   type: string
@@ -53,7 +47,7 @@ class NotionError extends Error {
   }
 }
 
-async function notionFetch<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
+async function notionFetch<T>(token: string, path: string, init: RequestInit = {}, retried = false): Promise<T> {
   const res = await fetch(`${NOTION_API}${path}`, {
     ...init,
     headers: {
@@ -63,6 +57,15 @@ async function notionFetch<T>(token: string, path: string, init: RequestInit = {
     },
   })
   if (res.ok) return (await res.json()) as T
+  // 送りすぎは、短い待ちなら言われた分だけ待って 1 回だけ送り直す（1 秒 3 回の上限に一瞬かかっただけで失敗にしない）
+  if (res.status === 429 && !retried) {
+    const wait = retryAfterMs(res.headers.get('Retry-After'), MAX_RETRY_AFTER_MS)
+    if (wait !== null) {
+      await res.body?.cancel()
+      await new Promise((r) => setTimeout(r, wait))
+      return notionFetch<T>(token, path, init, true)
+    }
+  }
   const body = (await res.json().catch(() => ({}))) as { code?: string; message?: string }
   if (res.status === 401) throw new NotionError('notion_unauthorized', body.message)
   if (res.status === 404 || body.code === 'object_not_found') throw new NotionError('notion_not_shared', body.message)
@@ -114,29 +117,6 @@ function defaultConfig(schema: SchemaProperty[]): NotionConfig {
     dateProperty: date?.name ?? null,
     actionStatuses: [],
     nextStatus: {},
-  }
-}
-
-/** クライアントから来た設定を、今のスキーマに合うものだけ残して受け入れる */
-function sanitizeConfig(raw: unknown, schema: SchemaProperty[]): NotionConfig {
-  const c = (raw ?? {}) as Partial<NotionConfig>
-  const statusProp = schema.find((p) => p.name === c.statusProperty && (p.type === 'status' || p.type === 'select'))
-  const options = new Set(statusProp?.options ?? [])
-  const dateProp = schema.find((p) => p.name === c.dateProperty && p.type === 'date')
-  const actionStatuses = Array.isArray(c.actionStatuses)
-    ? [...new Set(c.actionStatuses.filter((s): s is string => typeof s === 'string' && options.has(s)))]
-    : []
-  const nextStatus: Record<string, string> = {}
-  for (const [from, to] of Object.entries(c.nextStatus ?? {})) {
-    if (actionStatuses.includes(from) && typeof to === 'string' && options.has(to) && to !== from) {
-      nextStatus[from] = to
-    }
-  }
-  return {
-    statusProperty: statusProp?.name ?? null,
-    dateProperty: dateProp?.name ?? null,
-    actionStatuses,
-    nextStatus,
   }
 }
 
@@ -319,11 +299,14 @@ Deno.serve(
           )
           const config = sanitizeConfig(row.config, schema.properties)
           const kind = statusKind(schema.properties, config.statusProperty)
+          // 保存した設定が今のデータベースと合わない（ステータスの名前を変えた・消した）。クライアントは自動の完了をやめて知らせる
+          const configChanged = configDrifted(row.config, schema.properties)
           if (!kind || config.actionStatuses.length === 0) {
             return jsonResponse({
               ok: true,
               connected: true,
               configured: false,
+              configChanged,
               databaseId: row.database_id,
               databaseTitle: schema.title,
               pages: [],
@@ -334,6 +317,7 @@ Deno.serve(
             ok: true,
             connected: true,
             configured: true,
+            configChanged,
             databaseId: row.database_id,
             databaseTitle: schema.title,
             // 日付の列を選んでいないときは、タスク側で付けた期限を消さない
@@ -359,9 +343,10 @@ Deno.serve(
           const config = sanitizeConfig(row.config, schema.properties)
           const kind = statusKind(schema.properties, config.statusProperty)
           const to = config.nextStatus[fromStatus]
-          // 要アクションでなくなった（設定を外した・自動で完了した）ステータスは進めない
+          // 要アクションでなくなった（設定を外した・自動で完了した）ステータスは進めない。
+          // 設定が今のデータベースと合わない（進め先の名前を変えた等）ときは、進めなかったことを知らせる
           if (!kind || !to || !config.actionStatuses.includes(fromStatus)) {
-            return jsonResponse({ ok: true, advanced: false })
+            return jsonResponse({ ok: true, advanced: false, configChanged: configDrifted(row.config, schema.properties) })
           }
           // Notion 側で既に動いていたら触らない（他の端末から同期された完了でも二重に進まない）
           if (pageStatus(page, config.statusProperty!) !== fromStatus) {

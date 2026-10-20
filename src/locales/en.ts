@@ -1631,6 +1631,7 @@ export default {
     pickStatusesFirst: 'Pick the statuses that need action to start syncing',
     taskTitle: '{{name}}: {{status}}',
     untitled: '(Untitled)',
+    configChangedNotice: 'Review your Notion settings',
     errors: {
       generic: 'Couldn’t reach Notion. Try again in a moment.',
       notion_unauthorized: 'The secret is wrong. Copy it again from the integration page.',
@@ -1638,6 +1639,7 @@ export default {
       notion_bad_url: 'Couldn’t read the database URL. Paste the link of the open database.',
       notion_rate_limited: 'Too many requests to Notion. Wait a moment, then sync.',
       notion_api: 'Notion returned an error. Try again in a moment.',
+      notion_config_changed: 'A Notion status was renamed or removed. Pick the statuses that need action and where to move them again.',
     },
   },
   canvas: {
