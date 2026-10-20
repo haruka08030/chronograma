@@ -1,11 +1,18 @@
-import { parseHabitSlotId } from '../lib/habitSlots'
+import { isPlacedPointHabitOn, parseHabitSlotId } from '../lib/habitSlots'
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { timeToMinutes } from '../lib/timeGrid'
 import { durationMinutesForTaskId } from '../lib/taskTimeRange'
-import { applyBlockMove, applyBlockResize, logLimitAt, nudgeBlockByKey, setHabitDayTimeFromSlot } from '../lib/timelineBlockEdit'
+import {
+  applyBlockMove,
+  applyBlockResize,
+  logLimitAt,
+  nudgeBlockByKey,
+  setHabitDayTimeFromSlot,
+  unplaceHabitSlot,
+} from '../lib/timelineBlockEdit'
 import { canCopyOnDrop, isCopyModifierHeld, placeCopies, useCopyModifier } from '../lib/dragCopy'
 import { useHotkey } from '../hooks/useHotkey'
 import { SHORTCUTS } from '../lib/shortcuts'
@@ -306,6 +313,8 @@ export function WeekCalendarView({
 
   /** 時刻つきの予定を時間グリッドより上（終日の行）へ持っていったときの落とし先の日 */
   const [allDayMoveKey, setAllDayMoveKey] = useState<string | null>(null)
+  /** 格子に置いた時刻ひとつの習慣の枠を、習慣の段（格子より上）へ持っていったときの日。離すとチップに戻す */
+  const [habitRowMoveKey, setHabitRowMoveKey] = useState<string | null>(null)
   const { activeEdge, setEdgeDir, edgeDirAt } = useWeekEdgeFlip({
     onNavigateWeek,
     gridDays,
@@ -325,6 +334,7 @@ export function WeekCalendarView({
 
   const endMoveExtras = () => {
     setAllDayMoveKey(null)
+    setHabitRowMoveKey(null)
     setEdgeDir(null)
     setCalendarItemDragActive(false)
   }
@@ -333,6 +343,15 @@ export function WeekCalendarView({
     const d = timelineDrag.drag
     if (!d || d.kind !== 'move' || !timelineDrag.didMove.current) return
     setEdgeDir(edgeDirAt(e.clientX, e.clientY))
+    const habitSlot = parseHabitSlotId(d.taskId)
+    if (habitSlot) {
+      // 習慣の枠は、格子に置いた時刻ひとつの習慣だけ習慣の段へ戻せる（どの日の上でもその枠の日のチップに戻す）
+      const habit = useTaskStore.getState().habits.find((h) => h.id === habitSlot.habitId)
+      const gridTop = scrollRef.current?.getBoundingClientRect().top ?? 0
+      const back = !singleDay && !!habit && isPlacedPointHabitOn(habit, habitSlot.dateKey) && e.clientY < gridTop
+      setHabitRowMoveKey(back ? habitSlot.dateKey : null)
+      return
+    }
     // 記録は「やったこと」なので終日・ToDo には戻さない
     const task = tasks.find((x) => x.id === d.taskId)
     if (!task || isLogTask(task)) return
@@ -352,7 +371,10 @@ export function WeekCalendarView({
   const handleGridPointerUp = () => {
     const d = timelineDrag.drag
     const toUnschedule = getCalendarItemDrag().overUnschedule
-    if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
+    if (d?.kind === 'move' && timelineDrag.didMove.current && habitRowMoveKey) {
+      unplaceHabitSlot(d.taskId)
+      timelineDrag.handlePointerCancel()
+    } else if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
       const task = useTaskStore.getState().tasks.find((x) => x.id === d.taskId)
       if (task && !isLogTask(task) && allDayMoveKey && isCopyModifierHeld()) {
         // ⌥ を押して終日の行へ = その日の終日に複製を置く（元はそのまま）
@@ -488,7 +510,8 @@ export function WeekCalendarView({
     setDropBlocked,
     dropLaneRef,
     googleDragRef,
-    allDayMoveKey,
+    // 習慣の段へ持っていっている間も、格子の行き先の影は出さない
+    allDayMoveKey: allDayMoveKey ?? habitRowMoveKey,
     unscheduleHover,
     openCard,
     openGoogleCard,
@@ -552,6 +575,7 @@ export function WeekCalendarView({
               logLimitMin={logLimitMin}
               openHabitCard={openHabitCard}
               openHabitMenu={openHabitMenu}
+              dropKey={habitRowMoveKey}
             />
           )}
 

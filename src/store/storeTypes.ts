@@ -318,10 +318,11 @@ export interface TaskState {
     patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency' | 'weekdayTimes' | 'goalMinutes'>>,
   ) => void
   /**
-   * その日だけ習慣の時間を変える（タイムラインで枠を動かした）。習慣の時間と同じにしたらその日の分は消す。
-   * 時刻ひとつの習慣は `endTime` を見ない
+   * その日だけ習慣の時間を変える（タイムラインで枠を動かした・習慣の段のチップを格子に置いた）。習慣の時間と同じにしたらその日の分は消す
    */
   setHabitDayTime: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
+  /** その日だけの時間を消して、いつもの時間に戻す（格子に置いた時刻ひとつの習慣を習慣の段のチップに戻す） */
+  clearHabitDayTime: (id: string, dateKey: string, label?: ToastText) => void
   /**
    * `from`〜`to`（yyyy-MM-dd、両端を含む）を休みにする（`rest: false` で外す）。休みの日は予定の日に数えない。
    * 「元に戻す」付きのトースト

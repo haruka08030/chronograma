@@ -454,6 +454,35 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(screen.getAllByText('Stretch')).toHaveLength(3)
   })
 
+  it('格子に置いた時刻ひとつの習慣は、メニューの「習慣の段に戻す」でチップに戻る', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const id = useTaskStore.getState().addHabit({
+      title: 'Stretch',
+      color: '#0B8043',
+      timeMode: 'fixed',
+      startTime: '07:00',
+      endTime: null,
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: undefined,
+    })
+    useTaskStore.getState().setHabitDayTime(id, '2026-10-08', '09:00', '10:00')
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    const slotId = `habit-slot::${id}::2026-10-08`
+    const tile = view.container.querySelector<HTMLElement>(`[data-datekey="2026-10-08"] [data-block-id="${slotId}"]`)!
+    fireEvent.contextMenu(tile, { clientX: 100, clientY: 100 })
+    fireEvent.click(screen.getByRole('menuitem', { name: /Move back to Habits row/ }))
+    expect(useTaskStore.getState().habits[0]!.timeOverrides).toBeUndefined()
+    expect(view.container.querySelector(`[data-datekey="2026-10-08"] [data-block-id="${slotId}"]`)).toBeNull()
+    expect(screen.getAllByText('Stretch')).toHaveLength(3)
+    // 置いていない日のチップのメニューには出さない
+    const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${id}::2026-10-09"]`)!
+    fireEvent.contextMenu(chip, { clientX: 100, clientY: 100 })
+    expect(screen.queryByRole('menuitem', { name: /Move back to Habits row/ })).toBeNull()
+  })
+
   it('今日の計画（1 日表示）には習慣の段を出さない', () => {
     useTaskStore.setState({ habits: [], tasks: [] })
     useTaskStore.getState().addHabit({

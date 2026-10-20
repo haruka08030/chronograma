@@ -15,6 +15,7 @@ type HabitsActions = Pick<
   | 'addHabit'
   | 'updateHabit'
   | 'setHabitDayTime'
+  | 'clearHabitDayTime'
   | 'setHabitRest'
   | 'deleteHabit'
   | 'archiveHabit'
@@ -87,6 +88,22 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         habits: s.habits.map((h) => {
           if (h.id !== id) return h
           // 1 日も無くなったら項目ごと外す（同期で「変わった」と見ない形にそろえる）
+          const updated: Habit = { ...h, timeOverrides: overrides, updatedAt: now }
+          if (Object.keys(overrides).length === 0) delete updated.timeOverrides
+          return updated
+        }),
+      }))
+    },
+    clearHabitDayTime: (id, dateKey, label) => {
+      const habit = get().habits.find((h) => h.id === id)
+      if (!habit?.timeOverrides?.[dateKey]) return
+      const overrides: HabitTimeOverrides = { ...habit.timeOverrides }
+      delete overrides[dateKey]
+      pushUndo(label)
+      const now = new Date().toISOString()
+      set((s) => ({
+        habits: s.habits.map((h) => {
+          if (h.id !== id) return h
           const updated: Habit = { ...h, timeOverrides: overrides, updatedAt: now }
           if (Object.keys(overrides).length === 0) delete updated.timeOverrides
           return updated
