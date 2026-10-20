@@ -155,6 +155,10 @@ export default function App() {
           ref={mainRef}
           className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0"
         >
+          {/* 保存できていないときのバナー。画面の上に重ねると題名・日付の切り替えが隠れるので、画面の上に並べて押し下げる */}
+          <PartBoundary name="storageFull" resetKey={partKey}>
+            <StorageFullBanner />
+          </PartBoundary>
           {!hideGlobalHeader && (
             <PartBoundary name="search" resetKey={partKey}>
               <SearchBox inputRef={searchRef} />
@@ -208,9 +212,6 @@ export default function App() {
         </PartBoundary>
         <PartBoundary name="canvasSubmitted" resetKey={partKey}>
           <CanvasSubmittedToast />
-        </PartBoundary>
-        <PartBoundary name="storageFull" resetKey={partKey}>
-          <StorageFullBanner />
         </PartBoundary>
         <PartBoundary name="timer" resetKey={partKey}>
           <FloatingTimer />

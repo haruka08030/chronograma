@@ -13,7 +13,7 @@ function exportUnreadableCopy() {
 }
 
 /**
- * 変更を保存できていないときのバナー。閉じるボタンは置かない（このまま再読み込みすると編集が消えるので、見えている必要がある）
+ * 変更を保存できていないときのバナー（画面の列の一番上に置き、下を押し下げる）。閉じるボタンは置かない（このまま再読み込みすると編集が消えるので、見えている必要がある）
  * - 端末の保存領域がいっぱい: 書き出しを促す
  * - 新しい版のアプリが書いたデータ（#485）: 保存を止めているので再読み込みを促す
  * - 保存データを読めなかった（#485）: 保存を止めているので、元のデータ（写し）の書き出しを促す
@@ -31,7 +31,7 @@ export function StorageFullBanner() {
         ? [t('storageFull.unreadable'), t('storageFull.export'), exportUnreadableCopy]
         : [t('storageFull.message'), t('storageFull.export'), exportData]
   return (
-    <div className="fixed inset-x-0 top-0 z-[70] flex justify-center px-3 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+    <div className="flex shrink-0 justify-center px-3 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
       <div role="alert" className="flex max-w-xl items-center gap-3 rounded-xl bg-[#d93025] px-4 py-2.5 text-sm text-white shadow-lg">
         <span className="min-w-0">{message}</span>
         <button type="button" onClick={onAction} className="shrink-0 rounded-lg bg-white/15 px-3 py-1 font-semibold hover:bg-white/25">
