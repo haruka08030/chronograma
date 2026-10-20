@@ -71,6 +71,7 @@ import { withTaskDefaults } from '../lib/taskDefaults'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { pendingAddsAfterImport } from '../lib/labelSync'
 import { normalizeStoredRows } from '../lib/backupFormat'
+import { clearBaseline } from '../lib/syncMerge'
 import { readViewState } from './viewState'
 import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
 import { NO_COMPLETED_FILTER, NO_TODO_FILTER } from '../lib/taskFilter'
@@ -103,6 +104,15 @@ function preserveUnreadableStorage(stage: string, error: unknown) {
   } catch {
     /* 写せなくても続ける */
   }
+}
+
+/**
+ * 読めない行を外したら、その人の前回同期の控え（baseline）も捨てる（#484）。控えが残ると、外した行を次の同期で
+ * 「この端末で消した」と読み、サーバーの正しい行を全端末から消していた。控えが無ければ次の同期は両方を残す合わせ方になり、
+ * 外した行はサーバーから戻る。持ち主の分からない古いデータ（*legacy*）は、誰の控えか分からないので触らない
+ */
+function forgetBaselineOf(owner: unknown) {
+  if (typeof owner === 'string' && owner !== LEGACY_DATA_OWNER) clearBaseline(owner)
 }
 
 /** 他のタブの変更を取り込んだとき、手元の ⌘Z の履歴（取り込む前の状態）を捨てる */
@@ -281,7 +291,10 @@ export const useTaskStore = create<TaskState>()(
         merged.logLabelPendingAdds = Array.isArray(merged.logLabelPendingAdds)
           ? merged.logLabelPendingAdds.filter((n): n is string => typeof n === 'string')
           : []
-        if (broken) preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
+        if (broken) {
+          preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
+          forgetBaselineOf(merged.dataOwner)
+        }
         return merged
       },
       migrate: migrateTaskState,
@@ -518,7 +531,10 @@ export function adoptOtherTabChanges(): void {
     if (rows) incoming[key] = rows
     else delete incoming[key]
   }
-  if (broken) preserveUnreadableStorage('other-tab-rows', 'unreadable rows were dropped')
+  if (broken) {
+    preserveUnreadableStorage('other-tab-rows', 'unreadable rows were dropped')
+    forgetBaselineOf(typeof incoming.dataOwner === 'string' ? incoming.dataOwner : useTaskStore.getState().dataOwner)
+  }
   const lists = Array.isArray(incoming.lists) ? (incoming.lists as TaskList[]) : null
   const sel = useTaskStore.getState().selectedListId
   if (lists && sel && !lists.some((l) => l.id === sel)) incoming.selectedListId = INBOX_LIST_ID

@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
+import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
 import { loadBaseline, saveBaseline } from '../lib/syncMerge'
 import { fakeDb, inboxRow, taskRow } from '../test/fakeSupabaseDb'
 import { clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
@@ -631,6 +632,92 @@ describe('useSupabaseSync', () => {
       window.dispatchEvent(new Event('online'))
       await untilSynced()
       expect(calls()).toHaveLength(1)
+    })
+  })
+
+  describe('読めなかった行・大量の削除でクラウドの行を消さない（#484）', () => {
+    const tenTasks = () => {
+      db.tables.lists!.push({ ...inboxRow })
+      for (let i = 0; i < 10; i++) db.tables.tasks!.push(taskRow(`t${i}`, { title: `task ${i}` }))
+    }
+    const all = Array.from({ length: 10 }, (_, i) => `task ${i}`).sort()
+
+    it('保存データの行が読めなくても、次の同期でクラウドから消さず、この端末に戻す', async () => {
+      tenTasks()
+      signIn('u1')
+      await untilSynced()
+      expect(loadBaseline('u1')).not.toBeNull()
+
+      // 保存データの 1 行が読めなくなった（題名が文字列でない）まま開き直した
+      const saved = JSON.parse(localStorage.getItem(PERSIST_STORAGE_KEY)!) as { state: { tasks: { id: string; title: unknown }[] } }
+      saved.state.tasks = saved.state.tasks.map((t) => (t.id === 't3' ? { ...t, title: 3 } : t))
+      localStorage.setItem(PERSIST_STORAGE_KEY, JSON.stringify(saved))
+      await act(async () => {
+        await useTaskStore.persist.rehydrate()
+      })
+      expect(storeTitles()).not.toContain('task 3')
+
+      window.dispatchEvent(new Event('online'))
+      await untilSynced()
+
+      expect(confirm.ask).not.toHaveBeenCalled()
+      expect(serverTitles('u1')).toEqual(all)
+      expect(storeTitles()).toEqual(all)
+    })
+
+    it('サーバーの行を大量に消す同期は、控えを取ってから確かめる。消さないと答えたら両方を残す', async () => {
+      tenTasks()
+      signIn('u1')
+      await untilSynced()
+      vi.mocked(backupNow).mockClear()
+
+      confirm.ask.mockResolvedValue(false)
+      const before = useTaskStore.getState().lastSyncedAt
+      useTaskStore.setState({ tasks: useTaskStore.getState().tasks.filter((t) => Number(t.id.slice(1)) >= 7) })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_700)
+      })
+      await untilSynced(before)
+
+      expect(confirm.ask).toHaveBeenCalledTimes(1)
+      expect(confirm.ask.mock.calls[0]![0].confirmLabel).toBe(i18n.t('sync.massDeleteConfirm', { count: 7 }))
+      // 控えには消える前のサーバーの行も入れる
+      const backup = vi.mocked(backupNow).mock.calls.find(([kind]) => kind === 'beforeSync')
+      expect(backup?.[2]?.tasks.map((t) => t.title).sort()).toEqual(all)
+      expect(serverTitles('u1')).toEqual(all)
+      expect(storeTitles()).toEqual(all)
+    })
+
+    it('消すと答えたらクラウドからも消す', async () => {
+      tenTasks()
+      signIn('u1')
+      await untilSynced()
+
+      const before = useTaskStore.getState().lastSyncedAt
+      useTaskStore.setState({ tasks: useTaskStore.getState().tasks.filter((t) => Number(t.id.slice(1)) >= 7) })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_700)
+      })
+      await untilSynced(before)
+
+      expect(confirm.ask).toHaveBeenCalledTimes(1)
+      expect(serverTitles('u1')).toEqual(['task 7', 'task 8', 'task 9'])
+    })
+
+    it('少し消すだけなら聞かない', async () => {
+      tenTasks()
+      signIn('u1')
+      await untilSynced()
+
+      const before = useTaskStore.getState().lastSyncedAt
+      useTaskStore.setState({ tasks: useTaskStore.getState().tasks.filter((t) => t.id !== 't0') })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_700)
+      })
+      await untilSynced(before)
+
+      expect(confirm.ask).not.toHaveBeenCalled()
+      expect(serverTitles('u1')).not.toContain('task 0')
     })
   })
 })

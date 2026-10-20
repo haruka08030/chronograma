@@ -34,6 +34,7 @@ import {
   clearBaseline,
   DEFAULT_LIST_IDS,
   hasOtherUsersBaseline,
+  isMassDelete,
   loadBaseline,
   mergeSnapshots,
   mergeWithoutBaseline,
@@ -265,6 +266,8 @@ export function useSupabaseSync() {
     let mergeApproved = false
     /** 最後に同期の直前の控えを取った時刻 */
     let lastBeforeSyncBackup = -Infinity
+    /** サーバーの行を大量に消してよいと答えた（送るのに失敗して回り直しても聞き直さない。同期し終えたら戻す） */
+    let massDeleteApproved = false
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
@@ -670,8 +673,32 @@ export function useSupabaseSync() {
         }
       } else {
         // 取得後に await を挟まずマージして反映する（この間のローカル編集を取りこぼさない）
-        const local = localSnapshot()
-        const result = mergeSnapshots(local, remote, baseline)
+        let local = localSnapshot()
+        let result = mergeSnapshots(local, remote, baseline)
+        if (!massDeleteApproved && isMassDelete(local, remote, baseline, result.deletes)) {
+          // サーバーの行を大量に消す（#484）。読めなかった行・取り違えた控えで全端末から消さないよう、消える行も入れた控えを取ってから確かめる
+          const count = Object.values(result.deletes).reduce((n, ids) => n + ids.length, 0)
+          backupNow('beforeSync', userId, mergeWithoutBaseline(local, remote))
+          const ok = await askConfirm({
+            title: i18n.t('sync.massDeleteTitle', { count }),
+            message: i18n.t('sync.massDelete', { count }),
+            confirmLabel: i18n.t('sync.massDeleteConfirm', { count }),
+            danger: true,
+          })
+          if (cancelled) return true
+          // 聞いている間の手元の変更も入れて合わせ直す。消さないときは控えを使わず、両方にあるものを残す
+          local = localSnapshot()
+          if (ok) {
+            massDeleteApproved = true
+            result = mergeSnapshots(local, remote, baseline)
+          } else {
+            result = {
+              merged: mergeWithoutBaseline(local, remote),
+              deletes: { lists: [], tasks: [], habits: [], sections: [] },
+              conflicts: {},
+            }
+          }
+        }
         // 両方の端末で同じ項目を変えて片方を捨てた回数（表・項目の名前と回数だけ。1 日 1 回まとめて送る）
         noteMergeConflicts(result.conflicts)
         // 変わっていない種類は参照を保って再描画・再 push を避ける
@@ -772,6 +799,7 @@ export function useSupabaseSync() {
       if (cancelled) return
 
       if (ok) {
+        massDeleteApproved = false
         retryMs = 0
         clearTimeout(retry)
         // 前回取得したサーバーの内容と目印を残す（開き直したときも差分で取る）。本体を保存できていない間は残さない

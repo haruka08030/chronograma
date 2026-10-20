@@ -116,6 +116,10 @@ export default {
     mergeLocal:
       'ログインする前にこの端末で作った {{count}} 件があります。このアカウントにはもうデータがあります。\n入れないときは、この {{count}} 件はアカウントに送らず、この端末の自動バックアップ（ログアウトすると設定に出ます）に残します。',
     mergeLocalConfirm: 'この {{count}} 件をこのアカウントに入れる',
+    massDeleteTitle: 'クラウドの {{count}} 件を消しますか',
+    massDelete:
+      'この同期で、クラウドの {{count}} 件をすべての端末から消します。消す前のデータは自動バックアップに残しました。\n消さないときは、この端末とクラウドの両方にあるものを残します。',
+    massDeleteConfirm: '{{count}} 件を消す',
     justNow: 'たった今',
     minutesAgo: '{{count}} 分前',
     hoursAgo: '{{count}} 時間前',
