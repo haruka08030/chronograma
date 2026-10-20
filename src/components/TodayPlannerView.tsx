@@ -333,7 +333,6 @@ export function TodayPlannerView() {
 
         <PlannerTodoSection
           env={rowEnv}
-          headingClass={sectionHeading}
           overdue={overdue}
           overdueShown={overdueShown}
           onShowAllOverdue={() => setShowAllOverdue(true)}
