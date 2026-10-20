@@ -415,12 +415,8 @@
 - **取得**（`src/lib/syncPull.ts`）: 前回取得したサーバーの内容（`mirror`。目印・全部を取った時刻と一緒に保存の置き場所 `chronograma-sync-mirror-v1:{userId}` に残し、アプリの版（`SYNC_PROTOCOL_VERSION` と `VITE_APP_VERSION`）と持ち主が同じときだけ開いたときに使う。`savePullState` / `loadPullState`、内容が変わったときだけ書く。ログアウト・アカウントの削除・容量不足で消す）に、目印より 5 分前より後に変わった行（`updated_at`、`(updated_at, id)` の順に keyset で全部）と消えた行の印（`sync_tombstones`、`008`）を当てて、いまのサーバーの内容を作る（`fetchChangesSince`）。差分では取得に無い行は消えたとはみなさず、印のある行だけ外す。行を先、印を後に取り、同じ差分では印を優先する。目印は取得を始めたときにサーバーに聞いた時刻（`sync_server_now()`、`008`）。端末の時計とずれの見積もりは使わない。ふだんの 1 回は `sync_changes_since(p_since, p_mood_since, p_limit)`（`035`）の 1 往復で、時刻・差分・印・上限で消した印・版の下限・設定の表ごとの `updated_at`・1 日の気分の差分・行があるか（`has_rows`）を同じ時点で読む（`fetchSyncRound`）。表ごとに 1,000 行を超えたら同じ目印からページに分けて取る（`fetchChangesSince`、空のページまで。件数は数えない）。関数が無い DB（`PGRST202`）では時刻 → 差分を 1 つずつ取る。全部を取る（`fetchListsTasksHabits`）のは: 残した内容が無い（初めて・ログアウトした・版が違う）、この端末でこの人として初めて、目印が無い、前回取った内容があるのにサーバーに行が 1 つも無い（`has_rows`、アカウントごと消されると印も消える）、前回の全部の取得からサーバーの時計で 6 時間、送った行が断られた（`stale`）・送信が途中で失敗した、前回の取得から 30 日（印を残す期間、`TOMBSTONE_RETENTION_MS`）、差分で取る範囲の印がサーバーの上限で消えていた（`sync_tombstone_purges.last_deleted_at` が目印より後、`010`。`tombstonesTrimmed`）。サーバーの時刻（`sync_server_now()`）・印の表（`sync_tombstones`）・上限で消した印の表（`sync_tombstone_purges`）が読めないときは、全部の取得や「印は無い」に逃げず、同期の失敗にする。差分で作った内容に、前回同期した手元の行が印も無く無いときは、消さずにその場で全部を取り直す（`missingWithoutTombstone`）。送れた行・消せた行は `mirror` にも入れる（`applyPushToMirror`）
 - **push**: 各行に取得した版（`base_updated_at`、取得に無い行は `-infinity`）を付けて upsert し、受け付けた行（`id, updated_at`）を返させる。返らなかった行は断られた行（`stale`）。届いた行はサーバーの時刻に置き換え、断られた行は控えを取得した版にして最大 3 回すぐ取り直す。削除は取得した行を版つき（`id` と `updated_at` の組）で、取得に無い行だけ無条件で消す。列が無い・版が通らないときは送り直さず同期の失敗にする。upsert のあと、`deletes` 指定時はその ID だけを **tasks → habits → sections → lists** の順で削除。
   未指定（初回の push_local）は従来どおりローカルにない ID を削除
-- `tasks` upsert で **`end_date` / `completed_at` / `location` / `due_time` /
-  `scheduled_date` / `archived_at` / `deleted_at`
-  カラム未適用**エラーが出た場合は、その push 呼び出し内だけで該当列なし
-  payload にフォールバックして再試行する（**`tasks` に列が無い**古い DB
-  の互換）。フラグはモジュールに保持せず**毎回フル列で送り直す**ため、後から
-  Supabase に列を追加すれば**次回同期で自動復帰**する（ページ再読み込み不要）
+- **大量の削除の確認**（`isMassDelete`、`syncMerge.ts`）: 1 回の同期でサーバーの行を種類ごとに 5 件を超えて、かつその種類の 3 割を超えて消すとき（ゴミ箱に入っている To-Do は数えない）、または手元に To-Do・習慣・セクションが 1 つも無いのに控えに行があってサーバーの行を消すときは、消える行も入れた自動バックアップ（同期の直前）を取ってから `askConfirm` で確かめる。消さないと答えたら控えを使わずに両方を残して合わせる（`mergeWithoutBaseline`）
+- **読めない行**: 保存データ・他のタブの書き込みで読めない行を外したとき（`normalizeStoredRows`）は、持ち主（`dataOwner`）の前回同期の控えを消す。次の同期は控えなしの合わせ方になり、外した行はサーバーから戻る
 
 ## 型（`src/types/`）
 

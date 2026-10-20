@@ -127,6 +127,10 @@ export default {
     mergeLocal:
       "{{count}} item(s) were made on this device before signing in, and this account already has data.\nIf you don't add them, they won't be sent to the account and stay in this device's automatic backups (shown in Settings after you sign out).",
     mergeLocalConfirm: 'Add these {{count}} to this account',
+    massDeleteTitle: 'Delete {{count}} item(s) from the cloud?',
+    massDelete:
+      "This sync will delete {{count}} item(s) from the cloud on all your devices. The data before deleting is saved in the automatic backups.\nIf you don't delete them, everything on this device and in the cloud is kept.",
+    massDeleteConfirm: 'Delete {{count}}',
     justNow: 'just now',
     minutesAgo: '{{count}} min ago',
     hoursAgo: '{{count}} h ago',
