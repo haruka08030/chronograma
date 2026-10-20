@@ -39,7 +39,7 @@ describe('他のタブの変更の取り込み（adoptOtherTabChanges）', () =>
     ).toEqual(['このタブ', 'このタブ 2', 'もう一方のタブ'].sort())
   })
 
-  it('取り込んだ内容は書き戻さず、取り込む前の ⌘Z の履歴は捨てる', () => {
+  it('取り込んだ内容は書き戻さず、⌘Z の履歴は残す（取り込んだ行は戻さない）', () => {
     useTaskStore.getState().addTask('A')
     otherTabAddsTask('other-1', 'B')
     const raw = localStorage.getItem(PERSIST_STORAGE_KEY)
@@ -47,9 +47,10 @@ describe('他のタブの変更の取り込み（adoptOtherTabChanges）', () =>
     adoptOtherTabChanges()
     expect(setItem.mock.calls.filter(([k]) => k === PERSIST_STORAGE_KEY)).toEqual([])
     expect(localStorage.getItem(PERSIST_STORAGE_KEY)).toBe(raw)
-    // A を足した操作を ⌘Z で戻すと、もう一方のタブの B ごと取り込む前に戻ってしまう
-    expect(useTaskStore.getState().undoLastOperation()).toBe(false)
     expect(titles()).toEqual(['A', 'B'])
+    // A を足した操作を ⌘Z で戻すと A だけが消え、もう一方のタブの B は残る
+    expect(useTaskStore.getState().undoLastOperation()).toBe(true)
+    expect(titles()).toEqual(['B'])
   })
 
   it('同じ内容は 2 度取り込まない。別のキーの storage イベントでは読まない', () => {

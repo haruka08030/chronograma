@@ -30,8 +30,11 @@ type UndoEntry = {
   settings: Partial<Pick<TaskState, SettingKey>>
 }
 
-/** 操作の前の状態。操作が終わってから差分にする（`finalize`）。`session` は続けて足していく回（`asUndoSession`）の鍵 */
-type PendingEntry = { before: DataView; entry: UndoEntry | null; session?: string }
+/**
+ * 操作の前の状態。操作が終わってから差分にする（`finalize`）。`session` は続けて足していく回（`asUndoSession`）の鍵。
+ * `id` はトーストがどの操作を戻すかを指す番号（`undoOperation`）
+ */
+type PendingEntry = { id: number; before: DataView; entry: UndoEntry | null; session?: string }
 
 export interface UndoHistory {
   /**
@@ -39,7 +42,7 @@ export interface UndoHistory {
    * 削除は `recentDeletes` 由来のトーストが出るので渡さない
    * （二重に出さないため）。
    */
-  pushUndo: (label?: ToastText, typingKey?: string) => void
+  pushUndo: (label?: ToastText, typingKey?: string) => number
   /**
    * Enter で増やした空の行がまだ名前を持たないまま、取り消し履歴の一番上が
    * 「その行を作る直前」の控えになっているか。名前付けと作成を 1 手として扱うのに使う
@@ -47,9 +50,11 @@ export interface UndoHistory {
   isUnnamedJustCreated: (id: string) => boolean
   /** いちばん上の控えを捨てる（空のまま捨てた行の作成を、取り消し履歴からも消す） */
   dropLastUndo: () => void
-  /** 取り消し・やり直しの履歴を空にする（他のタブの取り込み・ログアウト） */
+  /** 取り消し・やり直しの履歴を空にする（ログアウト） */
   clear: () => void
-  actions: Pick<TaskState, 'asOneUndo' | 'asUndoSession' | 'undoLastOperation' | 'redoLastOperation'>
+  /** 一番上の操作を差分にしておく（他のタブの変更を取り込む前。取り込んだ行をその操作の変更に数えない） */
+  settle: () => void
+  actions: Pick<TaskState, 'asOneUndo' | 'asUndoSession' | 'undoLastOperation' | 'undoOperation' | 'lastUndoId' | 'redoLastOperation'>
 }
 
 function dataView(s: TaskState): DataView {
@@ -152,6 +157,60 @@ export function applyEntry(state: DataView, entry: UndoEntry, nowIso: string): {
   return { next, inverse }
 }
 
+/**
+ * 一番上ではない操作を戻すときに当てる記録を作る。あとの操作も同じ行を変えていたら、その行は
+ * この操作が変えた項目だけを戻す（あとの操作の変更は残す）。あとの操作の記録も、この操作を戻した姿に合わせて書き換える
+ * （あとでそちらを戻しても、この操作の変更が戻ってこないように）
+ */
+export function rebaseEntry(state: DataView, entry: UndoEntry, later: UndoEntry[]): UndoEntry {
+  const out: UndoEntry = { rows: {}, settings: { ...entry.settings } }
+  for (const key of COLLECTIONS) {
+    const changes = entry.rows[key]
+    if (!changes) continue
+    const currentById = new Map((state[key] as Row[]).map((r) => [r.id, r]))
+    const target = new Map<string, Row | null>()
+    for (const [id, before] of changes) {
+      const touching = later.filter((l) => l.rows[key]?.has(id))
+      if (touching.length === 0) {
+        target.set(id, before)
+        continue
+      }
+      // この操作の直後の姿（あとの操作のうち最初に触ったものが覚えている前の姿）
+      const afterThis = touching[0].rows[key]!.get(id)!
+      const current = currentById.get(id)
+      if (!before || !afterThis || !current) {
+        // 作った・消した行は項目ごとに分けられないので、行ごと戻す
+        target.set(id, before)
+        for (const l of touching) l.rows[key]!.set(id, before)
+        continue
+      }
+      const revert = (row: Row): Row => {
+        const next = { ...row } as Record<string, unknown>
+        const keys = new Set([...Object.keys(before), ...Object.keys(afterThis)])
+        for (const k of keys) {
+          if (k === 'updatedAt') continue
+          const b = (before as Record<string, unknown>)[k]
+          if (sameValue(b, (afterThis as Record<string, unknown>)[k])) continue
+          if (k in before) next[k] = b
+          else delete next[k]
+        }
+        return next as Row
+      }
+      target.set(id, revert(current))
+      for (const l of touching) {
+        const v = l.rows[key]!.get(id)
+        if (v) l.rows[key]!.set(id, revert(v))
+      }
+    }
+    out.rows[key] = target
+  }
+  for (const key of SETTINGS) {
+    if (!(key in entry.settings)) continue
+    for (const l of later) if (key in l.settings) (l.settings as Record<string, unknown>)[key] = entry.settings[key]
+  }
+  return out
+}
+
 const LABEL_SETTINGS = ['timeLogTagPresets', 'logCategoryColors', 'logLabelIds'] as const
 
 function labelTableChanged(a: DataView, b: DataView): boolean {
@@ -172,6 +231,7 @@ function onlyRelabeled(a: Task, b: Task): boolean {
 export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
   const undoStack: PendingEntry[] = []
   const redoStack: UndoEntry[] = []
+  let nextId = 1
 
   /** 操作が終わったら差分にする（操作は同期的なので、次のマイクロタスクには結果が出ている） */
   const finalize = (p: PendingEntry): UndoEntry => {
@@ -193,25 +253,35 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
    * `typingKey` を渡すと、同じ欄を続けて打っている間は 1 回分にまとめる（メモ・場所を 1 文字ずつ戻さない。
    * 1 文字ごとに積むと、履歴の上限でその前の操作が押し出される）
    */
-  const pushUndo = (label?: ToastText, typingKey?: string) => {
+  const pushUndo = (label?: ToastText, typingKey?: string): number => {
     if (undoGroupDepth > 0) {
-      if (undoGroupPushed) return
+      if (undoGroupPushed) return undoStack.at(-1)?.id ?? 0
       undoGroupPushed = true
     }
     if (typingKey && typingKey === lastTypingKey && undoStack.length > 0) {
       redoStack.length = 0
-      return
+      return undoStack.at(-1)!.id
     }
     lastTypingKey = typingKey ?? null
     finalizeTop()
-    const pending: PendingEntry = { before: dataView(get()), entry: null }
+    const pending: PendingEntry = { id: nextId++, before: dataView(get()), entry: null }
     undoStack.push(pending)
     if (undoStack.length > MAX_UNDO) undoStack.shift()
     redoStack.length = 0
     queueMicrotask(() => {
       if (undoGroupDepth === 0) finalize(pending)
     })
-    if (label) set({ undoBanner: { text: label, at: Date.now() } })
+    if (label) set({ undoBanner: { text: label, at: Date.now(), undoId: pending.id } })
+    return pending.id
+  }
+
+  /** 記録を今の状態に当て、やり直しに積む */
+  const applyUndo = (entry: UndoEntry) => {
+    const { next, inverse } = applyEntry(dataView(get()), entry, new Date().toISOString())
+    set(next)
+    redoStack.push(inverse)
+    if (redoStack.length > MAX_UNDO) redoStack.shift()
+    pruneDeletedTasks()
   }
 
   const isUnnamedJustCreated = (id: string) => {
@@ -248,6 +318,7 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
       undoStack.length = 0
       redoStack.length = 0
     },
+    settle: finalizeTop,
     actions: {
       asOneUndo: (fn) => {
         if (undoGroupDepth === 0) undoGroupPushed = false
@@ -291,15 +362,26 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
         while (undoStack.length > 0) {
           const entry = finalize(undoStack.pop()!)
           if (isEmpty(entry)) continue
-          const { next, inverse } = applyEntry(dataView(get()), entry, new Date().toISOString())
-          set(next)
-          redoStack.push(inverse)
-          if (redoStack.length > MAX_UNDO) redoStack.shift()
-          pruneDeletedTasks()
+          applyUndo(entry)
           return true
         }
         return false
       },
+
+      undoOperation: (id) => {
+        const i = undoStack.findIndex((p) => p.id === id)
+        // もう戻した（⌘Z・履歴の上限で押し出された）操作は何もしない
+        if (i < 0) return false
+        lastTypingKey = null
+        const entry = finalize(undoStack[i])
+        const later = undoStack.slice(i + 1).map(finalize)
+        undoStack.splice(i, 1)
+        if (isEmpty(entry)) return false
+        applyUndo(later.length === 0 ? entry : rebaseEntry(dataView(get()), entry, later))
+        return true
+      },
+
+      lastUndoId: () => undoStack.at(-1)?.id ?? null,
 
       redoLastOperation: () => {
         lastTypingKey = null
@@ -307,7 +389,7 @@ export function createUndoHistory(set: StoreSet, get: StoreGet): UndoHistory {
         if (!entry) return false
         const { next, inverse } = applyEntry(dataView(get()), entry, new Date().toISOString())
         set(next)
-        undoStack.push({ before: dataView(get()), entry: inverse })
+        undoStack.push({ id: nextId++, before: dataView(get()), entry: inverse })
         if (undoStack.length > MAX_UNDO) undoStack.shift()
         pruneDeletedTasks()
         return true

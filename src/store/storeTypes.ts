@@ -113,7 +113,7 @@ export interface TaskState {
    * 直近の削除（トーストの「元に戻す」用）。消したタスクの id だけを持ち、中身はいつも `tasks` の `deletedAt` から読む
    * （タスクの写しを持つと、再読み込み・他のタブの取り込みのあとに中身とずれる）。保存しない
    */
-  recentDeletes: { ids: string[]; at: number }[]
+  recentDeletes: { ids: string[]; at: number; undoId?: number }[]
   quickAddRequested: boolean
   /** 共有（share_target）から開いたとき、追加欄に入れておく中身。追加欄が読んだら消す */
   quickAddPrefill: QuickAddPrefill | null
@@ -536,6 +536,13 @@ export interface TaskState {
    */
   asUndoSession: (key: string, fn: () => void) => void
   undoLastOperation: () => boolean
+  /**
+   * トーストが指す操作（`pushUndo` が返した番号）だけを戻す。あとに別の操作があっても、それは残す。
+   * もう戻した操作なら false
+   */
+  undoOperation: (id: number) => boolean
+  /** 一番上の取り消し項目の番号（トーストを自分で出す操作が、どれを戻すかを持たせる） */
+  lastUndoId: () => number | null
   /** ⌘Z で戻した変更をやり直す（⌘⇧Z）。成功時 true */
   redoLastOperation: () => boolean
   clearDeletedTasks: () => void
@@ -555,7 +562,7 @@ export interface TaskState {
    * （一括アーカイブ・セクション削除・リスト移動など）でどれが戻せるのかを示す。
    * `at` は同じ文言が続いたときにトーストを出し直すための時刻。
    */
-  undoBanner: { text: ToastText; at: number } | null
+  undoBanner: { text: ToastText; at: number; undoId?: number } | null
   clearUndoBanner: () => void
   /** 消したばかりで、まだ Google に送っていない予定（トーストの「元に戻す」で取り消せる） */
   googleUndo: { id: string; text: string; at: number } | null

@@ -122,14 +122,14 @@ function forgetBaselineOf(owner: unknown) {
   if (typeof owner === 'string' && owner !== LEGACY_DATA_OWNER) clearBaseline(owner)
 }
 
-/** 他のタブの変更を取り込んだとき、手元の ⌘Z の履歴（取り込む前の状態）を捨てる */
-let clearUndoHistory = () => {}
+/** 他のタブの変更を取り込む前に、手元の ⌘Z の一番上を差分にしておく（取り込んだ行をその操作に数えない） */
+let settleUndoHistory = () => {}
 
 export const useTaskStore = create<TaskState>()(
   persist(
     (set, get) => {
       const undo = createUndoHistory(set, get)
-      clearUndoHistory = undo.clear
+      settleUndoHistory = undo.settle
       const ctx = { set, get, undo }
 
       return {
@@ -151,7 +151,7 @@ export const useTaskStore = create<TaskState>()(
         completedFilter: NO_COMPLETED_FILTER,
         recentDeletes: [],
         moveBannerText: null as string | null,
-        undoBanner: null as { text: string; at: number } | null,
+        undoBanner: null as TaskState['undoBanner'],
         googleUndo: null as { id: string; text: string; at: number } | null,
         taskDragHoverListId: null as string | null,
         syncState: 'idle' as SyncState,
@@ -550,9 +550,10 @@ export function adoptOtherTabChanges(): void {
   // 打っている途中のメモ・場所（`pendingEdits.ts`）はここでは入れない。止まったときに取り込んだ後のタスクへ 1 項目だけ当たる
   adoptingFromOtherTab = true
   try {
+    // ⌘Z の履歴は残す（行ごとに戻すので、取り込んだ他のタブの行は消さない）
+    settleUndoHistory()
     // 保存し直さない（同じ内容を書くだけで、表示の状態だけが違う書き込みがタブ間を往復する）
     withoutPersisting(() => useTaskStore.setState(incoming as Partial<TaskState>))
-    clearUndoHistory()
   } finally {
     adoptingFromOtherTab = false
   }

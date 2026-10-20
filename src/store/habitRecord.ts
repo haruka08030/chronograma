@@ -51,7 +51,7 @@ export function uncheckHabitDatePatch(
   s: Pick<TaskState, 'habits' | 'tasks' | 'recentDeletes'>,
   habitId: string,
   dateKey: string,
-  env: { now: string; deletedAt: number },
+  env: { now: string; deletedAt: number; undoId?: number },
 ): Pick<TaskState, 'habits' | 'tasks' | 'recentDeletes'> | null {
   const habit = s.habits.find((h) => h.id === habitId)
   if (!habit) return null
@@ -62,6 +62,7 @@ export function uncheckHabitDatePatch(
       h.id === habitId ? { ...h, completedDates: h.completedDates.filter((d) => d !== dateKey), updatedAt: nowIso } : h,
     ),
     tasks: s.tasks.map((t) => (removeIds.has(t.id) ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t)),
-    recentDeletes: removeIds.size > 0 ? [...s.recentDeletes, { ids: [...removeIds], at: env.deletedAt }] : s.recentDeletes,
+    recentDeletes:
+      removeIds.size > 0 ? [...s.recentDeletes, { ids: [...removeIds], at: env.deletedAt, undoId: env.undoId }] : s.recentDeletes,
   }
 }
