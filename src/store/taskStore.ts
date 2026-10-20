@@ -244,11 +244,14 @@ export const useTaskStore = create<TaskState>()(
           const has = cur.dues.some((d) => d.id === item.id)
           const dues = normalizeDues(has ? cur.dues.map((d) => (d.id === item.id ? item : d)) : [...cur.dues, item])
           if (sameValue(dues, cur.dues)) return
+          undo.pushUndo()
           set({ addons: { ...cur, dues } })
         },
         deleteDue: (id) => {
           const cur = get().addons
-          if (!cur.dues.some((d) => d.id === id)) return
+          const due = cur.dues.find((d) => d.id === id)
+          if (!due) return
+          undo.pushUndo({ key: 'undo.dueDeleted', params: { name: due.title } })
           set({ addons: { ...cur, dues: cur.dues.filter((d) => d.id !== id) } })
         },
         setGoogleSkip: (title, skip) => {

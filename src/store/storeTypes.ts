@@ -385,7 +385,10 @@ export interface TaskState {
   /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
   resolveStaleTimer: (endedAt: string) => void
   /** 止め忘れたタイマーを記録にせず捨てる */
+  /** 動いている記録を記録せずに止める。1 つだけ取っておき、「元に戻す」のトーストから戻せる */
   discardActiveTimer: () => void
+  /** 破棄した記録を戻す（ほかの記録が動いていれば戻さない）。戻したら true */
+  restoreDiscardedTimer: () => boolean
   /** 記録を作ったあと、元の To-Do を完了にするか聞く（タイマーを止めたときと同じ確認） */
   askComplete: (taskId: string) => void
   dismissCompletePrompt: () => void
@@ -567,7 +570,7 @@ export interface TaskState {
    * （一括アーカイブ・セクション削除・リスト移動など）でどれが戻せるのかを示す。
    * `at` は同じ文言が続いたときにトーストを出し直すための時刻。
    */
-  undoBanner: { text: ToastText; at: number; undoId?: number } | null
+  undoBanner: { text: ToastText; at: number; undoId?: number; restoreTimer?: boolean } | null
   clearUndoBanner: () => void
   /** 消したばかりで、まだ Google に送っていない予定（トーストの「元に戻す」で取り消せる） */
   googleUndo: { id: string; text: string; at: number } | null

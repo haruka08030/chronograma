@@ -257,9 +257,10 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       }))
     },
     uncheckTasks: (ids) => {
-      if (ids.length === 0) return
-      pushUndo()
       const set_ = new Set(ids)
+      const count = get().tasks.filter((t) => set_.has(t.id) && t.completed).length
+      if (count === 0) return
+      pushUndo({ key: 'undo.tasksUnchecked', params: { count } })
       const now = new Date().toISOString()
       set((s) => ({
         tasks: s.tasks.map((t) => (set_.has(t.id) && t.completed ? { ...t, completed: false, completedAt: null, updatedAt: now } : t)),
