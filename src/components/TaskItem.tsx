@@ -408,15 +408,15 @@ export const TaskItem = memo(function TaskItem({
         {/* 時刻の無い行は時刻の列を空けない（空けると左の色の線と丸の間が開きすぎる） */}
         {compact && task.startTime && <span className={DAY_ROW_TIME_CLASS}>{task.startTime}</span>}
 
-        {/* 予定（バイト・授業）には完了の丸を出さない */}
+        {/* 予定（バイト・授業）には完了の丸を出さない。日パネル（compact）は字が小さいので丸も小さく（サブタスクと同じ 16px） */}
         {isEventTask(task) ? (
-          <EventMark hex={planHex(task)} small={isSubtask} />
+          <EventMark hex={planHex(task)} small={isSubtask || compact} />
         ) : (
           <CompletionCircle
             completed={shownCompleted}
             justCompleted={justCompleted}
             priority={task.priority}
-            small={isSubtask}
+            small={isSubtask || compact}
             shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
             inert={Boolean(selection?.reveal)}
             onClick={(e) => {
