@@ -36,9 +36,12 @@ export function habitToPlannedItem(habit: Habit, dateKey: string, records?: Habi
   }
 }
 
-/** その日の時間が始まりの時刻だけの習慣か。タイムラインでは格子に置かず、終日の行の下の習慣の段に出す */
+/**
+ * その日の時間が始まりの時刻だけで、長さの決まらない習慣か。タイムラインでは格子に置かず、終日の行の下の習慣の段に出す。
+ * 「1 回の目標」があれば長さが決まるので、最初から格子の枠（開始〜開始＋目標）にする
+ */
 export function isPointHabitOn(habit: Habit, dateKey: string): boolean {
-  return habitTimesOn(habit, dateKey)?.endTime === null
+  return !habit.goalMinutes && habitTimesOn(habit, dateKey)?.endTime === null
 }
 
 /** 習慣の段に出す、その日の時刻ひとつの習慣（時刻順） */
@@ -56,7 +59,7 @@ export function pointHabitsOn(
     .sort((a, b) => a.slot.startTime.localeCompare(b.slot.startTime))
 }
 
-/** 時刻ひとつの習慣を、その日だけ格子に置いた（終わりのある枠にした）か。習慣の段のチップに戻せる */
+/** 時刻ひとつの習慣（目標なし）を、その日だけ格子に置いた（終わりのある枠にした）か。習慣の段のチップに戻せる */
 export function isPlacedPointHabitOn(habit: Habit, dateKey: string): boolean {
-  return habitUsualTimesOn(habit, dateKey)?.endTime === null && habitTimesOn(habit, dateKey)?.endTime != null
+  return !habit.goalMinutes && habitUsualTimesOn(habit, dateKey)?.endTime === null && habitTimesOn(habit, dateKey)?.endTime != null
 }

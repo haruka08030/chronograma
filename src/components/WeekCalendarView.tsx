@@ -305,9 +305,8 @@ export function WeekCalendarView({
 
   // 落とすときにだけ読む。tasks に依存させると、変更のたびに列（memo）に渡す落とす処理が変わる
   const getTaskDuration = useCallback((taskId: string): number | null => {
-    // 習慣の段のチップは目標の分数、無ければ既定の予定の長さ
-    const slot = parseHabitSlotId(taskId)
-    if (slot) return useTaskStore.getState().habits.find((h) => h.id === slot.habitId)?.goalMinutes ?? null
+    // 習慣の段のチップは既定の予定の長さ（目標のある習慣ははじめから枠なのでチップにならない）
+    if (parseHabitSlotId(taskId)) return null
     return durationMinutesForTaskId(useTaskStore.getState().tasks, taskId)
   }, [])
 

@@ -4,7 +4,7 @@ import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
 import { canCopyOnDrop, placeCopies } from './dragCopy'
 import type { CalendarEvent } from '../types/calendarEvent'
-import { isPlacedPointHabitOn, parseHabitSlotId, habitToPlannedItem } from './habitSlots'
+import { isPlacedPointHabitOn, isPointHabitOn, parseHabitSlotId, habitToPlannedItem } from './habitSlots'
 import { buildHabitRecordIndex, habitDayStatus, habitTimesOn } from './habitTiming'
 import { canEditGoogleEvent, moveGoogleEvent } from './googleEventEdit'
 import { googleEventTiming, movedGoogleEventTiming } from './googleCalendar'
@@ -279,7 +279,7 @@ export function unplaceHabitSlot(slotId: string): boolean {
 
 /**
  * 習慣の段のチップを、その日だけ習慣の時刻からの枠にする（カードの「時間に置く」。指ではドラッグできないため）。
- * 長さは「1 回の目標」、無ければ既定の予定の長さ
+ * 長さは既定の予定の長さ（目標のある習慣ははじめから枠なのでチップにならない）
  */
 export function placeHabitSlot(slotId: string): boolean {
   const slot = parseHabitSlotId(slotId)
@@ -287,7 +287,7 @@ export function placeHabitSlot(slotId: string): boolean {
   const { habits, defaultBlockMinutes } = useTaskStore.getState()
   const habit = habits.find((h) => h.id === slot.habitId)
   const times = habit ? habitTimesOn(habit, slot.dateKey) : null
-  if (!habit || !times || times.endTime !== null) return false
-  setHabitDayTimeFromSlot(slot, times.startTime, endWithinDay(times.startTime, habit.goalMinutes ?? defaultBlockMinutes))
+  if (!habit || !times || !isPointHabitOn(habit, slot.dateKey)) return false
+  setHabitDayTimeFromSlot(slot, times.startTime, endWithinDay(times.startTime, defaultBlockMinutes))
   return true
 }
