@@ -87,7 +87,7 @@ describe('useGooglePush', () => {
     expect(mocks.status).toHaveBeenCalledTimes(1)
     expect(useTaskStore.getState().googleCanWrite).toBe(true)
     await settle()
-    expect(mocks.upsert).toHaveBeenCalledWith(googleEventIdForTask('a'), expect.anything())
+    expect(mocks.upsert).toHaveBeenCalledWith(googleEventIdForTask('a'), expect.anything(), true)
     expect(queued()).toEqual([])
   })
 
@@ -133,6 +133,32 @@ describe('useGooglePush', () => {
     expect(mocks.upsert).toHaveBeenCalledTimes(1)
     expect(useTaskStore.getState().googlePushFailed).toBe(0)
     expect(queued()).toEqual([])
+  })
+
+  it('アプリで Google から消した予定（ゴミ箱から戻したなど）だけ「戻す」を付けて送る（#494）', async () => {
+    useTaskStore.setState({ googleCanWrite: true, tasks: [event('a')] })
+    renderHook(() => useGooglePush())
+    const patch = (over: Partial<Task>) => act(() => useTaskStore.setState((s) => ({ tasks: s.tasks.map((t) => ({ ...t, ...over })) })))
+    await patch({ title: 'b' })
+    await settle()
+    expect(mocks.upsert).toHaveBeenLastCalledWith(googleEventIdForTask('a'), expect.anything(), false)
+    await patch({ deletedAt: '2026-10-19T00:00:00Z' })
+    await settle()
+    expect(mocks.remove).toHaveBeenCalledTimes(1)
+    await patch({ deletedAt: null })
+    await settle()
+    expect(mocks.upsert).toHaveBeenLastCalledWith(googleEventIdForTask('a'), expect.anything(), true)
+  })
+
+  it('送るときに Google で消されていたら、戻さずにアプリでもゴミ箱に入れる（#494）', async () => {
+    useTaskStore.setState({ googleCanWrite: true, tasks: [event('a')], recentDeletes: [] })
+    mocks.upsert.mockRejectedValueOnce(new GoogleCalendarError('deleted', 'google_deleted'))
+    renderHook(() => useGooglePush())
+    await act(() => useTaskStore.setState((s) => ({ tasks: s.tasks.map((t) => ({ ...t, title: 'b' })) })))
+    await settle()
+    expect(useTaskStore.getState().tasks[0].deletedAt).not.toBeNull()
+    expect(useTaskStore.getState().recentDeletes.at(-1)?.label).toEqual({ key: 'googleDeleted.moved', params: { count: 1 } })
+    expect(mocks.upsert).toHaveBeenCalledTimes(1)
   })
 
   it('タブを閉じるときに送る数は抑える', async () => {

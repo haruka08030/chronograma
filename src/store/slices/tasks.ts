@@ -314,7 +314,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const hit = new Set(targets.map((t) => t.id))
       set((s) => ({ tasks: s.tasks.map((t) => (hit.has(t.id) ? { ...withSomedayTier(t, tier), updatedAt: now } : t)) }))
     },
-    deleteTasks: (ids) => {
+    deleteTasks: (ids, label) => {
       if (ids.length === 0) return
       const s0 = get()
       const del = expandDescendantIds(ids, s0.tasks)
@@ -325,7 +325,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       const deletedAt = Date.now()
       set((s) => ({
         tasks: s.tasks.map((t) => (del.has(t.id) && !t.deletedAt ? { ...t, deletedAt: nowIso, updatedAt: nowIso } : t)),
-        recentDeletes: [...s.recentDeletes, { ids: toSoftDelete.map((t) => t.id), at: deletedAt, undoId }],
+        recentDeletes: [...s.recentDeletes, { ids: toSoftDelete.map((t) => t.id), at: deletedAt, undoId, ...(label ? { label } : {}) }],
       }))
     },
     restoreDeletedTask: (id) => {

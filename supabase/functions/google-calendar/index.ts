@@ -7,6 +7,7 @@ import { runInBackground } from '../_shared/background.ts'
 import { collectEventPages, type EventPage } from './pages.ts'
 import { withAccessToken, type AccessTokenDeps } from './accessToken.ts'
 import { classifyGoogleError, GoogleApiError, isRetryableGoogleError, parseGoogleErrorReasons } from './googleError.ts'
+import { type DeletedPushed, GoogleEventDeletedError, patchExisting, splitDeleted, upsertEvent } from './deleted.ts'
 import { needsReseal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
@@ -39,6 +40,10 @@ type CalendarEvent = {
 
 type GoogleEventItem = {
   id: string
+  /** 消された予定は cancelled（`showDeleted` で取ったとき・消された予定を直したとき） */
+  status?: string
+  /** 最後に変わった時刻（消された予定は消された時刻） */
+  updated?: string
   summary?: string
   description?: string
   start: { dateTime?: string; date?: string }
@@ -162,12 +167,14 @@ async function fetchGoogleEvents(
   timeMin: string,
   timeMax: string,
   timeZone: string,
-): Promise<{ events: CalendarEvent[]; truncated: boolean }> {
+): Promise<{ events: CalendarEvent[]; deletedPushed: DeletedPushed[]; truncated: boolean }> {
   const load = async (pageToken: string | undefined) => {
     const params = new URLSearchParams({
       timeMin,
       timeMax,
       singleEvents: 'true',
+      // Google で消されたアプリの予定を見つける（アプリでもゴミ箱に入れる）
+      showDeleted: 'true',
       orderBy: 'startTime',
       // 1 ページの上限（2500）。続きは nextPageToken でたどる
       maxResults: '2500',
@@ -192,7 +199,8 @@ async function fetchGoogleEvents(
     }
   })
 
-  return { events: normalizeEvents(items, timeZone), truncated }
+  const { live, deletedPushed } = splitDeleted(items)
+  return { events: normalizeEvents(live, timeZone), deletedPushed, truncated }
 }
 
 type EventTime = { date?: string; dateTime?: string; timeZone?: string }
@@ -239,24 +247,11 @@ async function writeGoogleEvent(
   return (await res.json()) as GoogleEventItem
 }
 
-/**
- * ID を決めて作る。あれば直し（消した予定も戻す）、無ければその ID で作る。
- * アプリの予定から ID を決めるので、何度送っても・どの端末から送っても 1 つにしかならない
- */
-async function upsertGoogleEvent(accessToken: string, eventId: string, fields: Record<string, unknown>): Promise<GoogleEventItem> {
-  try {
-    return (await writeGoogleEvent(accessToken, 'PATCH', eventId, { ...fields, status: 'confirmed' }))!
-  } catch (e) {
-    if (!(e instanceof GoogleApiError) || e.status !== 404) throw e
-  }
-  try {
-    return (await writeGoogleEvent(accessToken, 'POST', null, { ...fields, id: eventId }))!
-  } catch (e) {
-    // 同時に作られていた（409）ら、もう一度直す
-    if (!(e instanceof GoogleApiError) || e.status !== 409) throw e
-    return (await writeGoogleEvent(accessToken, 'PATCH', eventId, { ...fields, status: 'confirmed' }))!
-  }
-}
+/** `deleted.ts` に渡す書き込み（PATCH はその ID、POST は新しく作る） */
+const eventWriter =
+  (accessToken: string, eventId: string) =>
+  async (method: 'PATCH' | 'POST', fields: Record<string, unknown>): Promise<GoogleEventItem> =>
+    (await writeGoogleEvent(accessToken, method, method === 'PATCH' ? eventId : null, fields))!
 
 /**
  * 利用上限の文言。"too many requests" を含めておくと、古いクライアントも「少し待って」と出し、連携も外さない
@@ -265,6 +260,7 @@ async function upsertGoogleEvent(accessToken: string, eventId: string, fields: R
 const RATE_LIMITED_CODE = 'google_rate_limited'
 const RATE_LIMITED_MESSAGE = 'Google Calendar: too many requests. Wait a moment, then try again.'
 const AUTH_EXPIRED_MESSAGE = 'Google Calendar authorization expired. Disconnect and reconnect.'
+const DELETED_MESSAGE = 'Google Calendar event was deleted.'
 const NOT_CONNECTED_MESSAGE = 'Google Calendar not connected. Reconnect in settings.'
 const WRITE_SCOPE_MESSAGE = 'Google Calendar write scope not granted. Reconnect and approve calendar access.'
 
@@ -528,14 +524,25 @@ Deno.serve(
             const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
             // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（colorId の方が確実に色を特定できるので両方）。
             // 予定と色は互いに関係しないので同時に聞く
-            const [{ events, truncated }, { calendarColor, calendarColorId }] = await withAccessToken(accessDeps(row), (accessToken) =>
-              Promise.all([
-                timing.time('events', () => fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone)),
-                timing.time('color', () => fetchCalendarColor(accessToken)),
-              ]),
+            const [{ events, deletedPushed, truncated }, { calendarColor, calendarColorId }] = await withAccessToken(
+              accessDeps(row),
+              (accessToken) =>
+                Promise.all([
+                  timing.time('events', () => fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone)),
+                  timing.time('color', () => fetchCalendarColor(accessToken)),
+                ]),
             )
             // truncated: 上限までページをたどっても続きがあった（範囲の後ろの予定が欠けている）
-            return jsonResponse({ events, truncated, calendarColor, calendarColorId, connected: true, canWrite: hasWriteScope(row.scope) })
+            // deletedPushed: Google で消されたアプリの予定の ID（アプリでもゴミ箱に入れる）
+            return jsonResponse({
+              events,
+              deletedPushed,
+              truncated,
+              calendarColor,
+              calendarColorId,
+              connected: true,
+              canWrite: hasWriteScope(row.scope),
+            })
           } catch (e) {
             const kind = classifyGoogleError(e)
             if (kind === 'rate_limited') return eventsError(429, true, RATE_LIMITED_CODE, RATE_LIMITED_MESSAGE)
@@ -569,21 +576,20 @@ Deno.serve(
           try {
             const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
             const fields = action === 'delete' ? null : pickEventFields(body.fields)
+            // Google で消された予定を戻すか（アプリが Google から消した予定だけ戻す）。送らない前の版のクライアントは今までどおり戻す
+            const revive = body.revive !== false
             // 断られた書き込みは何も変えていないので、トークンを作り直してやり直してよい
             const item = await withAccessToken(accessDeps(row), (accessToken) =>
-              timing.time('write', () =>
-                action === 'upsert'
-                  ? upsertGoogleEvent(accessToken, eventId!, fields!)
-                  : writeGoogleEvent(
-                      accessToken,
-                      action === 'create' ? 'POST' : action === 'update' ? 'PATCH' : 'DELETE',
-                      action === 'create' ? null : eventId,
-                      fields,
-                    ),
-              ),
+              timing.time('write', () => {
+                if (action === 'upsert') return upsertEvent(eventWriter(accessToken, eventId!), eventId!, fields!, revive)
+                // 出ている予定を直す: Google で消されていたら戻さない
+                if (action === 'update') return patchExisting(eventWriter(accessToken, eventId!), fields!, true)
+                return writeGoogleEvent(accessToken, action === 'create' ? 'POST' : 'DELETE', action === 'create' ? null : eventId, fields)
+              }),
             )
             return jsonResponse({ ok: true, event: item ? normalizeEvents([item], timeZone)[0] : null })
           } catch (e) {
+            if (e instanceof GoogleEventDeletedError) return errorResponse(409, DELETED_MESSAGE, 'google_deleted')
             const kind = classifyGoogleError(e)
             if (kind === 'rate_limited') return errorResponse(429, RATE_LIMITED_MESSAGE, RATE_LIMITED_CODE)
             if (kind === 'auth_expired') return errorResponse(409, AUTH_EXPIRED_MESSAGE, 'google_auth_expired')

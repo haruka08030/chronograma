@@ -594,6 +594,7 @@ export default {
   },
   googleEdit: {
     failed: 'Google に反映できませんでした',
+    deletedInGoogle: 'この予定は Google で削除されています',
     needWriteAccess: 'Google の予定を変えるには、Google とつなぎ直して変更を許可してください',
     readOnlyEvent: '主催者ではないため、この予定は変更できません',
     reconnectHint: 'Google とつなぎ直すと、ここで編集できます',
@@ -1567,6 +1568,11 @@ export default {
     notConnected: '未接続',
     disconnectConfirm:
       'Google カレンダーとの接続を解除しますか？ Google カレンダーの予定はそのまま残ります（このアプリには出なくなります）。',
+  },
+  googleDeleted: {
+    moved: 'Google で消された予定を {{count}} 件ゴミ箱に移しました',
+    confirm: 'Google で {{count}} 件の予定が消されています。アプリでもゴミ箱に移しますか？',
+    confirmAction: 'ゴミ箱に移す',
   },
   googlePush: {
     failed: 'Google に送れていない予定が {{count}} 件',

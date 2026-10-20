@@ -12,6 +12,7 @@ const {
   googleEventIdForTask,
   googleFieldsForTask,
   isPushedGoogleEvent,
+  taskIdForGoogleEventId,
 } = await import('./googlePush')
 
 const event = (id: string, over: Partial<Task> = {}): Task =>
@@ -50,6 +51,14 @@ describe('googleEventIdForTask', () => {
     expect(isPushedGoogleEvent({ id })).toBe(true)
     expect(isPushedGoogleEvent({ id: `${id}_20261014T010000Z` })).toBe(true)
     expect(isPushedGoogleEvent({ id: 'abc123def456' })).toBe(false)
+  })
+
+  it('Google の ID からアプリの予定の ID に戻せる（アプリから作ったものでなければ null）', () => {
+    const taskId = '8f14e45f-ceea-467a-9575-6d5f1c2f6a3b'
+    expect(taskIdForGoogleEventId(googleEventIdForTask(taskId))).toBe(taskId)
+    expect(taskIdForGoogleEventId('abc123def456')).toBeNull()
+    expect(taskIdForGoogleEventId('chronograma')).toBeNull()
+    expect(taskIdForGoogleEventId('chronograma6')).toBeNull()
   })
 })
 
