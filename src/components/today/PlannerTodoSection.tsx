@@ -20,11 +20,10 @@ import { PlannerPlanRow } from './PlannerPlanRow'
 
 /**
  * 今日の計画の To-Do: 期限切れ → やり残し → 今日やる（時間未定 → 時間を決めた）→ 追加欄 → 一言。
- * どの行がどこに属すか見出しで分ける。期限切れは焦らせてよいので畳まない
+ * 期限切れ・やり残しは見出しで、今日やる行はその下の線で分ける（To-Do・今日やる・時間を決めたの見出しの文字は出さない）。期限切れは焦らせてよいので畳まない
  */
 export function PlannerTodoSection({
   env,
-  headingClass,
   overdue,
   overdueShown,
   onShowAllOverdue,
@@ -41,7 +40,6 @@ export function PlannerTodoSection({
   onOpenPlanCard,
 }: {
   env: PlannerRowEnv
-  headingClass: string
   overdue: Task[]
   /** 出している締切切れの行（スマホ幅は先頭の 2 行。残りは「他 N 件」で開く） */
   overdueShown: Task[]
@@ -87,7 +85,8 @@ export function PlannerTodoSection({
 
   return (
     <>
-      <h2 className={`${headingClass} px-6`}>{t('planner.todoHeading')}</h2>
+      {/* 今日の画面にいれば何の一覧か分かるので、見出しは読み上げだけ（文字を減らして感覚で使えるように） */}
+      <h2 className="sr-only">{t('planner.todoHeading')}</h2>
 
       {/* 読み上げ: 期限切れ・やり残し・今日やるの行は 1 つの listbox（まとまりは group）。候補の行は aria-owns で入れる。
           やり残しの見出しのボタンだけは listbox の中に残る（行の並びの途中にあるため） */}
@@ -157,11 +156,9 @@ export function PlannerTodoSection({
         )}
 
         <div className="px-3">
-          {/* 上に期限切れ・やり残しがあるときだけ、ここからが今日やる行だと見出しで示す */}
+          {/* 上に期限切れ・やり残しがあるときだけ、ここからが今日やる行だと線で分ける（見出しの文字は出さない） */}
           {(overdue.length > 0 || leftOver.length > 0) && open.length > 0 && (
-            <p aria-hidden className="mt-3 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-              {viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
-            </p>
+            <div aria-hidden className="mx-3 mb-1 mt-3 border-t border-zinc-100 dark:border-zinc-800" />
           )}
           {nowNext && (
             // スマホだけ（横にタイムラインが無い）。To-Do ならキー操作の並びでもここが先頭（下の時間を決めた行からは外してある）
@@ -208,13 +205,9 @@ export function PlannerTodoSection({
               />
             ))}
           </ul>
-          {/* 時間未定（まだいつやるか決める行）を上、時間を決めた行はその下に時刻順（横のタイムラインにも出ている） */}
-          {timedOpen.length > 0 && untimedOpen.length > 0 && (
-            <p aria-hidden className="ml-11 mt-3 text-xs text-zinc-400 dark:text-zinc-500">
-              {t('planner.timedHeading')}
-            </p>
-          )}
-          <ul role="group" aria-label={t('planner.timedHeading')}>
+          {/* 時間未定（まだいつやるか決める行）を上、時間を決めた行はその下に時刻順（横のタイムラインにも出ている）。
+              右の時刻で分かるので見出しは出さず、間を空けるだけ */}
+          <ul role="group" aria-label={t('planner.timedHeading')} className={timedOpen.length > 0 && untimedOpen.length > 0 ? 'mt-3' : ''}>
             {timedOpen.map((task) => (
               <PlannerTaskRow key={task.id} task={task} env={env} action={timedAction(task)} dueMode="urgent" hoverActions />
             ))}
