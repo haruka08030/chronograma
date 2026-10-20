@@ -59,6 +59,8 @@ describe('その日だけの時間（habitTimesOn）', () => {
     const fixed = gym({ timeMode: 'fixed', endTime: null, timeOverrides: { [DAY]: { startTime: '07:00', endTime: null } } })
     expect(habitTimesOn(fixed, DAY)).toEqual({ startTime: '07:00', endTime: null })
     expect(plannedRecordTimes(fixed, DAY)).toEqual({ startTime: '07:00', endTime: '07:15' })
+    // 「1 回の目標」があればその長さ
+    expect(plannedRecordTimes({ ...fixed, goalMinutes: 30 }, DAY)).toEqual({ startTime: '07:00', endTime: '07:30' })
     const placed = gym({ timeMode: 'fixed', endTime: null, timeOverrides: { [DAY]: { startTime: '07:00', endTime: '08:00' } } })
     expect(habitTimesOn(placed, DAY)).toEqual({ startTime: '07:00', endTime: '08:00' })
     expect(plannedRecordTimes(placed, DAY)).toEqual({ startTime: '07:00', endTime: '08:00' })

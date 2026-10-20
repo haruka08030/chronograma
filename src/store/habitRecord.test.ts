@@ -87,7 +87,18 @@ describe('completeHabitAsPlannedPatch（習慣の記録化）', () => {
     })
   })
 
-  it('時刻ひとつの習慣は 15 分の記録にする', () => {
+  it('時刻ひとつの習慣で「1 回の目標」があれば、その長さの記録にする', () => {
+    const patch = completeHabitAsPlannedPatch(
+      state(habit({ timeMode: 'fixed', endTime: null, startTime: '21:50', goalMinutes: 30 })),
+      'h1',
+      '2026-10-02',
+      env,
+    )!
+    const tasks = 'tasks' in patch ? patch.tasks : []
+    expect(tasks[0]).toMatchObject({ startTime: '21:50', endTime: '22:20' })
+  })
+
+  it('時刻ひとつの習慣で目標が無ければ 15 分の記録にする', () => {
     const patch = completeHabitAsPlannedPatch(
       state(habit({ timeMode: 'fixed', endTime: null, startTime: '21:50' })),
       'h1',

@@ -226,11 +226,14 @@ export function habitDayStatus(habit: Habit, dateKey: string, index?: HabitRecor
   return candidates(index.deleted, linkKey(habit.id), habit, dateKey).length > 0 ? 'missed' : 'done'
 }
 
-/** チェックで作る記録（＝タイムラインの枠）のその日の時間。時刻ひとつの習慣は許容幅ぶんの長さにする */
+/**
+ * チェックで作る記録（＝タイムラインの枠）のその日の時間。時刻ひとつの習慣は「1 回の目標」の長さ、
+ * 目標が無ければ許容幅ぶんの長さにする
+ */
 export function plannedRecordTimes(habit: Habit, dateKey: string): { startTime: string; endTime: string } | null {
   const times = habitTimesOn(habit, dateKey)
   if (!times) return null
   if (times.endTime !== null) return { startTime: times.startTime, endTime: times.endTime }
-  const end = Math.min(timeToMinutes(times.startTime) + HABIT_ON_TIME_TOLERANCE_MIN, 23 * 60 + 59)
+  const end = Math.min(timeToMinutes(times.startTime) + (habit.goalMinutes ?? HABIT_ON_TIME_TOLERANCE_MIN), 23 * 60 + 59)
   return { startTime: times.startTime, endTime: minutesToTime(end) }
 }
