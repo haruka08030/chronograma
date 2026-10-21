@@ -45,6 +45,7 @@ import {
   groupBy,
   runFinishPatch,
   runPool,
+  runKeyMismatchPatch,
   runStatsPatch,
   runStatus,
   runWindowStart,
@@ -175,6 +176,11 @@ Deno.serve(async (req) => {
     // 数は別に書く（列が無い DB（`021` の前）でも、上の目印の外しと last_ok_at は止めない）
     const stat = await admin.from('reminder_runs').update(runStatsPatch(stats, nowIso)).eq('id', 1)
     if (stat.error) console.error('[daily-reminders] save run stats failed', stat.error)
+    const mismatch = await admin.from('reminder_runs').update(runKeyMismatchPatch(stats)).eq('id', 1)
+    if (mismatch.error) console.error('[daily-reminders] save key mismatch count failed', mismatch.error)
+    if (stats.keyMismatch > 0) {
+      console.warn('[daily-reminders] removed subscriptions made with another VAPID key (403)', stats.keyMismatch)
+    }
   }
 
   // 1 回に返るのは 1000 行まで。主キーの順に、前のページの最後のキーより後ろを読み切る（読み終えてから送るので、途中で消しても行はずれない）
@@ -197,7 +203,7 @@ Deno.serve(async (req) => {
     )
   } catch (err) {
     console.error('[daily-reminders] load subscriptions failed', err)
-    await finishRun({ checked: 0, sent: 0, removed: 0, failed: 1 })
+    await finishRun({ checked: 0, sent: 0, removed: 0, keyMismatch: 0, failed: 1 })
     return new Response(err instanceof Error ? err.message : 'load failed', { status: 500 })
   }
 
@@ -302,6 +308,7 @@ Deno.serve(async (req) => {
 
   let sent = 0
   let removed = 0
+  let keyMismatch = 0
   let failed = 0
 
   const removeSub = async (endpoint: string) => {
@@ -451,6 +458,7 @@ Deno.serve(async (req) => {
     // 購読が失効した・受け付けられない（`isGoneStatus`）なら消す。アプリを開けば端末が付け直す
     if (outcome.gone) {
       await removeSub(sub.endpoint)
+      if (outcome.keyMismatch) keyMismatch++
       return
     }
     // 送れたものの印だけを残す（送れなかったものは次の回にもう一度）
@@ -537,7 +545,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  await finishRun({ checked: subs.length, sent, removed, failed })
+  await finishRun({ checked: subs.length, sent, removed, keyMismatch, failed })
 
   // 連携のトークンの閉じ直し。通知の回の成否には数えない（失敗はログだけ。次の回にまた試す）
   let resealed = 0
@@ -550,7 +558,7 @@ Deno.serve(async (req) => {
   }
 
   // 失敗があれば 500（cron の実行の記録で気づけるように）。中身は同じ
-  return new Response(JSON.stringify({ checked: subs.length, sent, removed, failed, resealed }), {
+  return new Response(JSON.stringify({ checked: subs.length, sent, removed, keyMismatch, failed, resealed }), {
     status: runStatus(failed),
     headers: { 'Content-Type': 'application/json' },
   })

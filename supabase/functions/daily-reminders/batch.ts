@@ -96,11 +96,21 @@ export function isGoneStatus(err: unknown): boolean {
   return status === 400 || status === 403 || status === 404 || status === 410 || status === 413
 }
 
+/**
+ * 403: 購読を作った公開鍵と、送るときの鍵（secret `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`）が合わない。
+ * 失効と分けて数える（VAPID の鍵を替えたあと・secret の入れ間違い。端末はアプリを開けば今の鍵で購読し直す）
+ */
+export function isKeyMismatchStatus(err: unknown): boolean {
+  return (err as { statusCode?: number } | null)?.statusCode === 403
+}
+
 export type SendOutcome<J> = {
   /** 送れたもの（`jobs` の順） */
   delivered: J[]
   /** 購読が失効していた */
   gone: boolean
+  /** 失効のうち、鍵が合わなかった（403） */
+  keyMismatch: boolean
   /** 失効以外の理由で送れなかったもの */
   failed: { job: J; error: unknown }[]
 }
@@ -108,11 +118,13 @@ export type SendOutcome<J> = {
 /** 1 つの購読への通知を並べて送る。1 通の失敗でほかを止めない */
 export async function sendJobs<J>(jobs: readonly J[], send: (job: J) => Promise<unknown>): Promise<SendOutcome<J>> {
   const settled = await Promise.allSettled(jobs.map((job) => send(job)))
-  const out: SendOutcome<J> = { delivered: [], gone: false, failed: [] }
+  const out: SendOutcome<J> = { delivered: [], gone: false, keyMismatch: false, failed: [] }
   settled.forEach((r, i) => {
     if (r.status === 'fulfilled') out.delivered.push(jobs[i])
-    else if (isGoneStatus(r.reason)) out.gone = true
-    else out.failed.push({ job: jobs[i], error: r.reason })
+    else if (isGoneStatus(r.reason)) {
+      out.gone = true
+      if (isKeyMismatchStatus(r.reason)) out.keyMismatch = true
+    } else out.failed.push({ job: jobs[i], error: r.reason })
   })
   return out
 }
@@ -150,7 +162,14 @@ export function runFinishPatch(failed: number, nowIso: string): { running_since:
   return failed > 0 ? { running_since: null } : { running_since: null, last_ok_at: nowIso }
 }
 
-export type RunStats = { checked: number; sent: number; removed: number; failed: number }
+export type RunStats = {
+  checked: number
+  sent: number
+  removed: number
+  /** `removed` のうち、鍵が合わなかった（403）購読の数 */
+  keyMismatch: number
+  failed: number
+}
 
 /**
  * 回の終わりに `reminder_runs` へ残す数（`021`）。`last_failed_at` は失敗があった回だけ進める。
@@ -166,4 +185,9 @@ export function runStatsPatch(stats: RunStats, nowIso: string): Record<string, s
   }
   if (stats.failed > 0) patch.last_failed_at = nowIso
   return patch
+}
+
+/** 鍵が合わずに消した購読の数（`044`）。列が無い DB（`044` の前）でもほかの数を残せるよう、`runStatsPatch` とは別の update で書く */
+export function runKeyMismatchPatch(stats: RunStats): { last_key_mismatch: number } {
+  return { last_key_mismatch: stats.keyMismatch }
 }

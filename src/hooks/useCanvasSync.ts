@@ -25,6 +25,7 @@ import { isLeaderTab } from '../lib/tabLeader'
 import { CANVAS_PULLED_PREFIX, loadPulled, savePulled } from '../lib/externalFields'
 import { bindCanvasSubmitted, noteCanvasSubmitted } from '../lib/canvasSubmitted'
 import { WRITE_BACK_PREFIX, writeBackQueue } from '../lib/writeBackQueue'
+import { registerIntegrationWrites } from '../lib/integrationWrites'
 import type { SyncStatus } from '../types/sync'
 
 /** Canvas は 1 回の取り込みで数ページ読むので、開いている間の取り込みは控えめに */
@@ -290,15 +291,33 @@ export function useCanvasSync() {
      */
     const flushPending = () => {
       const token = accessTokenRef.current
+      for (const { payload, completed } of queuePending()) {
+        if (token) markCanvasCompleteOnLeave(payload.connectionId, payload.type, payload.id, completed, token)
+      }
+    }
+
+    /** 猶予中のものを送り直し待ちに積む（猶予は待たない）。積んだものと、いまの付け外しを返す */
+    function queuePending(): { payload: CanvasWritePayload; completed: boolean }[] {
+      const queued: { payload: CanvasWritePayload; completed: boolean }[] = []
       for (const [taskId, p] of [...pendingWrite]) {
         clearTimeout(p.timer)
         pendingWrite.delete(taskId)
         const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
         if (!task) continue
         writeQueue.put(taskId, p.payload)
-        if (token) markCanvasCompleteOnLeave(p.payload.connectionId, p.payload.type, p.payload.id, task.completed, token)
+        queued.push({ payload: p.payload, completed: task.completed })
       }
+      return queued
     }
+
+    // ログアウトの前に、猶予中のものも含めて今すぐ送る（残った数は確かめに出す）
+    const unregisterWrites = registerIntegrationWrites('canvas', {
+      flush: () => {
+        queuePending()
+        return flushWrites(true)
+      },
+      count: () => writeQueue.all().length,
+    })
 
     const unsub = useTaskStore.subscribe((state, prev) => {
       if (state.tasks === prev.tasks) return
@@ -361,6 +380,7 @@ export function useCanvasSync() {
     return () => {
       cancelled = true
       requestSync = null
+      unregisterWrites()
       clearTimeout(firstTimer)
       unsubFirst?.()
       clearInterval(poll)

@@ -94,6 +94,49 @@ describe('syncWebPush', () => {
   })
 })
 
+describe('VAPID の鍵を替えたあと', () => {
+  function stubSubscription(key: number[] | null) {
+    const current = {
+      endpoint: 'https://push.example/old-key',
+      options: { applicationServerKey: key ? new Uint8Array(key).buffer : null },
+      toJSON: () => ({ keys: { p256dh: 'p', auth: 'a' } }),
+      unsubscribe: vi.fn(async () => true),
+    }
+    const fresh = { endpoint: 'https://push.example/new-key', toJSON: () => ({ keys: { p256dh: 'p2', auth: 'a2' } }) }
+    const subscribe = vi.fn<(options: { applicationServerKey: Uint8Array }) => Promise<typeof fresh>>(async () => fresh)
+    const reg = { pushManager: { getSubscription: async () => current, subscribe } }
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: { getRegistration: async () => reg, ready: Promise.resolve(reg) },
+    })
+    return { current, subscribe }
+  }
+
+  it('前の鍵の購読は外して今の鍵で購読し直し、新しい購読を保存する', async () => {
+    const { current, subscribe } = stubSubscription([9, 9, 9])
+    await syncWebPush(args)
+    expect(env.deleteEq).toHaveBeenCalledWith('endpoint', 'https://push.example/old-key')
+    expect(current.unsubscribe).toHaveBeenCalled()
+    expect(subscribe).toHaveBeenCalledTimes(1)
+    // 'AAAA' は 0 が 3 バイト
+    expect(Array.from(subscribe.mock.calls[0][0].applicationServerKey)).toEqual([0, 0, 0])
+    expect(env.upsert).toHaveBeenCalledTimes(1)
+    expect(env.upsert.mock.calls[0][0]).toMatchObject({ endpoint: 'https://push.example/new-key' })
+    expect(webPushStatus()).toBe('active')
+  })
+
+  it('今の鍵の購読と、鍵の分からない購読はそのまま使う', async () => {
+    for (const key of [[0, 0, 0], null]) {
+      env.upsert.mockClear()
+      const { current, subscribe } = stubSubscription(key)
+      await syncWebPush(args)
+      expect(current.unsubscribe).not.toHaveBeenCalled()
+      expect(subscribe).not.toHaveBeenCalled()
+      expect(env.upsert.mock.calls[0][0]).toMatchObject({ endpoint: 'https://push.example/old-key' })
+    }
+  })
+})
+
 describe('listenForPushResubscribe', () => {
   it('SW が付け直したら、古い購読の行を消して新しい購読を保存する', async () => {
     await syncWebPush(args)

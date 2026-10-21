@@ -6,10 +6,12 @@ import {
   fetchAllAfter,
   groupBy,
   isGoneStatus,
+  isKeyMismatchStatus,
   PAGE_SIZE,
   quoteFilterValue,
   runFinishPatch,
   runPool,
+  runKeyMismatchPatch,
   runStatsPatch,
   runStatus,
   runWindowStart,
@@ -156,10 +158,12 @@ describe('sendJobs', () => {
     const out = await sendJobs(['a', 'b'], async () => {
       throw fail(410)
     })
-    expect(out).toEqual({ delivered: [], gone: true, failed: [] })
+    expect(out).toEqual({ delivered: [], gone: true, keyMismatch: false, failed: [] })
     expect(isGoneStatus(fail(404))).toBe(true)
     // 壊れた購読・鍵の不一致・大きすぎる中身も、送り直しても同じなので止める（毎回の実行を失敗にしない）
     for (const status of [400, 403, 413]) expect(isGoneStatus(fail(status))).toBe(true)
+    expect(isKeyMismatchStatus(fail(403))).toBe(true)
+    expect(isKeyMismatchStatus(fail(410))).toBe(false)
     expect(isGoneStatus(fail(429))).toBe(false)
     expect(isGoneStatus(new Error('timeout'))).toBe(false)
   })
@@ -216,17 +220,32 @@ describe('runFinishPatch', () => {
   })
 })
 
+describe('鍵が合わない購読（403）', () => {
+  const fail = (statusCode?: number) => Object.assign(new Error('push failed'), { statusCode })
+  it('失効と一緒に消し、鍵が合わなかったことを別に数える', async () => {
+    const out = await sendJobs(['a', 'b'], async (j) => {
+      throw fail(j === 'a' ? 403 : 410)
+    })
+    expect(out).toMatchObject({ gone: true, keyMismatch: true })
+    expect((await sendJobs(['a'], async () => Promise.reject(fail(410)))).keyMismatch).toBe(false)
+    expect(runKeyMismatchPatch({ checked: 3, sent: 0, removed: 2, keyMismatch: 1, failed: 0 })).toEqual({ last_key_mismatch: 1 })
+  })
+})
+
 describe('runStatsPatch', () => {
   const now = '2026-10-06T10:00:00.000Z'
   it('最後の回の数を残す。失敗の時刻は失敗があった回だけ進める', () => {
-    expect(runStatsPatch({ checked: 12, sent: 3, removed: 1, failed: 0 }, now)).toEqual({
+    expect(runStatsPatch({ checked: 12, sent: 3, removed: 1, keyMismatch: 0, failed: 0 }, now)).toEqual({
       last_run_at: now,
       last_checked: 12,
       last_sent: 3,
       last_removed: 1,
       last_failed: 0,
     })
-    expect(runStatsPatch({ checked: 12, sent: 2, removed: 0, failed: 1 }, now)).toMatchObject({ last_failed: 1, last_failed_at: now })
+    expect(runStatsPatch({ checked: 12, sent: 2, removed: 0, keyMismatch: 0, failed: 1 }, now)).toMatchObject({
+      last_failed: 1,
+      last_failed_at: now,
+    })
   })
 })
 

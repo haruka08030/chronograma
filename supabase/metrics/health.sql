@@ -2,8 +2,9 @@
 -- - 1〜3 は `client_errors`（`011`・種類は `020`）。送るのはログインしている端末だけ（ログインしていない間・オフラインの間の失敗は
 --   端末に新しい 10 件までためて、ログイン・回線が戻ったときに送る。`created_at` は送った時刻、起きた時刻は `extra->>'occurred_at'`）。
 --   同じエラーは 10 分に 1 回・1 時間に 20 件まで（`src/lib/errorReport.ts`）なので、数は起きた回数より少なく出る
--- - 4 は `reminder_runs`（`012`・最後の回の数は `021`）
+-- - 4 は `reminder_runs`（`012`・最後の回の数は `021`・鍵が合わずに消した購読は `044`）
 -- - 5・6 は pg_cron、7 は pg_net（どちらも Database → Extensions で有効にしてあるとき）
+-- - 8 は連携（Google・Notion・Canvas）への書き込みの失敗（`client_errors` の `integration`）
 -- - Edge Function（account・google-calendar・notion・canvas・daily-reminders）の中のエラーはこの表に入らない。
 --   関数の `console.error` は Supabase の Edge Functions → 関数 → Logs で見る（残る期間はプランによる）。
 --   利用者に出た連携の失敗は、端末が `integration` で送る
@@ -55,6 +56,7 @@ select
   last_checked,
   last_sent,
   last_removed,
+  last_key_mismatch,  -- last_removed のうち 403（VAPID の鍵が合わない）。鍵を替えたあとに増え、端末がアプリを開くと購読し直す
   last_failed,
   last_failed_at
 from public.reminder_runs
@@ -94,3 +96,19 @@ where created > now() - interval '24 hours'
   and (content like '{"checked"%' or content like '{"skipped"%' or status_code is distinct from 200)
 group by status_code, timed_out
 order by last desc;
+
+-- 8. 連携への書き込み・書き戻しの失敗（`client_errors` の `integration`）を段階ごとに、直近 7 日。4 の通知と並べて見る。
+--    段階: Google カレンダーへの送信 `google:push`・Google の設定の誤り `google`・Notion のステータスを進める `notion:advance`・
+--    Notion の取り込み `notion`・Canvas の完了の書き戻し `canvas:complete`・Canvas の取り込み `canvas`。
+--    送り待ちは端末が送り直すので、1 回の失敗は届かなかったことを意味しない（ログアウトの前に残った分は確かめを出して消える）
+select
+  extra->>'stage' as stage,
+  date_trunc('day', created_at)::date as day,
+  count(*) as n,
+  count(distinct user_id) as users,
+  max(created_at) as last
+from public.client_errors
+where kind = 'integration'
+  and created_at > now() - interval '7 days'
+group by 1, 2
+order by 2 desc, n desc;

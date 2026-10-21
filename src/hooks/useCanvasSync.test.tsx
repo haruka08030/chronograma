@@ -26,6 +26,7 @@ vi.mock('../lib/errorReport', async (importOriginal) => ({
 const { useCanvasSync, requestCanvasSync } = await import('./useCanvasSync')
 const { useTaskStore } = await import('../store/taskStore')
 const { canvasTaskId, CanvasRequestError } = await import('../lib/canvas')
+const { flushIntegrationWrites } = await import('../lib/integrationWrites')
 
 const CONN = 'school.instructure.com'
 const TASK_ID = canvasTaskId(CONN, 'assignment', '42')
@@ -91,5 +92,34 @@ describe('useCanvasSync', () => {
     expect(mocks.complete).toHaveBeenLastCalledWith(CONN, 'assignment', '42', false)
     expect(queued()).toEqual([])
     unmount()
+  })
+
+  it('ログアウトの前には猶予を待たずに送り、送れなければ残った数を返す', async () => {
+    mocks.items.mockResolvedValue(payload(false))
+    const { unmount } = renderHook(() => useCanvasSync())
+    await flush()
+
+    // 完了にした直後（猶予の間）にログアウトする: 待たずに送る
+    mocks.complete.mockResolvedValueOnce({ ok: true })
+    await setCompleted(true)
+    let left: Awaited<ReturnType<typeof flushIntegrationWrites>> = {}
+    await act(async () => {
+      left = await flushIntegrationWrites()
+    })
+    expect(mocks.complete).toHaveBeenLastCalledWith(CONN, 'assignment', '42', true)
+    expect(left).toEqual({})
+    expect(queued()).toEqual([])
+
+    // 送れなければ待ちに残り、数を返す
+    mocks.complete.mockRejectedValueOnce(new CanvasRequestError('canvas_api', 'canvas_api'))
+    await setCompleted(false)
+    await act(async () => {
+      left = await flushIntegrationWrites()
+    })
+    expect(left).toEqual({ canvas: 1 })
+    expect(queued()).toEqual([TASK_ID])
+    unmount()
+    // 外したあとは数えない
+    expect(await flushIntegrationWrites()).toEqual({})
   })
 })

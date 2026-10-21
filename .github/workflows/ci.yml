@@ -126,15 +126,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # 前の 1 つのジョブと同じ名前で、上の 4 つが全部通ったかをまとめる（必須のチェックを check のままにしておける）。
+  # 前の 1 つのジョブと同じ名前で、ほかのジョブ（static・test・test-tz・e2e・functions・database）が全部通ったかをまとめる（必須のチェックを check のままにしておける）。
   # 前のジョブが落ちたときに「スキップ」で通ってしまわないよう、always() で必ず動かして結果を見る
   check:
     if: always()
-    needs: [static, test, test-tz, e2e]
+    needs: [static, test, test-tz, e2e, functions, database]
     runs-on: ubuntu-latest
     steps:
       - name: All checks passed
-        run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success && test "${{ needs.test-tz.result }}" = success && test "${{ needs.e2e.result }}" = success
+        run: |
+          test "${{ needs.static.result }}" = success
+          test "${{ needs.test.result }}" = success
+          test "${{ needs.test-tz.result }}" = success
+          test "${{ needs.e2e.result }}" = success
+          test "${{ needs.functions.result }}" = success
+          test "${{ needs.database.result }}" = success
 
   # Edge Function の型チェック（Supabase の実行環境と同じ Deno で、npm: / https: の import も解決する）
   functions:

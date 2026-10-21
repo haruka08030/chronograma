@@ -11,6 +11,13 @@
 
 スキーマを変えたら `supabase db push --linked --dry-run` で流れるファイルを確かめ、`supabase db push --linked` で本番に流す（適用履歴に記録される）。Edge Function は `supabase functions deploy <名前>`。
 
+main に出すとき（DB と Edge Function は main へのマージでは出ないので手で出す。順番は migration → Edge Function → main へのマージ。新しいアプリが新しい列・関数を読む前にそろえる）:
+
+1. 流れていない migration を出す: `supabase db push --linked --dry-run` で流れるファイルを確かめ、あれば `supabase db push --linked`。流したあと `--dry-run` で 0 件になったのを確かめる
+2. 前回 deploy した後に変わった Edge Function を全部出す: 関数ごとに最後に deploy した時刻を `supabase functions list` の `UPDATED_AT` で見て、`git log --since='<その時刻>' --format='%h %ad %s' --date=iso dev -- supabase/functions/<名前> supabase/functions/_shared supabase/functions/deno.json supabase/functions/deno.lock` に 1 件でも出れば `supabase functions deploy <名前>`（`_shared` が変わればそれを読む関数は全部）
+3. 秘密や環境変数を足した・替えたら、先に入れる（Supabase の secrets・Vercel の環境変数。一覧は `doc/PUBLISHING.md` の 2）
+4. dev を main にマージする
+
 スキーマは `supabase/migrations/` の番号順のファイル、一覧は `supabase/migrations/README.md`。ルート `README.md` と `doc/CURSOR_CONTEXT.md` もこれに合わせる。
 
 起動時に読まないもの: `@supabase/supabase-js` はログインのセッションが保存されている・ログインから戻ってきた（`#access_token`）・アカウント欄でログインの欄を出した・ログインを始めた・ほかのタブでログインしたときに `loadSupabase()` で読む（`getSupabase()` は読み込み済みのときだけ返す。型以外で静的に読まない）。言語の文言は表示する言語の分だけ `i18n/config.ts` が読み（chunk は `locale-ja` / `locale-en`、日本語は date-fns の日本語も一緒）、画面は読み終えてから描く。最初から作る名前（「やりたいこと」/ Bucket list・「買い物」・初期のラベル）は `locales/builtinNames.ts`。前の版の初期の名前（いつか / Someday）は `LEGACY_BUILTIN_LIST_NAMES` で、同期で初期リストを見分けるときにも数える。
@@ -195,7 +202,7 @@
 
 ## 同期・保存
 
-- 他タブの保存は storage イベントで取り込み（表示中の画面はタブごと）、同期は Web Locks でタブ間 1 本ずつ
+- 他タブの保存は BroadcastChannel（localStorage のときは storage イベント）で知って IndexedDB から読み直して取り込み（表示中の画面はタブごと）、同期は Web Locks でタブ間 1 本ずつ
 - 端末への保存はストアが変わったとき。保存するデータがどれも前と同じ参照なら文字列にしない（`createPersistStorage`）。タスク詳細のメモ・場所は手元の書きかけで持ち、打つのが 0.6 秒止まったとき・欄を離れたとき・詳細を閉じたとき・タブを閉じる / 裏に回る / 読み込み直すときにストアへ入れる（`useDraftField`・`lib/pendingEdits.ts`）。書きかけの間に他のタブの保存を取り込んでも、書きかけはその項目だけ当たる
 - 送るのは取得した内容と違う行だけ（`updated_at` は比べない）。削除 100 件（版つきは 25 件）・保存 500 件ずつ
 - 同期する行（リスト・セクション・タスク・習慣）の `updated_at` はサーバーが付ける。送る行には取得した版（`base_updated_at`、取得に無い行は `-infinity`）を付け、サーバーの行がその版のままのときだけ書く・消す（`004` の `sync_write_guard`）。断られた行は控えを取得した版にして、すぐ取り直して合わせ直す（続けて 3 回まで）
@@ -220,7 +227,7 @@
 - 一度 IndexedDB で開けた端末（localStorage `chronograma-data-in-indexeddb`）で開けなかったときは、空のまま書き始めない。保存と同期を止め（`blockPersisting('unavailable')`）、「保存データを開けなかった・再読み込みしてください」のバナーを出す
 - 新しい版への読み込み直し・他のタブの新しい版での読み込み直しは、書いている途中の保存を書き終えてから（`reloadWhenSaved`、3 秒まで待つ）
 - 移した後に localStorage で動いた回を取り込むとき、IndexedDB の本体にだけある行のうち、置き換える前の控えにあってその回の控えに無い行（その回で完全に消した・ほかの端末で消された行）は戻さない（`dropRowsDeletedInRecovered`）
-- ログアウトは先に送ってから。失敗時だけ確認。サーバーで切れなければ端末のセッションだけ消す
+- ログアウトは先に送ってから（クラウドの同期と、連携への送り待ち: Google カレンダーに送る予定・Notion のステータスを進める・Canvas の完了の書き戻し。`lib/integrationWrites.ts`）。送れずに残ったときだけ確認し、連携は名前と件数を出す。サーバーで切れなければ端末のセッションだけ消す
 - バックアップの取り込みは全項目を検査・補完し、今編集したものとして刻む。知っている項目だけを取り出す（知らない項目はストアに入れない）。取り込むファイル（JSON・CSV）は読む前に大きさを確かめ、20 MB を超えたら読まない（`MAX_IMPORT_FILE_BYTES`）
 - 保存する値（`DATA_KEYS`）は、書き出し（JSON・自動バックアップ・取り込みの控え）に入れる（`BACKUP_KEYS`）か、入れない理由を書く（`BACKUP_EXCLUDED`）かのどちらか。`backupKeys.test.ts` が確かめる。保存する値を足したらどちらかに入れる
 - 書き出しの版は 4（`BACKUP_SCHEMA_VERSION`）: タスク・リスト・習慣・セクション・ラベル表のほかに、1 日の気分・時間割（欠席・休める回数）・追加機能（引き落とし・期限・欠席の一覧の授業・Google に送らない名前）・よく入れる予定・授業と科目のつながり・他のタイムゾーン・端末の設定（`prefs`: テーマ・週の開始日・1 日の空き時間・ブロックの既定の長さ・予定の前の通知・アプリのタイムゾーン）。気分のもとにしたサーバーの版は書かない
@@ -233,7 +240,7 @@
 - 保存データが読めないときは別キーに退避し、エラー画面に「書き出す」「自動バックアップから戻す」。退避した写し（`chronograma-storage-unreadable-{時刻}`・`-before-recovery-{時刻}`）は種類ごとに新しい 1 つだけ残す（`lib/deviceCleanup.ts`）
 - ゴミ箱に入れて 30 日（`TRASH_KEEP_DAYS`）たったタスク・習慣は起動時に完全に削除し、同期でサーバーからも消す。ゴミ箱の件数の横に「30 日後に自動で削除」
 - 取り込み前の控えは 7 日（`IMPORT_ROLLBACK_KEEP_DAYS`）で捨てる。控えには持ち主（取り込んだときの `dataOwner`）を付ける
-- ログアウトでは、保存データの写し・連携（Canvas・Notion）の前回取り込んだ値・Canvas の提出済みの控えを誰の分も消し、前回同期の控えは中身を消して印（`null`）だけ残す（ほかの人として同期したことだけ分かる。`clearSignedOutLeftovers`）
+- ログアウトでは、保存データの写し・連携（Canvas・Notion）の前回取り込んだ値・Canvas の提出済みの控え・連携への送り待ち（Google・Notion・Canvas）・設定の前回合わせた版の中身の控えを誰の分も消し、前回同期の控えは中身を消して印（`null`）だけ残す（ほかの人として同期したことだけ分かる。`clearSignedOutLeftovers`）
 - 設定「データ › 記録を書き出す」: 期間（今週・今月・先月・すべて。週は月曜はじまり、開始日で切る）を選んで CSV か ICS に（手元のデータから作り、サーバーは使わない、`lib/recordExport.ts`）。CSV は UTF-8 BOM・CRLF、列は 種類・日付・開始・終了・終了日（日をまたぐときだけ）・分・ラベル・タイトル・タグ・元の予定（ふりかえりと同じ予定の集まりと突き合わせた「予定どおり / 時間がずれた / 予定になし」）。見出しと値は画面の言語で、日付・タイトル・タグの見出しは CSV の取り込みでそのまま読める。日付・時刻はアプリのタイムゾーン、分は実際の長さ（夏時間も）。記録と睡眠を入れ、スイッチを入れたときだけ予定と ✓ で終えた時刻つきの To-Do も入れる（いつか・チェックリストは入れない）。題名・ラベル・タグが = + - @ で始まるなら先頭に ' を付ける。ICS は記録だけ（`VEVENT` に `SUMMARY`・`CATEGORIES` にラベル、時刻は UTC の `Z`、`UID` は記録の id から作るので書き出し直しても重ならない）。書き出すものが 0 件ならボタンを押せない（ICS は記録が 0 件なら）。ファイル名は `chronograma-records-YYYY-MM-DD.csv / .ics`
 - 自動バックアップには持ち主（控えたときの `dataOwner`）を付け、一覧・復元はいまの人の分だけ（`canViewBackup`）。ログアウト後の端末では前の人の控えは見えない。持ち主の分からない古い控えはログイン中だけ。残す数は持ち主ごと。いま使っている人以外の控えは 30 日（`OTHER_OWNER_KEEP_DAYS`）で消す（持ち主の分からない控えは数だけ）
 - 毎日の自動バックアップは、その日の分があるかを日付の索引（`chronograma-backups` の `dateKey`）で確かめてから全データを文字列にする。同期で手元のタスクが減るときの控え（同期の直前）は 10 分に 1 回まで。控えの中身の合計は 5,000 万文字まで（超えたら古いものから外し、いちばん新しい 1 件は残す。`MAX_TOTAL_CHARS`）
