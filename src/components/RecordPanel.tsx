@@ -383,7 +383,11 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
                   if (!running) startTimer(r.title, r.category ? [r.category] : [])
                 }}
                 {...tip(running ? t('activityLog.timerRunning') : t('quickLog.resume', { title: r.title }))}
-                aria-label={running ? `${r.title}（${t('activityLog.timerRunning')}）` : t('quickLog.resume', { title: r.title })}
+                aria-label={
+                  running
+                    ? t('common.withNote', { title: r.title, note: t('activityLog.timerRunning') })
+                    : t('quickLog.resume', { title: r.title })
+                }
                 style={running ? hexVars : undefined}
                 className={chipClass(
                   { variant: 'outline', size: 'md', selected: running },

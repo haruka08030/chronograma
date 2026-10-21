@@ -294,7 +294,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
               if (parsed.errors.length === 0 && unknown.count > 0) {
                 const choice = await askChoice({
                   message: i18n.t('confirm.csvUnknownLists', {
-                    names: unknown.names.slice(0, 5).join(lang === 'en' ? ', ' : '、') + (unknown.names.length > 5 ? ' …' : ''),
+                    names: unknown.names.slice(0, 5).join(i18n.t('common.listSeparator')) + (unknown.names.length > 5 ? ' …' : ''),
                     labels: unknown.names.length,
                     count: unknown.count,
                   }),

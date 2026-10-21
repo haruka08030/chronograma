@@ -27,7 +27,7 @@ export function DueMark({
   const tone = days < 0 ? 'past' : dueSoonTone(days)
   return (
     <span
-      {...tip(`${item.title}（${t('addons.dues.name')}）`)}
+      {...tip(t('common.withNote', { title: item.title, note: t('addons.dues.name') }))}
       data-due-mark
       className={`block ${DUE_TONE_CLASS[tone]} ${wrap ? 'line-clamp-2 [overflow-wrap:anywhere]' : 'truncate'}
         ${size === 'sm' ? 'text-xs' : 'text-[10px] leading-tight'} ${className}`}

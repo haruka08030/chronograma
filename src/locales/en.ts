@@ -12,6 +12,8 @@ export default {
     close: 'Close',
     timeRangeSeparator: '–',
     listSeparator: ', ',
+    // A name with a note (screen reader labels, tooltips). Brackets differ per language
+    withNote: '{{title}} ({{note}})',
     dragToReorder: 'Drag to reorder',
     back: 'Back',
     loading: '…',
@@ -1243,6 +1245,7 @@ export default {
   account: {
     emailRequired: 'Enter your email address.',
     genericError: 'Something went wrong. Please try again.',
+    notConfigured: 'Supabase is not configured',
     networkError: 'Could not reach the server. Check your connection and try again.',
     otpWaitSeconds: 'Please wait {{count}} seconds before requesting another link.',
     otpRateLimited: 'Too many sign-in emails were sent. Please wait a while (up to about an hour) and try again.',
