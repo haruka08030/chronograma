@@ -1,12 +1,12 @@
 import { useMemo, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isSameMonth } from 'date-fns'
-import type { WeekReviewDay } from '../lib/weekReview'
+import { dayTooltipText, type WeekReviewDay } from '../lib/weekReview'
 import { monthGridDays, weekdayLabelsFrom } from '../lib/weekStart'
 import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { toDateKey } from '../lib/dateKey'
-import { formatDuration, formatDurationShort } from '../lib/timeGrid'
+import { formatDurationShort } from '../lib/timeGrid'
 import { TODAY_TEXT } from '../lib/dayMarker'
 import { tip } from '../lib/tooltip'
 
@@ -63,15 +63,7 @@ export function ReviewMonthHeat({
           const future = key > todayKey
           const level = heatLevel(minutes, max)
           const label = df.monthDayWeekday(date)
-          const dayTip = day
-            ? t('weekReview.dayTooltip', {
-                day: label,
-                logged: formatDuration(day.loggedMinutes),
-                planned: formatDuration(day.plannedMinutes),
-                done: day.done,
-                total: day.total,
-              })
-            : label
+          const dayTip = day ? dayTooltipText(t, label, day) : label
           return (
             <button
               key={key}

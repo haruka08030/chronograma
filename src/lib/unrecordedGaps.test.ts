@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { timerSpanOnDay, unrecordedGaps, unrecordedGapsForDay, unrecordedMinutes } from './unrecordedGaps'
+import {
+  eventSpansOnDay,
+  timerSpanOnDay,
+  unrecordedGaps,
+  unrecordedGapsForDay,
+  unrecordedMinutes,
+  unrecordedMinutesOnDay,
+} from './unrecordedGaps'
+import { absentOnOf } from './timetable'
+import { courseKey } from './courseLinks'
 import { makeTask } from '../store/taskHelpers'
 import { INBOX_LIST_ID } from '../store/storeConstants'
 import { instantFromWall, appTimeZone } from './timeZone'
@@ -126,5 +135,64 @@ describe('unrecordedGapsForDay', () => {
     // 過ぎた日・先に始めたものは関係ない
     expect(timerSpanOnDay(timer, '2026-10-06', null)).toBeNull()
     expect(timerSpanOnDay(timer, '2026-10-06', hm('10:00'))).toBeNull()
+  })
+})
+
+describe('予定（授業・バイト）は出たものとして記録の無い時間を埋める', () => {
+  const D = '2026-10-07'
+  const base = (id: string, extra: Partial<Task>): Task => ({ ...makeTask({ title: id, listId: INBOX_LIST_ID }, 0), id, ...extra })
+  const log = (id: string, startTime: string, endTime: string, extra: Partial<Task> = {}) =>
+    base(id, { kind: 'log', completed: true, dueDate: D, startTime, endTime, ...extra })
+  const event = (title: string, startTime: string | null, endTime: string | null, extra: Partial<Task> = {}) =>
+    base(title, { kind: 'event', title, scheduledDate: D, dueDate: null, startTime, endTime, ...extra })
+  const pastDay = () => null
+  // 起きて 07:00、09:00–12:00 は授業（記録なし）、12:00–13:00 昼、13:00–14:30 も授業、その後 18:00–19:00 に記録
+  const tasks = (...extra: Task[]) => [
+    log('sleep', '00:00', '07:00', { kind: 'sleep' }),
+    log('breakfast', '07:00', '09:00'),
+    log('lunch', '12:00', '13:00'),
+    log('gym', '18:00', '19:00'),
+    log('night', '23:00', '24:00', { kind: 'sleep', endTime: '06:00', endDate: '2026-10-08' }),
+    ...extra,
+  ]
+
+  it('授業の間は記録なしに入れない（見出し・ふりかえり・タイムラインの点線の枠が同じ）', () => {
+    const all = tasks(event('統計学', '09:00', '12:00'), event('経済学', '13:00', '14:30'))
+    // 抜けは 14:30–18:00 と 19:00–23:00 だけ
+    expect(unrecordedMinutesOnDay(all, D, pastDay)).toBe(210 + 240)
+    const busy = eventSpansOnDay(all, D)
+    expect(busy).toEqual([span('09:00', '12:00'), span('13:00', '14:30')])
+    expect(
+      unrecordedGapsForDay(
+        all.filter((t) => t.kind === 'log' || t.kind === 'sleep'),
+        D,
+        null,
+        null,
+        busy,
+      ),
+    ).toEqual([span('14:30', '18:00'), span('19:00', '23:00')])
+    // 予定が無ければ授業の時間も記録なし
+    expect(unrecordedMinutesOnDay(tasks(), D, pastDay)).toBe(180 + 300 + 240)
+  })
+
+  it('欠席にした授業の回は埋めない（記録なしに戻る）', () => {
+    const all = tasks(event('統計学', '09:00', '12:00'), event('経済学', '13:00', '14:30'))
+    expect(unrecordedMinutesOnDay(all, D, pastDay, null, undefined, absentOnOf({ absences: {} }))).toBe(210 + 240)
+    // 統計学を休んだ日は 09:00–12:00 が記録なしに戻る（ほかの日の欠席は関係ない）
+    const absentOn = absentOnOf({ absences: { [courseKey('統計学')]: [D, '2026-09-30'] } })
+    expect(unrecordedMinutesOnDay(all, D, pastDay, null, undefined, absentOn)).toBe(180 + 210 + 240)
+    expect(eventSpansOnDay(all, D, absentOnOf({ absences: { [courseKey('統計学')]: ['2026-09-30'] } }))).toHaveLength(2)
+  })
+
+  it('時刻の無い（終日の）予定・ゴミ箱の予定は埋めない', () => {
+    const all = tasks(event('学園祭', null, null), event('統計学', '09:00', '12:00', { deletedAt: '2026-10-07T00:00:00Z' }))
+    expect(eventSpansOnDay(all, D)).toEqual([])
+    expect(unrecordedMinutesOnDay(all, D, pastDay)).toBe(180 + 300 + 240)
+  })
+
+  it('予定は起きた・寝た時刻には使わない（記録の前後に広げない）', () => {
+    const all = [log('work', '10:00', '11:00'), event('バイト', '17:00', '22:00')]
+    // 過ぎた日は最後の記録で終わる
+    expect(unrecordedMinutesOnDay(all, D, pastDay)).toBe(0)
   })
 })

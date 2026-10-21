@@ -17,7 +17,7 @@ vi.mock('../lib/pwa', async (importOriginal) => ({
 
 const NEED_INSTALL = 'Add to your Home Screen to use notifications'
 const UNSUPPORTED = 'This browser does not support notifications.'
-const WRAP_UP = "Evening wrap-up (today's numbers)"
+const WRAP_UP = 'Evening summary'
 
 const hadNotification = 'Notification' in window
 const originalNotification = (window as { Notification?: unknown }).Notification
@@ -75,7 +75,7 @@ describe('設定「通知」で通知が使えないとき', () => {
   })
 })
 
-describe('設定「通知」の夜の締め', () => {
+describe('設定「通知」の夜のまとめ', () => {
   it('既定はオフ。オンにすると 22:00 になり、時刻を変えられる。オフに戻せる', async () => {
     ;(window as { Notification?: unknown }).Notification = {
       permission: 'granted',

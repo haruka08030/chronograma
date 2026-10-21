@@ -14,14 +14,14 @@ import { useAppTodayKey } from '../hooks/useAppClock'
 
 const CAPACITY_HOURS = [4, 5, 6, 7, 8, 9, 10, 12]
 const EVENT_REMINDER_OPTIONS = [5, 10, 15, 30, 60]
-/** 夜の締めをオンにしたときの時刻 */
+/** 夜のまとめをオンにしたときの時刻 */
 const DEFAULT_WRAP_UP_TIME = '22:00'
 
 const selectClass = fieldClass({ size: 'sm' })
 
 /**
  * 設定「通知」: 放っておくと逃すことを、手を打てるときだけ知らせる。
- * 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜の締め（タイマーの止め忘れは常に）。
+ * 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜のまとめ（タイマーの止め忘れは常に）。
  * 1 日に計画する時間の目安・既定の予定の長さは通知ではないので別のまとまり（計画）。
  */
 export function DailyRhythmSettings() {

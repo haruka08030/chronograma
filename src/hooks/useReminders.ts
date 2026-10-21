@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import i18n from '../i18n/config'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { useAuth } from '../contexts/AuthContext'
 import { checkLocalReminders } from '../lib/localReminders'
 import { isWebPushActive, listenForPushResubscribe, refreshWebPush, syncWebPush } from '../lib/webPush'
@@ -15,7 +15,7 @@ import { reportFailure } from '../lib/errorReport'
 const MAX_TIMER_END_WAIT_MS = 60 * 60_000
 
 /**
- * 通知（朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜の締め・タイマーの止め忘れ）。
+ * 通知（朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜のまとめ・タイマーの止め忘れ）。
  * ログイン中は Web Push（閉じていても届く）に購読し、使えない環境ではタブを開いている間だけ出す。
  * 「あと何分」の時間（#290）は、Web Push があってもタブを開いていればちょうどの時刻にタブで知らせる（`timerEndAlert.ts`）
  */
@@ -59,6 +59,7 @@ export function useReminders() {
       const state = useTaskStore.getState()
       checkLocalReminders({
         tasks: state.tasks,
+        habits: selectLiveHabits(state),
         excludedListIds: unplannedListIds(state.lists),
         daily: state.dailyReminders,
         settings: {

@@ -263,6 +263,11 @@ export function isAbsent(timetable: Timetable, title: string, date: string): boo
   return timetable.absences[courseKey(title)]?.includes(date) ?? false
 }
 
+/** その回を欠席にしたか、を予定の題名と日で聞く形（記録の無い時間で、欠席した回の時間を埋めない） */
+export function absentOnOf(timetable: Pick<Timetable, 'absences'>): (title: string, date: string) => boolean {
+  return (title, date) => timetable.absences[courseKey(title)]?.includes(date) ?? false
+}
+
 /** 欠席の印を付けた・外した時間割の設定（`normalizeTimetable` で学期の外の日付は落ちる） */
 export function withAbsence(timetable: Timetable, title: string, date: string, absent: boolean): Timetable {
   const key = courseKey(title)

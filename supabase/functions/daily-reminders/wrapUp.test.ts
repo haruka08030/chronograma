@@ -1,58 +1,21 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { hasDayNumbers, logMinutesOnDay, previousDay, wrapUpDigest, wrapUpRowFilter, zonedDateKey, type WrapUpRow } from './wrapUp'
-import { getDayPlan } from '../../../src/lib/dayPlan'
+import { habitFromRow, hasDayNumbers, logMinutesOnDay, previousDay, wrapUpDigest, wrapUpRowFilter, type WrapUpRow } from './wrapUp'
+import { getDayReviews } from '../../../src/lib/weekReview'
 import { setAppTimeZoneSetting } from '../../../src/lib/timeZone'
-import { TASK_DEFAULTS } from '../../../src/lib/taskDefaults'
-import { taskKindFlags, type Task } from '../../../src/types/task'
+import { fromDateKey } from '../../../src/lib/dateKey'
+import {
+  EXAMPLE_DAY,
+  EXAMPLE_EXCLUDED,
+  EXAMPLE_RESULT,
+  exampleHabit,
+  exampleHabits,
+  exampleTasks,
+  toWrapUpHabitRow,
+  toWrapUpRow,
+} from '../../../src/test/dayResultExample'
 
-const DAY = '2026-10-08'
+const DAY = EXAMPLE_DAY
 const TZ = 'Asia/Tokyo'
-
-const task = (id: string, over: Partial<Task> = {}): Task =>
-  ({
-    ...TASK_DEFAULTS,
-    id,
-    title: id,
-    description: '',
-    completed: false,
-    completedAt: null,
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-    order: 0,
-    listId: 'inbox',
-    sectionId: null,
-    parentId: null,
-    dueDate: null,
-    startTime: null,
-    endTime: null,
-    priority: 'none',
-    tags: [],
-    recurrence: null,
-    ...over,
-  }) as Task
-
-/** アプリのタスクを DB の行に（同期で書く列と同じ名前） */
-function toRow(t: Task): WrapUpRow {
-  const flags = taskKindFlags(t.kind ?? 'todo')
-  return {
-    id: t.id,
-    list_id: t.listId,
-    parent_id: t.parentId,
-    is_time_log: flags.isTimeLog,
-    is_sleep: flags.isSleep,
-    is_event: flags.isEvent,
-    completed: t.completed,
-    completed_at: t.completedAt,
-    updated_at: t.updatedAt,
-    scheduled_date: t.scheduledDate ?? null,
-    due_date: t.dueDate,
-    start_time: t.startTime,
-    end_time: t.endTime,
-    end_date: t.endDate ?? null,
-    deleted_at: t.deletedAt ?? null,
-    archived_at: t.archivedAt ?? null,
-  }
-}
 
 afterEach(() => setAppTimeZoneSetting(null))
 
@@ -75,86 +38,81 @@ describe('logMinutesOnDay', () => {
   })
 })
 
-describe('zonedDateKey', () => {
-  it('完了した瞬間を利用者のタイムゾーンの日にする', () => {
-    // 10/7 15:30 UTC は東京の 10/8 0:30、ニューヨークの 10/7 11:30
-    expect(zonedDateKey('2026-10-07T15:30:00Z', TZ)).toBe(DAY)
-    expect(zonedDateKey('2026-10-07T15:30:00Z', 'America/New_York')).toBe('2026-10-07')
-    expect(zonedDateKey('not a date', TZ)).toBeNull()
-  })
-})
-
 describe('wrapUpDigest', () => {
-  it('予定 n 件中 m 件・記録・残りを数える（予定・日付の無いサブタスク・いつかのリスト・睡眠・消したものは入れない）', () => {
-    const rows: WrapUpRow[] = [
-      { id: 'open', list_id: 'inbox', scheduled_date: DAY },
-      { id: 'openByDue', list_id: 'inbox', due_date: DAY },
-      { id: 'done', list_id: 'inbox', completed: true, completed_at: '2026-10-08T03:00:00Z', scheduled_date: '2026-10-01' },
-      { id: 'doneYesterday', list_id: 'inbox', completed: true, completed_at: '2026-10-07T03:00:00Z', scheduled_date: DAY },
-      { id: 'event', list_id: 'inbox', is_event: true, scheduled_date: DAY, start_time: '13:00', end_time: '15:00' },
-      // 日付のあるサブタスクは 1 件、日付の無いサブタスクは入れない（#308）
-      { id: 'sub', list_id: 'inbox', parent_id: 'open', scheduled_date: DAY },
-      { id: 'subUndated', list_id: 'inbox', parent_id: 'open', completed: true, completed_at: '2026-10-08T03:00:00Z' },
-      { id: 'someday', list_id: 'someday-list', scheduled_date: DAY },
-      { id: 'trash', list_id: 'inbox', scheduled_date: DAY, deleted_at: '2026-10-08T01:00:00Z' },
-      { id: 'log', list_id: 'inbox', is_time_log: true, due_date: DAY, start_time: '10:00', end_time: '12:30' },
-      { id: 'sleep', list_id: 'inbox', is_time_log: true, is_sleep: true, due_date: DAY, start_time: '00:00', end_time: '07:00' },
-    ]
-    expect(wrapUpDigest(rows, DAY, TZ, new Set(['someday-list']))).toEqual({ done: 1, total: 4, open: 3, loggedMinutes: 150 })
-  })
+  const rows = () => exampleTasks().map(toWrapUpRow)
+  const habitRows = () => exampleHabits().map(toWrapUpHabitRow)
 
-  it('完了時刻の無い古い行は最後に変えた日で数える', () => {
-    const rows: WrapUpRow[] = [{ id: 'old', list_id: 'inbox', completed: true, completed_at: null, updated_at: '2026-10-08T05:00:00Z' }]
-    expect(wrapUpDigest(rows, DAY, TZ).done).toBe(1)
-  })
-
-  it('アプリの今日の計画（getDayPlan）と同じ数になる', () => {
+  it('予定 N 件中 M 件・予定外・記録を、今日の計画の見出し・週のふりかえり（getDayReviews）と同じ数にする', () => {
     setAppTimeZoneSetting(TZ)
-    const tasks: Task[] = [
-      task('a', { scheduledDate: DAY }),
-      task('b', { dueDate: DAY }),
-      task('c', { scheduledDate: DAY, dueDate: '2026-10-20' }),
-      task('d', { scheduledDate: '2026-10-09', dueDate: DAY }),
-      task('carry', { scheduledDate: '2026-10-05' }),
-      // 東京の 0:30 に完了（UTC では前の日）
-      task('doneLate', { completed: true, completedAt: '2026-10-07T15:30:00Z', scheduledDate: '2026-10-07' }),
-      // 東京の 23:50 に完了（UTC では同じ日の昼）
-      task('doneToday', { completed: true, completedAt: '2026-10-08T14:50:00Z' }),
-      // 東京では次の日
-      task('doneTomorrow', { completed: true, completedAt: '2026-10-08T15:10:00Z', scheduledDate: DAY }),
-      task('event', { kind: 'event', scheduledDate: DAY, startTime: '17:00', endTime: '22:00' }),
-      task('sub', { parentId: 'a', scheduledDate: DAY }),
-      task('someday', { listId: 'someday-list', scheduledDate: DAY }),
-      task('archived', { scheduledDate: DAY, archivedAt: '2026-10-08T01:00:00Z' }),
-      task('log1', { kind: 'log', dueDate: DAY, startTime: '09:00', endTime: '10:15' }),
-      task('logNight', { kind: 'log', dueDate: '2026-10-07', startTime: '23:30', endTime: '00:45' }),
-      task('logIntoTomorrow', { kind: 'log', dueDate: DAY, startTime: '23:00', endTime: '02:00' }),
-      task('sleep', { kind: 'sleep', dueDate: DAY, startTime: '01:00', endTime: '07:00' }),
-      task('logDeleted', { kind: 'log', dueDate: DAY, startTime: '12:00', endTime: '13:00', deletedAt: '2026-10-08T05:00:00Z' }),
-    ]
-    const excluded = new Set(['someday-list'])
-    const plan = getDayPlan(tasks, DAY, excluded)
-    const digest = wrapUpDigest(tasks.map(toRow), DAY, TZ, excluded)
-    expect(digest).toEqual({
-      done: plan.done.length,
-      total: plan.done.length + plan.open.length,
-      open: plan.open.length,
-      loggedMinutes: plan.loggedMinutes,
+    // 過ぎた日として（次の日の朝）
+    const server = wrapUpDigest(rows(), habitRows(), DAY, { date: '2026-10-09', minutes: 8 * 60 }, EXAMPLE_EXCLUDED)
+    const [app] = getDayReviews(exampleTasks(), exampleHabits(), [fromDateKey(DAY)], EXAMPLE_EXCLUDED, new Date(2026, 9, 9, 8, 0))
+    expect(server).toEqual({
+      planned: app!.timedPlanned,
+      followed: app!.followed,
+      unplannedMinutes: app!.unplannedMinutes,
+      loggedMinutes: app!.loggedMinutes,
     })
-    // 念のため中身も: 完了 2（doneLate・doneToday）、残り 4（a・b・c・日付のあるサブタスク sub）、記録 75 + 45 + 60 分
-    expect(digest).toEqual({ done: 2, total: 6, open: 4, loggedMinutes: 180 })
+    expect(server).toEqual(EXAMPLE_RESULT)
+  })
+
+  it('今日は、まだ終わっていない予定を数えない（先に記録できたものは数える）', () => {
+    setAppTimeZoneSetting(TZ)
+    // 20:30: read（20:00–21:00）はまだ終わっていない
+    const server = wrapUpDigest(rows(), habitRows(), DAY, { date: DAY, minutes: 20 * 60 + 30 }, EXAMPLE_EXCLUDED)
+    const [app] = getDayReviews(exampleTasks(), exampleHabits(), [fromDateKey(DAY)], EXAMPLE_EXCLUDED, new Date(2026, 9, 8, 20, 30))
+    expect(server.planned).toBe(4)
+    expect(server.followed).toBe(3)
+    expect({ planned: app!.timedPlanned, followed: app!.followed }).toEqual({ planned: server.planned, followed: server.followed })
+  })
+
+  it('習慣につながった記録をゴミ箱に入れた日は、チェックしていても週に◯回の習慣の枠を数えない', () => {
+    const habit = toWrapUpHabitRow(
+      exampleHabit('swim', {
+        timeMode: 'range',
+        startTime: '09:00',
+        endTime: '10:00',
+        frequency: { type: 'timesPerWeek', count: 2 },
+        completedDates: [DAY],
+      }),
+    )
+    const trashed: WrapUpRow = {
+      id: 'swimLog',
+      list_id: 'inbox',
+      title: 'swim',
+      is_time_log: true,
+      habit_id: 'swim',
+      due_date: DAY,
+      start_time: '09:00',
+      end_time: '10:00',
+      deleted_at: '2026-10-08T05:00:00Z',
+    }
+    const past = { date: '2026-10-09', minutes: 0 }
+    expect(wrapUpDigest([trashed], [habit], DAY, past).planned).toBe(0)
+    expect(wrapUpDigest([{ ...trashed, deleted_at: null }], [habit], DAY, past)).toMatchObject({ planned: 1, followed: 1 })
+  })
+
+  it('ゴミ箱の習慣は数えず、習慣の行の読めない値は既定にする', () => {
+    expect(habitFromRow({ id: 'h', deleted_at: '2026-10-01T00:00:00Z' })).toBeNull()
+    expect(
+      habitFromRow({ id: 'h', frequency: { type: 'weird' }, completed_dates: 'x', time_mode: null, start_time: '07:00' }),
+    ).toMatchObject({
+      frequency: { type: 'daily' },
+      completedDates: [],
+      timeMode: 'fixed',
+    })
   })
 })
 
 describe('wrapUpRowFilter', () => {
-  it('その日・前の日に置いたもの、その日に終わる記録、その日のあたりに完了したものを選ぶ', () => {
-    const filter = wrapUpRowFilter(DAY)
-    expect(filter).toContain('scheduled_date.eq.2026-10-08')
-    expect(filter).toContain('due_date.eq.2026-10-07')
-    expect(filter).toContain('end_date.eq.2026-10-08')
-    // UTC+14 の 0 時（10/7 10:00 UTC）より前から
-    expect(filter).toContain('completed_at.gte."2026-10-07T09:00:00.000Z"')
-    expect(filter).toContain('and(completed.is.true,completed_at.is.null,updated_at.gte."2026-10-07T09:00:00.000Z")')
+  it('その日に置いたもの、前の日・次の日の記録、その日に終わる記録を選ぶ', () => {
+    expect(wrapUpRowFilter(DAY).split(',')).toEqual([
+      'scheduled_date.eq.2026-10-08',
+      'due_date.eq.2026-10-08',
+      'due_date.eq.2026-10-07',
+      'due_date.eq.2026-10-09',
+      'end_date.eq.2026-10-08',
+    ])
   })
 })
 
@@ -166,9 +124,10 @@ describe('previousDay / hasDayNumbers（#278 朝のまとめの昨日）', () =>
     expect(previousDay('2028-03-01')).toBe('2028-02-29')
   })
 
-  it('To-Do か記録があれば数字がある日', () => {
-    expect(hasDayNumbers({ done: 0, total: 0, open: 0, loggedMinutes: 0 })).toBe(false)
-    expect(hasDayNumbers({ done: 0, total: 1, open: 1, loggedMinutes: 0 })).toBe(true)
-    expect(hasDayNumbers({ done: 0, total: 0, open: 0, loggedMinutes: 5 })).toBe(true)
+  it('数えた予定か記録があれば数字がある日', () => {
+    const none = { planned: 0, followed: 0, unplannedMinutes: 0, loggedMinutes: 0 }
+    expect(hasDayNumbers(none)).toBe(false)
+    expect(hasDayNumbers({ ...none, planned: 1 })).toBe(true)
+    expect(hasDayNumbers({ ...none, loggedMinutes: 5 })).toBe(true)
   })
 })

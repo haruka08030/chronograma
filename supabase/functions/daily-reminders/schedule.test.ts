@@ -129,7 +129,7 @@ describe('「あと何分」の時間（timerEndDue、#290）', () => {
   })
 })
 
-describe('夜の締め（wrapUpDue）', () => {
+describe('夜のまとめ（wrapUpDue）', () => {
   it('利用者のタイムゾーンで決めた時刻から 60 分の間に 1 回だけ', () => {
     // 13:00 UTC は東京の 22:00、ニューヨークの 9:00
     const now = new Date('2026-10-08T13:00:00Z')

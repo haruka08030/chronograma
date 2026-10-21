@@ -146,7 +146,7 @@ describe('stopTimerFromNotification', () => {
   })
 })
 
-describe('openWrapUpFromNotification（夜の締め）', () => {
+describe('openWrapUpFromNotification（夜のまとめ）', () => {
   it('今日の計画（今日）を開き、受け取っている今日の計画に 1 回だけ知らせる', () => {
     useTaskStore.getState().setSelectedCalendarDateKey('2020-01-01')
     const fn = vi.fn()

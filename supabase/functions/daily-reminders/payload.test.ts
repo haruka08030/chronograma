@@ -85,59 +85,64 @@ describe('timerEndPayload（「あと何分」の時間、#290）', () => {
   })
 })
 
-describe('夜の締め（wrapUpPayload）', () => {
-  it('数字だけを並べ、押すと今日の計画の「1 日を締める」を開く', () => {
-    const p = wrapUpPayload(MESSAGES.ja, { done: 3, total: 5, open: 2, loggedMinutes: 150 })
+describe('夜のまとめ（wrapUpPayload）', () => {
+  const d = (p: Partial<{ planned: number; followed: number; unplannedMinutes: number; loggedMinutes: number }>) => ({
+    planned: 0,
+    followed: 0,
+    unplannedMinutes: 0,
+    loggedMinutes: 0,
+    ...p,
+  })
+
+  it('今日の計画の見出しと同じ「予定 N 件中 M 件・予定外」と記録を並べる（残りは出さない）', () => {
+    const p = wrapUpPayload(MESSAGES.ja, d({ planned: 4, followed: 3, unplannedMinutes: 60, loggedMinutes: 300 }))
     expect(p).toEqual({
-      title: '1 日を締める',
-      body: '今日: 予定 5 件中 3 件完了 ・ 記録 2時間30分 ・ 残り 2 件',
+      title: '夜のまとめ',
+      body: '今日: 予定 4 件中 3 件・予定外 1時間 ・ 記録 5時間',
       tag: 'chronograma-wrap-up',
       url: '/?view=planner&wrap-up=1',
     })
     expect(WRAP_UP_URL).toBe('/?view=planner&wrap-up=1')
   })
 
-  it('To-Do が無い日は予定の部分を、残りが無ければ残りを出さない', () => {
-    expect(wrapUpPayload(MESSAGES.ja, { done: 0, total: 0, open: 0, loggedMinutes: 45 }).body).toBe('今日: 記録 45分')
-    expect(wrapUpPayload(MESSAGES.ja, { done: 4, total: 4, open: 0, loggedMinutes: 120 }).body).toBe(
-      '今日: 予定 4 件中 4 件完了 ・ 記録 2時間',
-    )
+  it('数えた予定が無い日は予定の部分を、予定外が 0 なら予定外を出さない', () => {
+    expect(wrapUpPayload(MESSAGES.ja, d({ loggedMinutes: 45 })).body).toBe('今日: 記録 45分')
+    expect(wrapUpPayload(MESSAGES.ja, d({ planned: 4, followed: 4, loggedMinutes: 120 })).body).toBe('今日: 予定 4 件中 4 件 ・ 記録 2時間')
   })
 
   it('英語', () => {
-    const p = wrapUpPayload(MESSAGES.en, { done: 3, total: 5, open: 2, loggedMinutes: 150 })
-    expect(p.title).toBe('Wrap up the day')
-    expect(p.body).toBe('Today: 3 of 5 done · 2h 30m logged · 2 left')
+    const p = wrapUpPayload(MESSAGES.en, d({ planned: 5, followed: 3, unplannedMinutes: 90, loggedMinutes: 150 }))
+    expect(p.body).toBe('Today: 3 of 5 plans · 1h 30m unplanned · 2h 30m logged')
   })
 })
 
 describe('morningPayload（#278 昨日の行）', () => {
   const today = { planned: 3, due: [{ title: 'ES', time: '17:00' }], overdue: 0 }
-  const y = (p: Partial<{ done: number; total: number; open: number; loggedMinutes: number }>) => ({
-    done: 0,
-    total: 0,
-    open: 0,
+  const y = (p: Partial<{ planned: number; followed: number; unplannedMinutes: number; loggedMinutes: number }>) => ({
+    planned: 0,
+    followed: 0,
+    unplannedMinutes: 0,
     loggedMinutes: 0,
     ...p,
   })
 
-  it('1 行目に今日、2 行目に昨日の「予定 n 件中 m 件完了 ・ 記録」（残りは出さない）', () => {
-    const p = morningPayload(MESSAGES.ja, today, y({ done: 3, total: 5, open: 2, loggedMinutes: 250 }))
+  it('1 行目に今日、2 行目に昨日の「予定 N 件中 M 件・予定外 ・ 記録」', () => {
+    const p = morningPayload(MESSAGES.ja, today, y({ planned: 5, followed: 3, unplannedMinutes: 40, loggedMinutes: 250 }))
     expect(p.title).toBe('今日のまとめ')
-    expect(p.body).toBe('予定 3 件 ・ 締切: ES（17:00）\n昨日: 予定 5 件中 3 件完了 ・ 記録 4時間10分')
+    expect(p.body).toBe('予定 3 件 ・ 締切: ES（17:00）\n昨日: 予定 5 件中 3 件・予定外 40分 ・ 記録 4時間10分')
     expect(p.tag).toBe('chronograma-morning')
     expect(p.url).toBe(MORNING_URL)
-    expect(morningPayload(MESSAGES.en, today, y({ done: 3, total: 5, open: 2, loggedMinutes: 250 })).body).toBe(
-      '3 planned · Due: ES (17:00)\nYesterday: 3 of 5 done · 4h 10m logged',
+    expect(morningPayload(MESSAGES.en, today, y({ planned: 5, followed: 3, loggedMinutes: 250 })).body).toBe(
+      '3 planned · Due: ES (17:00)\nYesterday: 3 of 5 plans · 4h 10m logged',
     )
   })
 
-  it('To-Do が無い日は記録だけ、記録が無い日は予定だけ', () => {
+  it('数えた予定が無い日は記録だけ、記録が無い日は予定だけ', () => {
     expect(yesterdayLine(MESSAGES.ja, y({ loggedMinutes: 45 }))).toBe('昨日: 記録 45分')
-    expect(yesterdayLine(MESSAGES.en, y({ done: 0, total: 2, open: 2 }))).toBe('Yesterday: 0 of 2 done')
+    expect(yesterdayLine(MESSAGES.en, y({ planned: 2 }))).toBe('Yesterday: 0 of 2 plans')
   })
 
-  it('昨日に To-Do も記録も無い・読めなかったときは昨日の行を出さない（今日が空なら今までの文）', () => {
+  it('昨日に予定も記録も無い・読めなかったときは昨日の行を出さない（今日が空なら今までの文）', () => {
     expect(morningPayload(MESSAGES.ja, today, y({})).body).toBe('予定 3 件 ・ 締切: ES（17:00）')
     expect(morningPayload(MESSAGES.ja, today, null).body).toBe('予定 3 件 ・ 締切: ES（17:00）')
     expect(morningPayload(MESSAGES.en, { planned: 0, due: [], overdue: 0 }, null).body).toBe(MESSAGES.en.emptyDay)

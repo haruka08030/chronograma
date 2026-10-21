@@ -82,7 +82,7 @@ export interface LaunchHandlers {
   stopTimer: (launch: TimerStopLaunch) => void
   /** 開始の通知の「記録を始める」から: その予定のタイマーを始める（#419。通知から開いたときだけ） */
   startTimer: (launch: TaskLaunch) => void
-  /** 夜の締めの通知から: 今日の計画の「1 日を締める」の所を見せる（`?wrap-up=1`） */
+  /** 夜のまとめの通知から: 今日の計画（スマホはタイムラインの面）と気分の記号を見せる（`?wrap-up=1`） */
   wrapUp: () => void
   /**
    * ホーム画面のアイコンを長押しした「追加」（`?add=1`）と、ほかのアプリの「共有」（`?add=1&title=…&text=…&url=…`、manifest の `share_target`）。
