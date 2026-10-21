@@ -1,11 +1,11 @@
 import type { Priority } from '../types/task'
 
 /**
- * 優先度の丸の色（To‑Do・カレンダーの右パネル・今日の計画で共通）。なし は色を付けない。
- * 高は赤にしない（赤は締切切れの色。赤い丸が「遅れている」と読まれ、2 型色覚では締切の色とも見分けられない）
+ * 優先度の丸の色（To‑Do・カレンダーの右パネル・今日の計画で共通）。高＝赤・中＝黄・低＝青。なし は色を付けない。
+ * 締切切れの赤とは「◯日遅れ」の文字で分ける（色だけに頼らない）
  */
 export const PRIORITY_RING_CLASS: Record<string, string> = {
-  high: 'text-violet-500',
+  high: 'text-red-500',
   medium: 'text-amber-500',
   low: 'text-blue-500',
 }
