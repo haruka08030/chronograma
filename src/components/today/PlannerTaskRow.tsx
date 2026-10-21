@@ -1,3 +1,4 @@
+import { RowColorLine } from '../ui/RowColorLine'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
@@ -98,7 +99,7 @@ export function PlannerTaskRow({
       }}
       left={swipeLeft}
       liftId={sel ? task.id : undefined}
-      className={`group/row flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}
+      className={`group/row relative flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}
         ${sel?.selected ? ROW_SELECTED_CLASS : ''} ${sel?.cursor ? ROW_CURSOR_CLASS : ''}`}
       itemRole={optionId ? 'none' : undefined}
       rowProps={{
@@ -119,6 +120,8 @@ export function PlannerTaskRow({
         },
       }}
     >
+      {/* ラベルの色は左の細い線（To-Do の一覧と同じ。丸は状態だけ、#511）。済んだ行には出さない */}
+      {task.color && !task.completed && <RowColorLine hex={task.color} />}
       <CompletionCircle
         completed={task.completed || deferredComplete.isPending(task.id)}
         justCompleted={deferredComplete.isPending(task.id)}

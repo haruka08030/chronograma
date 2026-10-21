@@ -1,3 +1,4 @@
+import { RowColorLine } from '../ui/RowColorLine'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { habitMinutesOn, habitRecordFor, isTimedHabit, type buildHabitRecordIndex } from '../../lib/habitTiming'
@@ -97,9 +98,11 @@ function HabitRow({
   ].filter((m): m is string => !!m)
   return (
     <li
-      className={`flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}`}
+      className={`relative flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}`}
       style={colorVars(h.color)}
     >
+      {/* 習慣の色は左の細い線（To-Do の行と同じ、#511）。済んだ行には出さない */}
+      {h.color && status === 'missed' && <RowColorLine hex={h.color} />}
       {/* To-Do の丸と同じ大きさ・押せる範囲。済んだ・時間外の丸だけ習慣の色 */}
       <button
         type="button"
