@@ -130,7 +130,8 @@ export const TaskItem = memo(function TaskItem({
 }) {
   const { t, i18n } = useTranslation()
   // 締切の言葉と色（「明日まで」「1日遅れ」）は今日で変わるので、行は memo でも日をまたいだら描き直す
-  useAppTodayKey()
+  // （中の useMemo も今日を依存に入れて作り直す）
+  const todayKey = useAppTodayKey()
   const hasSortableHandle = !!dragHandle || !!liftListeners
   const discardBlankTask = useTaskStore((s) => s.discardBlankTask)
   const toggleTask = useTaskStore((s) => s.toggleTask)
@@ -253,7 +254,9 @@ export const TaskItem = memo(function TaskItem({
     if (task.scheduledDate === dayKey) return timePart ? { text: timePart, tone: dateTone(d) } : null
     const datePart = isAppToday(d) ? t('common.today') : formatShortDateWeekday(d, language)
     return { text: timePart ? `${datePart} ${timePart}` : datePart, tone: dateTone(d) }
-  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t, dayKey])
+    // todayKey は作り直す合図（isAppToday・dateTone は今日を自分で読む）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t, dayKey, todayKey])
   const [isDragging, setIsDragging] = useState(false)
   /** 行を押した所と時刻・ドラッグ中の最後の位置（少し動いただけのドラッグを押したことにする。`isTinyDrag`） */
   const pressRef = useRef<{ x: number; y: number; t: number } | null>(null)

@@ -42,6 +42,7 @@ import { useCalendarCards } from '../hooks/useCalendarCards'
 import { useRememberScroll } from '../hooks/useRememberScroll'
 import { CalendarCards } from './calendar/CalendarCards'
 import { OverlaySuspense } from './ui/OverlaySuspense'
+import { minutesOfDay } from '../lib/clockTime'
 
 /** 「1 日を締める」を出し始める時刻（朝から締めの話をしない）。設定の夜の締めの時刻があればその時刻から */
 const WRAP_UP_FROM_HOUR = 17
@@ -121,7 +122,7 @@ export function TodayPlannerView() {
   } = useMemo(() => getDayPlan(tasks, dateKey, excludedListIds), [tasks, dateKey, excludedListIds])
   // 過ぎた日（と今日の締めの時刻から）は、見出しの予定の代わりにその日の結果（ふりかえりの 1 日分と同じ数え方）
   const wrapUpFrom = minutesOfClock(wrapUpTime) ?? WRAP_UP_FROM_HOUR * 60
-  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  const nowMinutes = minutesOfDay(now)
   const showResult = showsDayResult(dateKey, toDateKey(appToday()), nowMinutes, wrapUpFrom)
   // 今日は時間が進むと終わった予定が増えるので、今日を見ている間は分ごとに数え直す
   const resultMinute = viewingToday ? nowMinutes : 0

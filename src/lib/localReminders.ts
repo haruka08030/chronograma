@@ -27,6 +27,7 @@ import { zonedNow } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
 import { formatDate } from './dateFormat'
 import { addDays } from 'date-fns'
+import { minutesOfDay } from './clockTime'
 
 const STATE_KEY = 'chronograma-local-reminders'
 /** 閉じていた間の通知はまとめて出さない（開いた瞬間に昔の通知が並ばないように） */
@@ -264,7 +265,7 @@ export function checkLocalReminders(ctx: {
   const keys = [...(state.keys ?? [])]
   const tasks = reminderCandidates(ctx.tasks, ctx.excludedListIds)
 
-  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  const nowMinutes = minutesOfDay(now)
   if (dailyDue(ctx.daily.planTime, state.morning, today, nowMinutes)) {
     const yesterday = toDateKey(addDays(fromDateKey(today), -1))
     void show(morningMessage(tasks, today, dayNumbers(ctx.tasks, yesterday, ctx.excludedListIds)), ctx.onOpen)

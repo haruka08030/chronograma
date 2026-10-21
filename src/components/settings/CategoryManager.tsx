@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { subDays } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { isActiveTask } from '../../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../../lib/taskTimeRange'
 import { categoryHex, colorVars } from '../../lib/logCategoryColors'
-import { appToday } from '../../lib/timeZone'
+import { useAppTodayKey } from '../../hooks/useAppClock'
+import { dateKeyOfDayIndex, dayIndexOf } from '../../lib/wallTime'
 import { LabelsDialog } from '../labels/LabelsDialog'
 import { SettingsLinkRow } from './SettingsPrimitives'
 import { ChevronDownIcon, ChevronUpIcon } from '../icons'
-import { toDateKey } from '../../lib/dateKey'
 import { formatDuration } from '../../lib/timeGrid'
 import { chipClass } from '../ui/chipClass'
 import { HINT_TEXT, META_TEXT } from '../ui/textClass'
@@ -34,13 +33,14 @@ export function CategoryManager() {
   const moveLogCategory = useTaskStore((s) => s.moveLogCategory)
 
   const [editorOpen, setEditorOpen] = useState(false)
+  const todayKey = useAppTodayKey()
 
   /** 分類 → 直近 30 日の分数（分類なしは ''）と、ラベルなし（ラベル名も色も無い。睡眠は除く）の記録の分数・新しい順の id */
   const { usage, unlabeledMinutes, unlabeledIds } = useMemo(() => {
     const map = new Map<string, number>()
     const unlabeled: Task[] = []
     let unlabeledMin = 0
-    const days = Array.from({ length: USAGE_DAYS }, (_, i) => toDateKey(subDays(appToday(), i)))
+    const days = Array.from({ length: USAGE_DAYS }, (_, i) => dateKeyOfDayIndex(dayIndexOf(todayKey) - i))
     for (const task of tasks) {
       if (!isLogTask(task) || !isActiveTask(task)) continue
       let minutes = 0
@@ -55,7 +55,7 @@ export function CategoryManager() {
     }
     unlabeled.sort((a, b) => `${b.dueDate} ${b.startTime ?? ''}`.localeCompare(`${a.dueDate} ${a.startTime ?? ''}`))
     return { usage: map, unlabeledMinutes: unlabeledMin, unlabeledIds: unlabeled.map((x) => x.id) }
-  }, [tasks])
+  }, [tasks, todayKey])
 
   const unlisted = useMemo(() => {
     const set = new Set<string>()

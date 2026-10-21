@@ -2,7 +2,7 @@ import { isLogTask, isSleepTask, type Task } from '../types/task'
 import type { ActiveTimer } from '../store/storeTypes'
 import { isActiveTask } from './taskLifecycle'
 import { logOverlapsDateKey, logSegmentClockOnDay } from './taskTimeRange'
-import { timeToMinutes } from './clockTime'
+import { minutesOfDay, timeToMinutes } from './clockTime'
 import { toAppWall } from './timeZone'
 import { toDateKey } from './dateKey'
 import type { LogLimit } from './timelineBlockEdit'
@@ -85,7 +85,7 @@ export function timerSpanOnDay(timer: ActiveTimer | null | undefined, dateKey: s
   const wall = toAppWall(ms)
   const startKey = toDateKey(wall)
   if (startKey > dateKey) return null
-  const start = startKey < dateKey ? 0 : wall.getHours() * 60 + wall.getMinutes()
+  const start = startKey < dateKey ? 0 : minutesOfDay(wall)
   return start < limitMin ? { start, end: limitMin } : null
 }
 

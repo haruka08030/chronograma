@@ -9,7 +9,7 @@ import { toDateKey } from '../lib/dateKey'
 import { googleEventDateKeys } from '../lib/googleEventSpan'
 import { sameRows } from './useStableRows'
 import { calendarDayKey, dueMarkDayKey, keepsTimeSlot } from '../lib/dayPlan'
-import { appTodayKey } from '../lib/timeZone'
+import { useAppTodayKey } from './useAppClock'
 
 type Buckets<T> = Map<string, T[]>
 
@@ -41,9 +41,10 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   /** 前に分けた結果と比べて、変わっていない日の配列を使い回す */
   const [stabilize] = useState(createDayArrayCache)
+  // 過ぎた日だけに控えを出すので、開いたまま日をまたいだら分け直す
+  const todayKey = useAppTodayKey()
 
   const { allDayByDate, timedByDate, timeLogsByDate, dueByDate, movedByDate } = useMemo(() => {
-    const todayKey = appTodayKey()
     const allDay = new Map<string, typeof tasks>()
     /** 過ぎた日から別の日へ移した時刻つきの予定（その日の列に控えを出す、#158） */
     const moved = new Map<string, typeof tasks>()
@@ -98,7 +99,7 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
       dueByDate: next.due,
       movedByDate: next.moved,
     }
-  }, [tasks, days, excludedListIds, stabilize])
+  }, [tasks, days, excludedListIds, stabilize, todayKey])
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, typeof calendarEvents>()

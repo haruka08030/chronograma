@@ -15,6 +15,11 @@ export function minutesToTime(min: number): string {
   return `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
 }
 
+/** Date の壁時計の 0 時からの分（秒は切り捨て）。今の分は画面では `useNowMinutes()` */
+export function minutesOfDay(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes()
+}
+
 /** Date の壁時計の `HH:MM` */
 export function clockOf(d: Date): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`

@@ -9,7 +9,7 @@ import { canEditGoogleEvent, moveGoogleEvent } from './googleEventEdit'
 import { googleEventTiming, movedGoogleEventTiming } from './googleCalendar'
 import { googleEventCrossesDay } from './googleEventSpan'
 import { SNAP_MINUTES, timeToMinutes } from './timeGrid'
-import { endWithinDay, minutesToTime } from './clockTime'
+import { endWithinDay, minutesOfDay, minutesToTime } from './clockTime'
 import { toDateKey } from './dateKey'
 import { shortDate } from './moveToast'
 import { zonedNow } from './timeZone'
@@ -35,7 +35,7 @@ export type LogLimit = (dateKey: string) => number | null
 
 export function logLimitAt(now: Date): LogLimit {
   const todayKey = toDateKey(now)
-  return (key) => (key < todayKey ? null : key > todayKey ? 0 : now.getHours() * 60 + now.getMinutes())
+  return (key) => (key < todayKey ? null : key > todayKey ? 0 : minutesOfDay(now))
 }
 
 export type BlockEditContext = {
