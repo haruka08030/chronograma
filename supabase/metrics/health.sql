@@ -2,7 +2,7 @@
 -- - 1〜3 は `client_errors`（`011`・種類は `020`）。送るのはログインしている端末だけ（ログインしていない間・オフラインの間の失敗は
 --   端末に新しい 10 件までためて、ログイン・回線が戻ったときに送る。`created_at` は送った時刻、起きた時刻は `extra->>'occurred_at'`）。
 --   同じエラーは 10 分に 1 回・1 時間に 20 件まで（`src/lib/errorReport.ts`）なので、数は起きた回数より少なく出る
--- - 4 は `reminder_runs`（`012`・最後の回の数は `021`）
+-- - 4 は `reminder_runs`（`012`・最後の回の数は `021`・鍵が合わずに消した購読は `043`）
 -- - 5・6 は pg_cron、7 は pg_net（どちらも Database → Extensions で有効にしてあるとき）
 -- - Edge Function（account・google-calendar・notion・canvas・daily-reminders）の中のエラーはこの表に入らない。
 --   関数の `console.error` は Supabase の Edge Functions → 関数 → Logs で見る（残る期間はプランによる）。
@@ -55,6 +55,7 @@ select
   last_checked,
   last_sent,
   last_removed,
+  last_key_mismatch,  -- last_removed のうち 403（VAPID の鍵が合わない）。鍵を替えたあとに増え、端末がアプリを開くと購読し直す
   last_failed,
   last_failed_at
 from public.reminder_runs

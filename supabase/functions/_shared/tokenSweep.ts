@@ -6,7 +6,8 @@ import { keyId, resealWith, secretContext, type KeyRing } from './secretBox.ts'
  * 鍵を替えたあと前の鍵を外せるようにする。`daily-reminders` の回の終わりに少しずつ流す。
  *
  * - 書き直すのは、読んだときの値のままの行だけ（同時に連携をつなぎ直した新しい値を古い値で上書きしない）
- * - 開けない行（鍵が足りない・壊れた値）は数えて飛ばす（表・列だけをログに出す。中身は出さない）
+ * - 開けない行（鍵が足りない・壊れた値）は数えて飛ばす（表・列だけをログに出す。中身は出さない）。
+ *   作り直せる値（Google のアクセストークン）は開けなければ空にする（使うときに作り直す。前の鍵を外す前の確かめで 0 件になる）
  */
 
 type Row = Record<string, string | null>
@@ -15,14 +16,26 @@ export type SweepTarget = {
   table: string
   /** 行を決める列（主キー） */
   key: readonly string[]
-  columns: readonly { column: string; context: (row: Row) => string }[]
+  columns: readonly {
+    column: string
+    context: (row: Row) => string
+    /** 開けないときに null にする列（この列を含む）。作り直せる値だけに付ける */
+    clearIfUnreadable?: readonly string[]
+  }[]
 }
 
 export const TOKEN_TARGETS: readonly SweepTarget[] = [
   {
     table: 'google_oauth',
     key: ['user_id'],
-    columns: [{ column: 'refresh_token', context: (r) => secretContext.google(r.user_id ?? '') }],
+    columns: [
+      { column: 'refresh_token', context: (r) => secretContext.google(r.user_id ?? '') },
+      {
+        column: 'access_token',
+        context: (r) => secretContext.googleAccess(r.user_id ?? ''),
+        clearIfUnreadable: ['access_token', 'access_token_expires_at'],
+      },
+    ],
   },
   {
     table: 'notion_connection',
@@ -44,7 +57,7 @@ export type SweepDb = {
   /** `columns` のどれかが null でなく `prefix` で始まらない行を、`key` の順に `limit` 行まで（`key` と `columns` の列を返す） */
   stale(table: string, key: readonly string[], columns: readonly string[], prefix: string, limit: number): Promise<Row[]>
   /** `match`（主キーと読んだときの値）に合う行だけ `patch` で書き直す */
-  update(table: string, match: Row, patch: Record<string, string>): Promise<void>
+  update(table: string, match: Row, patch: Record<string, string | null>): Promise<void>
 }
 
 export type SweepResult = { resealed: number; unreadable: number }
@@ -69,8 +82,8 @@ export async function resealStaleTokens(
     )
     for (const row of rows) {
       const match: Row = Object.fromEntries(target.key.map((k) => [k, row[k]]))
-      const patch: Record<string, string> = {}
-      for (const { column, context } of target.columns) {
+      const patch: Record<string, string | null> = {}
+      for (const { column, context, clearIfUnreadable } of target.columns) {
         const stored = row[column]
         if (!stored || stored.startsWith(prefix)) continue
         try {
@@ -79,6 +92,10 @@ export async function resealStaleTokens(
         } catch {
           result.unreadable++
           console.warn('[token-sweep] could not open', `${target.table}.${column}`)
+          if (clearIfUnreadable) {
+            for (const c of clearIfUnreadable) patch[c] = null
+            match[column] = stored
+          }
         }
       }
       if (Object.keys(patch).length === 0) continue
