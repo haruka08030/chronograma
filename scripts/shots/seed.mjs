@@ -422,7 +422,7 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       tasks,
       lists: [
         { id: INBOX_ID, name: '未分類', color: '#7986CB', order: 0, kind: 'tasks' },
-        { id: SOMEDAY_ID, name: 'いつか', color: '#F6BF26', order: 1, kind: 'someday' },
+        { id: SOMEDAY_ID, name: 'やりたいこと', color: '#F6BF26', order: 1, kind: 'someday' },
         { id: SHOPPING_ID, name: '買い物', color: '#33B679', order: 2, kind: 'checklist' },
       ],
       // いつかの段の中のセクション（#427）

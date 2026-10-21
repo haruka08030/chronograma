@@ -93,11 +93,11 @@ describe('いつかの夢ボードとやりたい棚（#439）', () => {
     expect(within(screen.getByRole('region', { name: 'Dreams' })).getByText(/2026/)).toHaveTextContent(/Mar.*2/)
   })
 
-  it('メニューの「夢へ移す」「やりたいへ移す」で段を変える', async () => {
+  it('メニューの「夢にする」「やりたいへ移す」で段を変える', async () => {
     seed()
     const user = userEvent.setup()
     const { unmount } = render(<TaskContextMenu x={10} y={10} taskIds={['picnic']} onClose={() => {}} onOpenDetail={() => {}} />)
-    await user.click(screen.getByRole('menuitem', { name: 'Move to Dreams' }))
+    await user.click(screen.getByRole('menuitem', { name: /Make it a dream/ }))
     expect(useTaskStore.getState().tasks.find((t) => t.id === 'picnic')!.somedayTier).toBe('dream')
     unmount()
     render(<TaskContextMenu x={10} y={10} taskIds={['machu']} onClose={() => {}} onOpenDetail={() => {}} />)
@@ -120,5 +120,28 @@ describe('いつかの夢ボードとやりたい棚（#439）', () => {
     expect(input).toHaveFocus()
     await user.keyboard('{Enter}')
     expect(screen.queryByRole('button', { name: 'Put “Travel abroad” in the add field' })).toBeNull()
+  })
+
+  it('夢が 1 件も無いあいだは切り替えも夢ボードも出さず、やりたいの一覧だけ（#517）', () => {
+    seed()
+    useTaskStore.setState({ tasks: useTaskStore.getState().tasks.filter((t) => t.id === 'picnic') })
+    renderList()
+    expect(screen.queryByRole('tab', { name: /Dreams/ })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Dreams' })).toBeNull()
+    expect(screen.getByRole('option', { name: 'ピクニック' })).toBeInTheDocument()
+  })
+
+  it('入れるときに「☆ 夢」を押すと夢になり、切り替えと夢ボードが出る（#517）', async () => {
+    seed()
+    useTaskStore.setState({ tasks: useTaskStore.getState().tasks.filter((t) => t.id === 'picnic') })
+    const user = userEvent.setup()
+    renderList()
+    const input = screen.getByPlaceholderText('Add something for someday')
+    await user.type(input, 'オーロラを見る')
+    await user.click(screen.getByRole('button', { name: 'Dream', pressed: false }))
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(useTaskStore.getState().tasks.find((t) => t.title === 'オーロラを見る')!.somedayTier).toBe('dream')
+    expect(screen.getByRole('tab', { name: /Dreams/ })).toBeInTheDocument()
   })
 })

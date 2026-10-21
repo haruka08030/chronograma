@@ -126,10 +126,15 @@ export function TaskList({
   /** 絞り込んでいるセクション（ナビのセクションを押したときも同じ） */
   const filterSectionId = someday && quickAddSectionId && listSections.some((s) => s.id === quickAddSectionId) ? quickAddSectionId : null
   const somedaySplit = useMemo(() => (someday ? splitSomeday(rows.active, filterSectionId) : null), [someday, rows.active, filterSectionId])
+  // 夢が 1 件も無い（かなえた夢も無い）あいだは切り替えも夢ボードも出さず、やりたいの一覧だけ（#517）
+  const hasDreams = useMemo(
+    () => someday && tasks.some((t) => t.listId === selectedListId && !t.parentId && isActiveTask(t) && t.somedayTier === 'dream'),
+    [someday, tasks, selectedListId],
+  )
   // 開いたときは夢があれば夢、無ければやりたい（押して切り替えたらそのまま）
   const [pickedTab, setPickedTab] = useState<SomedayTier | null>(null)
-  const somedayTab: SomedayTier = pickedTab ?? (somedaySplit && somedaySplit.dreams.length === 0 ? 'wish' : 'dream')
-  const showBoard = Boolean(somedaySplit) && (filterSectionId !== null || somedayTab === 'dream')
+  const somedayTab: SomedayTier = !hasDreams ? 'wish' : (pickedTab ?? (somedaySplit && somedaySplit.dreams.length === 0 ? 'wish' : 'dream'))
+  const showBoard = Boolean(somedaySplit) && hasDreams && (filterSectionId !== null || somedayTab === 'dream')
   const showShelf = !somedaySplit || filterSectionId !== null || somedayTab === 'wish'
   const sectionIndex = useMemo(() => new Map(listSections.map((s, i) => [s.id, i])), [listSections])
   const colorOfSection = useCallback(
@@ -347,6 +352,7 @@ export function TaskList({
             <SomedayBar
               tab={somedayTab}
               onTab={setPickedTab}
+              showTabs={hasDreams}
               dreamCount={somedaySplit.dreams.length}
               wishCount={somedaySplit.wishes.length}
               sections={listSections}
@@ -405,7 +411,7 @@ export function TaskList({
           )}
           {somedaySplit && showShelf && (
             <>
-              {filterSectionId && <h2 className={`px-1 pb-1 pt-5 ${GROUP_HEADING_TEXT}`}>{t('someday.tierWish')}</h2>}
+              {filterSectionId && hasDreams && <h2 className={`px-1 pb-1 pt-5 ${GROUP_HEADING_TEXT}`}>{t('someday.tierWish')}</h2>}
               {!filterSectionId && <WishPick wishes={somedaySplit.wishes} />}
             </>
           )}

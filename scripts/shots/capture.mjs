@@ -720,6 +720,15 @@ const SCREENS = [
   // いつかのやりたい棚と、# セクションで絞り込んだとき（夢とやりたいを上下に、#439）
   { name: 'someday-wishes', list: 'seed-someday', click: 'button[role=tab]:has-text("やりたい") >> visible=true' },
   { name: 'someday-filter', list: 'seed-someday', click: 'button:has-text("# 旅行") >> visible=true' },
+  // 夢が 1 件も無いとき（切り替えも夢ボードも出さない、#517）と、入れるときの「☆ 夢」
+  { name: 'someday-no-dreams', list: 'seed-someday', noDreams: true },
+  { name: 'someday-no-dreams-menu', list: 'seed-someday', noDreams: true, rightClick: '[data-task-row="s21"]' },
+  {
+    name: 'someday-add-dream',
+    list: 'seed-someday',
+    noDreams: true,
+    typeInto: { selector: 'input[data-quickadd] >> visible=true', text: 'オーロラを見る' },
+  },
   { name: 'checklist', list: 'seed-shopping' },
   // 行に乗せたとき（PC だけ）。いつかは締切の代わりに「予定する」
   { name: 'todo-hover', view: 'all', hover: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")' },
@@ -1048,6 +1057,12 @@ async function main() {
             titles.forEach((title, i) =>
               seed.state.tasks.push({ ...base, id: `many-${i}`, title, startTime: null, endTime: null, completed: i < 2, order: 100 + i }),
             )
+          }
+          if (screen.noDreams) {
+            // 夢の一歩（子）があると前の版のデータとして夢に戻るので、一歩ごと外す
+            const roots = new Set(seed.state.tasks.filter((x) => x.somedayTier).map((x) => x.id))
+            seed.state.tasks = seed.state.tasks.filter((x) => !roots.has(x.parentId) && !x.dreamId)
+            for (const x of seed.state.tasks) delete x.somedayTier
           }
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedInstant.toISOString()

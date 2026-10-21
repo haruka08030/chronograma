@@ -13,7 +13,7 @@ import { NEUTRAL_HEX } from '../lib/googleColors'
 import { DatePickerBody } from './DatePickerBody'
 import { TimeInput } from './TimeInput'
 import { ColorPalette } from './labels/ColorPalette'
-import { ArrowRightIcon, CalendarIcon, ClockIcon, DueIcon, HourglassIcon } from './icons'
+import { ArrowRightIcon, CalendarIcon, ClockIcon, DueIcon, HourglassIcon, StarIcon } from './icons'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
 import { buttonClass } from './ui/buttonClass'
@@ -26,13 +26,15 @@ const ICON = 'h-3 w-3 shrink-0'
 /**
  * 追加欄の下の詳細のチップ（やる日・時間・見積もり・締切・リスト・ラベル）。入力中だけ出す。
  * チップには足したら付く値（書いた文・選んだ値・欄の既定を重ねた結果、`quickAddDraft`）を出し、押すと下に選ぶ面が開く。
- * 選んだ値（`picks`）は書いた文より勝つ。いつか・チェックリストに入るなら日付のチップは出さない
+ * 選んだ値（`picks`）は書いた文より勝つ。いつか・チェックリストに入るなら日付のチップは出さない。
+ * やりたいことのリストに入るなら「☆ 夢」の切り替え（押すたびに夢にする / しない。夢ボードを開いていれば最初から夢）
  */
 export function QuickAddDetails({
   text,
   defaultDate,
   defaultListId,
   color,
+  somedayTier,
   picks,
   onPicksChange,
   onPicked,
@@ -44,7 +46,7 @@ export function QuickAddDetails({
   /** 選び終えたとき（入力欄にフォーカスを戻して、Enter で足せるように） */
   onPicked: () => void
   className?: string
-} & Pick<QuickAddOptions, 'defaultDate' | 'defaultListId' | 'color'>) {
+} & Pick<QuickAddOptions, 'defaultDate' | 'defaultListId' | 'color' | 'somedayTier'>) {
   const { t } = useTranslation()
   const df = useDateFormat()
   const lists = useTaskStore((s) => s.lists)
@@ -56,7 +58,7 @@ export function QuickAddDetails({
   const [panel, setPanel] = useState<Panel | null>(null)
 
   if (!text.trim()) return null
-  const draft = quickAddDraft(text, { defaultDate, defaultListId, color, picks })
+  const draft = quickAddDraft(text, { defaultDate, defaultListId, color, picks, somedayTier })
 
   const pick = (patch: QuickAddPicks, close = true) => {
     onPicksChange({ ...picks, ...patch })
@@ -122,6 +124,27 @@ export function QuickAddDetails({
       t('quickAdd.chip.label'),
     ),
   )
+
+  if (draft.dream !== null) {
+    const on = draft.dream
+    chips.push(
+      <button
+        key="dream"
+        type="button"
+        aria-pressed={on}
+        onClick={() => pick({ dream: !on })}
+        className={chipClass(
+          { variant: 'outline', size: 'sm' },
+          on
+            ? 'border-accent-400 bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
+            : 'text-zinc-400 dark:text-zinc-500',
+        )}
+      >
+        <StarIcon className={ICON} />
+        <span>{t('quickAdd.chip.dream')}</span>
+      </button>,
+    )
+  }
 
   const clear = (patch: QuickAddPicks) => (
     <button type="button" onClick={() => pick(patch)} className={buttonClass({ variant: 'ghost', size: 'sm' })}>

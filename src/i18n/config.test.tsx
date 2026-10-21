@@ -27,13 +27,13 @@ describe('i18n: 表示する言語の分だけ読む', () => {
     await i18nReady
     expect(i18n.hasResourceBundle('ja', 'translation')).toBe(true)
     expect(i18n.hasResourceBundle('en', 'translation')).toBe(false)
-    expect(i18n.t('lists.defaultSomeday')).toBe('いつか')
+    expect(i18n.t('lists.defaultSomeday')).toBe('やりたいこと')
     expect(dateFnsLocale('ja').code).toBe('ja')
 
     // 切り替えたときにもう一方を読む
     await i18n.changeLanguage('en')
     expect(i18n.hasResourceBundle('en', 'translation')).toBe(true)
-    expect(i18n.t('lists.defaultSomeday')).toBe('Someday')
+    expect(i18n.t('lists.defaultSomeday')).toBe('Bucket list')
   })
 
   it('英語なら英語だけ読む', async () => {
