@@ -2,10 +2,10 @@ import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { isHabitActive, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
-import { habitToPlannedItem } from './habitSlots'
 import { buildHabitRecordIndex, habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { isHabitCountedOnDate, timesPerWeekTally } from './habitStats'
-import { matchPlanAndActualForDate, type MatchedPair } from './matchEvents'
+import type { MatchedPair } from './matchEvents'
+import { countDayResult, habitPlanSlot, planEnded } from '../../supabase/functions/_shared/dayResult.ts'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { movedPlanToPlannedItem, movedPlansOnDay } from './movedPlans'
 import { isActiveTask } from './taskLifecycle'
@@ -15,7 +15,7 @@ import { addDays } from 'date-fns'
 import type { TFunction } from 'i18next'
 import { fromDateKey, toDateKey } from './dateKey'
 import { clockOf } from './clockTime'
-import { timeToMinutes } from './timeGrid'
+import { formatDuration, timeToMinutes } from './timeGrid'
 import { monthHabitWeekStarts, reviewPeriodDays, reviewPeriodStart, shiftReviewPeriod, type ReviewPeriod } from './reviewPeriod'
 import { unrecordedMinutesOnDay } from './unrecordedGaps'
 
@@ -41,6 +41,20 @@ export interface WeekReviewDay {
   followed: number
   /** 予定に無かった記録（どの予定とも組にならなかった記録）の時間（#275） */
   unplannedMinutes: number
+}
+
+/**
+ * 日ごとの棒・月のマスのツールチップ「月: 記録 6時間 / 予定 4 件中 3 件（3時間）/ 完了 2/3」。
+ * 「予定 N 件中 M 件」は今日の計画の見出し・通知と同じ数え方（`countDayResult`）、（ ）の中は予定の枠の時間
+ */
+export function dayTooltipText(t: TFunction, label: string, day: WeekReviewDay): string {
+  const plan =
+    day.timedPlanned > 0
+      ? t('weekReview.dayTooltipPlan', { planned: day.timedPlanned, followed: day.followed, time: formatDuration(day.plannedMinutes) })
+      : day.plannedMinutes > 0
+        ? t('weekReview.dayTooltipPlanTime', { time: formatDuration(day.plannedMinutes) })
+        : ''
+  return t('weekReview.dayTooltip', { day: label, logged: formatDuration(day.loggedMinutes), plan, done: day.done, total: day.total })
 }
 
 /** 記録のラベル（`recordLabelKey`）を決めるのに使うもの。予定は「その予定から作る記録」の形（分類なし・色だけ）で渡す */
@@ -221,8 +235,7 @@ export function plannedItemsOnDay(
     if (item) out.push({ item, color: task.color })
   }
   for (const h of habits) {
-    if (h.frequency.type === 'timesPerWeek' && habitDayStatus(h, key, habitRecords) === 'missed') continue
-    const item = habitToPlannedItem(h, key)
+    const item = habitPlanSlot(h, key, habitRecords)
     if (item) out.push({ item, color: h.color })
   }
   return out
@@ -318,38 +331,29 @@ function collectReviewDays(
       if (planEnded(key, todayKey, nowHm, p)) cur.endedMinutes += min
       labelPlans.set(tag, cur)
     }
-    for (const pair of matchPlanAndActualForDate(planned, logs)) {
-      // 予定に無かった記録（どの予定とも組にならなかった記録）。ラベルと題名でまとめる
-      if (pair.status === 'actual-only' && pair.actual) {
-        const min = minutesOfLogOnCalendarDay(pair.actual, key)
-        const tag = labelOf(pair.actual)
-        const title = pair.actual.title.trim()
-        const k = `${tag}\u0000${title}`
-        const cur = unplanned.get(k) ?? { tag, title, minutes: 0 }
-        cur.minutes += min
-        unplanned.set(k, cur)
-        day.unplannedMinutes += min
-        continue
-      }
-      if (!pair.planned) continue
-      // 予定（授業・バイト）は完了できないので分母に入れない（突き合わせには入れて、その時間の記録を「予定に無かった記録」にしない）
-      if (pair.planned.source === 'scheduled-event') continue
-      // ✓ で終えた時刻つきの To-Do は、記録が無くても予定どおり（RULES: ✓ は完了だけで記録は足さない。予定ブロックが時間を表す）
-      const followedPair =
-        pair.status === 'matched' || pair.status === 'time-drift' || (pair.status === 'planned-only' && pair.planned.completed === true)
-      // 今日の、まだ終わっていない予定（日をまたぐものも含む）は、先に記録できていなければ数えない
-      if (!planEnded(key, todayKey, nowHm, pair.planned) && !followedPair) continue
-      day.timedPlanned++
-      if (followedPair) day.followed++
-      onCountedPair?.(date, pair)
+    // 「予定 N 件中 M 件・予定外」は通知と同じ数え方（`countDayResult`）
+    const result = countDayResult(planned, logs, {
+      dateKey: key,
+      todayKey,
+      nowHm,
+      logMinutes: (log) => minutesOfLogOnCalendarDay(log, key),
+    })
+    day.timedPlanned = result.planned
+    day.followed = result.followed
+    day.unplannedMinutes = result.unplannedMinutes
+    for (const pair of result.counted) onCountedPair?.(date, pair)
+    // 予定に無かった記録（どの予定とも組にならなかった記録）。ラベルと題名でまとめる
+    for (const log of result.unplannedLogs) {
+      const min = minutesOfLogOnCalendarDay(log, key)
+      const tag = labelOf(log)
+      const title = log.title.trim()
+      const k = `${tag}\u0000${title}`
+      const cur = unplanned.get(k) ?? { tag, title, minutes: 0 }
+      cur.minutes += min
+      unplanned.set(k, cur)
     }
   }
   return { days, tagMinutes, labelPlans, unplanned, habitDue, habitDone }
-}
-
-/** 予定の時間が過ぎたか（過ぎた日はすべて。今日は終わりの時刻を過ぎたもの。日をまたぐ予定は今日のうちは過ぎていない） */
-function planEnded(key: string, todayKey: string, nowHm: string, p: PlannedItem): boolean {
-  return key < todayKey || (key === todayKey && p.endTime > p.startTime && p.endTime <= nowHm)
 }
 
 /**

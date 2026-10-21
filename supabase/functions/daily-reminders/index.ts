@@ -34,7 +34,7 @@ import {
   type Payload,
 } from './payload.ts'
 import { DUES_DEFAULT_TIME, duesSentKey, duesToNotify, normalizeDues, type DueItem } from './dues.ts'
-import { previousDay, wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpRow } from './wrapUp.ts'
+import { previousDay, wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpHabitRow, type WrapUpRow } from './wrapUp.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
 import { keyRing } from '../_shared/secretBox.ts'
 import { resealStaleTokens, type SweepDb } from '../_shared/tokenSweep.ts'
@@ -275,29 +275,50 @@ Deno.serve(async (req) => {
   }
 
   /**
-   * その日の数字（To-Do・完了・記録）。夜の締めは今日、朝のまとめは昨日（#278）。アプリの今日の計画と同じ数え方（`wrapUp.ts`）。
-   * 完了したもの・記録も要るので、通知用の未完了のタスクとは別に読む
+   * その日の数字（予定 N 件中 M 件・予定外・記録）。夜のまとめは今日、朝のまとめは昨日（#278）。
+   * アプリの今日の計画の見出し・週のふりかえりと同じ数え方（`wrapUp.ts` → `_shared/dayResult.ts`）。
+   * 習慣の判定にゴミ箱の記録も使うので、消した・アーカイブした行も読む（数えるときに外す）
    */
   const dayDigest = async (userId: string, date: string, timeZone: string, excluded: ReadonlySet<string>): Promise<WrapUpDigest> => {
-    const rows = await fetchAllAfter(
-      async (after: string | null, limit) => {
-        let query = admin
-          .from('tasks')
-          .select(
-            'id,list_id,parent_id,is_time_log,is_sleep,is_event,completed,completed_at,updated_at,scheduled_date,due_date,start_time,end_time,end_date',
-          )
-          .eq('user_id', userId)
-          .is('deleted_at', null)
-          .is('archived_at', null)
-          .or(wrapUpRowFilter(date))
-        if (after !== null) query = query.gt('id', after)
-        const { data, error } = await query.order('id').limit(limit)
-        if (error) throw new Error(error.message)
-        return (data ?? []) as WrapUpRow[]
-      },
-      (t) => t.id,
-    )
-    return wrapUpDigest(rows, date, timeZone, excluded)
+    const columns =
+      'id,list_id,title,parent_id,is_time_log,is_sleep,is_event,completed,scheduled_date,due_date,start_time,end_time,end_date,source_task_id,habit_id,moved_plans,deleted_at,archived_at'
+    /** `day`: その日のあたりの行（`wrapUpRowFilter`）、`moved`: その日から移した予定のある行 */
+    const readRows = (which: 'day' | 'moved') =>
+      fetchAllAfter(
+        async (after: string | null, limit) => {
+          let query = admin.from('tasks').select(columns).eq('user_id', userId)
+          query = which === 'day' ? query.or(wrapUpRowFilter(date)) : query.contains('moved_plans', [{ date }])
+          if (after !== null) query = query.gt('id', after)
+          const { data, error } = await query.order('id').limit(limit)
+          if (error) throw new Error(error.message)
+          return (data ?? []) as unknown as WrapUpRow[]
+        },
+        (t) => t.id,
+      )
+    const [rows, moved, habits] = await Promise.all([
+      readRows('day'),
+      // その日から別の日へ移した予定（やらなかった予定として数える）
+      readRows('moved'),
+      fetchAllAfter(
+        async (after: string | null, limit) => {
+          let query = admin
+            .from('habits')
+            .select(
+              'id,title,time_mode,start_time,end_time,frequency,completed_dates,time_overrides,weekday_times,rest_dates,goal_minutes,archived_at,deleted_at',
+            )
+            .eq('user_id', userId)
+            .is('deleted_at', null)
+            .is('archived_at', null)
+          if (after !== null) query = query.gt('id', after)
+          const { data, error } = await query.order('id').limit(limit)
+          if (error) throw new Error(error.message)
+          return (data ?? []) as WrapUpHabitRow[]
+        },
+        (h) => h.id,
+      ),
+    ])
+    const seen = new Set(rows.map((r) => r.id))
+    return wrapUpDigest([...rows, ...moved.filter((r) => !seen.has(r.id))], habits, date, localNow(timeZone, now), excluded)
   }
 
   let sent = 0

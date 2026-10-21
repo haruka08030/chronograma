@@ -5,6 +5,7 @@ import { differenceInCalendarDays, format } from 'date-fns'
 import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import {
   compareReviews,
+  dayTooltipText,
   foldLabelMinutes,
   getPrevReview,
   getReview,
@@ -318,13 +319,7 @@ export function WeekReviewCard() {
                   const h = Math.round((dayBar / maxMinutes) * 100)
                   const plannedH = day ? Math.round((day.plannedMinutes / maxMinutes) * 100) : 0
                   const dayTip = day
-                    ? t('weekReview.dayTooltip', {
-                        day: label,
-                        logged: formatDuration(day.loggedMinutes),
-                        planned: formatDuration(day.plannedMinutes),
-                        done: day.done,
-                        total: day.total,
-                      }) +
+                    ? dayTooltipText(t, label, day) +
                       (hasPlanned && day.unplannedMinutes > 0
                         ? t('weekReview.dayTooltipUnplanned', { time: formatDuration(day.unplannedMinutes) })
                         : '')
