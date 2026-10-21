@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore, selectLiveHabits } from '../store/taskStore'
@@ -34,6 +34,7 @@ import { PlannerDues } from './today/PlannerDues'
 import { PlannerTodoSection } from './today/PlannerTodoSection'
 import { PlannerSuggestions } from './today/PlannerSuggestions'
 import { PlannerHabitRows, PlannerHabits } from './today/PlannerHabits'
+import { splitHabitDayKey } from '../lib/habitDayKey'
 import { usePlannerHabitRows } from '../hooks/usePlannerHabitRows'
 import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
@@ -64,6 +65,17 @@ export function TodayPlannerView() {
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deferredComplete = useDeferredComplete(toggleTask)
+  // 習慣も同じく残してから移す。押した日で達成にするので、日を変えてもずれないよう「id|日付」で待つ
+  const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
+  const deferredHabit = useDeferredComplete(
+    useCallback(
+      (key: string) => {
+        const [habitId, day] = splitHabitDayKey(key)
+        toggleHabitDate(habitId, day)
+      },
+      [toggleHabitDate],
+    ),
+  )
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const todayToggle = useTodayToggle()
   const bulk = useBulkTaskActions()
@@ -351,6 +363,7 @@ export function TodayPlannerView() {
             dateKey={dateKey}
             viewingToday={viewingToday}
             headingClass={sectionHeading}
+            deferred={deferredHabit}
           />
         )}
 

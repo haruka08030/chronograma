@@ -12,11 +12,16 @@ import { tip } from '../../lib/tooltip'
 import { CheckIcon, PlayIcon } from '../icons'
 import { ROW_PRESS_CLASS } from '../ui/rowStateClass'
 import { META_TONE_CLASS } from './plannerRowMeta'
+import type { useDeferredComplete } from '../../hooks/useDeferredComplete'
+import { habitDayKey } from '../../lib/habitDayKey'
+
+type Deferred = ReturnType<typeof useDeferredComplete>
 
 /**
  * 今日の計画の「習慣」。To-Do の欄のすぐ下に、To-Do と同じ高さの行で出す（まだ選ぶ前の候補より上。その日やると決まっているもの）。
  * 行: その色の丸（押すと達成、もう一度押すと外す）・名前・右に時刻 / 今週の回数 / 時間の目標の進み・▶（その名前のタイマー）。
- * 出すのはまだの習慣だけ（済んだものは「完了 N 件」の中の `PlannerHabitRows`）。全部済んだら見出しも出さない
+ * 出すのはまだの習慣だけ（済んだものは「完了 N 件」の中の `PlannerHabitRows`）。全部済んだら見出しも出さない。
+ * 丸を押した行は済んだ見た目でその場に 1.5 秒残し、縮んでから「完了 N 件」へ移る（To-Do と同じ `useDeferredComplete`）
  */
 export function PlannerHabits({
   rows,
@@ -24,19 +29,21 @@ export function PlannerHabits({
   dateKey,
   viewingToday,
   headingClass,
+  deferred,
 }: {
   rows: HabitDayRow[]
   habitRecords: ReturnType<typeof buildHabitRecordIndex>
   dateKey: string
   viewingToday: boolean
   headingClass: string
+  deferred?: Deferred
 }) {
   const { t } = useTranslation()
   if (rows.length === 0) return null
   return (
     <div className="mt-6 px-3">
       <h2 className={`${headingClass} px-3`}>{t('planner.habitsHeading')}</h2>
-      <PlannerHabitRows rows={rows} habitRecords={habitRecords} dateKey={dateKey} viewingToday={viewingToday} />
+      <PlannerHabitRows rows={rows} habitRecords={habitRecords} dateKey={dateKey} viewingToday={viewingToday} deferred={deferred} />
     </div>
   )
 }
@@ -48,32 +55,37 @@ export function PlannerHabitRows({
   dateKey,
   viewingToday,
   ariaLabel,
+  deferred,
 }: {
   rows: HabitDayRow[]
   habitRecords: ReturnType<typeof buildHabitRecordIndex>
   dateKey: string
   viewingToday: boolean
   ariaLabel?: string
+  /** 渡すと、達成にした行をその場に残してから移す（まだの習慣の欄だけ。済んだ行は外すとすぐ戻る） */
+  deferred?: Deferred
 }) {
   return (
     <ul aria-label={ariaLabel}>
       {rows.map((r) => (
-        <HabitRow key={r.h.id} row={r} dateKey={dateKey} viewingToday={viewingToday} habitRecords={habitRecords} />
+        <HabitRow key={r.h.id} row={r} dateKey={dateKey} viewingToday={viewingToday} habitRecords={habitRecords} deferred={deferred} />
       ))}
     </ul>
   )
 }
 
 function HabitRow({
-  row: { h, status, weekMet, time },
+  row: { h, status: savedStatus, weekMet, time },
   dateKey,
   viewingToday,
   habitRecords,
+  deferred,
 }: {
   row: HabitDayRow
   dateKey: string
   viewingToday: boolean
   habitRecords: ReturnType<typeof buildHabitRecordIndex>
+  deferred?: Deferred
 }) {
   const { t } = useTranslation()
   const activeTimer = useTaskStore((s) => s.activeTimer)
@@ -81,6 +93,10 @@ function HabitRow({
   const startTimer = useTaskStore((s) => s.startTimer)
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
+  const key = habitDayKey(h.id, dateKey)
+  // 押して移るのを待っている間は、もう達成した見た目にする
+  const pending = deferred?.isPending(key) ?? false
+  const status = pending ? 'done' : savedStatus
   const record = status === 'offTime' ? habitRecordFor(habitRecords, h, dateKey) : null
   // 時間の目標に届いていない日は、何分やったかを出す
   const minutes = h.goalMinutes && status === 'missed' ? habitMinutesOn(habitRecords, h, dateKey) : 0
@@ -98,7 +114,9 @@ function HabitRow({
   ].filter((m): m is string => !!m)
   return (
     <li
-      className={`relative flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}`}
+      className={`relative flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS} ${
+        deferred?.isLeaving(key) ? 'animate-row-collapse overflow-hidden' : ''
+      }`}
       style={colorVars(h.color)}
     >
       {/* 習慣の色は左の細い線（To-Do の行と同じ、#511）。済んだ行には出さない */}
@@ -110,7 +128,7 @@ function HabitRow({
         aria-checked={status !== 'missed'}
         aria-label={weekMet ? `${h.title} ${t('habits.weekGoalMet')}` : h.title}
         {...tip(record ? t('habits.offTimeTooltip', { date: dateKey, start: record.startTime, end: record.endTime }) : undefined)}
-        onClick={() => toggleHabitDate(h.id, dateKey)}
+        onClick={() => (deferred ? deferred.toggle(key, savedStatus !== 'missed') : toggleHabitDate(h.id, dateKey))}
         className="-m-2.5 flex-shrink-0 touch-manipulation p-2.5"
       >
         <span
@@ -124,7 +142,7 @@ function HabitRow({
                   `border-[1.5px] ${COMPLETION_RING_IDLE} hover:border-zinc-400 dark:hover:border-zinc-500`
           }`}
         >
-          {status !== 'missed' && <CheckIcon className="h-3 w-3" strokeWidth={2.75} />}
+          {status !== 'missed' && <CheckIcon className={`h-3 w-3 ${pending ? 'animate-check-in' : ''}`} strokeWidth={2.75} />}
         </span>
       </button>
       <span

@@ -99,6 +99,7 @@ export function PlannerTaskRow({
       }}
       left={swipeLeft}
       liftId={sel ? task.id : undefined}
+      outerClassName={deferredComplete.isLeaving(task.id) ? 'animate-row-collapse overflow-hidden' : ''}
       className={`group/row relative flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}
         ${sel?.selected ? ROW_SELECTED_CLASS : ''} ${sel?.cursor ? ROW_CURSOR_CLASS : ''}`}
       itemRole={optionId ? 'none' : undefined}
