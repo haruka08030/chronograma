@@ -292,6 +292,14 @@ const SCREENS = [
   },
   // 夕方以降だけ出る締め（気分の記号だけ）
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
+  // 習慣を 1 つ済ませて「完了 N 件」を開いたところ（終えた To-Do の後ろに済んだ習慣、#504）
+  {
+    name: 'planner-done-habit',
+    view: 'planner',
+    at: '19:30',
+    click: ['[role="checkbox"][aria-label="単語アプリ"] >> visible=true', 'button[aria-expanded]:has-text("完了") >> visible=true'],
+    scrollToBottom: true,
+  },
   // 全部終わった日の締め（おつかれさまでした）
   { name: 'planner-evening-clear', view: 'planner', at: '19:30', scrollToBottom: true, allDone: true },
   // 夜中に開いたとき（日付が変わった直後のタイムライン）

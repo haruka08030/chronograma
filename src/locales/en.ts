@@ -247,7 +247,6 @@ export default {
     carryOverHeading: 'Left over ({{count}})',
     moveAllToToday: 'Move all to today',
     habitsHeading: 'Habits',
-    habitsDoneHeading: '{{count}} done',
     habitWeekProgress: 'This week {{done}}/{{count}}',
     habitOffTime: 'Off time',
     doneHeading: '{{count}} done',
