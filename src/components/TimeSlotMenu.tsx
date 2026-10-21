@@ -6,7 +6,7 @@ import { useTaskStore } from '../store/taskStore'
 import { useDismiss } from '../hooks/useDismiss'
 import { useIsCoarsePointer, useIsDesktop } from '../hooks/useMediaQuery'
 import { busySpans, findFreeSlots } from '../lib/freeSlots'
-import { minutesToTime, toMinutes } from '../lib/clockTime'
+import { endAfterStartEdit, minutesToTime, toMinutes } from '../lib/clockTime'
 import { isAppToday, zonedNow } from '../lib/timeZone'
 import { fromDateKey } from '../lib/dateKey'
 import { toastTitle } from '../lib/undoWindow'
@@ -228,9 +228,23 @@ export function TimeSlotMenu({
         <div className="my-1 border-t border-zinc-100 dark:border-zinc-700" />
         {custom ? (
           <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">
-            <TimeInput value={start} onChange={setStart} ariaLabel={t('timeSlot.start')} className="w-[5.5rem]" />
+            <TimeInput
+              value={start}
+              onChange={(v) => {
+                setEnd(endAfterStartEdit(start, end, v, duration))
+                setStart(v)
+              }}
+              ariaLabel={t('timeSlot.start')}
+              className="w-[5.5rem]"
+            />
             <span aria-hidden>–</span>
-            <TimeInput value={end} onChange={setEnd} ariaLabel={t('timeSlot.end')} className="w-[5.5rem]" />
+            <TimeInput
+              value={end}
+              onChange={setEnd}
+              durationFrom={start || undefined}
+              ariaLabel={t('timeSlot.end')}
+              className="w-[5.5rem]"
+            />
             <button
               type="button"
               disabled={!customOk}

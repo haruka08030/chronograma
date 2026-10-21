@@ -12,7 +12,7 @@ import {
 import { toggleHabitWeekdaySelection } from '../../lib/habitDraft'
 import { HABIT_ON_TIME_TOLERANCE_MIN } from '../../lib/habitTiming'
 import { labelForHex } from '../../lib/logCategoryColors'
-import { addClockMinutes } from '../../lib/clockTime'
+import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
 import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
 import { TimeInput } from '../TimeInput'
 import { ColorPalette } from '../labels/ColorPalette'
@@ -129,27 +129,35 @@ function TimeRangeInputs({
   mode,
   startTime,
   endTime,
-  onStartTimeChange,
-  onEndTimeChange,
+  onTimesChange,
 }: {
   mode: 'fixed' | 'range'
   startTime: string
   endTime: string
-  onStartTimeChange: (time: string) => void
-  onEndTimeChange: (time: string) => void
+  onTimesChange: (patch: { startTime?: string; endTime?: string }) => void
 }) {
   const { t } = useTranslation()
   const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   return (
     <>
-      <TimeInput value={startTime} onChange={onStartTimeChange} className={TIME_FIELD} />
+      {/* 時間帯は開始を動かしたら長さを保って終わりもずらす（予定の欄と同じ） */}
+      <TimeInput
+        value={startTime}
+        onChange={(v) =>
+          onTimesChange(
+            mode === 'range' ? { startTime: v, endTime: endAfterStartEdit(startTime, endTime, v, defaultBlockMinutes) } : { startTime: v },
+          )
+        }
+        className={TIME_FIELD}
+      />
       {mode === 'range' ? (
         <>
           <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
           <TimeInput
             value={endTime}
-            onChange={onEndTimeChange}
+            onChange={(v) => onTimesChange({ endTime: v })}
             pickerDefault={startTime ? addClockMinutes(startTime, defaultBlockMinutes) : undefined}
+            durationFrom={startTime || undefined}
             className={TIME_FIELD}
           />
         </>
@@ -174,13 +182,7 @@ function WeekdayTimeRows({ form, onChange }: { form: HabitFormState; onChange: (
           return (
             <div key={d} role="group" aria-label={labels[d - 1]} className="flex flex-wrap items-center gap-3 text-sm">
               <span className="w-6 text-zinc-500 dark:text-zinc-400">{labels[d - 1]}</span>
-              <TimeRangeInputs
-                mode={mode}
-                startTime={time.startTime}
-                endTime={time.endTime}
-                onStartTimeChange={(startTime) => set(d, { startTime })}
-                onEndTimeChange={(endTime) => set(d, { endTime })}
-              />
+              <TimeRangeInputs mode={mode} startTime={time.startTime} endTime={time.endTime} onTimesChange={(patch) => set(d, patch)} />
             </div>
           )
         })}
@@ -217,24 +219,12 @@ function HabitTimeFields({
           <SectionLabel as="span" level="field">
             {t('habits.timeAt')}
           </SectionLabel>
-          <TimeRangeInputs
-            mode="fixed"
-            startTime={form.startTime}
-            endTime={form.endTime}
-            onStartTimeChange={(startTime) => onChange({ startTime })}
-            onEndTimeChange={(endTime) => onChange({ endTime })}
-          />
+          <TimeRangeInputs mode="fixed" startTime={form.startTime} endTime={form.endTime} onTimesChange={onChange} />
         </div>
       ) : mode === 'range' ? (
         // 「時間」は上のまとまりの見出しにあるので、ここでは欄だけ並べる
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <TimeRangeInputs
-            mode="range"
-            startTime={form.startTime}
-            endTime={form.endTime}
-            onStartTimeChange={(startTime) => onChange({ startTime })}
-            onEndTimeChange={(endTime) => onChange({ endTime })}
-          />
+          <TimeRangeInputs mode="range" startTime={form.startTime} endTime={form.endTime} onTimesChange={onChange} />
         </div>
       ) : null}
 

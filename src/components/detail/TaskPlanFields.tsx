@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { isEventTask, type Priority, type Task } from '../../types/task'
 import { PillToggle } from '../ui/PillToggle'
-import { addClockMinutes } from '../../lib/clockTime'
+import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
 import { PRIORITY_TEXT_CLASS } from '../../lib/priorityColor'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { DueDatePopover } from '../DueDatePopover'
@@ -74,13 +74,24 @@ export function TaskPlanFields({ task }: { task: Task }) {
           <div className="mt-2 flex items-center gap-2">
             <TimeInput
               value={tv.startTime ?? ''}
-              onChange={(v) => updateTimes({ startTime: v || null })}
+              // 開始を動かしたら長さを保って終わりもずらす（タイムラインのカード・Google と同じ）。終わりが空なら見積もり（無ければ既定の長さ）で埋める
+              onChange={(v) =>
+                updateTimes(
+                  v
+                    ? {
+                        startTime: v,
+                        endTime: endAfterStartEdit(tv.startTime, tv.endTime, v, task.estimateMinutes ?? defaultBlockMinutes) || null,
+                      }
+                    : { startTime: null },
+                )
+              }
               className={fieldClass({}, 'w-[7rem]')}
             />
             <span className="text-zinc-400 text-sm">{t('common.timeRangeSeparator')}</span>
             <TimeInput
               value={tv.endTime ?? ''}
               onChange={(v) => updateTimes({ endTime: v || null })}
+              durationFrom={tv.startTime ?? undefined}
               pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, task.estimateMinutes ?? defaultBlockMinutes) : undefined}
               className={fieldClass({}, 'w-[7rem]')}
             />

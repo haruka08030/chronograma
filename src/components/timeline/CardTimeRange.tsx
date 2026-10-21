@@ -12,6 +12,7 @@ export function CardTimeRange({
   onEnd,
   startLabel,
   endLabel,
+  overnight = false,
 }: {
   startTime: string
   endTime: string
@@ -19,13 +20,22 @@ export function CardTimeRange({
   onEnd: (v: string) => void
   startLabel?: string
   endLabel?: string
+  /** 記録は翌日まで続けられる（終わりの候補を 1 周並べる） */
+  overnight?: boolean
 }) {
   const smallField = fieldClass({ size: 'sm' })
   return (
     <div className="flex w-full items-center gap-1.5">
       <TimeInput value={startTime} onChange={(v) => v && onStart(v)} ariaLabel={startLabel} className={`w-[5.5rem] ${smallField}`} />
       <span className="text-zinc-400">–</span>
-      <TimeInput value={endTime} onChange={(v) => v && onEnd(v)} ariaLabel={endLabel} className={`w-[5.5rem] ${smallField}`} />
+      <TimeInput
+        value={endTime}
+        onChange={(v) => v && onEnd(v)}
+        durationFrom={startTime}
+        overnight={overnight}
+        ariaLabel={endLabel}
+        className={`w-[5.5rem] ${smallField}`}
+      />
     </div>
   )
 }

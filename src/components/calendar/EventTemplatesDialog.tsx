@@ -6,7 +6,7 @@ import { newId } from '../../lib/id'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
-import { addClockMinutes } from '../../lib/clockTime'
+import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
 import { usePlanColorText } from '../../hooks/useTaskColor'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { TimeInput } from '../TimeInput'
@@ -64,7 +64,7 @@ function TemplateRow({
         <div className="flex items-center gap-2">
           <TimeInput
             value={row.startTime}
-            onChange={(v) => onChange({ startTime: v })}
+            onChange={(v) => onChange({ startTime: v, endTime: endAfterStartEdit(row.startTime, row.endTime, v, defaultBlockMinutes) })}
             ariaLabel={t('eventTemplates.startAria')}
             className={timeClass}
           />
@@ -74,6 +74,7 @@ function TemplateRow({
             onChange={(v) => onChange({ endTime: v })}
             ariaLabel={t('eventTemplates.endAria')}
             pickerDefault={row.startTime ? addClockMinutes(row.startTime, defaultBlockMinutes) : undefined}
+            durationFrom={row.startTime || undefined}
             className={timeClass}
           />
         </div>

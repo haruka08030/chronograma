@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addClockMinutes, clockOf, endWithinDay, minutesToTime, timeToMinutes, toMinutes } from './clockTime'
+import { addClockMinutes, clockOf, endAfterStartEdit, endWithinDay, minutesToTime, timeToMinutes, toMinutes } from './clockTime'
 
 describe('clockTime', () => {
   it('timeToMinutes は保存済みの HH:MM を分にし、欠けた分は 0 とみなす', () => {
@@ -34,5 +34,16 @@ describe('clockTime', () => {
 
   it('clockOf は Date の壁時計を HH:MM で返す', () => {
     expect(clockOf(new Date(2026, 9, 3, 9, 5))).toBe('09:05')
+  })
+
+  it('endAfterStartEdit: 開始を動かしたら長さを保って終わりをずらし、欠けていればそのまま', () => {
+    expect(endAfterStartEdit('10:00', '11:30', '13:00')).toBe('14:30')
+    expect(endAfterStartEdit('22:00', '23:30', '23:00')).toBe('23:59')
+    expect(endAfterStartEdit('10:00', '11:00', '10:00')).toBe('11:00')
+    expect(endAfterStartEdit(null, '11:00', '09:00')).toBe('11:00')
+    expect(endAfterStartEdit('10:00', null, '09:00')).toBe('')
+    expect(endAfterStartEdit('10:00', '', '09:00')).toBe('')
+    expect(endAfterStartEdit('10:00', '', '09:00', 45)).toBe('09:45')
+    expect(endAfterStartEdit(null, null, '23:30', 60)).toBe('23:59')
   })
 })

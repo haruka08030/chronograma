@@ -28,6 +28,8 @@ export function LogTimeRow({
         value={end}
         onChange={onEndChange}
         pickerDefault={start ? addClockMinutes(start, 60) : undefined}
+        durationFrom={start || undefined}
+        overnight
         className={fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')}
       />
       {children}

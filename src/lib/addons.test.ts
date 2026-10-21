@@ -29,11 +29,12 @@ describe('追加機能（#453）', () => {
   })
 
   it('読んだ値は知らない機能・形の合わない値を落とし、知らない項目は残す', () => {
-    expect(normalizeAddons(null)).toEqual({ enabled: {}, dues: [], googleSkip: [] })
+    expect(normalizeAddons(null)).toEqual({ enabled: {}, dues: [], googleSkip: [], absenceCourses: [] })
     expect(normalizeAddons({ enabled: { timetable: true, x: true, y: 'on' }, dues: [1], later: { a: 1 } })).toEqual({
       enabled: { timetable: true },
       dues: [],
       googleSkip: [],
+      absenceCourses: [],
       later: { a: 1 },
     })
   })

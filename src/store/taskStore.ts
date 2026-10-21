@@ -11,7 +11,7 @@ import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZon
 import { normalizeEventTemplates, type EventTemplate } from '../lib/eventTemplates'
 import { normalizeLabelTargets } from '../lib/labelTargets'
 import { normalizeLabelIds } from '../lib/labelIds'
-import { normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/courseLinks'
+import { courseKey, normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/courseLinks'
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import {
@@ -59,10 +59,11 @@ import { createDataSlice } from './slices/data'
 import { createEventTemplatesSlice } from './slices/eventTemplates'
 import { createDayMoodsSlice } from './slices/dayMoods'
 import { normalizeDayMoods, type DayMoods } from '../lib/dayMood'
-import { DEFAULT_TIMETABLE, normalizeTimetable, type Timetable } from '../lib/timetable'
+import { DEFAULT_TIMETABLE, normalizeTimetable, renameAttendance, withAbsence, withAbsenceLimit, type Timetable } from '../lib/timetable'
 import { DEFAULT_ADDONS, normalizeAddons, withAddonOn, type Addons } from '../lib/addons'
 import { normalizeDues } from '../lib/dues'
 import { withGoogleSkip } from '../lib/googleSkip'
+import { hasAbsenceCourse, renamedAbsenceCourse, withAbsenceCourse, withoutAbsenceCourse } from '../lib/absenceCourses'
 import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
@@ -253,6 +254,35 @@ export const useTaskStore = create<TaskState>()(
           if (!due) return
           undo.pushUndo({ key: 'undo.dueDeleted', params: { name: due.title } })
           set({ addons: { ...cur, dues: cur.dues.filter((d) => d.id !== id) } })
+        },
+        saveAbsenceCourse: (from, title, limit) =>
+          get().asOneUndo(() => {
+            const name = title.trim()
+            if (!name) return
+            const cur = get().addons
+            const absenceCourses =
+              from === null ? withAbsenceCourse(cur.absenceCourses, name) : renamedAbsenceCourse(cur.absenceCourses, from, name)
+            if (!sameValue(absenceCourses, cur.absenceCourses)) {
+              undo.pushUndo()
+              set({ addons: { ...cur, absenceCourses } })
+            }
+            // 休んだ日・休める回数は授業名で持つので、名前を直したら新しい名前に移してから回数を決める
+            const tt =
+              from !== null && courseKey(from) !== courseKey(name) ? renameAttendance(get().timetable, from, name) : get().timetable
+            get().saveTimetable(withAbsenceLimit(tt, name, limit))
+          }),
+        removeAbsenceCourse: (title) =>
+          get().asOneUndo(() => {
+            const cur = get().addons
+            if (!hasAbsenceCourse(cur.absenceCourses, title)) return
+            undo.pushUndo({ key: 'undo.absenceCourseRemoved', params: { name: title } })
+            set({ addons: { ...cur, absenceCourses: withoutAbsenceCourse(cur.absenceCourses, title) } })
+            const absences = { ...get().timetable.absences }
+            delete absences[courseKey(title)]
+            get().saveTimetable(withAbsenceLimit({ ...get().timetable, absences }, title, null))
+          }),
+        setCourseAbsent: (title, date, absent) => {
+          get().saveTimetable(withAbsence(get().timetable, title, date, absent))
         },
         setGoogleSkip: (title, skip) => {
           const cur = get().addons

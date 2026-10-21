@@ -22,6 +22,7 @@ import {
 } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
 import { googleCanWriteHint, rememberGoogleConnected, wasGoogleConnected, wasGoogleConnectionLost } from '../lib/googleConnectedHint'
+import { noteSignedOut, noteUserSignOut } from '../lib/signedOutNotice'
 import { clearDeletedAccount, clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { readFunctionErrorBody } from '../lib/functionError'
 import { detachWebPush } from '../lib/webPush'
@@ -148,7 +149,10 @@ async function onSignedOut(sb: SupabaseClient): Promise<void> {
   const seq = sessionSeq
   // 聞くのは 1 回だけ。ログアウトした後のトークンで聞くと auth-js がもう一度 SIGNED_OUT を出すことがあり、繰り返さないように
   lastAccessToken = null
-  if (userId && token && (await isAccountGone(sb, token))) {
+  const gone = Boolean(userId && token && (await isAccountGone(sb, token)))
+  // 自分でログアウトしたのでなければ、次に開いたときにも理由を出す（#468）
+  if (userId && seq === sessionSeq) noteSignedOut(gone ? 'deleted' : 'expired', userId)
+  if (gone && userId) {
     if (seq !== sessionSeq) return
     await clearDeletedAccount(userId)
   }
@@ -319,6 +323,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: i18n.t('account.googleFailed') }
       },
       signOut: async () => {
+        // 自分でログアウトした（理由の知らせは出さない）
+        noteUserSignOut()
         const sb = getSupabase()
         // 通知の行は RLS 上ログイン中にしか消せないので、セッションを切る前に外す
         await detachWebPush()
@@ -330,6 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await clearLocalAccountState(session?.user.id ?? null)
       },
       deleteAccount: async () => {
+        noteUserSignOut()
         const sb = getSupabase()
         const userId = session?.user.id
         if (!sb || !userId) return { error: i18n.t('account.genericError') }

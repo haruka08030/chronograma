@@ -5,6 +5,7 @@ import { fromDateKey } from './dateKey'
 import { settingSyncStep } from './settingSync'
 import { courseKey } from './courseLinks'
 import type { DateTone } from '../components/ui/dueTone'
+import type { Attendance } from './absenceCourses'
 
 /**
  * 授業の時間割（#279）。設定は「時限」（1 限 9:00–10:30 …、学校ごとに違うので編集できる）と「学期の期間」。
@@ -94,7 +95,7 @@ export function normalizeTimetable(raw: unknown): Timetable {
   }
 }
 
-const inTerm = (date: string, term: Pick<Timetable, 'termStart' | 'termEnd'>) =>
+export const inTerm = (date: string, term: Pick<Timetable, 'termStart' | 'termEnd'>) =>
   (!term.termStart || date >= term.termStart) && (!term.termEnd || date <= term.termEnd)
 
 /** 欠席の日付。名前は `courseKey` に、日付は学期の中のものだけを古い順に（前の学期の分は落とす） */
@@ -301,7 +302,9 @@ export function renameAttendance(timetable: Timetable, from: string, to: string)
 }
 
 /** 「欠席 2 / 5 回」と、残りが少ないときの一言（あと 1 回 / もう休めません / N 回超えています） */
-export function attendanceText(a: ClassAttendance, t: (key: string, opts?: Record<string, unknown>) => string): string {
+export function attendanceText(a: Attendance, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  // 休める回数を決めていない一覧の授業（#503）は回数だけ
+  if (a.limit === null || a.remaining === null) return t('timetable.attendanceCount', { count: a.absent })
   const base = t('timetable.attendance', { absent: a.absent, limit: a.limit })
   if (a.remaining === 1) return `${base} · ${t('timetable.attendanceLast')}`
   if (a.remaining === 0) return `${base} · ${t('timetable.attendanceNone')}`
@@ -310,7 +313,8 @@ export function attendanceText(a: ClassAttendance, t: (key: string, opts?: Recor
 }
 
 /** 残りの回数の色の段階（締切と同じ: 0 回・超えたら赤、あと 1 回はオレンジ） */
-export function attendanceTone(a: Pick<ClassAttendance, 'remaining'>): DateTone {
+export function attendanceTone(a: Pick<Attendance, 'remaining'>): DateTone {
+  if (a.remaining === null) return 'future'
   if (a.remaining <= 0) return 'overdue'
   if (a.remaining === 1) return 'today'
   return 'future'

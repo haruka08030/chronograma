@@ -5,8 +5,6 @@ import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
 import { getDayReviews } from '../lib/weekReview'
-import { isUnlabeledLog } from '../lib/logCategory'
-import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
 import { onWrapUpRequest } from '../lib/notificationLaunch'
 import { minutesOfClock } from '../../supabase/functions/daily-reminders/schedule.ts'
@@ -35,7 +33,8 @@ import { PlannerHeader } from './today/PlannerHeader'
 import { PlannerDues } from './today/PlannerDues'
 import { PlannerTodoSection } from './today/PlannerTodoSection'
 import { PlannerSuggestions } from './today/PlannerSuggestions'
-import { PlannerHabits } from './today/PlannerHabits'
+import { PlannerHabitRows, PlannerHabits } from './today/PlannerHabits'
+import { usePlannerHabitRows } from '../hooks/usePlannerHabitRows'
 import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
 import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSuggestions'
@@ -56,7 +55,7 @@ const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
 /**
  * 1 日単位の計画画面。左で「今日やること」を決め、右のタイムラインに置いて時間を確保する。
  * 情報は必要なときだけ出す: 候補（やり残し・締切間近）は畳んだ 1 行、締めは夕方か全部終わったとき。
- * 左の並び: 見出し（`PlannerHeader`）→ 引き落とし・期限（`PlannerDues`、追加機能）→ To-Do（`PlannerTodoSection`）→ 候補 → 習慣 → 完了 → 締め（`PlannerWrapUp`）
+ * 左の並び: 見出し（`PlannerHeader`）→ 引き落とし・期限（`PlannerDues`、追加機能）→ To-Do（`PlannerTodoSection`）→ 習慣 → 候補 → 完了 → 締め（`PlannerWrapUp`）
  */
 export function TodayPlannerView() {
   const { t } = useTranslation()
@@ -112,14 +111,6 @@ export function TodayPlannerView() {
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
-  /** ラベル名も色も無い今日の記録（1 日を締めるときにまとめて付ける） */
-  const untaggedLogs = useMemo(
-    () =>
-      tasks
-        .filter((x) => isUnlabeledLog(x) && minutesOfLogOnCalendarDay(x, dateKey) > 0)
-        .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
-    [tasks, dateKey],
-  )
   const {
     overdue: overdueAll,
     carryOver,
@@ -192,6 +183,9 @@ export function TodayPlannerView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [habits, dateKey],
   )
+  const habitRows = usePlannerHabitRows(dayHabits, dateKey)
+  /** 「完了 N 件」の数（終えた To-Do と済んだ習慣） */
+  const doneCount = done.length + habitRows.done.length
 
   // 行のキー操作・選択・右クリックは To-Do 一覧と同じ（↑↓・Shift・⌘A・Enter・Space・Delete・⌘Enter・⌘/・Esc）。
   // 対象は開いている行を上から順に（完了は欄を開いているときだけ）
@@ -274,8 +268,6 @@ export function TodayPlannerView() {
   })()
 
   const totalCount = open.length + done.length
-  const showWrapUp =
-    viewingToday && (wrapUpFocus > 0 || (totalCount > 0 && ((open.length === 0 && overdue.length === 0) || nowMinutes >= wrapUpFrom)))
   // 気分の記号は締めの時刻から（To-Do が無い日・全部終えた日も。早い時刻に全部終えても夜まで待つ）。付けた日はそのまま出しておく
   const showMood = viewingToday && (wrapUpFocus > 0 || moodSet || nowMinutes >= wrapUpFrom)
 
@@ -351,6 +343,17 @@ export function TodayPlannerView() {
           ownedGroupIds={ownedGroupIds}
         />
 
+        {/* 習慣はその日やると決まっているもの。まだ選ぶ前の候補より上に */}
+        {habitRows.open.length > 0 && (
+          <PlannerHabits
+            rows={habitRows.open}
+            habitRecords={habitRows.habitRecords}
+            dateKey={dateKey}
+            viewingToday={viewingToday}
+            headingClass={sectionHeading}
+          />
+        )}
+
         {(suggestions.length > 0 || moreSuggestions.length > 0) && (
           <PlannerSuggestions
             env={rowEnv}
@@ -366,37 +369,34 @@ export function TodayPlannerView() {
           />
         )}
 
-        {dayHabits.length > 0 && (
-          <PlannerHabits dayHabits={dayHabits} dateKey={dateKey} viewingToday={viewingToday} headingClass={sectionHeading} />
-        )}
-
-        {done.length > 0 && (
+        {/* 終えた To-Do と習慣は 1 か所に（To-Do が先、習慣はその後。習慣は自分の色の丸のまま） */}
+        {doneCount > 0 && (
           <div className="mt-6 px-3">
             <DisclosureButton tone="muted" open={showDone} onToggle={() => setShowDone((v) => !v)}>
-              {t('planner.doneHeading', { count: done.length })}
+              {t('planner.doneHeading', { count: doneCount })}
             </DisclosureButton>
             {showDone && (
-              <ul id={doneGroupId} role="group" aria-label={t('planner.doneHeading', { count: done.length })}>
-                {done.map((task) => (
-                  <PlannerTaskRow key={task.id} task={task} env={rowEnv} />
-                ))}
-              </ul>
+              <>
+                <ul id={doneGroupId} role="group" aria-label={t('planner.doneHeading', { count: done.length })}>
+                  {done.map((task) => (
+                    <PlannerTaskRow key={task.id} task={task} env={rowEnv} />
+                  ))}
+                </ul>
+                {habitRows.done.length > 0 && (
+                  <PlannerHabitRows
+                    rows={habitRows.done}
+                    habitRecords={habitRows.habitRecords}
+                    dateKey={dateKey}
+                    viewingToday={viewingToday}
+                    ariaLabel={t('planner.habitsHeading')}
+                  />
+                )}
+              </>
             )}
           </div>
         )}
 
-        <PlannerWrapUp
-          showWrapUp={showWrapUp}
-          showMood={showMood}
-          showGaps={viewingToday && (wrapUpFocus > 0 || nowMinutes >= wrapUpFrom)}
-          dateKey={dateKey}
-          focusKey={wrapUpFocus}
-          open={open}
-          untaggedLogs={untaggedLogs}
-          totalCount={totalCount}
-          tomorrowKey={tomorrowKey}
-          openDetail={openDetail}
-        />
+        <PlannerWrapUp showMood={showMood} dateKey={dateKey} focusKey={wrapUpFocus} totalCount={totalCount} />
       </section>
 
       <section className={`${mobilePane === 'timeline' ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col md:flex`}>

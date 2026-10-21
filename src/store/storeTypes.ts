@@ -439,6 +439,15 @@ export interface TaskState {
   saveDue: (item: DueItem) => void
   /** 引き落とし・期限の日を消す */
   deleteDue: (id: string) => void
+  /**
+   * 授業の欠席の一覧（#503）に授業を足す（`from` が null）・直す。休める回数（null は決めない）も一緒に決める。
+   * 名前を直したら休んだ日・休める回数も新しい名前に移す
+   */
+  saveAbsenceCourse: (from: string | null, title: string, limit: number | null) => void
+  /** 授業を欠席の一覧から外す（休んだ日・休める回数も消す。⌘Z で戻せる） */
+  removeAbsenceCourse: (title: string) => void
+  /** 授業名・日付で欠席にする・取り消す（Google カレンダーの予定・一覧から。`lib/timetable.ts` の `withAbsence`） */
+  setCourseAbsent: (title: string, date: string, absent: boolean) => void
   /** この名前の予定を Google カレンダーに送らない・送る（#461） */
   setGoogleSkip: (title: string, skip: boolean) => void
   /** 時間割の設定を保存する（同じ中身なら何もしない） */

@@ -75,6 +75,18 @@ const DUES_ON = {
     ],
   },
 }
+/** 追加機能「学校」（#503）をオンにして、授業の欠席の一覧に残りの違う授業を入れた状態（ゼミは今日の予定と同じ名前） */
+const SCHOOL_ON = {
+  addons: { enabled: { school: true }, dues: [], absenceCourses: ['統計学', 'ゼミ', '英語コミュニケーション', '体育'] },
+  timetable: {
+    periods: [],
+    termStart: null,
+    termEnd: null,
+    skipHolidays: false,
+    absences: { 統計学: [tzDayKey(-14), tzDayKey(-7), tzDayKey(-3)], ゼミ: [tzDayKey(-7)], 英語コミュニケーション: [tzDayKey(-1)] },
+    absenceLimits: { 統計学: 4, ゼミ: 3, 英語コミュニケーション: 5 },
+  },
+}
 /** 時間割は追加機能（#453）。撮るときはオンにしておく */
 const TIMETABLE_ON = { addons: { enabled: { timetable: true }, dues: [] } }
 const addClass = (cell, title) => [
@@ -180,16 +192,16 @@ const SCREENS = [
     click: '[data-floating-timer] button:has-text("レポート")',
     steps: [{ fill: { selector: '[data-floating-timer] input', text: '授' } }],
   },
-  // 「1 日を締める」のラベルなしの記録を開いて行のチップで付ける所（#390）と、設定のラベルの「直近 30 日でラベルなし」から開いた所
+  // 記録の帯の凡例の「ラベルなし」を押して、ラベルなしの記録を行のチップで付ける所（#390・#501）
   {
     name: 'planner-untagged',
     view: 'planner',
     at: '19:30',
-    click: 'button:has-text("ラベルなしの記録") >> visible=true',
-    scrollTo: '[data-wrap-up]',
+    mobileClick: 'button[aria-label="分類ごとの時間"] >> visible=true',
+    click: 'button[aria-expanded]:has-text("ラベルなし") >> visible=true',
   },
-  // 「1 日を締める」の記録の無い時間（最近の記録のチップ・ほかを記録・何もしていない、#418）
-  { name: 'planner-wrap-up-gaps', view: 'planner', at: '21:00', scrollTo: '[data-wrap-up-gaps]' },
+  // タイムラインの記録の列の「＋ 記録なし」を押したところ（書く前は、よく記録するもののチップで 1 タップで埋める、#501）
+  { name: 'planner-gap-card', view: 'planner', at: '21:00', desktopOnly: true, click: '[data-unrecorded-gap] >> visible=true >> nth=0' },
   {
     name: 'settings-untagged',
     view: 'settings',
@@ -290,8 +302,16 @@ const SCREENS = [
       '[role=menu] >> text=中以上 >> visible=true',
     ],
   },
-  // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
+  // 夕方以降だけ出る締め（気分の記号だけ）
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
+  // 習慣を 1 つ済ませて「完了 N 件」を開いたところ（終えた To-Do の後ろに済んだ習慣、#504）
+  {
+    name: 'planner-done-habit',
+    view: 'planner',
+    at: '19:30',
+    click: ['[role="checkbox"][aria-label="単語アプリ"] >> visible=true', 'button[aria-expanded]:has-text("完了") >> visible=true'],
+    scrollToBottom: true,
+  },
   // 全部終わった日の締め（おつかれさまでした）
   { name: 'planner-evening-clear', view: 'planner', at: '19:30', scrollToBottom: true, allDone: true },
   // 夜中に開いたとき（日付が変わった直後のタイムライン）
@@ -427,6 +447,20 @@ const SCREENS = [
   { name: 'calendar-month-dues', view: 'calendar', calendarMode: 'month', state: DUES_ON },
   { name: 'calendar-week-dues', view: 'calendar', state: DUES_ON },
   // 追加機能（#453）: 最初はどれもオフ・時間割をオンにしたところ・設定の「追加機能」
+  { name: 'addons-school', view: 'addons', state: SCHOOL_ON, steps: [{ click: '[data-addon="school"] button:has-text("開く")' }] },
+  {
+    name: 'addons-school-edit',
+    view: 'addons',
+    state: SCHOOL_ON,
+    steps: [{ click: '[data-addon="school"] button:has-text("開く")' }, { click: '[role=dialog] button:has-text("統計学")' }],
+  },
+  {
+    name: 'calendar-event-card-absence',
+    view: 'calendar',
+    state: SCHOOL_ON,
+    taskPatch: { s6: { kind: 'event' } },
+    click: '[data-block-id="s6"] >> visible=true',
+  },
   { name: 'addons', view: 'addons' },
   { name: 'addons-on', view: 'addons', state: TIMETABLE_ON },
   { name: 'settings-addons', view: 'settings', state: TIMETABLE_ON },

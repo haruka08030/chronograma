@@ -8,7 +8,7 @@ import { colorVars } from '../lib/logCategoryColors'
 import { colorLabelText } from '../lib/todoColorLabels'
 import { ESTIMATE_OPTIONS } from '../lib/estimate'
 import { formatDuration } from '../lib/timeGrid'
-import { endWithinDay, toMinutes } from '../lib/clockTime'
+import { endAfterStartEdit, endWithinDay, toMinutes } from '../lib/clockTime'
 import { NEUTRAL_HEX } from '../lib/googleColors'
 import { DatePickerBody } from './DatePickerBody'
 import { TimeInput } from './TimeInput'
@@ -184,7 +184,7 @@ export function QuickAddDetails({
         <TimeInput
           ariaLabel={t('quickAdd.chip.start')}
           value={draft.startTime ?? ''}
-          onChange={(v) => (v ? setTime(v, '') : pick({ time: null }, false))}
+          onChange={(v) => (v ? setTime(v, endAfterStartEdit(draft.startTime, draft.endTime, v)) : pick({ time: null }, false))}
           className={fieldClass({ size: 'sm' }, 'w-[6rem]')}
         />
         <span className="text-sm text-zinc-400">{t('common.timeRangeSeparator')}</span>
@@ -193,6 +193,7 @@ export function QuickAddDetails({
           value={draft.endTime ?? ''}
           disabled={!draft.startTime}
           pickerDefault={draft.startTime ? endWithinDay(draft.startTime, length) : undefined}
+          durationFrom={draft.startTime ?? undefined}
           onChange={(v) => draft.startTime && v && setTime(draft.startTime, v)}
           className={fieldClass({ size: 'sm' }, 'w-[6rem]')}
         />
