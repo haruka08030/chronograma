@@ -41,7 +41,25 @@ function literalKeysInSource(): Map<string, string> {
   return used
 }
 
+/** すべての文（値）と鍵 */
+function flatEntries(obj: object, prefix = ''): [string, string][] {
+  return Object.entries(obj).flatMap(([k, v]) =>
+    v && typeof v === 'object'
+      ? flatEntries(v as object, `${prefix}${k}.`)
+      : typeof v === 'string'
+        ? [[`${prefix}${k}`, v] as [string, string]]
+        : [],
+  )
+}
+
 describe('locales', () => {
+  it('ja は RULES の「言葉」に合う（「〜ましょう」と促さない・「無い」は「ない」・ボタンは「追加」「編集」）', () => {
+    const entries = flatEntries(ja)
+    expect(entries.filter(([, v]) => v.includes('ましょう'))).toEqual([])
+    expect(entries.filter(([, v]) => v.includes('無い'))).toEqual([])
+    expect(entries.filter(([k, v]) => /\.(add|edit)\w*$/.test(k) && /(足す|直す)$/.test(v))).toEqual([])
+  })
+
   it('ja と en の鍵がそろっている（複数形の接尾辞はならす）', () => {
     expect([...jaKeys].filter((k) => !enKeys.has(k))).toEqual([])
     expect([...enKeys].filter((k) => !jaKeys.has(k))).toEqual([])
