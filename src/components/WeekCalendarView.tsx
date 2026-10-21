@@ -1,4 +1,4 @@
-import { isPlacedPointHabitOn, parseHabitSlotId } from '../lib/habitSlots'
+import { habitDurationMinutes, isPlacedPointHabitOn, parseHabitSlotId } from '../lib/habitSlots'
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { addDays } from 'date-fns'
@@ -305,8 +305,12 @@ export function WeekCalendarView({
 
   // 落とすときにだけ読む。tasks に依存させると、変更のたびに列（memo）に渡す落とす処理が変わる
   const getTaskDuration = useCallback((taskId: string): number | null => {
-    // 習慣の段のチップは既定の予定の長さ（目標のある習慣ははじめから枠なのでチップにならない）
-    if (parseHabitSlotId(taskId)) return null
+    // 習慣はいつもの長さ（範囲・1 回の目標）。時刻ひとつ・時間なしは既定の予定の長さ
+    const habitSlot = parseHabitSlotId(taskId)
+    if (habitSlot) {
+      const habit = useTaskStore.getState().habits.find((h) => h.id === habitSlot.habitId)
+      return habit ? habitDurationMinutes(habit, habitSlot.dateKey) : null
+    }
     return durationMinutesForTaskId(useTaskStore.getState().tasks, taskId)
   }, [])
 
@@ -402,23 +406,31 @@ export function WeekCalendarView({
   // 列（memo）に渡す落とす処理が描くたびに変わらないよう、作り直さない（読むのはストアと ref だけ）
   const onDrop = useCallback(
     (taskId: string, dateKey: string, startTime: string, endTime: string) => {
-      // 習慣の段のチップ: その日の格子に置くと、その日だけその時間の枠になる（ほかの日には置かない）
+      // 記録の列は今より先に置けない（終わりは今で切る）。置けなければ null
+      const clampToLogLimit = () => {
+        const limit = logLimitRef.current(dateKey)
+        if (limit === null) return endTime
+        if (timeToMinutes(startTime) >= limit) return null
+        return timeToMinutes(endTime) > limit || endTime <= startTime ? minutesToTime(limit) : endTime
+      }
+      // 習慣（習慣の段のチップ・今日の計画の行）: その日の格子にだけ置ける（ほかの日には置かない）。
+      // 予定の列はその日だけその時間の枠、記録の列はその時間にやった記録にして達成
       const habitSlot = parseHabitSlotId(taskId)
       if (habitSlot) {
-        if (habitSlot.dateKey === dateKey) setHabitDayTimeFromSlot(habitSlot, startTime, endTime)
+        if (habitSlot.dateKey !== dateKey) return
+        if (dropLaneRef.current === 'log') {
+          const end = clampToLogLimit()
+          if (end !== null) useTaskStore.getState().recordHabitAt(habitSlot.habitId, dateKey, startTime, end)
+        } else setHabitDayTimeFromSlot(habitSlot, startTime, endTime)
         return
       }
       if (dropLaneRef.current === 'log') {
         // 記録の列に落とした = その時間にやった（今より先は不可）。記録だけ作り、To-Do は途中までのこともあるので完了にするか聞く
         const task = useTaskStore.getState().tasks.find((x) => x.id === taskId)
         if (!task) return
-        const limit = logLimitRef.current(dateKey)
-        if (limit !== null) {
-          if (timeToMinutes(startTime) >= limit) return
-          if (timeToMinutes(endTime) > limit || endTime <= startTime) {
-            endTime = minutesToTime(limit)
-          }
-        }
+        const end = clampToLogLimit()
+        if (end === null) return
+        endTime = end
         const { timeLogTagPresets, logCategoryColors } = useTaskStore.getState()
         const label = logLabelFromTask(task, timeLogTagPresets, logCategoryColors)
         addTimeLog(task.title, dateKey, startTime, endTime, label.tags, undefined, null, label.color)

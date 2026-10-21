@@ -63,3 +63,30 @@ test('今日の画面で習慣の枠を動かすと、その日だけ時間が�
   await page.goto('/?view=habits')
   await expect(page.locator('[data-habit-row]')).toContainText('9:00')
 })
+
+test('今日の画面で習慣の行をタイムラインに落とすと、予定の列はその日だけの枠、記録の列はその時間の記録になる', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-21T18:00:00+09:00'))
+  await page.goto('/?view=habits')
+  await addHabit(page, 'gym')
+  await addHabit(page, 'read')
+  await page.goto('/?view=planner')
+  const column = page.locator('[data-datekey="2026-10-21"]')
+  const row = (name: string) => page.locator('li[draggable="true"]', { hasText: name })
+  const box = (await column.boundingBox())!
+  const at = (lane: 'schedule' | 'log', hour: number) => ({
+    x: box.width * (lane === 'log' ? 0.75 : 0.25),
+    y: box.height * (hour / 24),
+  })
+  await column.scrollIntoViewIfNeeded()
+
+  // 予定の列の 14:00 → その日だけ 14:00–15:00 の枠
+  await row('read').dragTo(column, { targetPosition: at('schedule', 14) })
+  await expect(page.getByText(/Set “read” to 14:00–15:00 on .* only/)).toBeVisible()
+
+  // 記録の列の 15:00 → その時間の記録。予定の 9:00 から離れているので時間外で、まだの習慣から外れる
+  await row('gym').dragTo(column, { targetPosition: at('log', 15) })
+  await expect(page.getByText('Logged “gym”')).toBeVisible()
+  await expect(row('gym')).toHaveCount(0)
+  await page.getByRole('button', { name: /1 done/ }).click()
+  await expect(page.getByText('Off time', { exact: true })).toBeVisible()
+})

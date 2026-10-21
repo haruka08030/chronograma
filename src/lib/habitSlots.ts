@@ -3,6 +3,7 @@ import { isHabitDueOnDate } from './habitSchedule'
 import { habitDayStatus, habitTimesOn, habitUsualTimesOn, plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
 import type { PlannedItem } from '../types/plannedItem'
 import { fromDateKey } from './dateKey'
+import { timeToMinutes } from './clockTime'
 
 const SLOT_PREFIX = 'habit-slot::'
 
@@ -59,19 +60,37 @@ export function pointHabitsOn(
     .sort((a, b) => a.slot.startTime.localeCompare(b.slot.startTime))
 }
 
-/** 時刻ひとつの習慣（目標なし）を、その日だけ格子に置いた（終わりのある枠にした）か。習慣の段のチップに戻せる */
+/**
+ * 時刻ひとつの習慣（目標なし）・時間を決めていない習慣を、その日だけ格子に置いた（終わりのある枠にした）か。習慣の段のチップに戻せる
+ */
 export function isPlacedPointHabitOn(habit: Habit, dateKey: string): boolean {
+  if (habit.timeMode === 'none') return isUntimedPlacedOn(habit, dateKey)
   return !habit.goalMinutes && habitUsualTimesOn(habit, dateKey)?.endTime === null && habitTimesOn(habit, dateKey)?.endTime != null
 }
 
-/** 習慣の段に出す、その日にやる時間を決めていない習慣（並びは習慣の順。週に◯回・休み・アーカイブは今日の計画と同じ） */
+/** 時間を決めていない習慣を、その日だけ格子に置いたか（今日の計画の行を予定の列に落とした） */
+function isUntimedPlacedOn(habit: Habit, dateKey: string): boolean {
+  return habitTimesOn(habit, dateKey) !== null
+}
+
+/** 習慣の段に出す、その日にやる時間を決めていない習慣（格子に置いた日は除く。並びは習慣の順。週に◯回・休み・アーカイブは今日の計画と同じ） */
 export function untimedHabitsOn(
   habits: Habit[],
   dateKey: string,
   records: HabitRecordIndex,
 ): { habit: Habit; id: string; done: boolean }[] {
   return habits.flatMap((habit) => {
-    if (habit.timeMode !== 'none' || !isHabitDueOnDate(habit, fromDateKey(dateKey), records)) return []
+    if (habit.timeMode !== 'none' || isUntimedPlacedOn(habit, dateKey) || !isHabitDueOnDate(habit, fromDateKey(dateKey), records)) return []
     return [{ habit, id: habitSlotId(habit.id, dateKey), done: habitDayStatus(habit, dateKey, records) !== 'missed' }]
   })
+}
+
+/**
+ * 習慣を格子に落とすときの長さ（分）。その日の時間が範囲ならその長さ、1 回の目標があればその長さ。
+ * 時刻ひとつ・時間なしは null（既定の予定の長さ）
+ */
+export function habitDurationMinutes(habit: Habit, dateKey: string): number | null {
+  const times = habitTimesOn(habit, dateKey)
+  if (times?.endTime) return (timeToMinutes(times.endTime) - timeToMinutes(times.startTime) + 1440) % 1440 || null
+  return habit.goalMinutes ?? null
 }
