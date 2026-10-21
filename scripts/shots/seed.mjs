@@ -265,7 +265,8 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
         order: 20,
         estimateMinutes: 90,
       },
-      instant,
+      // 前の日のうちに終えた（今日の時刻で終えると、前の日の予定の枠から外れて「後日に回した」に入る）
+      shift(instant, -1),
     ),
     task(
       {
@@ -314,6 +315,8 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       },
       instant,
     ),
+    // 昨日に置いて今日終えた（過ぎた日の「後日に回した」、#522）
+    task({ id: 's57', title: 'ゼミの発表資料', scheduledDate: yesterday, completed: true, order: 27 }, instant),
     task(
       {
         id: 's55',

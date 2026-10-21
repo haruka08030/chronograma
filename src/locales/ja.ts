@@ -215,6 +215,11 @@ export default {
     nowNextAria: '今・次の予定',
     moreOverdue: '他 {{count}} 件',
     allDone: '予定していたことはすべて終わりました。',
+    allDoneLater: '残した {{count}} 件も、あとで終えました。',
+    leftBehindHeading: '後日に回した {{count}} 件',
+    doneOnDate: '{{date}} に完了',
+    movedToDate: '→{{date}}',
+    movedUndated: '→日付なし',
     suggestionsHeading: '締切が近い To-Do {{count}} 件',
     suggestionsHeadingPlain: 'To-Do から追加',
     candidates: {

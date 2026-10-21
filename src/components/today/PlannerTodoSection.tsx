@@ -13,7 +13,8 @@ import { PlannerAddInput } from './PlannerAddInput'
 import { PlannerListStatus } from './PlannerListStatus'
 import { PlannerOnboarding } from './PlannerOnboarding'
 import { OnboardingNudges } from './OnboardingNudges'
-import type { NowNextPlan } from '../../lib/dayPlan'
+import type { LeftBehind, NowNextPlan } from '../../lib/dayPlan'
+import { PlannerLeftBehind } from './PlannerLeftBehind'
 import { planHex } from '../../lib/planVisual'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { PlannerPlanRow } from './PlannerPlanRow'
@@ -38,6 +39,7 @@ export function PlannerTodoSection({
   ownedGroupIds,
   nowNext,
   onOpenPlanCard,
+  leftBehind,
 }: {
   env: PlannerRowEnv
   overdue: Task[]
@@ -60,6 +62,8 @@ export function PlannerTodoSection({
   nowNext: NowNextPlan | null
   /** 予定（授業・バイト・Google の予定）の行を押したときのカード */
   onOpenPlanCard: (plan: Exclude<NowNextPlan, { source: 'task' }>, el: HTMLElement) => void
+  /** 過ぎた日だけ: その日に置いて、後日に終えた・別の日へ移したもの（#522）。今日・先の日は空 */
+  leftBehind: LeftBehind[]
 }) {
   const ids = useId()
   const { t } = useTranslation()
@@ -67,7 +71,7 @@ export function PlannerTodoSection({
   const { day, viewingToday } = env
   const { dateKey, tomorrowKey } = day
   const showOnboarding = useShowsOnboarding(viewingToday)
-  const emptyDay = totalCount === 0 && overdue.length === 0 && leftOver.length === 0
+  const emptyDay = totalCount === 0 && overdue.length === 0 && leftOver.length === 0 && leftBehind.length === 0
   const timedAction = (task: Task) => (
     <>
       <TomorrowButton task={task} tomorrowKey={tomorrowKey} viewingToday={viewingToday} />
@@ -217,7 +221,9 @@ export function PlannerTodoSection({
 
       <PlannerAddInput dateKey={dateKey} showExample={emptyDay} guide={showOnboarding && emptyDay} onboarding={showOnboarding} />
 
-      <PlannerListStatus totalCount={totalCount} openCount={open.length} overdueCount={overdue.length} />
+      <PlannerListStatus totalCount={totalCount} openCount={open.length} overdueCount={overdue.length} leftBehind={leftBehind} />
+
+      {leftBehind.length > 0 && <PlannerLeftBehind items={leftBehind} env={env} />}
 
       {/* はじめて使う人だけ: 今日を見ているとき、追加欄の下に進み具合の 1 行 */}
       {showOnboarding && <PlannerOnboarding />}

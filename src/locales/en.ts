@@ -227,6 +227,11 @@ export default {
     nowNextAria: 'Now and next',
     moreOverdue: '{{count}} more',
     allDone: 'Everything you planned is done.',
+    allDoneLater: 'What was left ({{count}}) got done later.',
+    leftBehindHeading: 'Done or moved later ({{count}})',
+    doneOnDate: 'Done {{date}}',
+    movedToDate: '→{{date}}',
+    movedUndated: '→No date',
     suggestionsHeading: 'Due soon ({{count}})',
     suggestionsHeadingPlain: 'Add from to-dos',
     candidates: {

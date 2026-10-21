@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
-import { getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
+import { getDayLeftBehind, getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
 import { getDayReviews } from '../lib/weekReview'
 import { useNavShortcut } from '../lib/shortcuts'
 import { onWrapUpRequest } from '../lib/notificationLaunch'
@@ -168,6 +168,12 @@ export function TodayPlannerView() {
   )
   // やり残し（前の日に置いて終わっていないもの）は今日を見ているときだけ、リストの上に 1 行で出してまとめて今日へ移せる
   const leftOver = useMemo(() => (viewingToday ? carryOver : []), [viewingToday, carryOver])
+  // 過ぎた日だけ: その日に置いて、後日に終えた・別の日へ移したもの（一覧から消えるので、残したことを見返せるように）
+  const pastDay = dateKey < toDateKey(appToday())
+  const leftBehind = useMemo(
+    () => (pastDay ? getDayLeftBehind(tasks, dateKey, excludedListIds) : []),
+    [pastDay, tasks, dateKey, excludedListIds],
+  )
   const suggestions = dueSoon
   // 明日までが締切の To-Do は、畳んだ見出しの中に隠さない（今日やるかを決めるのに要る）
   const dueByTomorrow = viewingToday && dueSoon.some((x) => x.dueDate !== null && x.dueDate <= tomorrowKey)
@@ -353,6 +359,7 @@ export function TodayPlannerView() {
           totalCount={totalCount}
           listboxProps={listboxProps}
           ownedGroupIds={ownedGroupIds}
+          leftBehind={leftBehind}
         />
 
         {/* 習慣はその日やると決まっているもの。まだ選ぶ前の候補より上に */}
