@@ -1,6 +1,7 @@
 import { isEventTask, type Task } from '../types/task'
 import { toMinutes } from './clockTime'
 import { settingSyncStep } from './settingSync'
+import { bothChangedSince, merge3ById, mergedSettingPlan } from './settingMerge'
 
 /**
  * よく入れる予定（バイトのシフトの「早番 9:00–15:00」など、#311）。月表示で選んでから日を続けて押すと、その日に同じ予定が入る。
@@ -84,8 +85,8 @@ export function templateTimeLabel(template: Pick<EventTemplate, 'startTime' | 'e
 }
 
 /**
- * よく入れる予定の同期。サーバーには利用者ごとに 1 行（`user_event_templates`、`022`）。並び全体を 1 つの値として扱う。
- * - どちらに合わせるかは `settingSync.ts`（サーバーの時計の版と、手元で変えたか）
+ * よく入れる予定の同期。サーバーには利用者ごとに 1 行（`user_event_templates`、`022`）。
+ * - どちらに合わせるかは `settingSync.ts`（サーバーの時計の版と、手元で変えたか）。両方の端末で変えていたら id ごとに合わせる
  * - この端末でまだ一度も同期していない（変えた時刻・もとにした版が無い）ときは、両方を合わせる（サーバーの並びのあとに手元にしか無いもの。どちらの端末で登録したものも消さない）
  */
 export type LocalEventTemplates = {
@@ -102,6 +103,8 @@ export type EventTemplateSyncPlan = {
   push?: RemoteEventTemplates & { base: string | null }
   /** 中身は同じ。手元の時刻ともとにした版をこのサーバーの版にそろえる */
   adopt?: string
+  /** 中身ごとに合わせたとき、両方が別の値に変えて新しいほうにした数 */
+  conflicts?: number
 }
 
 const templateKey = (t: EventTemplate) => JSON.stringify([t.id, t.title, t.startTime, t.endTime, t.color])
@@ -113,6 +116,8 @@ export function planEventTemplateSync(
   remote: RemoteEventTemplates | null,
   nowIso: string = new Date().toISOString(),
   clockOffsetMs = 0,
+  /** 前回合わせた版の中身の控え（`settingSync.ts` の `saveSettingBase`）。無ければ null */
+  base: unknown = null,
 ): EventTemplateSyncPlan {
   if (!remote) return { push: { templates: local.templates, updatedAt: local.updatedAt ?? nowIso, base: null } }
   const remoteTemplates = normalizeEventTemplates(remote.templates)
@@ -122,6 +127,26 @@ export function planEventTemplateSync(
     sameEventTemplates(local.templates, remoteTemplates),
     clockOffsetMs,
   )
+  // 両方の端末で前回合わせた後に変えた: 並びを丸ごと新しいほうにせず、id ごとに合わせる（2 台で別々に登録したものをどちらも残す）
+  if (bothChangedSince(local, remote) && (step.kind === 'push' || step.kind === 'apply')) {
+    let conflicts = 0
+    const merged = normalizeEventTemplates(
+      merge3ById(
+        base ? normalizeEventTemplates(base) : null,
+        local.templates,
+        remoteTemplates,
+        (t) => t.id,
+        step.kind === 'push' ? 'l' : 'r',
+        () => conflicts++,
+      ),
+    )
+    const p = mergedSettingPlan(merged, { value: remoteTemplates, updatedAt: remote.updatedAt }, sameEventTemplates, nowIso, conflicts)
+    return {
+      apply: { templates: p.apply.value, updatedAt: p.apply.updatedAt },
+      ...(p.push ? { push: { templates: p.push.value, updatedAt: p.push.updatedAt, base: p.push.base } } : {}),
+      conflicts,
+    }
+  }
   // この端末でまだ一度も合わせていない（ログインする前に登録した・もとにした版が分からない）: 新しいほうに丸ごと合わせず両方を残す
   const neverSynced = (local.syncedAt ?? null) === null && (step.kind === 'push' || step.kind === 'apply')
   switch (neverSynced ? 'initial' : step.kind) {

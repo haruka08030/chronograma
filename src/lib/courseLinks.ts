@@ -1,6 +1,7 @@
 import type { Task } from '../types/task'
 import { parseCanvasTaskId } from './canvasIds'
 import { settingSyncStep } from './settingSync'
+import { bothChangedSince, merge3ById, mergedSettingPlan } from './settingMerge'
 
 /**
  * 授業の予定と、LMS（Canvas・Moodle）の科目のつながり（#309）。授業の予定を押したカードに、その科目の未完了の課題を締切順に出す。
@@ -113,7 +114,7 @@ export function courseAssignments(tasks: readonly Task[], course: string): Task[
 }
 
 /**
- * つながりの同期。サーバーには利用者ごとに 1 行（`user_course_links`、`024`）。並び全体を 1 つの値として扱う（よく入れる予定と同じ合わせ方）。
+ * つながりの同期。サーバーには利用者ごとに 1 行（`user_course_links`、`024`）。よく入れる予定と同じ合わせ方（両方で変えたら予定の名前ごと）。
  * この端末でまだ一度も同期していなければ両方を合わせる（同じ名前はサーバーのつながり）
  */
 export type LocalCourseLinks = {
@@ -130,6 +131,8 @@ export type CourseLinkSyncPlan = {
   push?: RemoteCourseLinks & { base: string | null }
   /** 中身は同じ。手元の時刻ともとにした版をこのサーバーの版にそろえる */
   adopt?: string
+  /** 中身ごとに合わせたとき、両方が別の値に変えて新しいほうにした数 */
+  conflicts?: number
 }
 
 export const sameCourseLinks = (a: readonly CourseLink[], b: readonly CourseLink[]) =>
@@ -140,6 +143,8 @@ export function planCourseLinkSync(
   remote: RemoteCourseLinks | null,
   nowIso: string = new Date().toISOString(),
   clockOffsetMs = 0,
+  /** 前回合わせた版の中身の控え（`settingSync.ts` の `saveSettingBase`）。無ければ null */
+  base: unknown = null,
 ): CourseLinkSyncPlan {
   if (!remote) return { push: { links: local.links, updatedAt: local.updatedAt ?? nowIso, base: null } }
   const remoteLinks = normalizeCourseLinks(remote.links)
@@ -149,6 +154,26 @@ export function planCourseLinkSync(
     sameCourseLinks(local.links, remoteLinks),
     clockOffsetMs,
   )
+  // 両方の端末で前回合わせた後に変えた: 予定の名前ごとに合わせる（2 台で別々の授業につないだものをどちらも残す）
+  if (bothChangedSince(local, remote) && (step.kind === 'push' || step.kind === 'apply')) {
+    let conflicts = 0
+    const merged = normalizeCourseLinks(
+      merge3ById(
+        base ? normalizeCourseLinks(base) : null,
+        local.links,
+        remoteLinks,
+        (l) => courseKey(l.title),
+        step.kind === 'push' ? 'l' : 'r',
+        () => conflicts++,
+      ),
+    )
+    const p = mergedSettingPlan(merged, { value: remoteLinks, updatedAt: remote.updatedAt }, sameCourseLinks, nowIso, conflicts)
+    return {
+      apply: { links: p.apply.value, updatedAt: p.apply.updatedAt },
+      ...(p.push ? { push: { links: p.push.value, updatedAt: p.push.updatedAt, base: p.push.base } } : {}),
+      conflicts,
+    }
+  }
   const neverSynced = (local.syncedAt ?? null) === null && (step.kind === 'push' || step.kind === 'apply')
   switch (neverSynced ? 'initial' : step.kind) {
     case 'initial': {

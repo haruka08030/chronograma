@@ -316,13 +316,18 @@ describe('本体とどこまで合わせたかの記録（控え・設定の版�
     expect(settingSyncStep({ updatedAt: st.timetableUpdatedAt, syncedAt }, { updatedAt: 'V2' }, false).kind).toBe('apply')
   })
 
-  it('設定の版は localStorage から本体と同じ IndexedDB に移す。移した後に localStorage にあれば（localStorage で動いた回）捨てる', async () => {
-    localStorage.setItem('chronograma-settings-sync-v1:u1', JSON.stringify({ labels: 'V1' }))
+  it('設定の版と版の中身の控えは localStorage から本体と同じ IndexedDB に移す。移した後に localStorage にあれば（localStorage で動いた回）捨てる', async () => {
+    localStorage.setItem('chronograma-settings-sync-v1:u1', JSON.stringify({ labels: 'V1', timetable: 'T1' }))
+    // 前の版は中身の控え（中身ごとに合わせる設定）も localStorage に置いていた
+    const term = { termStart: '2026-04-01' }
+    localStorage.setItem('chronograma-settings-base-v1:u1', JSON.stringify({ timetable: { at: 'T1', value: term } }))
     const first = await openTab()
     expect(localStorage.getItem('chronograma-settings-sync-v1:u1')).toBeNull()
+    expect(localStorage.getItem('chronograma-settings-base-v1:u1')).toBeNull()
     expect(JSON.parse((await readDisk('chronograma-settings-sync-v1:u1'))!).labels).toBe('V1')
     const s1 = await import('../lib/settingSync')
     expect(s1.loadSettingSyncedAt('u1', 'labels')).toBe('V1')
+    expect(s1.loadSettingBase('u1', 'timetable', 'T1')).toEqual(term)
     first.data.closeDataStore()
 
     // localStorage で動いた回が書いた版（どの本体の版か分からない）

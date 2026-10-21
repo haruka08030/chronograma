@@ -5,6 +5,15 @@ import type { Habit } from '../types/habit'
 import { SYNC_INBOX_LIST_ID } from './syncMerge'
 import { LEGACY_DATA_OWNER } from '../store/storeConstants'
 import { reportFailure } from './errorReport'
+import type { BackupExtras } from './backupFormat'
+import type { DayMoods } from './dayMood'
+import { mergeTimetables, type Timetable } from './timetable'
+import { mergeAddons, type Addons } from './addons'
+import { normalizeEventTemplates, type EventTemplate } from './eventTemplates'
+import { courseKey, normalizeCourseLinks, type CourseLink } from './courseLinks'
+import { normalizeExtraTimeZones, type ExtraTimeZone } from './extraTimeZones'
+import { merge3ById } from './settingMerge'
+import { sameValue } from './sameValue'
 
 /**
  * 自動バックアップ。この端末の IndexedDB に控えを残す。
@@ -307,4 +316,39 @@ export function restoreMissing(current: RestorableData, backup: RestorableData, 
   const habits = [...current.habits, ...backup.habits.filter((h) => !habitIds.has(h.id)).map((h) => ({ ...h, updatedAt: now }))]
 
   return { next: { lists, sections, tasks, habits }, addedTasks: added.length }
+}
+
+export interface RestorableSettings {
+  dayMoods: DayMoods
+  timetable: Timetable
+  addons: Addons
+  eventTemplates: EventTemplate[]
+  courseLinks: CourseLink[]
+  extraTimeZones: ExtraTimeZone[]
+}
+
+/**
+ * 控えにあって今は無い気分・欠席・支払い・よく入れる予定などを足す（`restoreMissing` の設定の分）。今あるものは触らず、
+ * 同じもの（同じ日・同じ授業の回数・同じ id）で中身が違えば今のまま。変わる値だけを返す。
+ * 気分は控えの時刻のまま足す（サーバーにその日の新しい気分があればそちらに合わせる）
+ */
+export function restoreMissingSettings(current: RestorableSettings, backup: BackupExtras): Partial<RestorableSettings> {
+  const out: Partial<RestorableSettings> = {}
+  if (backup.dayMoods) {
+    const missing = Object.entries(backup.dayMoods).filter(([day]) => !current.dayMoods[day])
+    if (missing.length > 0)
+      out.dayMoods = { ...current.dayMoods, ...Object.fromEntries(missing.map(([d, m]) => [d, { ...m, syncedAt: null }])) }
+  }
+  const put = <K extends keyof RestorableSettings>(key: K, next: RestorableSettings[K]) => {
+    if (!sameValue(next, current[key])) out[key] = next
+  }
+  if (backup.timetable) put('timetable', mergeTimetables(null, current.timetable, backup.timetable, 'l'))
+  if (backup.addons) put('addons', mergeAddons(null, current.addons, backup.addons, 'l'))
+  if (backup.eventTemplates)
+    put('eventTemplates', normalizeEventTemplates(merge3ById(null, current.eventTemplates, backup.eventTemplates, (t) => t.id, 'l')))
+  if (backup.courseLinks)
+    put('courseLinks', normalizeCourseLinks(merge3ById(null, current.courseLinks, backup.courseLinks, (l) => courseKey(l.title), 'l')))
+  if (backup.extraTimeZones)
+    put('extraTimeZones', normalizeExtraTimeZones(merge3ById(null, current.extraTimeZones, backup.extraTimeZones, (z) => z.tz, 'l')))
+  return out
 }

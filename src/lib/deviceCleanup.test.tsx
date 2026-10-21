@@ -10,6 +10,7 @@ import {
 } from './deviceCleanup'
 import { hasOtherUsersBaseline, loadBaseline, saveBaseline } from './syncMerge'
 import { clearLocalAccountState } from './accountBoundary'
+import { loadSettingBase, saveSettingBase } from './settingSync'
 
 vi.mock('./webPush', () => ({ detachWebPush: vi.fn(() => Promise.resolve()), resyncWebPush: vi.fn(() => Promise.resolve()) }))
 vi.mock('../hooks/useAutoBackup', () => ({ backupNow: vi.fn(async () => true) }))
@@ -61,6 +62,8 @@ describe('ログアウトの片付け（#256）', () => {
     localStorage.setItem('chronograma-lang', 'ja')
     saveBaseline('u1', baseline)
     saveBaseline('u0', baseline)
+    // 設定の前回合わせた版の中身の控え（本体と同じ置き場所。授業の名前が入る）
+    saveSettingBase('u0', 'courses', 'V1', [{ title: '前の人の授業', course: 'Math' }])
   }
 
   it('写し・連携の前回取り込んだ値は消え、前回同期の控えは中身を消して印だけ残す', () => {
@@ -76,6 +79,7 @@ describe('ログアウトの片付け（#256）', () => {
     expect(hasOtherUsersBaseline('u2')).toBe(true)
     expect(hasOtherUsersBaseline('u1')).toBe(true)
     for (const id of ['u0', 'u1']) expect(localStorage.getItem(`chronograma-sync-baseline-v1:${id}`)).toBe('null')
+    expect(loadSettingBase('u0', 'courses', 'V1')).toBeNull()
   })
 
   it('ログアウトすると、前の人の題名を含むものが端末に残らない', async () => {

@@ -5,6 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useTaskStore } from '../store/taskStore'
 import { backupNow } from '../hooks/useAutoBackup'
+import { hasSettingsData } from '../store/slices/data'
 import { detachWebPush, resyncWebPush } from './webPush'
 import { clearBaseline } from './syncMerge'
 import { clearSettingSyncedAt } from './settingSync'
@@ -79,14 +80,15 @@ export async function backupBeforeClearing(kind: 'beforeSignOut' | 'beforeSignIn
 let clearing: Promise<boolean> | null = null
 
 /**
- * 手元のその人のデータ（タスク・リスト・習慣・セクション・ラベル表・他のタイムゾーン・予定の色）を空にし、空にしたかを返す。
+ * 手元のその人のデータ（タスク・リスト・習慣・セクション・ラベル表・気分・時間割・追加機能・他のタイムゾーン・予定の色 …）を空にし、空にしたかを返す。
  * 送れていなかった変更が消えないよう、データがあれば先に端末内に控えを取り、取り終えてから消す（持ち主は `owner`）。
  * 控えを取れず、利用者が取消を選んだら消さずに false。`backup: false` は控えを待たないので、呼んだその場で空にする
  */
 export function clearAccountData(owner: string | null, opts: { backup?: boolean } = {}): Promise<boolean> {
   const store = useTaskStore.getState()
-  // 一度も同期できていない（dataOwner が null の）データも、ログインしていた人のものなので消す。控えは残る
-  const hasData = store.dataOwner !== null || store.tasks.length > 0 || store.habits.length > 0
+  // 一度も同期できていない（dataOwner が null の）データも、ログインしていた人のものなので消す。控えは残る。
+  // タスク・習慣を使わず、気分・欠席・支払いだけを使っている人も控えを取ってから消す
+  const hasData = store.dataOwner !== null || store.tasks.length > 0 || store.habits.length > 0 || hasSettingsData(store)
   if (!hasData || opts.backup === false) {
     store.resetLocalData()
     // 閉じたダイアログの書きかけも次の人に見せない
