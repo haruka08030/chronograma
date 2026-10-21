@@ -186,11 +186,11 @@ describe('importRollback（控えの読み書き）', () => {
   })
 })
 
-describe('CSV の取り込み', () => {
-  it('今のタスクの後ろに足し、リスト名（大文字小文字は問わない）で振り分け、知らないリストは未分類へ', () => {
+describe('CSV の取り込み', async () => {
+  it('今のタスクの後ろに足し、リスト名（大文字小文字は問わない）で振り分け、知らないリストは未分類へ', async () => {
     const list = seedCurrent()
     const existing = st().tasks
-    const r = st().importTasksFromCsv('title,list,due,priority,tags\nA,仕事,2026/10/9,high,"x;y"\nB,ない,,,\n,仕事,,,\n')
+    const r = await st().importTasksFromCsv('title,list,due,priority,tags\nA,仕事,2026/10/9,high,"x;y"\nB,ない,,,\n,仕事,,,\n')
     expect(r).toEqual({ imported: 2, skipped: 1, errors: [] })
     // 今あるタスクは 1 行も変えない
     for (const t of existing) expect(st().tasks.find((x) => x.id === t.id)).toBe(t)
@@ -202,23 +202,23 @@ describe('CSV の取り込み', () => {
     expect(new Set(st().tasks.map((t) => t.id)).size).toBe(st().tasks.length)
   })
 
-  it('読めない CSV は何も足さない。足した分は ⌘Z で消える', () => {
+  it('読めない CSV は何も足さない。足した分は ⌘Z で消える', async () => {
     seedCurrent()
     const tasks = st().tasks
-    expect(st().importTasksFromCsv('')).toEqual({ imported: 0, skipped: 0, errors: ['empty'] })
-    expect(st().importTasksFromCsv('due,list\n2026-10-01,x').errors).toEqual(['missing_title_column'])
+    expect(await st().importTasksFromCsv('')).toEqual({ imported: 0, skipped: 0, errors: ['empty'] })
+    expect((await st().importTasksFromCsv('due,list\n2026-10-01,x')).errors).toEqual(['missing_title_column'])
     expect(st().tasks).toBe(tasks)
 
-    st().importTasksFromCsv('title\nX\nY')
+    await st().importTasksFromCsv('title\nX\nY')
     expect(titles()).toEqual(['今の 1', '今の 2', 'X', 'Y'])
     st().undoLastOperation()
     expect(titles()).toEqual(['今の 1', '今の 2'])
   })
 
-  it('リスト名が同じ名前のラベルならその色を付け、Inbox はラベルなし。知らない名前は選んだときだけラベルを作る', () => {
+  it('リスト名が同じ名前のラベルならその色を付け、Inbox はラベルなし。知らない名前は選んだときだけラベルを作る', async () => {
     seedCurrent()
     const csv = 'title,list\nA,勉強\nB,Inbox\nC,趣味\nD,趣味\n'
-    st().importTasksFromCsv(csv)
+    await st().importTasksFromCsv(csv)
     const byTitle = (t: string) =>
       st()
         .tasks.filter((x) => x.title === t)
@@ -229,7 +229,7 @@ describe('CSV の取り込み', () => {
     expect(byTitle('C').color).toBeNull()
     expect(st().timeLogTagPresets).toEqual(['勉強', '仕事'])
 
-    st().importTasksFromCsv(csv, { unknownLists: 'label' })
+    await st().importTasksFromCsv(csv, { unknownLists: 'label' })
     expect(st().timeLogTagPresets).toEqual(['勉強', '仕事', '趣味'])
     const hobby = categoryHex('趣味', st().logCategoryColors)
     expect(byTitle('C').color).toBe(hobby)
@@ -239,9 +239,9 @@ describe('CSV の取り込み', () => {
     expect(st().timeLogTagPresets).toEqual(['勉強', '仕事'])
   })
 
-  it('Todoist の CSV はファイル名をラベルにし、締切の時刻も入れる', () => {
+  it('Todoist の CSV はファイル名をラベルにし、締切の時刻も入れる', async () => {
     seedCurrent()
-    const r = st().importTasksFromCsv(todoistProject, { fileName: 'ゼミ.csv', unknownLists: 'label' })
+    const r = await st().importTasksFromCsv(todoistProject, { fileName: 'ゼミ.csv', unknownLists: 'label' })
     expect(r).toEqual({ imported: 4, skipped: 0, errors: [] })
     const report = st().tasks.find((t) => t.title === 'レポートを出す')!
     expect(report).toMatchObject({

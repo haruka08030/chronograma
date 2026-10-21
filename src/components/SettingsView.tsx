@@ -294,7 +294,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
               if (parsed.errors.length === 0 && unknown.count > 0) {
                 const choice = await askChoice({
                   message: i18n.t('confirm.csvUnknownLists', {
-                    names: unknown.names.slice(0, 5).join(lang === 'en' ? ', ' : '、') + (unknown.names.length > 5 ? ' …' : ''),
+                    names: unknown.names.slice(0, 5).join(i18n.t('common.listSeparator')) + (unknown.names.length > 5 ? ' …' : ''),
                     labels: unknown.names.length,
                     count: unknown.count,
                   }),
@@ -304,7 +304,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
                 if (!choice) return
                 unknownLists = choice === 'confirm' ? 'label' : 'inbox'
               }
-              const result = importTasksFromCsv(text, { fileName: file.name, unknownLists })
+              const result = await importTasksFromCsv(text, { fileName: file.name, unknownLists })
               // 取り込めたときは store が「元に戻す」付きの通知を出す
               if (result.errors.length > 0) notify(i18n.t('alert.invalidCsvFile'))
               else if (result.imported === 0) notify(i18n.t('alert.csvNoRows'))

@@ -1,9 +1,6 @@
-import { useSupabaseSync } from './hooks/useSupabaseSync'
 import { useAutoBackup } from './hooks/useAutoBackup'
+import { AccountSyncLoader } from './components/AccountSyncLoader'
 import { usePersistLocalData } from './hooks/usePersistLocalData'
-import { useGooglePush } from './hooks/useGooglePush'
-import { useNotionSync } from './hooks/useNotionSync'
-import { useCanvasSync } from './hooks/useCanvasSync'
 import { Suspense, useState, useRef } from 'react'
 import { ErrorBoundary, PartBoundary } from './components/ui/ErrorBoundary'
 import { OverlaySuspense } from './components/ui/OverlaySuspense'
@@ -57,13 +54,9 @@ const ShortcutsHelp = lazyNamed(() => import('./components/ShortcutsHelp'), 'Sho
 const DROP_ANIMATION = { duration: 150, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
 
 export default function App() {
-  // 同期より先に呼ぶ（その日の控えを、サーバーの内容が反映される前に取る）
+  // 同期（ログインしてから読む `AccountSyncLoader`）より先に呼ぶ（その日の控えを、サーバーの内容が反映される前に取る）
   useAutoBackup()
-  useSupabaseSync()
   usePersistLocalData()
-  useNotionSync()
-  useCanvasSync()
-  useGooglePush()
   useAppTheme()
 
   const selectedView = useTaskStore((s) => s.selectedView)
@@ -210,6 +203,7 @@ export default function App() {
           </PartBoundary>
         )}
         <OverlayHost />
+        <AccountSyncLoader />
         {/* 画面の外の部品は 1 つずつ包む。落ちたらその部品だけ消え、画面を替えると戻る */}
         <PartBoundary name="undoToast" resetKey={partKey}>
           <UndoToast />

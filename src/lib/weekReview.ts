@@ -129,19 +129,6 @@ export function foldLabelMinutes<R extends { tag: string; minutes: number }>(
   return { shown: rows.filter((r) => !foldedSet.has(r)), others: folded.reduce((a, x) => a + x.minutes, 0) }
 }
 
-/** `anchor` を含む週（月曜始まり）の振り返り。未来の日は数えない */
-export function getWeekReview(
-  tasks: readonly Task[],
-  habits: readonly Habit[],
-  anchor: Date,
-  excludedListIds: ReadonlySet<string> = new Set(),
-  now = zonedNow(),
-  labelOf?: (log: LabelSource) => string,
-  absentOn?: AbsentOn,
-): WeekReview {
-  return getReview(tasks, habits, 'week', anchor, excludedListIds, now, labelOf, absentOn)
-}
-
 /**
  * `anchor` を含む期間（週: 月曜始まり / 月: 暦の月, #304）の振り返り。未来の日は数えない。
  * 月の「週に◯回」の習慣は、4 日以上がその月にある週だけで数える（`monthHabitWeekStarts`）
@@ -419,23 +406,6 @@ export function compareReviews(current: WeekReview, prev: WeekReview): ReviewCom
     loggedDiff: current.loggedMinutes - prev.loggedMinutes,
     labelDiff: new Map(current.labelMinutes.map((x) => [x.tag, x.minutes - (prevByLabel.get(x.tag) ?? 0)])),
   }
-}
-
-/**
- * 記録した時間の、前の週との差（分。今週 − 前の週）。前の週に記録が無ければ null（比べる相手が無いので出さない）。
- * 今週は今日までしか数えないので、前の週も同じ曜日までで比べる（週の頭に「先週より −10時間」と出さない）
- */
-export function loggedMinutesVsPrevWeek(
-  loggedMinutes: number,
-  tasks: readonly Task[],
-  habits: readonly Habit[],
-  anchor: Date,
-  excludedListIds: ReadonlySet<string> = new Set(),
-  now = zonedNow(),
-): number | null {
-  const prev = getPrevReview(tasks, habits, 'week', anchor, excludedListIds, now)
-  if (prev.loggedMinutes === 0) return null
-  return loggedMinutes - prev.loggedMinutes
 }
 
 function sortedTagMinutes(m: ReadonlyMap<string, number>): { tag: string; minutes: number }[] {

@@ -12,6 +12,8 @@ export default {
     close: '閉じる',
     timeRangeSeparator: '〜',
     listSeparator: '、',
+    // 名前に添え書きを付ける（読み上げ・ツールチップ）。括弧は言語ごと
+    withNote: '{{title}}（{{note}}）',
     dragToReorder: 'ドラッグして並べ替え',
     back: '戻る',
     loading: '…',
@@ -1211,6 +1213,7 @@ export default {
   account: {
     emailRequired: 'メールアドレスを入力してください',
     genericError: 'エラーが発生しました。もう一度お試しください。',
+    notConfigured: 'Supabase が設定されていません',
     networkError: 'サーバーに接続できませんでした。ネットワーク接続を確認して、もう一度お試しください。',
     otpWaitSeconds: '続けて送れません。{{count}} 秒たってからもう一度お試しください。',
     otpRateLimited: 'ログイン用メールを送れる回数の上限に達しました。しばらく（長くて 1 時間ほど）待ってからお試しください。',

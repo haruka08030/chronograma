@@ -65,7 +65,7 @@ export function ColorPalette({
         fill={fill}
         swatches={swatches.map((sw) => {
           const name = labelForHex(sw.hex, presets, colors)
-          return { hex: sw.hex, name: name ? `${name}（${sw.colorName}）` : sw.colorName }
+          return { hex: sw.hex, name: name ? t('common.withNote', { title: name, note: sw.colorName }) : sw.colorName }
         })}
       />
       {onDefault && (
