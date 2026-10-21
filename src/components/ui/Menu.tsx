@@ -59,7 +59,8 @@ export function MenuItem({
       {detail ? (
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate">{children}</span>
-          <span className={`truncate text-xs ${danger ? '' : 'text-zinc-400 dark:text-zinc-500'}`}>{detail}</span>
+          {/* 説明は省略せず折り返す */}
+          <span className={`text-xs leading-snug ${danger ? '' : 'text-zinc-400 dark:text-zinc-500'}`}>{detail}</span>
         </span>
       ) : (
         <span className="min-w-0 flex-1 truncate">{children}</span>
