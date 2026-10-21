@@ -91,15 +91,16 @@ jobs:
 
       - run: npm ci
 
-      # Chromium 本体は Playwright の版ごとにキャッシュする（OS のライブラリは毎回入れる）
+      # ブラウザ本体は Playwright の版ごとにキャッシュする（OS のライブラリは毎回入れる）
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-chromium-webkit-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+      # Chromium（PC・英語）と WebKit（iPhone の Safari・日本語）の 2 つの回
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
 
       - name: E2E
         run: npm run test:e2e

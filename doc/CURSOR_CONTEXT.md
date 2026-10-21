@@ -552,6 +552,8 @@ limit 50;
 - `build` — `tsc -b` && `vite build`
 - `lint` — ESLint（CI で必須）。型を見るルール（`no-floating-promises`・`no-misused-promises`・`await-thenable`）入り: Promise を返す関数を `onClick` などに直接渡さず、`() => void fn()` で呼ぶ
 - `lint:unchecked-index` — `noUncheckedIndexedAccess` を入れたときの型エラーをファイルごとの件数で出す（テスト以外。0 件になったら `tsconfig.app.json` で有効にする）。合計が上限（スクリプトの `LIMIT`）を超えると落ち、CI でも流す。減ったら `LIMIT` を下げる
+- `test:e2e` — Playwright（`e2e/`）。`chromium`（PC・英語、全部）と `webkit-ja`（iPhone 14 の WebKit・日本語、`onboarding`・`todo`・`japanese`）。文言は `e2e/i18n.ts` の `t()` で鍵から引く
+- 起動時に読む JS の大きさ — `npx vite build --manifest && node scripts/build/startup-size.mjs [--list]`。入口と `boot` から静的に読む JS の gzip の合計が上限（`LIMIT_GZIP_KB`）を超えると落ち、CI でも流す
 - `format` / `format:check` — Prettier（設定は `.prettierrc`、対象外は `.prettierignore`）
 - `preview` — プレビュー
 
