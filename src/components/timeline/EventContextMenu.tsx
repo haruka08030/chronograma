@@ -29,30 +29,34 @@ function Dot({ hex }: { hex: string }) {
 export function TaskEventMenu({
   x,
   y,
+  alignRight,
   taskId,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
+  alignRight?: boolean
   taskId: string
   onClose: () => void
   onOpenDetail: (taskId: string) => void
 }) {
   const task = useTaskStore((s) => s.tasks.find((t) => t.id === taskId) ?? null)
   if (!task) return null
-  return <TaskEventMenuBody x={x} y={y} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
+  return <TaskEventMenuBody x={x} y={y} alignRight={alignRight} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
 }
 
 function TaskEventMenuBody({
   x,
   y,
+  alignRight,
   task,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
+  alignRight?: boolean
   task: Task
   onClose: () => void
   onOpenDetail: (taskId: string) => void
@@ -194,14 +198,36 @@ function TaskEventMenuBody({
       run: () => void deleteTaskAsking(task.id),
     },
   ]
-  return <ActionMenu x={x} y={y} header={task.title || t('taskMenu.one')} entries={entries} onClose={onClose} searchable={false} />
+  return (
+    <ActionMenu
+      x={x}
+      y={y}
+      alignRight={alignRight}
+      header={task.title || t('taskMenu.one')}
+      entries={entries}
+      onClose={onClose}
+      searchable={false}
+    />
+  )
 }
 
 /**
  * Google の予定を右クリックしたときのメニュー（Google カレンダーの右クリックと同じく、色と削除）。
  * 書き込めない予定は「Google カレンダーで開く」だけ。繰り返しの色はカードの既定と同じく「すべての予定」に付ける
  */
-export function GoogleEventMenu({ x, y, eventId, onClose }: { x: number; y: number; eventId: string; onClose: () => void }) {
+export function GoogleEventMenu({
+  x,
+  y,
+  alignRight,
+  eventId,
+  onClose,
+}: {
+  x: number
+  y: number
+  alignRight?: boolean
+  eventId: string
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const event = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
@@ -264,5 +290,5 @@ export function GoogleEventMenu({ x, y, eventId, onClose }: { x: number; y: numb
       : []),
   ]
   if (entries.length === 0) return null
-  return <ActionMenu x={x} y={y} header={event.summary} entries={entries} onClose={onClose} searchable={false} />
+  return <ActionMenu x={x} y={y} alignRight={alignRight} header={event.summary} entries={entries} onClose={onClose} searchable={false} />
 }

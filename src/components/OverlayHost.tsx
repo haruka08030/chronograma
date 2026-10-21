@@ -39,7 +39,14 @@ export function OverlayHost() {
             />
           )}
           {menu?.kind === 'event' && (
-            <TaskEventMenu x={menu.x} y={menu.y} taskId={menu.taskId} onClose={closeTaskMenu} onOpenDetail={openTaskDetail} />
+            <TaskEventMenu
+              x={menu.x}
+              y={menu.y}
+              alignRight={menu.alignRight}
+              taskId={menu.taskId}
+              onClose={closeTaskMenu}
+              onOpenDetail={openTaskDetail}
+            />
           )}
           {menu?.kind === 'timeSlot' && (
             <TimeSlotMenu key={menu.taskId} x={menu.x} y={menu.y} taskId={menu.taskId} dateKey={menu.dateKey} onClose={closeTaskMenu} />
@@ -47,7 +54,9 @@ export function OverlayHost() {
           {menu?.kind === 'dueDateTime' && (
             <DueDateTimeMenu x={menu.x} y={menu.y} taskIds={menu.taskIds} onClose={closeTaskMenu} onDone={menu.onDone} />
           )}
-          {menu?.kind === 'google' && <GoogleEventMenu x={menu.x} y={menu.y} eventId={menu.eventId} onClose={closeTaskMenu} />}
+          {menu?.kind === 'google' && (
+            <GoogleEventMenu x={menu.x} y={menu.y} alignRight={menu.alignRight} eventId={menu.eventId} onClose={closeTaskMenu} />
+          )}
         </OverlaySuspense>
       </PartBoundary>
     </>
