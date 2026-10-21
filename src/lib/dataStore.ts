@@ -13,6 +13,12 @@
 import { LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY } from '../store/storeConstants'
 
 export const BASELINE_KEY_PREFIX = 'chronograma-sync-baseline-v1:'
+/** 設定ごとの「手元の値のもとにしたサーバーの版」と、その版の中身の控え（`settingSync.ts`、利用者ごと） */
+export const SETTINGS_SYNCED_KEY_PREFIX = 'chronograma-settings-sync-v1:'
+export const SETTINGS_BASE_KEY_PREFIX = 'chronograma-settings-base-v1:'
+const isSettingsKey = (key: string) => key.startsWith(SETTINGS_SYNCED_KEY_PREFIX) || key.startsWith(SETTINGS_BASE_KEY_PREFIX)
+/** 「どこまでサーバーと合わせたか」の記録（前回同期の控え・設定の版）。本体と食い違うと、古い本体を「手元で変えた」と読む */
+const isSyncRecord = (key: string) => key.startsWith(BASELINE_KEY_PREFIX) || isSettingsKey(key)
 /** 前回取得したサーバーの内容と差分の目印（`syncPull.ts` の `savePullState`、利用者ごと） */
 export const PULL_STATE_KEY_PREFIX = 'chronograma-sync-mirror-v1:'
 const DB_NAME = 'chronograma-data'
@@ -20,6 +26,8 @@ const STORE = 'kv'
 const META = 'meta'
 /** localStorage から移したことの印（`meta` に置く。移すのは 1 回だけ） */
 const MIGRATED = 'migratedFromLocalStorage'
+/** 設定の版（前は localStorage に置いていた）を移したことの印。この後に localStorage にあれば、localStorage で動いた回が書いたもの */
+const SETTINGS_MIGRATED = 'migratedSettingsFromLocalStorage'
 const CHANNEL = 'chronograma-data'
 /** 開くのにこれより長くかかったら localStorage のまま始める（画面がいつまでも出ない、にしない） */
 const OPEN_TIMEOUT_MS = 8000
@@ -86,12 +94,21 @@ export function writeStored(key: string, value: string | null, callbacks?: Write
   }
   if (value === null) cache.delete(key)
   else cache.set(key, value)
-  if (!queue.has(key)) busy.set(key, (busy.get(key) ?? 0) + 1)
-  queue.set(key, { value, at: Date.now(), ...callbacks })
+  enqueue(key, { value, at: Date.now(), ...callbacks })
+  // どこまで合わせたかの記録は、本体と同じトランザクションで書く。本体をもう前のトランザクションで書いている途中なら
+  // （同期で取り込んだ変更を書いた後に、送るものが無くすぐ控えを書いた）、本体もいまの値でもう一度一緒に書く。
+  // 本体が書けなければ記録も書かれない（本体は古いのに記録だけ新しい、にならない）。消すのは本体と食い違わないので待たない
+  if (value !== null && isSyncRecord(key) && busy.has(PERSIST_STORAGE_KEY) && !queue.has(PERSIST_STORAGE_KEY))
+    enqueue(PERSIST_STORAGE_KEY, { value: cache.get(PERSIST_STORAGE_KEY) ?? null, at: Date.now() })
   if (!flushScheduled) {
     flushScheduled = true
     queueMicrotask(flush)
   }
+}
+
+function enqueue(key: string, w: PendingWrite) {
+  if (!queue.has(key)) busy.set(key, (busy.get(key) ?? 0) + 1)
+  queue.set(key, w)
 }
 
 function flush() {
@@ -239,7 +256,7 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-/** localStorage にある、移すもの（[IndexedDB のキー, 中身, localStorage のキー]） */
+/** localStorage にある、移すもの（[IndexedDB のキー, 中身, localStorage のキー]）。本体・前回同期の控え・設定の版 */
 function localStorageEntries(): [string, string, string][] {
   const out: [string, string, string][] = []
   try {
@@ -250,7 +267,7 @@ function localStorageEntries(): [string, string, string][] {
     else if (legacy !== null) out.push([PERSIST_STORAGE_KEY, legacy, LEGACY_PERSIST_STORAGE_KEY])
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
-      if (!key?.startsWith(BASELINE_KEY_PREFIX)) continue
+      if (!key || !(key.startsWith(BASELINE_KEY_PREFIX) || isSettingsKey(key))) continue
       const value = localStorage.getItem(key)
       if (value !== null) out.push([key, value, key])
     }
@@ -277,11 +294,16 @@ export function dataStoreRecoveredFromLocalStorage(): boolean {
  * 移した印があるのに localStorage に本体・控えがある＝その間に localStorage で動いた回があった。その分を取り込む
  * （本体は `RECOVERED_LOCAL_KEY` に置いてストアが合わせる。控えはその回のものにし、その回に無い人の控えは本体と食い違うので消す）
  */
-function loadAll(d: IDBDatabase): Promise<{ entries: Map<string, string>; copied: [string, string, string][]; recovered: boolean }> {
+function loadAll(
+  d: IDBDatabase,
+): Promise<{ entries: Map<string, string>; copied: [string, string, string][]; recovered: boolean; dropped: string[] }> {
   return new Promise((resolve, reject) => {
     const entries = new Map<string, string>()
-    let copied: [string, string, string][] = []
+    const copied: [string, string, string][] = []
     let recovered = false
+    /** IndexedDB の設定の版を捨てる（localStorage で動いた回があった）。`dropped` は消す localStorage のキー */
+    let dropSettings = false
+    let dropped: string[] = []
     const tx = d.transaction([STORE, META], 'readwrite')
     const kv = tx.objectStore(STORE)
     const meta = tx.objectStore(META)
@@ -293,6 +315,7 @@ function loadAll(d: IDBDatabase): Promise<{ entries: Map<string, string>; copied
         if (!c) return
         const key = String(c.key)
         if (recovered && key.startsWith(BASELINE_KEY_PREFIX) && !keep.has(key)) c.delete()
+        else if (dropSettings && isSettingsKey(key)) c.delete()
         else entries.set(key, c.value as string)
         c.continue()
       }
@@ -315,11 +338,26 @@ function loadAll(d: IDBDatabase): Promise<{ entries: Map<string, string>; copied
       }
     }
     const marker = meta.get(MIGRATED)
-    marker.onsuccess = () => {
-      const local = localStorageEntries()
+    const settingsMarker = meta.get(SETTINGS_MIGRATED)
+    settingsMarker.onsuccess = () => {
+      const all = localStorageEntries()
+      const settings = all.filter(([key]) => isSettingsKey(key))
+      const local = all.filter(([key]) => !isSettingsKey(key))
+      // 設定の版は前の版まで localStorage に置いていた。初めてなら本体と一緒に移す。移した後に localStorage にあるのは
+      // localStorage で動いた回が書いたもので、どの本体の版なのかが分からない。localStorage で動いた回の本体を取り込むときも、
+      // 合わせた本体の設定はどちらの回の値か設定ごとに違う。どちらも設定の版を捨てる（次の同期は編集時刻で比べる）
+      const recovering = marker.result !== undefined && local.length > 0
+      if (settingsMarker.result === undefined) meta.put(new Date().toISOString(), SETTINGS_MIGRATED)
+      if (recovering || (settingsMarker.result !== undefined && settings.length > 0)) {
+        dropSettings = true
+        dropped = settings.map(([, , from]) => from)
+      } else if (settings.length > 0) {
+        copied.push(...settings)
+        for (const [key, value] of settings) kv.put(value, key)
+      }
       if (marker.result === undefined) {
-        copied = local
-        for (const [key, value] of copied) kv.put(value, key)
+        copied.push(...local)
+        for (const [key, value] of local) kv.put(value, key)
         meta.put(new Date().toISOString(), MIGRATED)
         readAll()
         return
@@ -329,8 +367,13 @@ function loadAll(d: IDBDatabase): Promise<{ entries: Map<string, string>; copied
         return
       }
       recovered = true
-      copied = local.map(([key, value, from]) => [key === PERSIST_STORAGE_KEY ? RECOVERED_LOCAL_KEY : key, value, from])
-      for (const [key, value] of copied) kv.put(value, key)
+      const recoveredEntries = local.map(([key, value, from]): [string, string, string] => [
+        key === PERSIST_STORAGE_KEY ? RECOVERED_LOCAL_KEY : key,
+        value,
+        from,
+      ])
+      copied.push(...recoveredEntries)
+      for (const [key, value] of recoveredEntries) kv.put(value, key)
       readAll()
     }
     tx.oncomplete = () => {
@@ -339,7 +382,7 @@ function loadAll(d: IDBDatabase): Promise<{ entries: Map<string, string>; copied
       } catch {
         /* ignore */
       }
-      resolve({ entries, copied, recovered })
+      resolve({ entries, copied, recovered, dropped })
     }
     tx.onabort = () => reject(tx.error)
   })
@@ -368,6 +411,7 @@ function forgetMigration(d: IDBDatabase): Promise<void> {
     try {
       const tx = d.transaction(META, 'readwrite')
       tx.objectStore(META).delete(MIGRATED)
+      tx.objectStore(META).delete(SETTINGS_MIGRATED)
       tx.oncomplete = () => resolve()
       tx.onabort = () => resolve()
     } catch {
@@ -407,7 +451,14 @@ export async function openDataStore(opts: { timeoutMs?: number } = {}): Promise<
   let d: IDBDatabase | null = null
   try {
     d = await withTimeout(openDb(), opts.timeoutMs ?? OPEN_TIMEOUT_MS, (late) => late.close())
-    const { entries, copied, recovered } = await loadAll(d)
+    const { entries, copied, recovered, dropped } = await loadAll(d)
+    for (const key of dropped) {
+      try {
+        localStorage.removeItem(key)
+      } catch {
+        /* ignore */
+      }
+    }
     if (copied.length > 0) {
       if (!(await verifyCopied(d, copied))) {
         // 初めての移し替えなら印を外して次にやり直す。取り込みなら印は残す（localStorage が残るので次に開いたときにもう一度取り込む）

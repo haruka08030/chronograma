@@ -259,6 +259,82 @@ describe('前回同期の控え', () => {
   })
 })
 
+describe('本体とどこまで合わせたかの記録（控え・設定の版）', () => {
+  /** 本体を書くトランザクションを、書いている途中で中断させる（容量不足と同じく、失敗は後から分かる） */
+  function abortBodyWrites() {
+    const real = IDBObjectStore.prototype.put
+    return vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+      const req = real.call(this, value, key)
+      if (key === PERSIST_STORAGE_KEY) {
+        const tx = this.transaction
+        req.addEventListener('success', () => tx.abort())
+      }
+      return req
+    })
+  }
+
+  it('本体を書いている途中で控え・設定の版を書いても、本体が書けなければどれも新しくならない。開き直しても古い設定を送らない', async () => {
+    const tab = await openTab()
+    const settings = await import('../lib/settingSync')
+    const { settingSyncStep } = settings
+    const { asIncomingChange } = await import('../lib/changeOrigin')
+    // 前回の同期: 時間割は V1 に合わせた
+    asIncomingChange(() => tab.useTaskStore.setState({ timetableUpdatedAt: 'V1' }))
+    settings.saveSettingSyncedAt('u1', 'timetable', 'V1')
+    tab.sync.saveBaseline('u1', { lists: {}, tasks: { old: {} }, habits: {}, sections: {} } as never)
+    await settle()
+
+    const put = abortBodyWrites()
+    // 同期でサーバーの時間割（V2）を取り込む: 本体を書くトランザクションはもう始まっている
+    asIncomingChange(() =>
+      tab.useTaskStore.setState({
+        timetable: { ...tab.useTaskStore.getState().timetable, termStart: '2026-10-01' },
+        timetableUpdatedAt: 'V2',
+      }),
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+    // 送るものが無く、すぐに控えと設定の版を書く（別のタスク）
+    tab.sync.saveBaseline('u1', { lists: {}, tasks: { new: {} }, habits: {}, sections: {} } as never)
+    settings.saveSettingSyncedAt('u1', 'timetable', 'V2')
+    await vi.waitFor(() => expect(tab.useTaskStore.getState().storageFull).toBe(true))
+    await settle()
+    put.mockRestore()
+
+    expect(JSON.parse((await readDisk(PERSIST_STORAGE_KEY))!).state.timetableUpdatedAt).toBe('V1')
+    // 控えは新しくならない（書けなかったので消すのは、前の版と同じ。次の同期は両方を残す合わせ方）
+    expect((await readDisk('chronograma-sync-baseline-v1:u1')) ?? '').not.toContain('new')
+    expect(JSON.parse((await readDisk('chronograma-settings-sync-v1:u1'))!).timetable).toBe('V1')
+    tab.data.closeDataStore()
+
+    // 開き直すと、手元は V1 の値・V1 の版。サーバーが V2 なら合わせる（古い値を「手元で変えた」と読んで送らない）
+    const again = await openTab()
+    const reopened = await import('../lib/settingSync')
+    const st = again.useTaskStore.getState()
+    const syncedAt = reopened.loadSettingSyncedAt('u1', 'timetable')
+    expect(syncedAt).toBe('V1')
+    expect(settingSyncStep({ updatedAt: st.timetableUpdatedAt, syncedAt }, { updatedAt: 'V2' }, false).kind).toBe('apply')
+  })
+
+  it('設定の版は localStorage から本体と同じ IndexedDB に移す。移した後に localStorage にあれば（localStorage で動いた回）捨てる', async () => {
+    localStorage.setItem('chronograma-settings-sync-v1:u1', JSON.stringify({ labels: 'V1' }))
+    const first = await openTab()
+    expect(localStorage.getItem('chronograma-settings-sync-v1:u1')).toBeNull()
+    expect(JSON.parse((await readDisk('chronograma-settings-sync-v1:u1'))!).labels).toBe('V1')
+    const s1 = await import('../lib/settingSync')
+    expect(s1.loadSettingSyncedAt('u1', 'labels')).toBe('V1')
+    first.data.closeDataStore()
+
+    // localStorage で動いた回が書いた版（どの本体の版か分からない）
+    localStorage.setItem('chronograma-settings-sync-v1:u1', JSON.stringify({ labels: 'V9' }))
+    await openTab()
+    const s2 = await import('../lib/settingSync')
+    expect(s2.loadSettingSyncedAt('u1', 'labels')).toBeNull()
+    expect(localStorage.getItem('chronograma-settings-sync-v1:u1')).toBeNull()
+    expect(await readDisk('chronograma-settings-sync-v1:u1')).toBeUndefined()
+  })
+})
+
 describe('読めない保存データ', () => {
   it('壊れた行を外したら、元の中身を IndexedDB の別のキーに残す', async () => {
     const first = await openTab()

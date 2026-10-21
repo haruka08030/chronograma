@@ -10,6 +10,7 @@ import { backupNow } from './useAutoBackup'
 import i18n from '../i18n/config'
 import { flushPendingSync, useSupabaseSync } from './useSupabaseSync'
 import { reportSyncError } from '../lib/errorReport'
+import { loadSettingSyncedAt } from '../lib/settingSync'
 import { SYNC_PROTOCOL_VERSION } from '../lib/syncVersion'
 import { resetVersionSeenForTests } from '../lib/versionSeen'
 import { MERGE_CONFLICTS_KEY, resetMergeConflictReportForTests } from '../lib/mergeConflictReport'
@@ -586,6 +587,30 @@ describe('useSupabaseSync', () => {
       })
       expect(useTaskStore.getState().lastSyncedAt).not.toBe(before)
       expect(loadBaseline('u1')).toBeNull()
+    })
+
+    it('本体を保存できていない間（容量不足）は、設定も合わせない（設定の版だけ進めない）', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      signIn('u1')
+      await untilSynced()
+
+      useTaskStore.setState({ storageFull: true })
+      const V2 = '2026-10-03T08:00:00.000000+00:00'
+      db.tables.user_extra_time_zones = [{ user_id: 'u1', zones: [{ tz: 'Asia/Seoul', label: '' }], updated_at: V2 }]
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000)
+        await flushPendingSync()
+      })
+      expect(useTaskStore.getState().extraTimeZones).toEqual([])
+      expect(loadSettingSyncedAt('u1', 'zones')).not.toBe(V2)
+
+      // また保存できるようになったら合わせる
+      useTaskStore.setState({ storageFull: false })
+      await act(async () => {
+        await flushPendingSync()
+      })
+      expect(useTaskStore.getState().extraTimeZones.map((z) => z.tz)).toEqual(['Asia/Seoul'])
+      expect(loadSettingSyncedAt('u1', 'zones')).toBe(V2)
     })
   })
 
