@@ -346,7 +346,7 @@ export function TaskContextMenu({
             kind: 'leaf',
             id: 'tier',
             label: t(allDreams ? 'someday.moveToWish' : 'someday.moveToDream'),
-            detail: allDreams ? undefined : t('someday.moveToDreamDetail'),
+            detail: t(allDreams ? 'someday.moveToWishDetail' : 'someday.moveToDreamDetail'),
             icon: <ArrowRightIcon className={ICON} />,
             run: done(() => setSomedayTier(taskIds, allDreams ? 'wish' : 'dream')),
           },
