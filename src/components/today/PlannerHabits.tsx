@@ -1,77 +1,64 @@
-import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import type { Habit } from '../../types/habit'
-import { buildHabitRecordIndex, habitDayStatus, habitMinutesOn, habitRecordFor, habitTimesOn, isTimedHabit } from '../../lib/habitTiming'
+import { habitMinutesOn, habitRecordFor, isTimedHabit, type buildHabitRecordIndex } from '../../lib/habitTiming'
+import type { HabitDayRow } from '../../hooks/usePlannerHabitRows'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_PENDING } from '../../lib/habitMark'
-import { habitWeekDoneCount, habitWeekRequired, isHabitWeekGoalMetOnDate } from '../../lib/habitSchedule'
+import { habitWeekDoneCount, habitWeekRequired } from '../../lib/habitSchedule'
 import { fromDateKey } from '../../lib/dateKey'
 import { tip } from '../../lib/tooltip'
 import { CheckIcon, PlayIcon } from '../icons'
-import { DisclosureButton } from '../ui/Disclosure'
 import { ROW_PRESS_CLASS } from '../ui/rowStateClass'
 import { META_TONE_CLASS } from './plannerRowMeta'
-
-type Row = {
-  h: Habit
-  status: ReturnType<typeof habitDayStatus>
-  /** 週に◯回で、その週の回数をほかの日で満たした */
-  weekMet: boolean
-  /** その日の時間（時刻ひとつは開始だけ）。時間なしは null */
-  time: string | null
-}
 
 /**
  * 今日の計画の「習慣」。To-Do の欄のすぐ下に、To-Do と同じ高さの行で出す（まだ選ぶ前の候補より上。その日やると決まっているもの）。
  * 行: その色の丸（押すと達成、もう一度押すと外す）・名前・右に時刻 / 今週の回数 / 時間の目標の進み・▶（その名前のタイマー）。
- * 並びは時刻のある習慣を時刻順、その後に時間なし（習慣の順）。達成した習慣と、週に◯回をほかの日で満たした習慣は下の「達成 N 件」にたたむ
+ * 出すのはまだの習慣だけ（済んだものは「完了 N 件」の中の `PlannerHabitRows`）。全部済んだら見出しも出さない
  */
 export function PlannerHabits({
-  dayHabits,
+  rows,
+  habitRecords,
   dateKey,
   viewingToday,
   headingClass,
 }: {
-  dayHabits: Habit[]
+  rows: HabitDayRow[]
+  habitRecords: ReturnType<typeof buildHabitRecordIndex>
   dateKey: string
   viewingToday: boolean
   headingClass: string
 }) {
   const { t } = useTranslation()
-  const tasks = useTaskStore((s) => s.tasks)
-  const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
-  const [showDone, setShowDone] = useState(false)
-  const { open, done } = useMemo(() => {
-    const date = fromDateKey(dateKey)
-    const rows: Row[] = dayHabits.map((h) => {
-      const times = habitTimesOn(h, dateKey)
-      return {
-        h,
-        status: habitDayStatus(h, dateKey, habitRecords),
-        weekMet: isHabitWeekGoalMetOnDate(h, date, habitRecords),
-        time: times ? (times.endTime ? `${times.startTime}–${times.endTime}` : times.startTime) : null,
-      }
-    })
-    const timed = rows.filter((r) => r.time !== null).sort((a, b) => a.time!.localeCompare(b.time!))
-    const sorted = [...timed, ...rows.filter((r) => r.time === null)]
-    const isDone = (r: Row) => r.status !== 'missed' || r.weekMet
-    return { open: sorted.filter((r) => !isDone(r)), done: sorted.filter(isDone) }
-  }, [dayHabits, dateKey, habitRecords])
-  const row = (r: Row) => <HabitRow key={r.h.id} row={r} dateKey={dateKey} viewingToday={viewingToday} habitRecords={habitRecords} />
+  if (rows.length === 0) return null
   return (
     <div className="mt-6 px-3">
       <h2 className={`${headingClass} px-3`}>{t('planner.habitsHeading')}</h2>
-      {open.length > 0 && <ul>{open.map(row)}</ul>}
-      {done.length > 0 && (
-        <div className="mt-1">
-          <DisclosureButton tone="muted" open={showDone} onToggle={() => setShowDone((v) => !v)}>
-            {t('planner.habitsDoneHeading', { count: done.length })}
-          </DisclosureButton>
-          {showDone && <ul>{done.map(row)}</ul>}
-        </div>
-      )}
+      <PlannerHabitRows rows={rows} habitRecords={habitRecords} dateKey={dateKey} viewingToday={viewingToday} />
     </div>
+  )
+}
+
+/** 習慣の行の並び（まだの習慣・「完了 N 件」の中の済んだ習慣で同じ行） */
+export function PlannerHabitRows({
+  rows,
+  habitRecords,
+  dateKey,
+  viewingToday,
+  ariaLabel,
+}: {
+  rows: HabitDayRow[]
+  habitRecords: ReturnType<typeof buildHabitRecordIndex>
+  dateKey: string
+  viewingToday: boolean
+  ariaLabel?: string
+}) {
+  return (
+    <ul aria-label={ariaLabel}>
+      {rows.map((r) => (
+        <HabitRow key={r.h.id} row={r} dateKey={dateKey} viewingToday={viewingToday} habitRecords={habitRecords} />
+      ))}
+    </ul>
   )
 }
 
@@ -81,7 +68,7 @@ function HabitRow({
   viewingToday,
   habitRecords,
 }: {
-  row: Row
+  row: HabitDayRow
   dateKey: string
   viewingToday: boolean
   habitRecords: ReturnType<typeof buildHabitRecordIndex>

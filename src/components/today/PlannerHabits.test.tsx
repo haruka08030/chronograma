@@ -1,10 +1,24 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { Habit } from '../../types/habit'
 import type { Task } from '../../types/task'
 import { TASK_DEFAULTS } from '../../lib/taskDefaults'
 import { useTaskStore } from '../../store/taskStore'
-import { PlannerHabits } from './PlannerHabits'
+import { PlannerHabitRows, PlannerHabits } from './PlannerHabits'
+import { usePlannerHabitRows } from '../../hooks/usePlannerHabitRows'
+
+/** 今日の計画と同じ組み立て: まだの習慣は「習慣」の欄、済んだ習慣は「完了」の中の行 */
+function Habits({ dayHabits }: { dayHabits: Habit[] }) {
+  const rows = usePlannerHabitRows(dayHabits, DAY)
+  return (
+    <>
+      <PlannerHabits rows={rows.open} habitRecords={rows.habitRecords} dateKey={DAY} viewingToday={false} headingClass="" />
+      <div data-done>
+        <PlannerHabitRows rows={rows.done} habitRecords={rows.habitRecords} dateKey={DAY} viewingToday={false} />
+      </div>
+    </>
+  )
+}
 
 const DAY = '2026-10-13'
 const OLD = '2026-01-01T00:00:00.000Z'
@@ -48,17 +62,19 @@ const record = (startTime: string, endTime: string): Task => ({
 })
 
 describe('今日の計画の習慣: 時間の目標', () => {
-  it('届いていない日は行の右に「12/30 min」、届いたら達成で「達成 1 件」にたたむ', () => {
+  it('届いていない日は行の右に「12/30 min」、届いたら「習慣」の欄から外れて「完了」の中の行になる（見出しも消える）', () => {
     useTaskStore.setState({ habits: [vocab], tasks: [record('08:00', '08:12')] })
-    const { rerender } = render(<PlannerHabits dayHabits={[vocab]} dateKey={DAY} viewingToday={false} headingClass="" />)
+    const { rerender, container } = render(<Habits dayHabits={[vocab]} />)
     expect(screen.getByText('12/30 min')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Vocab' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('heading', { name: 'Habits' })).toBeInTheDocument()
 
     useTaskStore.setState({ tasks: [record('08:00', '08:12'), record('20:00', '20:20')] })
-    rerender(<PlannerHabits dayHabits={[vocab]} dateKey={DAY} viewingToday={false} headingClass="" />)
+    rerender(<Habits dayHabits={[vocab]} />)
     expect(screen.queryByText(/\/30 min/)).toBeNull()
-    expect(screen.queryByRole('checkbox', { name: 'Vocab' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /1 done/ }))
+    expect(screen.queryByRole('heading', { name: 'Habits' })).toBeNull()
+    const done = container.querySelector('[data-done]') as HTMLElement
+    expect(done).toContainElement(screen.getByRole('checkbox', { name: 'Vocab' }))
     expect(screen.getByRole('checkbox', { name: 'Vocab' })).toHaveAttribute('aria-checked', 'true')
   })
 
@@ -70,7 +86,7 @@ describe('今日の計画の習慣: 時間の目標', () => {
     const weekly = { ...puff, id: 'weekly', title: 'Weekly', frequency: { type: 'timesPerWeek' as const, count: 2 } }
     const all = [puff, late, weekly, early]
     useTaskStore.setState({ habits: all, tasks: [] })
-    render(<PlannerHabits dayHabits={all} dateKey={DAY} viewingToday={false} headingClass="" />)
+    render(<Habits dayHabits={all} />)
     expect(screen.getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'))).toEqual(['Early', 'Late', 'Puff', 'Weekly'])
     expect(screen.getByText('07:00–07:30')).toBeInTheDocument()
     expect(screen.getByText('21:00')).toBeInTheDocument()

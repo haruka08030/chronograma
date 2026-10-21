@@ -33,7 +33,8 @@ import { PlannerHeader } from './today/PlannerHeader'
 import { PlannerDues } from './today/PlannerDues'
 import { PlannerTodoSection } from './today/PlannerTodoSection'
 import { PlannerSuggestions } from './today/PlannerSuggestions'
-import { PlannerHabits } from './today/PlannerHabits'
+import { PlannerHabitRows, PlannerHabits } from './today/PlannerHabits'
+import { usePlannerHabitRows } from '../hooks/usePlannerHabitRows'
 import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
 import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSuggestions'
@@ -182,6 +183,9 @@ export function TodayPlannerView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [habits, dateKey],
   )
+  const habitRows = usePlannerHabitRows(dayHabits, dateKey)
+  /** 「完了 N 件」の数（終えた To-Do と済んだ習慣） */
+  const doneCount = done.length + habitRows.done.length
 
   // 行のキー操作・選択・右クリックは To-Do 一覧と同じ（↑↓・Shift・⌘A・Enter・Space・Delete・⌘Enter・⌘/・Esc）。
   // 対象は開いている行を上から順に（完了は欄を開いているときだけ）
@@ -340,8 +344,14 @@ export function TodayPlannerView() {
         />
 
         {/* 習慣はその日やると決まっているもの。まだ選ぶ前の候補より上に */}
-        {dayHabits.length > 0 && (
-          <PlannerHabits dayHabits={dayHabits} dateKey={dateKey} viewingToday={viewingToday} headingClass={sectionHeading} />
+        {habitRows.open.length > 0 && (
+          <PlannerHabits
+            rows={habitRows.open}
+            habitRecords={habitRows.habitRecords}
+            dateKey={dateKey}
+            viewingToday={viewingToday}
+            headingClass={sectionHeading}
+          />
         )}
 
         {(suggestions.length > 0 || moreSuggestions.length > 0) && (
@@ -359,17 +369,29 @@ export function TodayPlannerView() {
           />
         )}
 
-        {done.length > 0 && (
+        {/* 終えた To-Do と習慣は 1 か所に（To-Do が先、習慣はその後。習慣は自分の色の丸のまま） */}
+        {doneCount > 0 && (
           <div className="mt-6 px-3">
             <DisclosureButton tone="muted" open={showDone} onToggle={() => setShowDone((v) => !v)}>
-              {t('planner.doneHeading', { count: done.length })}
+              {t('planner.doneHeading', { count: doneCount })}
             </DisclosureButton>
             {showDone && (
-              <ul id={doneGroupId} role="group" aria-label={t('planner.doneHeading', { count: done.length })}>
-                {done.map((task) => (
-                  <PlannerTaskRow key={task.id} task={task} env={rowEnv} />
-                ))}
-              </ul>
+              <>
+                <ul id={doneGroupId} role="group" aria-label={t('planner.doneHeading', { count: done.length })}>
+                  {done.map((task) => (
+                    <PlannerTaskRow key={task.id} task={task} env={rowEnv} />
+                  ))}
+                </ul>
+                {habitRows.done.length > 0 && (
+                  <PlannerHabitRows
+                    rows={habitRows.done}
+                    habitRecords={habitRows.habitRecords}
+                    dateKey={dateKey}
+                    viewingToday={viewingToday}
+                    ariaLabel={t('planner.habitsHeading')}
+                  />
+                )}
+              </>
             )}
           </div>
         )}
