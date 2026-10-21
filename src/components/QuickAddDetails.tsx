@@ -193,6 +193,7 @@ export function QuickAddDetails({
           value={draft.endTime ?? ''}
           disabled={!draft.startTime}
           pickerDefault={draft.startTime ? endWithinDay(draft.startTime, length) : undefined}
+          durationFrom={draft.startTime ?? undefined}
           onChange={(v) => draft.startTime && v && setTime(draft.startTime, v)}
           className={fieldClass({ size: 'sm' }, 'w-[6rem]')}
         />

@@ -2,7 +2,7 @@ import { addDays, addMinutes, differenceInCalendarDays, differenceInMinutes, max
 import { isLogTask, type Task, type TaskKind } from '../types/task'
 import { HOUR_HEIGHT, SNAP_MINUTES, timeToMinutes } from './timeGrid'
 import { clockOf } from './clockTime'
-import { toDateKey } from './dateKey'
+import { fromDateKey, toDateKey } from './dateKey'
 
 const DAY_MINUTES = 24 * 60
 
@@ -118,6 +118,21 @@ export function timeLogSegmentLayoutForDay(task: Task, dateKey: string): { top: 
     height: (dur / 60) * HOUR_HEIGHT,
     span: (dur / 60) * HOUR_HEIGHT,
   }
+}
+
+/**
+ * 日をまたぐ記録の開始の日を動かしたときの終わりの日（同じ日数ずらす。終わりの日が開始より前に残らないように）。
+ * 終わりの日が無い（同じ日の）記録は null のまま
+ */
+export function endDateAfterStartDateEdit(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+  nextStart: string,
+): string | null {
+  if (!endDate) return null
+  if (!startDate) return endDate
+  const days = differenceInCalendarDays(fromDateKey(nextStart), fromDateKey(startDate))
+  return toDateKey(addDays(fromDateKey(endDate), days))
 }
 
 export function isOvernightTimeLog(task: Task): boolean {

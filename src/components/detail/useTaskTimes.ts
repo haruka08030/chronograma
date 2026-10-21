@@ -20,6 +20,8 @@ export function useTaskTimes(task: Task) {
   const tzOnScheduled = showTimeZone && !!tv.scheduledDate && (!!task.startTime || !task.dueTime)
   const tzOnDeadline = showTimeZone && !tzOnScheduled && !!tv.dueDate
   const tzLoose = showTimeZone && !tzOnScheduled && !tzOnDeadline
-  const updateTimes = (patch: TaskTimesPatch) => updateTask(task.id, zone ? timesPatchFromZone(tv, patch, zone) : patch)
+  /** `extra` は時刻と一緒に 1 回で書く列（見積もりなど。タイムゾーンで直さない） */
+  const updateTimes = (patch: TaskTimesPatch, extra?: Partial<Task>) =>
+    updateTask(task.id, { ...extra, ...(zone ? timesPatchFromZone(tv, patch, zone) : patch) })
   return { zone, tv, updateTimes, tzOnScheduled, tzOnDeadline, tzLoose }
 }

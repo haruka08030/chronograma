@@ -64,7 +64,7 @@ function TemplateRow({
         <div className="flex items-center gap-2">
           <TimeInput
             value={row.startTime}
-            onChange={(v) => onChange({ startTime: v, endTime: endAfterStartEdit(row.startTime, row.endTime, v) })}
+            onChange={(v) => onChange({ startTime: v, endTime: endAfterStartEdit(row.startTime, row.endTime, v, defaultBlockMinutes) })}
             ariaLabel={t('eventTemplates.startAria')}
             className={timeClass}
           />
@@ -74,6 +74,7 @@ function TemplateRow({
             onChange={(v) => onChange({ endTime: v })}
             ariaLabel={t('eventTemplates.endAria')}
             pickerDefault={row.startTime ? addClockMinutes(row.startTime, defaultBlockMinutes) : undefined}
+            durationFrom={row.startTime || undefined}
             className={timeClass}
           />
         </div>

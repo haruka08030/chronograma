@@ -262,7 +262,7 @@ function TimetableSettings({ timetable }: { timetable: Timetable }) {
               <TimeInput
                 value={p.start}
                 onChange={(v) =>
-                  commitPeriods(periods.map((x, j) => (j === i ? { ...x, start: v, end: endAfterStartEdit(x.start, x.end, v) } : x)))
+                  commitPeriods(periods.map((x, j) => (j === i ? { ...x, start: v, end: endAfterStartEdit(x.start, x.end, v, 90) } : x)))
                 }
                 ariaLabel={t('timetable.periodStartAria', { n: i + 1 })}
                 className={timeClass}
@@ -273,6 +273,7 @@ function TimetableSettings({ timetable }: { timetable: Timetable }) {
                 onChange={(v) => commitPeriods(periods.map((x, j) => (j === i ? { ...x, end: v } : x)))}
                 ariaLabel={t('timetable.periodEndAria', { n: i + 1 })}
                 pickerDefault={p.start ? addClockMinutes(p.start, 90) : undefined}
+                durationFrom={p.start || undefined}
                 className={timeClass}
               />
               <button

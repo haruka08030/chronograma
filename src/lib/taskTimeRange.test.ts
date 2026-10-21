@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { TASK_DEFAULTS } from './taskDefaults'
-import { durationMinutesForTaskSlot, logSegmentClockOnDay, patchAfterLogResize } from './taskTimeRange'
+import { durationMinutesForTaskSlot, endDateAfterStartDateEdit, logSegmentClockOnDay, patchAfterLogResize } from './taskTimeRange'
 
 const log = (over: Partial<Task>): Task =>
   ({
@@ -49,5 +49,13 @@ describe('日をまたぐ記録の端を引く（#313）', () => {
     const patch = patchAfterLogResize(overnight, '2026-10-06', '00:00', '02:00')
     expect(patch).toEqual({ dueDate: '2026-10-05', startTime: '23:00', endTime: '02:00', endDate: '2026-10-06' })
     expect(durationMinutesForTaskSlot({ ...overnight, ...patch })).toBe(180)
+  })
+})
+
+describe('endDateAfterStartDateEdit', () => {
+  it('日をまたぐ記録は終わりの日も同じ日数ずらし、同じ日の記録は null のまま', () => {
+    expect(endDateAfterStartDateEdit('2026-10-20', '2026-10-21', '2026-10-25')).toBe('2026-10-26')
+    expect(endDateAfterStartDateEdit('2026-10-31', '2026-11-01', '2026-10-30')).toBe('2026-10-31')
+    expect(endDateAfterStartDateEdit('2026-10-20', null, '2026-10-25')).toBeNull()
   })
 })

@@ -231,14 +231,20 @@ export function TimeSlotMenu({
             <TimeInput
               value={start}
               onChange={(v) => {
-                setEnd(endAfterStartEdit(start, end, v))
+                setEnd(endAfterStartEdit(start, end, v, duration))
                 setStart(v)
               }}
               ariaLabel={t('timeSlot.start')}
               className="w-[5.5rem]"
             />
             <span aria-hidden>–</span>
-            <TimeInput value={end} onChange={setEnd} ariaLabel={t('timeSlot.end')} className="w-[5.5rem]" />
+            <TimeInput
+              value={end}
+              onChange={setEnd}
+              durationFrom={start || undefined}
+              ariaLabel={t('timeSlot.end')}
+              className="w-[5.5rem]"
+            />
             <button
               type="button"
               disabled={!customOk}
