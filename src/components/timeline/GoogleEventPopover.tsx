@@ -176,7 +176,6 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect()
               openTaskMenu({ kind: 'google', x: r.right, y: r.bottom, alignRight: true, eventId: event.id })
-              onClose()
             }}
             className={iconButtonClass()}
             aria-label={t('eventCard.more')}

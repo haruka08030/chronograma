@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react'
+import { act, fireEvent, render } from '@testing-library/react'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { useTaskStore } from '../../store/taskStore'
 import { makeTask } from '../../store/taskHelpers'
@@ -46,7 +46,7 @@ describe('EventPopover: Alt+↑↓ / Alt+Shift+↑↓', () => {
 })
 
 describe('EventPopover: ⋮（#402）', () => {
-  it('⋮ を押すと右クリックと同じメニューを出してカードを閉じる。メニューの「複製」で写したものの詳細を開く', async () => {
+  it('⋮ を押すと右クリックと同じメニューをカードの上に重ねて出し、詳細が開いたらカードを閉じる。メニューの「複製」で写したものの詳細を開く', async () => {
     const { useOverlays } = await import('../../lib/overlays')
     const { TaskEventMenu } = await import('./EventContextMenu')
     useTaskStore.setState({
@@ -61,8 +61,11 @@ describe('EventPopover: ⋮（#402）', () => {
     const view = render(<EventPopover taskId="b" anchor={anchor} onClose={() => (closed = true)} onOpenDetail={() => {}} />)
     fireEvent.click(await view.findByRole('button', { name: 'More options' }))
     expect(useOverlays.getState().menu).toMatchObject({ kind: 'event', taskId: 'b' })
+    expect(closed).toBe(false)
+    act(() => useOverlays.setState({ detailTaskId: 'b', menu: null }))
     expect(closed).toBe(true)
     view.unmount()
+    act(() => useOverlays.setState({ detailTaskId: null }))
 
     let opened = ''
     const menu = render(<TaskEventMenu x={0} y={0} taskId="b" onClose={() => {}} onOpenDetail={(id) => (opened = id)} />)
