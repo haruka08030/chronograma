@@ -1,12 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
 import { getDayReviews } from '../lib/weekReview'
-import { isUnlabeledLog } from '../lib/logCategory'
-import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { useNavShortcut } from '../lib/shortcuts'
 import { onWrapUpRequest } from '../lib/notificationLaunch'
 import { minutesOfClock } from '../../supabase/functions/daily-reminders/schedule.ts'
@@ -56,12 +54,12 @@ const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
 /**
  * 1 日単位の計画画面。左で「今日やること」を決め、右のタイムラインに置いて時間を確保する。
  * 情報は必要なときだけ出す: 候補（やり残し・締切間近）は畳んだ 1 行、締めは夕方か全部終わったとき。
- * 左の並び: 見出し（`PlannerHeader`）→ 引き落とし・期限（`PlannerDues`、追加機能）→ To-Do（`PlannerTodoSection`）→ 候補 → 習慣 → 完了 → 締め（`PlannerWrapUp`）
+ * 左の並び: 見出し（`PlannerHeader`）→ 引き落とし・期限（`PlannerDues`、追加機能）→ To-Do（`PlannerTodoSection`）→ 習慣 → 候補 → 完了 → 締め（`PlannerWrapUp`）
  */
 export function TodayPlannerView() {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
-  const habits = useTaskStore((s) => s.habits)
+  const habits = useTaskStore(selectLiveHabits)
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deferredComplete = useDeferredComplete(toggleTask)
@@ -112,14 +110,6 @@ export function TodayPlannerView() {
 
   const lists = useTaskStore((s) => s.lists)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
-  /** ラベル名も色も無い今日の記録（1 日を締めるときにまとめて付ける） */
-  const untaggedLogs = useMemo(
-    () =>
-      tasks
-        .filter((x) => isUnlabeledLog(x) && minutesOfLogOnCalendarDay(x, dateKey) > 0)
-        .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
-    [tasks, dateKey],
-  )
   const {
     overdue: overdueAll,
     carryOver,
@@ -274,8 +264,6 @@ export function TodayPlannerView() {
   })()
 
   const totalCount = open.length + done.length
-  const showWrapUp =
-    viewingToday && (wrapUpFocus > 0 || (totalCount > 0 && ((open.length === 0 && overdue.length === 0) || nowMinutes >= wrapUpFrom)))
   // 気分の記号は締めの時刻から（To-Do が無い日・全部終えた日も。早い時刻に全部終えても夜まで待つ）。付けた日はそのまま出しておく
   const showMood = viewingToday && (wrapUpFocus > 0 || moodSet || nowMinutes >= wrapUpFrom)
 
@@ -333,7 +321,6 @@ export function TodayPlannerView() {
 
         <PlannerTodoSection
           env={rowEnv}
-          headingClass={sectionHeading}
           overdue={overdue}
           overdueShown={overdueShown}
           onShowAllOverdue={() => setShowAllOverdue(true)}
@@ -352,6 +339,11 @@ export function TodayPlannerView() {
           ownedGroupIds={ownedGroupIds}
         />
 
+        {/* 習慣はその日やると決まっているもの。まだ選ぶ前の候補より上に */}
+        {dayHabits.length > 0 && (
+          <PlannerHabits dayHabits={dayHabits} dateKey={dateKey} viewingToday={viewingToday} headingClass={sectionHeading} />
+        )}
+
         {(suggestions.length > 0 || moreSuggestions.length > 0) && (
           <PlannerSuggestions
             env={rowEnv}
@@ -365,10 +357,6 @@ export function TodayPlannerView() {
             onShowMore={showMore}
             groupId={suggestionGroupId}
           />
-        )}
-
-        {dayHabits.length > 0 && (
-          <PlannerHabits dayHabits={dayHabits} dateKey={dateKey} viewingToday={viewingToday} headingClass={sectionHeading} />
         )}
 
         {done.length > 0 && (
@@ -386,18 +374,7 @@ export function TodayPlannerView() {
           </div>
         )}
 
-        <PlannerWrapUp
-          showWrapUp={showWrapUp}
-          showMood={showMood}
-          showGaps={viewingToday && (wrapUpFocus > 0 || nowMinutes >= wrapUpFrom)}
-          dateKey={dateKey}
-          focusKey={wrapUpFocus}
-          open={open}
-          untaggedLogs={untaggedLogs}
-          totalCount={totalCount}
-          tomorrowKey={tomorrowKey}
-          openDetail={openDetail}
-        />
+        <PlannerWrapUp showMood={showMood} dateKey={dateKey} focusKey={wrapUpFocus} totalCount={totalCount} />
       </section>
 
       <section className={`${mobilePane === 'timeline' ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col md:flex`}>

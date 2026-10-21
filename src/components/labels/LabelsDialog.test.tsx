@@ -33,3 +33,21 @@ describe('LabelsDialog: 週の目安（#291）', () => {
     expect(targetField('Study')).toHaveValue('')
   })
 })
+
+describe('LabelsDialog: 書きかけ（#491）', () => {
+  it('保存せずに閉じても書きかけが残り、キャンセルで捨てる', () => {
+    seed({})
+    const first = render(<LabelsDialog onClose={() => {}} />)
+    fireEvent.change(targetField('Study'), { target: { value: '2' } })
+    first.unmount()
+
+    const again = render(<LabelsDialog onClose={() => {}} />)
+    expect(targetField('Study')).toHaveValue('2')
+    expect(useTaskStore.getState().logLabelTargets).toEqual({})
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    again.unmount()
+
+    render(<LabelsDialog onClose={() => {}} />)
+    expect(targetField('Study')).toHaveValue('')
+  })
+})

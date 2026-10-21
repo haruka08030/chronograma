@@ -113,7 +113,7 @@ export interface TaskState {
    * 直近の削除（トーストの「元に戻す」用）。消したタスクの id だけを持ち、中身はいつも `tasks` の `deletedAt` から読む
    * （タスクの写しを持つと、再読み込み・他のタブの取り込みのあとに中身とずれる）。保存しない
    */
-  recentDeletes: { ids: string[]; at: number }[]
+  recentDeletes: { ids: string[]; at: number; undoId?: number; label?: ToastText }[]
   quickAddRequested: boolean
   /** 共有（share_target）から開いたとき、追加欄に入れておく中身。追加欄が読んだら消す */
   quickAddPrefill: QuickAddPrefill | null
@@ -152,6 +152,8 @@ export interface TaskState {
   googleReconnectNeeded: boolean
   /** Google の予定を書き換えられる権限（calendar.events.owned など）があるか。古い接続は読み取りのみ */
   googleCanWrite: boolean
+  /** 何度送っても Google に送れなかったアプリの予定の数（`lib/googlePushQueue.ts`） */
+  googlePushFailed: number
 
   activeTimer: ActiveTimer | null
   /** 手元でタイマーを始めた・止めた時刻（端末間でどちらに合わせるかを比べる、`timerSync.ts`）。同期で届いた変更では付けない */
@@ -307,6 +309,7 @@ export interface TaskState {
   setGoogleConnectionError: (error: string | null) => void
   setGoogleReconnectNeeded: (needed: boolean) => void
   setGoogleCanWrite: (canWrite: boolean) => void
+  setGooglePushFailed: (count: number) => void
 
   /** 足した習慣の id を返す */
   addHabit: (
@@ -318,16 +321,22 @@ export interface TaskState {
     patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency' | 'weekdayTimes' | 'goalMinutes'>>,
   ) => void
   /**
-   * その日だけ習慣の時間を変える（タイムラインで枠を動かした）。習慣の時間と同じにしたらその日の分は消す。
-   * 時刻ひとつの習慣は `endTime` を見ない
+   * その日だけ習慣の時間を変える（タイムラインで枠を動かした・習慣の段のチップを格子に置いた）。習慣の時間と同じにしたらその日の分は消す
    */
   setHabitDayTime: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
+  /** その日だけの時間を消して、いつもの時間に戻す（格子に置いた時刻ひとつの習慣を習慣の段のチップに戻す） */
+  clearHabitDayTime: (id: string, dateKey: string, label?: ToastText) => void
   /**
    * `from`〜`to`（yyyy-MM-dd、両端を含む）を休みにする（`rest: false` で外す）。休みの日は予定の日に数えない。
    * 「元に戻す」付きのトースト
    */
   setHabitRest: (id: string, from: string, to: string, rest: boolean) => void
+  /** ゴミ箱へ（達成日は残す）。「元に戻す」付きのトースト */
   deleteHabit: (id: string) => void
+  /** ゴミ箱から戻す（達成日ごと）。2 件以上なら件数のトースト */
+  restoreDeletedHabits: (ids: string[]) => void
+  /** ゴミ箱から完全に削除 */
+  permanentlyDeleteHabits: (ids: string[]) => void
   /** 今日の計画・一覧・タイムライン・統計から外す（達成日は残す）。「元に戻す」付きのトースト */
   archiveHabit: (id: string) => void
   /** アーカイブから戻す */
@@ -376,7 +385,10 @@ export interface TaskState {
   /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
   resolveStaleTimer: (endedAt: string) => void
   /** 止め忘れたタイマーを記録にせず捨てる */
+  /** 動いている記録を記録せずに止める。1 つだけ取っておき、「元に戻す」のトーストから戻せる */
   discardActiveTimer: () => void
+  /** 破棄した記録を戻す（ほかの記録が動いていれば戻さない）。戻したら true */
+  restoreDiscardedTimer: () => boolean
   /** 記録を作ったあと、元の To-Do を完了にするか聞く（タイマーを止めたときと同じ確認） */
   askComplete: (taskId: string) => void
   dismissCompletePrompt: () => void
@@ -427,6 +439,8 @@ export interface TaskState {
   saveDue: (item: DueItem) => void
   /** 引き落とし・期限の日を消す */
   deleteDue: (id: string) => void
+  /** この名前の予定を Google カレンダーに送らない・送る（#461） */
+  setGoogleSkip: (title: string, skip: boolean) => void
   /** 時間割の設定を保存する（同じ中身なら何もしない） */
   saveTimetable: (timetable: Timetable) => void
   /**
@@ -491,7 +505,8 @@ export interface TaskState {
   duplicateTasks: (ids: string[], place?: (src: Task) => Partial<Task>) => string[]
   /** ソフト削除（ゴミ箱へ）。対象と全子孫に deletedAt を付与。トースト/Undo 用に recentDeletes にも積む */
   deleteTask: (id: string) => void
-  deleteTasks: (ids: string[]) => void
+  /** `label` はトーストの文（無ければ消したものの名前・件数） */
+  deleteTasks: (ids: string[], label?: ToastText) => void
   /** チェックリストの「全部戻す」: 完了をまとめて外す（繰り返しの次回は作らない）。Undo は 1 段 */
   uncheckTasks: (ids: string[]) => void
   /** いつか → 「やること」（未分類）へ移して予定日を付ける。子を移したときは親から外して 1 件にする。Undo は 1 段 */
@@ -506,9 +521,9 @@ export interface TaskState {
   permanentlyDeleteTask: (id: string) => void
   /** ゴミ箱からまとめて完全に削除（対象と全子孫）。Undo は 1 段 */
   permanentlyDeleteTasks: (ids: string[]) => void
-  /** ゴミ箱を空にする（deletedAt を持つ全タスクを完全削除） */
+  /** ゴミ箱を空にする（deletedAt を持つ全タスク・習慣を完全削除） */
   emptyDeleted: () => void
-  /** ゴミ箱に入れてから `TRASH_KEEP_DAYS` 日たったタスクを完全に削除する（起動時。同期でサーバーからも消える）。消した件数 */
+  /** ゴミ箱に入れてから `TRASH_KEEP_DAYS` 日たったタスク・習慣を完全に削除する（起動時。同期でサーバーからも消える）。消した件数 */
   purgeExpiredDeleted: (now?: number) => number
   /** 名前を入れずに離れた新規タスクを、無かったことにする（ゴミ箱に入れず、取り消し履歴も残さない） */
   discardBlankTask: (id: string) => void
@@ -530,6 +545,13 @@ export interface TaskState {
    */
   asUndoSession: (key: string, fn: () => void) => void
   undoLastOperation: () => boolean
+  /**
+   * トーストが指す操作（`pushUndo` が返した番号）だけを戻す。あとに別の操作があっても、それは残す。
+   * もう戻した操作なら false
+   */
+  undoOperation: (id: number) => boolean
+  /** 一番上の取り消し項目の番号（トーストを自分で出す操作が、どれを戻すかを持たせる） */
+  lastUndoId: () => number | null
   /** ⌘Z で戻した変更をやり直す（⌘⇧Z）。成功時 true */
   redoLastOperation: () => boolean
   clearDeletedTasks: () => void
@@ -549,7 +571,7 @@ export interface TaskState {
    * （一括アーカイブ・セクション削除・リスト移動など）でどれが戻せるのかを示す。
    * `at` は同じ文言が続いたときにトーストを出し直すための時刻。
    */
-  undoBanner: { text: ToastText; at: number } | null
+  undoBanner: { text: ToastText; at: number; undoId?: number; restoreTimer?: boolean } | null
   clearUndoBanner: () => void
   /** 消したばかりで、まだ Google に送っていない予定（トーストの「元に戻す」で取り消せる） */
   googleUndo: { id: string; text: string; at: number } | null

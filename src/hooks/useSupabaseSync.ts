@@ -23,10 +23,11 @@ import {
   type SyncRound,
 } from '../lib/supabaseData'
 import { loadSettingSyncedAt, runSettingSync, type SettingKey, type SettingSyncDeps } from '../lib/settingSync'
-import { clearAccountData, clearDeletedAccount, clearPreviousAccount, isAccountGone } from '../lib/accountBoundary'
+import { backupBeforeClearing, clearAccountData, clearDeletedAccount, clearPreviousAccount, isAccountGone } from '../lib/accountBoundary'
 import { askConfirm } from '../lib/confirmDialog'
 import i18n from '../i18n/config'
 import { requestPersistentStorage } from '../lib/persistentStorage'
+import { persistBlocked } from '../lib/persistStorage'
 import { SYNC_PROTOCOL_VERSION, isAppOutdatedError } from '../lib/syncVersion'
 import { noteAppVersion } from '../lib/versionSeen'
 import { afterPush, loadPullState, missingWithoutTombstone, pullRemote, savePullState } from '../lib/syncPull'
@@ -34,6 +35,7 @@ import {
   clearBaseline,
   DEFAULT_LIST_IDS,
   hasOtherUsersBaseline,
+  isMassDelete,
   loadBaseline,
   mergeSnapshots,
   mergeWithoutBaseline,
@@ -265,6 +267,13 @@ export function useSupabaseSync() {
     let mergeApproved = false
     /** 最後に同期の直前の控えを取った時刻 */
     let lastBeforeSyncBackup = -Infinity
+    /** サーバーの行を大量に消してよいと答えた（送るのに失敗して回り直しても聞き直さない。同期し終えたら戻す） */
+    let massDeleteApproved = false
+    /**
+     * 手元を消す前の控えを取れず、利用者が取消を選んだ（#486）。手元のデータを消さず、このアカウントにも送らない
+     * （開き直すともう一度聞く）
+     */
+    let holdLocal = false
 
     const apply = (next: SyncSnapshot) => {
       const cur = useTaskStore.getState()
@@ -274,7 +283,7 @@ export function useSupabaseSync() {
         const nextIds = new Set(next.tasks.map((t) => t.id))
         if (cur.tasks.some((t) => !nextIds.has(t.id))) {
           lastBeforeSyncBackup = Date.now()
-          backupNow('beforeSync')
+          void backupNow('beforeSync')
         }
       }
       const listIds = new Set(next.lists.map((l) => l.id))
@@ -508,6 +517,7 @@ export function useSupabaseSync() {
     const syncOnce = (): Promise<boolean> => withSyncLock(userId, syncOnceLocked)
 
     const syncOnceLocked = async (): Promise<boolean> => {
+      if (holdLocal) return false
       // 待っている間に他のタブが同期して保存した内容（手元のデータと控え）にそろえてから始める
       adoptOtherTabChanges()
       // 差分を取る（変わった行と消えた行の印だけ）。この端末でこの人として初めての同期は全部を取る。
@@ -578,7 +588,11 @@ export function useSupabaseSync() {
         // 別の人のデータが残っている（ログアウトの処理を通らずにアカウントが替わった）。
         // 混ぜてこの人のアカウントに送らないよう、控えを取ってから空にして、この人のデータを取り込む
         // 前の人の通知の購読もここで外す（ログアウトの道しか外していなかった）
-        clearPreviousAccount()
+        if (!(await clearPreviousAccount())) {
+          holdLocal = true
+          return false
+        }
+        if (cancelled) return true
       }
       // ログインせずに作ったデータは、前回同期の控え（baseline）と比べると、この人のクラウドの行が
       // 全部「この端末で消された」に見える。初回同期と同じく、両方を残して取り込む
@@ -641,10 +655,15 @@ export function useSupabaseSync() {
           } else {
             // 入れない: アカウントには送らず、持ち主のいない控え（ログアウトすると自動バックアップに出る）に残して、
             // 手元はアカウントの内容だけにする。ラベル表・他のタイムゾーン・取り消しの履歴もログインする前のものなので初期に戻す
-            backupNow('beforeSignIn', null)
+            // 控えを取り終えてから消す。取れずに取消を選んだら消さない（#486）
+            if (!(await backupBeforeClearing('beforeSignIn', null))) {
+              holdLocal = true
+              return false
+            }
+            if (cancelled) return true
             applyingRef.current = true
             try {
-              clearAccountData(null, { backup: false })
+              void clearAccountData(null, { backup: false })
             } finally {
               applyingRef.current = false
             }
@@ -670,8 +689,33 @@ export function useSupabaseSync() {
         }
       } else {
         // 取得後に await を挟まずマージして反映する（この間のローカル編集を取りこぼさない）
-        const local = localSnapshot()
-        const result = mergeSnapshots(local, remote, baseline)
+        let local = localSnapshot()
+        let result = mergeSnapshots(local, remote, baseline)
+        if (!massDeleteApproved && isMassDelete(local, remote, baseline, result.deletes)) {
+          // サーバーの行を大量に消す（#484）。読めなかった行・取り違えた控えで全端末から消さないよう、消える行も入れた控えを取ってから確かめる
+          const count = Object.values(result.deletes).reduce((n, ids) => n + ids.length, 0)
+          await backupNow('beforeSync', userId, mergeWithoutBaseline(local, remote))
+          if (cancelled) return true
+          const ok = await askConfirm({
+            title: i18n.t('sync.massDeleteTitle', { count }),
+            message: i18n.t('sync.massDelete', { count }),
+            confirmLabel: i18n.t('sync.massDeleteConfirm', { count }),
+            danger: true,
+          })
+          if (cancelled) return true
+          // 聞いている間の手元の変更も入れて合わせ直す。消さないときは控えを使わず、両方にあるものを残す
+          local = localSnapshot()
+          if (ok) {
+            massDeleteApproved = true
+            result = mergeSnapshots(local, remote, baseline)
+          } else {
+            result = {
+              merged: mergeWithoutBaseline(local, remote),
+              deletes: { lists: [], tasks: [], habits: [], sections: [] },
+              conflicts: {},
+            }
+          }
+        }
         // 両方の端末で同じ項目を変えて片方を捨てた回数（表・項目の名前と回数だけ。1 日 1 回まとめて送る）
         noteMergeConflicts(result.conflicts)
         // 変わっていない種類は参照を保って再描画・再 push を避ける
@@ -743,6 +787,8 @@ export function useSupabaseSync() {
      * 失敗したら未送信の変更が残るので、バックオフで自力再送する（オフライン対策）。
      */
     const sync = async () => {
+      // 保存を止めている間（読めなかった・新しい版のデータ、#485）は同期しない。控えだけ書くと、本体と食い違って次の同期で行を消す
+      if (persistBlocked()) return
       if (running) {
         rerun = true
         return
@@ -772,6 +818,7 @@ export function useSupabaseSync() {
       if (cancelled) return
 
       if (ok) {
+        massDeleteApproved = false
         retryMs = 0
         clearTimeout(retry)
         // 前回取得したサーバーの内容と目印を残す（開き直したときも差分で取る）。本体を保存できていない間は残さない

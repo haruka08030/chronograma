@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore } from '../../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
 import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from './anchoredCard'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
@@ -15,8 +15,8 @@ import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
 import { buildHabitRecordIndex, habitDayStatus, plannedRecordTimes } from '../../lib/habitTiming'
-import { isPointHabitOn } from '../../lib/habitSlots'
-import { logLimitAt } from '../../lib/timelineBlockEdit'
+import { habitSlotId, isPointHabitOn } from '../../lib/habitSlots'
+import { logLimitAt, placeHabitSlot } from '../../lib/timelineBlockEdit'
 import { timeToMinutes } from '../../lib/timeGrid'
 import { isLogTask } from '../../types/task'
 import { requestHabitEdit } from '../../lib/habitEditRequest'
@@ -26,7 +26,7 @@ const WIDTH = 300
 
 /**
  * タイムラインの習慣の枠を押したときの小さなカード（予定のカードと同じ形）。
- * 始まった枠は ✓（予定どおり達成・取り消し）、終わる前は ▶ 記録を開始、✎ で習慣の画面の編集へ。キー: Esc 閉じる / e 編集
+ * 始まった枠は ✓（予定どおり達成・取り消し）、終わる前は ▶ 記録を開始、習慣の段のチップは「時間に置く」、✎ で習慣の画面の編集へ。キー: Esc 閉じる / e 編集
  */
 export function HabitSlotPopover({
   habitId,
@@ -41,7 +41,7 @@ export function HabitSlotPopover({
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
-  const habit = useTaskStore((s) => s.habits.find((h) => h.id === habitId) ?? null)
+  const habit = useTaskStore((s) => selectLiveHabits(s).find((h) => h.id === habitId) ?? null)
   const tasks = useTaskStore((s) => s.tasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const now = useNow()
@@ -58,12 +58,15 @@ export function HabitSlotPopover({
   }, [])
 
   const times = habit ? plannedRecordTimes(habit, dateKey) : null
-  if (!habit || !times) return null
+  // 時間を決めていない習慣は習慣の段のチップ（時刻なし）から開く
+  const untimed = habit?.timeMode === 'none'
+  if (!habit || (!times && !untimed)) return null
   const done = habitDayStatus(habit, dateKey, buildHabitRecordIndex(tasks.filter(isLogTask))) !== 'missed'
-  // タイムラインの ✓ と同じ: 始まった枠だけ予定どおり達成にできる（今より先の記録は作らない）。▶ は終わるまで
+  // タイムラインの ✓ と同じ: 始まった枠だけ予定どおり達成にできる（今より先の記録は作らない）。▶ は終わるまで。
+  // 時間なしは今日と過ぎた日に ✓、▶ は今日だけ
   const limit = logLimitAt(now)(dateKey)
-  const started = limit === null || timeToMinutes(times.startTime) < limit
-  const ended = limit === null || (times.endTime !== '00:00' && timeToMinutes(times.endTime) <= limit)
+  const started = !times ? limit === null || limit > 0 : limit === null || timeToMinutes(times.startTime) < limit
+  const ended = !times ? limit === null : limit === null || (times.endTime !== '00:00' && timeToMinutes(times.endTime) <= limit)
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 170)
   const start = () => {
     const { timeLogTagPresets, logCategoryColors, startTimer } = useTaskStore.getState()
@@ -99,13 +102,18 @@ export function HabitSlotPopover({
         <div className="min-w-0">
           <p className="break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100">{habit.title}</p>
           <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
-            {df.monthDayWeekdayLong(dateKey)} · {isPointHabitOn(habit, dateKey) ? times.startTime : `${times.startTime} – ${times.endTime}`}
+            {df.monthDayWeekdayLong(dateKey)}
+            {times && ` · ${isPointHabitOn(habit, dateKey) ? times.startTime : `${times.startTime} – ${times.endTime}`}`}
           </p>
           <CardActions
             complete={
               done || started
                 ? {
-                    label: done ? t('weekCalendar.habitUndo') : t('weekCalendar.habitDoneAsPlanned'),
+                    label: done
+                      ? t('weekCalendar.habitUndo')
+                      : untimed
+                        ? t('weekCalendar.habitMarkDone')
+                        : t('weekCalendar.habitDoneAsPlanned'),
                     onClick: () => {
                       toggleHabitDate(habit.id, dateKey)
                       onClose()
@@ -114,6 +122,18 @@ export function HabitSlotPopover({
                 : undefined
             }
             onStart={done || ended ? undefined : start}
+            // 習慣の段のチップ（時刻だけの習慣）は、その日だけ枠にできる（指ではドラッグできないので）
+            place={
+              !done && isPointHabitOn(habit, dateKey)
+                ? {
+                    label: t('weekCalendar.habitPlace'),
+                    onClick: () => {
+                      placeHabitSlot(habitSlotId(habit.id, dateKey))
+                      onClose()
+                    },
+                  }
+                : undefined
+            }
           />
         </div>
         <span />

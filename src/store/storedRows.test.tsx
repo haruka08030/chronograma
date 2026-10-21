@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { adoptOtherTabChanges, useTaskStore } from './taskStore'
 import { PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
 import { readViewState } from './viewState'
+import { loadBaseline, saveBaseline } from '../lib/syncMerge'
 
 const good = (id: string, over: Record<string, unknown> = {}) => ({
   id,
@@ -15,11 +16,13 @@ const good = (id: string, over: Record<string, unknown> = {}) => ({
   ...over,
 })
 const unreadableKeys = () => Object.keys(localStorage).filter((k) => k.startsWith(`${PERSIST_STORAGE_KEY}-unreadable-`))
-const write = (tasks: unknown[]) =>
+const write = (tasks: unknown[], dataOwner: string | null = null) =>
   localStorage.setItem(
     PERSIST_STORAGE_KEY,
-    JSON.stringify({ state: { tasks, lists: [], habits: [], sections: [] }, version: STORE_VERSION }),
+    JSON.stringify({ state: { tasks, lists: [], habits: [], sections: [], dataOwner }, version: STORE_VERSION }),
   )
+const baselineOf = (...ids: string[]) =>
+  ({ lists: {}, sections: {}, habits: {}, tasks: Object.fromEntries(ids.map((id) => [id, 1])) }) as Parameters<typeof saveBaseline>[1]
 
 describe('保存データ・他のタブの行を中身まで確かめる（#269）', () => {
   it('読み込み: 型の違う項目は直し、読めない行は外し、元の中身を別のキーに残す', async () => {
@@ -40,6 +43,35 @@ describe('保存データ・他のタブの行を中身まで確かめる（#269
     expect(tasks.map((t) => t.id)).toEqual(['a', 'b'])
     expect(tasks.find((t) => t.id === 'b')?.tags).toEqual([])
     expect(unreadableKeys().length).toBeGreaterThan(0)
+  })
+})
+
+describe('読めない行を外したら前回同期の控えを捨てる（#484）', () => {
+  it('読み込み: 控えを捨てる（次の同期で外した行を「この端末で消した」と読まない）', async () => {
+    saveBaseline('u1', baselineOf('t1', 'bad'))
+    write([good('t1'), good('bad', { title: 123 })], 'u1')
+    await useTaskStore.persist.rehydrate()
+
+    expect(useTaskStore.getState().tasks.map((t) => t.id)).toEqual(['t1'])
+    expect(useTaskStore.getState().dataOwner).toBe('u1')
+    expect(loadBaseline('u1')).toBeNull()
+  })
+
+  it('読み込み: 読めない行が無ければ控えはそのまま', async () => {
+    saveBaseline('u1', baselineOf('t1'))
+    write([good('t1')], 'u1')
+    await useTaskStore.persist.rehydrate()
+
+    expect(loadBaseline('u1')).not.toBeNull()
+  })
+
+  it('他のタブの書き込み: 控えを捨てる', () => {
+    saveBaseline('u1', baselineOf('a', 'bad'))
+    write([good('a'), good('bad', { title: null })], 'u1')
+    adoptOtherTabChanges()
+
+    expect(useTaskStore.getState().tasks.map((t) => t.id)).toEqual(['a'])
+    expect(loadBaseline('u1')).toBeNull()
   })
 })
 

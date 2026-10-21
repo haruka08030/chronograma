@@ -156,7 +156,14 @@ export default function App() {
           ref={mainRef}
           className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0"
         >
-          <MobileSyncNotice />
+          {/* 保存できていないときのバナー。画面の上に重ねると題名・日付の切り替えが隠れるので、画面の上に並べて押し下げる */}
+          <PartBoundary name="storageFull" resetKey={partKey}>
+            <StorageFullBanner />
+          </PartBoundary>
+          {/* スマホの同期の問題（PC はサイドバーの SyncIndicator） */}
+          <PartBoundary name="syncNotice" resetKey={partKey}>
+            <MobileSyncNotice />
+          </PartBoundary>
           {!hideGlobalHeader && (
             <PartBoundary name="search" resetKey={partKey}>
               <SearchBox inputRef={searchRef} />
@@ -167,10 +174,15 @@ export default function App() {
             <ErrorBoundary
               scope="screen"
               resetKey={partKey}
-              onLeave={() => {
-                setSearchQuery('')
-                useTaskStore.getState().selectView('planner')
-              }}
+              // 今日の画面そのものが落ちたときは「今日を開く」を出さない（押しても同じ画面）。「もう一度」は常に出る
+              onLeave={
+                selectedView === 'planner' && !searchQuery.trim()
+                  ? undefined
+                  : () => {
+                      setSearchQuery('')
+                      useTaskStore.getState().selectView('planner')
+                    }
+              }
             >
               {/* 画面を切り替えたら、空白から急に変わらずふわっと出す（リストを替えただけでは作り直さない） */}
               <div key={searchQuery.trim() ? 'search' : (selectedView ?? 'list')} className="flex min-h-0 flex-1 flex-col animate-fade-in">
@@ -205,9 +217,6 @@ export default function App() {
         </PartBoundary>
         <PartBoundary name="canvasSubmitted" resetKey={partKey}>
           <CanvasSubmittedToast />
-        </PartBoundary>
-        <PartBoundary name="storageFull" resetKey={partKey}>
-          <StorageFullBanner />
         </PartBoundary>
         <PartBoundary name="timer" resetKey={partKey}>
           <FloatingTimer />

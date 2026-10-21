@@ -8,7 +8,7 @@ export const DAY_ROW_TIME_CLASS = 'w-10 shrink-0 text-xs tabular-nums text-zinc-
 export const DAY_ROW_PAD_CLASS = 'px-2.5 py-1.5 md:min-h-8 md:py-1'
 
 /**
- * 時刻・色の丸・題名を 1 行に並べる行（Google の予定・記録）。箱にせず、色は完了の丸と同じ大きさの丸（`EventMark`）だけで見せる。
+ * 時刻・色の丸・題名を 1 行に並べる行（Google の予定・記録）。箱にせず、色は日パネルの完了の丸と同じ大きさ（16px）の丸（`EventMark`）だけで見せる。
  * `dotStyle` は `colorVars(hex)`（睡眠は `--c` に睡眠の色）
  */
 export function DayRow({
@@ -34,7 +34,7 @@ export function DayRow({
       className={`flex w-full items-center gap-2 rounded-xl text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40 ${DAY_ROW_PAD_CLASS}`}
     >
       <span className={DAY_ROW_TIME_CLASS}>{time}</span>
-      <EventMark style={dotStyle} />
+      <EventMark style={dotStyle} small />
       <span className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-200">{title}</span>
       {trailing}
     </button>

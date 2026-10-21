@@ -56,6 +56,28 @@ describe('お問い合わせ・フィードバック', () => {
     expect(screen.getByRole('textbox', { name: 'Contact & feedback' })).toHaveValue('hello')
   })
 
+  it('外側・Esc で閉じても書いたものは残り、キャンセルで消える（#491）', async () => {
+    const user = await open()
+    await user.type(screen.getByRole('textbox', { name: 'Contact & feedback' }), 'half')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Contact & feedback' }))
+    expect(screen.getByRole('textbox', { name: 'Contact & feedback' })).toHaveValue('half')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await user.click(screen.getByRole('button', { name: 'Contact & feedback' }))
+    expect(screen.getByRole('textbox', { name: 'Contact & feedback' })).toHaveValue('')
+  })
+
+  it('送れたら書いたものは残さない', async () => {
+    const user = await open()
+    await user.type(screen.getByRole('textbox', { name: 'Contact & feedback' }), 'sent once')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await user.click(screen.getByRole('button', { name: 'Contact & feedback' }))
+    expect(screen.getByRole('textbox', { name: 'Contact & feedback' })).toHaveValue('')
+  })
+
   it('ログインしていなければ欄を出さず、ログインすると送れると伝える', async () => {
     state.user = null
     await open()

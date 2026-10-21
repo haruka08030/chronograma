@@ -32,6 +32,19 @@ export function integrationErrorStatus(code: string): number {
   return 502
 }
 
+/**
+ * 送りすぎ（429）の `Retry-After`（秒か HTTP の日時）を ms に。読めない・`maxMs` より長ければ null（待たずに失敗を返す）。
+ * 関数の実行時間は限られているので、短い待ちだけ 1 回待ってから送り直す
+ */
+export function retryAfterMs(header: string | null, maxMs: number, now: number = Date.now()): number | null {
+  if (!header) return null
+  const text = header.trim()
+  const ms = /^\d+$/.test(text) ? Number(text) * 1000 : Date.parse(text) - now
+  if (Number.isNaN(ms)) return null
+  const wait = Math.max(0, ms)
+  return wait <= maxMs ? wait : null
+}
+
 export const BAD_JSON = 'Invalid JSON body'
 
 /**

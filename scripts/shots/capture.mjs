@@ -130,7 +130,7 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする。手の `select` は <select> の選択肢を選ぶ */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -180,16 +180,16 @@ const SCREENS = [
     click: '[data-floating-timer] button:has-text("レポート")',
     steps: [{ fill: { selector: '[data-floating-timer] input', text: '授' } }],
   },
-  // 「1 日を締める」のラベルなしの記録を開いて行のチップで付ける所（#390）と、設定のラベルの「直近 30 日でラベルなし」から開いた所
+  // 記録の帯の凡例の「ラベルなし」を押して、ラベルなしの記録を行のチップで付ける所（#390・#501）
   {
     name: 'planner-untagged',
     view: 'planner',
     at: '19:30',
-    click: 'button:has-text("ラベルなしの記録") >> visible=true',
-    scrollTo: '[data-wrap-up]',
+    mobileClick: 'button[aria-label="分類ごとの時間"] >> visible=true',
+    click: 'button[aria-expanded]:has-text("ラベルなし") >> visible=true',
   },
-  // 「1 日を締める」の記録の無い時間（最近の記録のチップ・ほかを記録・何もしていない、#418）
-  { name: 'planner-wrap-up-gaps', view: 'planner', at: '21:00', scrollTo: '[data-wrap-up-gaps]' },
+  // タイムラインの記録の列の「＋ 記録なし」を押したところ（書く前は、よく記録するもののチップで 1 タップで埋める、#501）
+  { name: 'planner-gap-card', view: 'planner', at: '21:00', desktopOnly: true, click: '[data-unrecorded-gap] >> visible=true >> nth=0' },
   {
     name: 'settings-untagged',
     view: 'settings',
@@ -290,7 +290,7 @@ const SCREENS = [
       '[role=menu] >> text=中以上 >> visible=true',
     ],
   },
-  // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
+  // 夕方以降だけ出る締め（気分の記号だけ）
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
   // 全部終わった日の締め（おつかれさまでした）
   { name: 'planner-evening-clear', view: 'planner', at: '19:30', scrollToBottom: true, allDone: true },
@@ -743,6 +743,62 @@ const SCREENS = [
     view: 'completed',
     click: [TODO_FILTER, '[role=menu] >> text=期間で絞る >> visible=true', '[role=menu] >> text=過去 7 日 >> visible=true'],
   },
+  // 消した習慣はゴミ箱の上に、To-Do と並べて出す（#489。`habitsDeleted` はその ID の習慣を消した状態にする）
+  { name: 'trash-habit', view: 'deleted', deleted: ['s19', 's20'], habitsDeleted: ['h4'] },
+  // 元に戻すトースト（#488 / #490）: 習慣の削除・買い物の「すべて戻す」・予定の繰り返しの曜日を外して消えた回
+  {
+    name: 'undo-habit-deleted',
+    view: 'habits',
+    steps: [
+      { rightClick: 'li[data-habit-row]:has-text("ジム")', longPress: 'li[data-habit-row]:has-text("ジム")' },
+      { click: '[role=menuitem]:has-text("削除") >> visible=true' },
+    ],
+  },
+  {
+    name: 'undo-unchecked',
+    list: 'seed-shopping',
+    doneNow: ['s15', 's16'],
+    steps: [{ click: 'button:has-text("すべて戻す") >> visible=true' }],
+  },
+  {
+    name: 'undo-occurrences',
+    view: 'calendar',
+    desktopOnly: true,
+    taskPatch: { s6: { kind: 'event' } },
+    steps: [
+      { click: '[data-block-id="s6"] >> visible=true' },
+      { click: '[role=dialog] button[aria-label="詳細を編集"]' },
+      { select: { selector: 'select[id="repeat-s6"] >> visible=true', value: 'weekly' } },
+      { click: '[aria-label="繰り返す曜日"] button:has-text("木") >> visible=true' },
+      { click: '[aria-label="繰り返す曜日"] button:has-text("木") >> visible=true' },
+    ],
+  },
+  // 保存を止めているときのバナー（#485）: 新しい版のアプリが書いたデータ（`seedVersion`）・読めない保存データ（`rawSeed`）
+  { name: 'storage-newer', view: 'planner', seedVersion: 999 },
+  { name: 'storage-unreadable', rawSeed: '{"state":{"tasks":[', ignoreErrors: /could not load saved data/ },
+  // 本体（boot）を読み込めなかったときの素の画面（#492。`blockRequests` に合う読み込みを失敗させる）
+  { name: 'boot-failure', blockRequests: ['**/assets/boot-*.js'], ignoreErrors: /ERR_FAILED|\[boot\]/ },
+  // 通知の見出しの下の「アプリを開いている間だけ届きます」（#495。ログインしていないので閉じていると届かない）
+  {
+    name: 'settings-notifications',
+    view: 'settings',
+    notificationsGranted: true,
+    state: { notificationsEnabled: true },
+    scrollTo: '#settings-rhythm',
+  },
+  // 外側・Esc で閉じたダイアログを開き直すと、書きかけが残っている（#491）
+  {
+    name: 'labels-draft',
+    view: 'settings',
+    click: 'button:has-text("ラベルを編集") >> visible=true',
+    steps: [
+      { fill: { selector: '[role=dialog] input[aria-label="「課題」の週の目安（時間）"]', text: '8' } },
+      { fill: { selector: '[role=dialog] input[aria-label="「就活」の週の目安（時間）"]', text: '3' } },
+      { press: 'Escape' },
+      { wait: 400 },
+      { click: 'button:has-text("ラベルを編集") >> visible=true' },
+    ],
+  },
 ]
 
 const VIEWPORTS = [
@@ -898,6 +954,11 @@ async function main() {
             reducedMotion: 'reduce',
             ...(screen.iosSafari ? { userAgent: IOS_SAFARI_UA } : {}),
           })
+          // 通知を許可した状態で開く（`notificationsGranted`。ヘッドレスの Chromium は許可しても denied のままなので、値を差し替える）
+          if (screen.notificationsGranted)
+            await context.addInitScript(() => {
+              if ('Notification' in window) Object.defineProperty(Notification, 'permission', { get: () => 'granted' })
+            })
           // iPhone の Safari はホーム画面に追加するまで Notification が無い
           if (screen.iosSafari) await context.addInitScript(() => delete window.Notification)
 
@@ -958,11 +1019,16 @@ async function main() {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedInstant.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedInstant.toISOString()
             if (screen.estimates?.[x.id] != null) x.estimateMinutes = screen.estimates[x.id]
+            if (screen.taskPatch?.[x.id]) Object.assign(x, screen.taskPatch[x.id])
             if (screen.doneNow?.includes(x.id)) {
               x.completed = true
               x.completedAt = seedInstant.toISOString()
             }
           }
+          for (const h of seed.state.habits) {
+            if (screen.habitsDeleted?.includes(h.id)) h.deletedAt = seedInstant.toISOString()
+          }
+          if (screen.seedVersion !== undefined) seed.version = screen.seedVersion
           if (screen.list) {
             seed.state.selectedView = null
             seed.state.selectedListId = screen.list
@@ -981,15 +1047,18 @@ async function main() {
             // fresh: データは入れず、開く画面だけ決める（はじめの案内などは新しい人と同じに出る）
             [
               PERSIST_KEY,
-              screen.fresh
-                ? screen.view
-                  ? JSON.stringify({ state: { selectedView: screen.view, selectedListId: null }, version: seed.version })
-                  : null
-                : JSON.stringify(seed),
+              screen.rawSeed !== undefined
+                ? screen.rawSeed
+                : screen.fresh
+                  ? screen.view
+                    ? JSON.stringify({ state: { selectedView: screen.view, selectedListId: null }, version: seed.version })
+                    : null
+                  : JSON.stringify(seed),
             ],
           )
 
           const page = await context.newPage()
+          for (const pattern of screen.blockRequests ?? []) await page.route(pattern, (route) => route.abort())
           if (at) await page.clock.setFixedTime(instant)
           const consoleErrors = []
           page.on('console', (m) => {
@@ -1011,7 +1080,7 @@ async function main() {
               const clicks = Array.isArray(screen.click) ? screen.click : [screen.click]
               for (const [i, sel] of clicks.entries()) {
                 await page.click(sel, i === 0 && screen.clickAt ? { position: screen.clickAt } : undefined)
-                // PC で題名を押すと、ダブルクリックを待ってから詳細が開く（TaskItem の DOUBLE_CLICK_MS）
+                // 開く動き・読み込みを待つ
                 await page.waitForTimeout(600)
               }
             }
@@ -1069,6 +1138,9 @@ async function main() {
                 await page.keyboard.press(step.press)
               } else if (step.fill) {
                 await page.locator(step.fill.selector).first().fill(step.fill.text)
+              } else if (step.select) {
+                // 選択肢を選ぶ（<select>）
+                await page.locator(step.select.selector).first().selectOption(step.select.value)
               } else if (step.dragTime) {
                 // 今日の列の空きを時刻でドラッグする（左の予定の側。`from` / `to` は 'HH:MM'）
                 const col = page.locator(`[data-datekey="${dayKeyOf(seedNow)}"] >> visible=true`).first()
@@ -1123,7 +1195,8 @@ async function main() {
             shot++
             const errs = consoleErrors.filter(
               // Supabase 未設定・SW 未登録はローカル撮影では当然出るので無視
-              (e) => !/supabase|service ?worker|manifest|favicon|VAPID/i.test(e),
+              // `ignoreErrors` はその画面でわざと起こしたエラー（読めない保存データ・読み込めない本体）
+              (e) => !/supabase|service ?worker|manifest|favicon|VAPID/i.test(e) && !(screen.ignoreErrors && screen.ignoreErrors.test(e)),
             )
             const mark = errs.length > 0 ? ` ⚠ console: ${errs[0].slice(0, 80)}` : ''
             if (errs.length > 0) failures.push(`${screen.name}/${vp.name}/${theme}: ${errs[0]}`)

@@ -1,6 +1,6 @@
 /** 習慣 */
 import { addDays } from 'date-fns'
-import type { Habit, HabitTimeOverrides } from '../../types/habit'
+import { isHabitDeleted, type Habit, type HabitTimeOverrides } from '../../types/habit'
 import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { newId } from '../../lib/id'
 import { buildHabitRecordIndex, habitDayStatus, habitTimesOn, habitUsualTimesOn } from '../../lib/habitTiming'
@@ -15,8 +15,11 @@ type HabitsActions = Pick<
   | 'addHabit'
   | 'updateHabit'
   | 'setHabitDayTime'
+  | 'clearHabitDayTime'
   | 'setHabitRest'
   | 'deleteHabit'
+  | 'restoreDeletedHabits'
+  | 'permanentlyDeleteHabits'
   | 'archiveHabit'
   | 'restoreHabit'
   | 'toggleHabitDate'
@@ -93,6 +96,22 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         }),
       }))
     },
+    clearHabitDayTime: (id, dateKey, label) => {
+      const habit = get().habits.find((h) => h.id === id)
+      if (!habit?.timeOverrides?.[dateKey]) return
+      const overrides: HabitTimeOverrides = { ...habit.timeOverrides }
+      delete overrides[dateKey]
+      pushUndo(label)
+      const now = new Date().toISOString()
+      set((s) => ({
+        habits: s.habits.map((h) => {
+          if (h.id !== id) return h
+          const updated: Habit = { ...h, timeOverrides: overrides, updatedAt: now }
+          if (Object.keys(overrides).length === 0) delete updated.timeOverrides
+          return updated
+        }),
+      }))
+    },
     setHabitRest: (id, from, to, rest) => {
       const habit = get().habits.find((h) => h.id === id)
       if (!habit || to < from) return
@@ -114,9 +133,35 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       }))
     },
     deleteHabit: (id) => {
-      const name = get().habits.find((h) => h.id === id)?.title ?? ''
-      pushUndo({ key: 'undo.habitDeleted', params: { name } })
-      return set((s) => ({ habits: s.habits.filter((h) => h.id !== id) }))
+      // To-Do と同じくゴミ箱へ（達成日は残し、ゴミ箱から戻せる）
+      const habit = get().habits.find((h) => h.id === id)
+      if (!habit || isHabitDeleted(habit)) return
+      pushUndo({ key: 'undo.habitDeleted', params: { name: habit.title } })
+      const now = new Date().toISOString()
+      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, deletedAt: now, updatedAt: now } : h)) }))
+    },
+    restoreDeletedHabits: (ids) => {
+      const want = new Set(ids)
+      const targets = get().habits.filter((h) => want.has(h.id) && isHabitDeleted(h))
+      if (targets.length === 0) return
+      pushUndo(targets.length > 1 ? { key: 'undo.habitsRestored', params: { count: targets.length } } : undefined)
+      const now = new Date().toISOString()
+      const hit = new Set(targets.map((h) => h.id))
+      set((s) => ({
+        habits: s.habits.map((h) => {
+          if (!hit.has(h.id)) return h
+          // 戻したら項目ごと外す（同期で「変わった」と見ない形にそろえる）
+          const restored: Habit = { ...h, updatedAt: now }
+          delete restored.deletedAt
+          return restored
+        }),
+      }))
+    },
+    permanentlyDeleteHabits: (ids) => {
+      const want = new Set(ids)
+      if (!get().habits.some((h) => want.has(h.id) && isHabitDeleted(h))) return
+      pushUndo()
+      set((s) => ({ habits: s.habits.filter((h) => !(want.has(h.id) && isHabitDeleted(h))) }))
     },
     archiveHabit: (id) => {
       const habit = get().habits.find((h) => h.id === id)
@@ -140,8 +185,8 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         return
       }
       // その日の習慣の記録（チェックで作った記録・同じ名前の記録）も一緒に外す。ゴミ箱から戻せる
-      pushUndo()
-      const env = { now: new Date().toISOString(), deletedAt: Date.now() }
+      const undoId = pushUndo()
+      const env = { now: new Date().toISOString(), deletedAt: Date.now(), undoId }
       set((s) => uncheckHabitDatePatch(s, habitId, dateKey, env) ?? s)
     },
     completeHabitAsPlanned: (habitId, dateKey) => {

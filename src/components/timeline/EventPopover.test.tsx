@@ -72,3 +72,45 @@ describe('EventPopover: ⋮（#402）', () => {
     expect(opened).not.toBe('b')
   })
 })
+
+describe('予定のメニュー: この名前は Google に送らない（#461）', () => {
+  const seed = (kind: 'event' | 'todo', connected: boolean) =>
+    useTaskStore.setState({
+      googleConnected: connected,
+      googleCanWrite: connected,
+      tasks: [
+        {
+          ...makeTask({ title: '移動', listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime: '10:00', endTime: '10:10' }, 0),
+          id: 'm',
+          kind,
+        },
+      ],
+    })
+
+  it('Google に送っているときだけ出し、押すと名前ごとに切り替わる', async () => {
+    const { TaskEventMenu } = await import('./EventContextMenu')
+    seed('event', true)
+    const view = render(<TaskEventMenu x={0} y={0} taskId="m" onClose={() => {}} onOpenDetail={() => {}} />)
+    const item = view.getByRole('menuitem', { name: /Don't send this name to Google/ })
+    fireEvent.click(item)
+    expect(useTaskStore.getState().addons.googleSkip).toEqual(['移動'])
+    view.unmount()
+
+    // 送らないになっている名前はチェックが付き、もう一度押すと戻る
+    const again = render(<TaskEventMenu x={0} y={0} taskId="m" onClose={() => {}} onOpenDetail={() => {}} />)
+    const checked = again.getByRole('menuitem', { name: /Don't send this name to Google/ })
+    expect(checked.querySelectorAll('svg').length).toBe(2)
+    fireEvent.click(checked)
+    expect(useTaskStore.getState().addons.googleSkip).toEqual([])
+    again.unmount()
+
+    // つないでいない・To-Do には出さない
+    seed('event', false)
+    const off = render(<TaskEventMenu x={0} y={0} taskId="m" onClose={() => {}} onOpenDetail={() => {}} />)
+    expect(off.queryByRole('menuitem', { name: /Google/ })).toBeNull()
+    off.unmount()
+    seed('todo', true)
+    const todo = render(<TaskEventMenu x={0} y={0} taskId="m" onClose={() => {}} onOpenDetail={() => {}} />)
+    expect(todo.queryByRole('menuitem', { name: /Google/ })).toBeNull()
+  })
+})

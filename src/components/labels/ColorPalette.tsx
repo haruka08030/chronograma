@@ -30,7 +30,7 @@ export function ColorPalette({
   defaultHex?: string
   /** 枠なし（メニューの中など、すでに浮く面の上に置くとき） */
   bare?: boolean
-  /** 色の丸をカードの幅いっぱいに並べる（幅 320px の予定のカード。12 列だとはみ出す） */
+  /** 色の丸を置き場所の幅いっぱいに並べる（幅 320px の予定のカード・右クリックの中のメニュー。12 列だとはみ出す） */
   fill?: boolean
 }) {
   const { t } = useTranslation()

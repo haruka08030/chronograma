@@ -27,6 +27,14 @@ export function isValidTimeZone(tz: string): boolean {
   }
 }
 
+/**
+ * 保存・同期・バックアップから読んだタイムゾーン名。知らない名前（別の端末の新しいブラウザにしか無い名前・壊れた値）は null
+ * （そのまま使うと Intl が RangeError を投げ、同期や詳細が毎回落ちる）
+ */
+export function readTimeZone(v: unknown): string | null {
+  return typeof v === 'string' && v !== '' && isValidTimeZone(v) ? v : null
+}
+
 /** 設定のタイムゾーン（null は端末に合わせる）。ストアが読み込み時・変更時に呼ぶ */
 export function setAppTimeZoneSetting(tz: string | null) {
   appZoneSetting = tz && isValidTimeZone(tz) ? tz : null
@@ -37,22 +45,36 @@ export function appTimeZone(): string {
 }
 
 const partsFormatters = new Map<string, Intl.DateTimeFormat>()
+function makePartsFormatter(tz: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+/** 作れなかった（知らない）タイムゾーン名 */
+const unknownZones = new Set<string>()
+/** 知らないタイムゾーン名はアプリのタイムゾーン（それも使えなければ UTC）として扱う。投げない */
 function partsFormatter(tz: string): Intl.DateTimeFormat {
-  let f = partsFormatters.get(tz)
-  if (!f) {
-    f = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-    partsFormatters.set(tz, f)
+  const cached = partsFormatters.get(tz)
+  if (cached) return cached
+  if (!unknownZones.has(tz)) {
+    try {
+      const f = makePartsFormatter(tz)
+      partsFormatters.set(tz, f)
+      return f
+    } catch {
+      unknownZones.add(tz)
+    }
   }
-  return f
+  // アプリのタイムゾーンは設定で変わるので、置き換え先は覚えない
+  const fallback = appTimeZone()
+  return fallback !== tz && !unknownZones.has(fallback) ? partsFormatter(fallback) : partsFormatter('UTC')
 }
 
 /** その瞬間の、そのタイムゾーンの壁時計を UTC の数値として（オフセット計算用） */

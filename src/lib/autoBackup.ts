@@ -163,7 +163,7 @@ export function countTasks(tasks: readonly Task[]): { todoCount: number; logCoun
 }
 
 /**
- * 控えを 1 つ足す。毎日の控えはその日にまだ無いときだけ。
+ * 控えを 1 つ足す。毎日の控えはその日にまだ無いときだけ。To-Do が無く `hasOtherData` も false なら控えない。
  * その日の分があるかは日付の索引で、その日の控えだけを見て確かめる。中身（`json`）は足すと決まってから作る（関数で渡したとき）。
  * 以前は確かめるたびに（画面に戻るたび・30 分ごと）全データを文字列にし、全部の控えを中身ごと読んでいた（#257）。
  * 書き込みに失敗しても（容量・プライベートモード）アプリは止めない
@@ -174,8 +174,10 @@ export async function saveAutoBackup(
   tasks: readonly Task[],
   json: string | (() => string),
   owner: string | null,
+  hasOtherData = false,
 ): Promise<boolean> {
-  if (tasks.length === 0) return false
+  // To-Do が 0 件でも、習慣・リストなどがあれば控える（ログアウトの前に控えずに消していた、#486）
+  if (tasks.length === 0 && !hasOtherData) return false
   try {
     if (kind === 'daily') {
       const sameDay = (await withStore<AutoBackup[]>('readonly', (s) => s.index(BY_DATE).getAll(dateKey))) ?? []

@@ -39,10 +39,27 @@ export function retryFailedLazyLoads(): void {
   renew.forEach((fn) => fn())
 }
 
-/** 読み込みに失敗したとき: 記録し、デプロイ直後の古いファイル名なら 1 回だけ読み込み直す */
-function onLoadFailure(err: unknown, component: string) {
+/** 読み込み直している途中（もう画面は入れ替わるので、エラーの画面を一瞬出さない） */
+let reloading = false
+
+/**
+ * 利用者が開いたものが読めなかったとき: 記録し、デプロイ直後の古いファイル名なら 1 回だけ読み込み直す。
+ * 読み込み直すなら true
+ */
+function onLoadFailure(err: unknown, component: string): boolean {
   reportError('chunk', err, { component })
-  if (isChunkLoadError(err)) reloadForStaleChunk()
+  if (!reloading && isChunkLoadError(err) && reloadForStaleChunk()) reloading = true
+  return reloading
+}
+
+/** 読めなかったことを知らせたか（続けて失敗している間は 1 回だけ知らせる。読めたら戻す） */
+let failureNoticed = false
+
+/** 読めなかったことを知らせるか。続けて失敗している間は最初の 1 回だけ true */
+export function takeLoadFailureNotice(): boolean {
+  if (failureNoticed) return false
+  failureNoticed = true
+  return true
 }
 
 /**
@@ -51,18 +68,20 @@ function onLoadFailure(err: unknown, component: string) {
  * 最初に開くときも待たずに出るようにする。描画は `<Suspense>` の中で（詳細・メニューは `OverlaySuspense`）。
  *
  * `React.lazy` は一度失敗するとその失敗を返し続けるので、失敗したものは境界が戻るとき（`retryFailedLazyLoads`。
- * `OverlaySuspense` は次に押したとき・回線が戻ったとき、`ErrorBoundary` は「もう一度」・画面の切り替え）に作り直し、
+ * `OverlaySuspense` は開き直したとき・回線が戻ったとき、`ErrorBoundary` は「もう一度」・画面の切り替え）に作り直し、
  * 次に描くときにもう一度取りに行く
  */
 export function lazyNamed<M, K extends keyof M>(load: () => Promise<M>, name: K): Preloadable<M[K] extends AnyComponent ? M[K] : never> {
   const label = String(name)
   let pending: Promise<M> | null = null
   const preload = () => {
-    // 失敗（オフライン・デプロイ直後など）は覚えておかず、次に開いたときに取り直す
+    // 失敗（オフライン・デプロイ直後など）は覚えておかず、次に開いたときに取り直す。
+    // 手すきの先読み（`preloadWhenIdle`）の失敗では読み込み直さない（打っている途中の内容が消える）
     pending ??= load()
       .then((mod) => {
-        // Vite の `vite:preloadError` を止める（再読み込みする）と、中身の無いまま解決する
+        // 中身の無いまま解決したら（`vite:preloadError` を止めたときなど）読めなかったことにする
         if (mod == null || mod[name] == null) throw new Error(`${label} did not load`)
+        failureNoticed = false
         return mod
       })
       .catch((err: unknown) => {
@@ -78,7 +97,8 @@ export function lazyNamed<M, K extends keyof M>(load: () => Promise<M>, name: K)
       } catch (err) {
         // この lazy は失敗を覚えたままになる。境界が戻るときに新しいものにする
         failed.add(renew)
-        onLoadFailure(err, label)
+        // 読み込み直すなら、終わるまで読み込み中のまま（エラーの画面を一瞬出さない）
+        if (onLoadFailure(err, label)) return new Promise<never>(() => {})
         throw new LazyLoadError(label, err)
       }
     })

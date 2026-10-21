@@ -24,6 +24,22 @@ export function flushPendingEdits(): void {
   }
 }
 
+/** 文字を打つ欄（チェックボックス・日付などは除く） */
+const TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'email', 'tel', ''])
+
+/**
+ * 欄に打っている途中か（書きかけとして登録していない欄も含めて、文字の入った欄にカーソルがある）。
+ * 読み込み直すと消えるので、勝手に読み込み直す前に確かめる
+ */
+export function hasTypingInProgress(): boolean {
+  if (typeof document === 'undefined') return false
+  const el = document.activeElement
+  if (!el) return false
+  if (el instanceof HTMLTextAreaElement) return el.value.trim() !== ''
+  if (el instanceof HTMLInputElement) return TEXT_INPUT_TYPES.has(el.type) && el.value.trim() !== ''
+  return el instanceof HTMLElement && el.isContentEditable && (el.textContent ?? '').trim() !== ''
+}
+
 if (typeof window !== 'undefined') {
   // iPhone の PWA は閉じても pagehide が来ないことがあるので、裏に回ったときにも入れる
   window.addEventListener('pagehide', flushPendingEdits)

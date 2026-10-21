@@ -5,6 +5,7 @@ import type { ListSection } from '../types/section'
 import type { Task } from '../types/task'
 import {
   baselineFrom,
+  isMassDelete,
   loadBaseline,
   mergeSnapshots,
   saveSyncedBaseline,
@@ -291,6 +292,16 @@ describe('同じ行を両方の端末で変えたとき（項目ごと）', () =
   })
 })
 
+describe('習慣のゴミ箱（#489）', () => {
+  it('手元でゴミ箱に入れ、あちらで名前を変えても、ゴミ箱に入ったまま名前も残す', () => {
+    const baseline = baselineFrom(snapshot({ habits: [habit('h1', { title: 'ジム' })] }))
+    const local = snapshot({ habits: [habit('h1', { title: 'ジム', deletedAt: T1, updatedAt: T1 })] })
+    const remote = snapshot({ habits: [habit('h1', { title: 'ジム（夜）', updatedAt: T2 })] })
+
+    expect(mergeSnapshots(local, remote, baseline).merged.habits[0]).toMatchObject({ title: 'ジム（夜）', deletedAt: T1 })
+  })
+})
+
 describe('前の版の控え（種類を isTimeLog・isSleep で持っていた）', () => {
   /** 前の版の形のタスク（kind の代わりに 2 つの印） */
   const legacy = (t: Task) => {
@@ -421,6 +432,33 @@ describe('mergeWithoutBaseline（前回同期が無い端末の初回同期）',
     const merged = mergeWithoutBaseline(local, remote)
     expect(merged.tasks.map((t) => t.id).sort()).toEqual(['from-phone', 'old', 'unsynced-es'])
     expect(merged.tasks.find((t) => t.id === 'old')?.updatedAt).toBe(T1)
+  })
+})
+
+describe('isMassDelete（サーバーの行を大量に消す同期、#484）', () => {
+  const ids = (n: number, prefix = 't') => Array.from({ length: n }, (_, i) => `${prefix}${i}`)
+  /** 前回同期にあった `all` のうち、手元に `kept` だけ残っている */
+  function deleting(all: string[], kept: string[], patch: (id: string) => Partial<Task> = () => ({})) {
+    const remote = snapshot({ tasks: all.map((id) => task(id, patch(id))) })
+    const local = snapshot({ tasks: kept.map((id) => task(id, patch(id))) })
+    const baseline = baselineFrom(remote)
+    const { deletes } = mergeSnapshots(local, remote, baseline)
+    return isMassDelete(local, remote, baseline, deletes)
+  }
+
+  it('5 件を超え、3 割を超えて消すときだけ確かめる', () => {
+    expect(deleting(ids(20), ids(20).slice(7))).toBe(true)
+    // 5 件まで・3 割までは聞かない
+    expect(deleting(ids(10), ids(10).slice(5))).toBe(false)
+    expect(deleting(ids(20), ids(20).slice(6))).toBe(false)
+  })
+
+  it('ゴミ箱に入っている行は数えない（30 日たった片付け・ゴミ箱を空にする）', () => {
+    expect(deleting(ids(20), ids(20).slice(10), (id) => ({ deletedAt: Number(id.slice(1)) < 10 ? T1 : null }))).toBe(false)
+  })
+
+  it('手元が空で前回同期の控えに行があれば、少なくても確かめる', () => {
+    expect(deleting(ids(2), [])).toBe(true)
   })
 })
 

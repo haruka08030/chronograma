@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js'
-import { functionErrorMessage, readFunctionErrorBody } from './functionError'
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
+import { classifyFunctionError, functionErrorMessage, readFunctionErrorBody } from './functionError'
+import { isNetworkErrorMessage } from './errorMessages'
 
 const httpError = (body: string, status: number) => new FunctionsHttpError(new Response(body, { status }))
 
@@ -37,7 +38,37 @@ describe('functionErrorMessage', () => {
   })
 
   it('本文が読めなければ例外の文言', async () => {
-    expect(await functionErrorMessage(httpError('oops', 500))).toBe('Edge Function returned a non-2xx status code')
+    expect(await functionErrorMessage(httpError('oops', 400))).toBe('Edge Function returned a non-2xx status code')
     expect(await functionErrorMessage('weird')).toBe('Edge Function request failed')
+  })
+
+  it('届かなかった・ゲートウェイの 5xx はネットワークの失敗の文言（「保存に失敗」にしない）', async () => {
+    for (const err of [
+      new FunctionsFetchError(new TypeError('Failed to fetch')),
+      new FunctionsRelayError({}),
+      httpError('Bad Gateway', 502),
+    ]) {
+      const message = await functionErrorMessage(err)
+      expect(isNetworkErrorMessage(message)).toBe(true)
+      expect(message).not.toMatch(/non-2xx/)
+    }
+  })
+})
+
+describe('classifyFunctionError', () => {
+  it('関数の本文があれば http と状態コード・コード', async () => {
+    const err = httpError(JSON.stringify({ ok: false, code: 'canvas_api', error: 'canvas_api' }), 502)
+    expect(await classifyFunctionError(err)).toEqual({ kind: 'http', status: 502, code: 'canvas_api', message: 'canvas_api' })
+  })
+
+  it('FunctionsFetchError・FunctionsRelayError・JSON でない 5xx は network', async () => {
+    expect((await classifyFunctionError(new FunctionsFetchError(new TypeError('Failed to fetch')))).kind).toBe('network')
+    expect((await classifyFunctionError(new FunctionsRelayError({}))).kind).toBe('network')
+    expect(await classifyFunctionError(httpError('<html>', 503))).toMatchObject({ kind: 'network', status: 503, code: null })
+  })
+
+  it('JSON でない 4xx は http（コードなし）、それ以外は unknown', async () => {
+    expect(await classifyFunctionError(httpError('nope', 404))).toMatchObject({ kind: 'http', status: 404, code: null })
+    expect(await classifyFunctionError(new Error('x'))).toEqual({ kind: 'unknown', status: null, code: null, message: 'x' })
   })
 })

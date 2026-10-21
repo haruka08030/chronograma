@@ -44,9 +44,13 @@ describe('lazyNamed', () => {
     // React が描画をすぐやり直しても、取りに行くのは 1 回だけ（オフラインの間に回り続けない）
     expect(load).toHaveBeenCalledTimes(1)
     const failed = load.mock.calls.length
-    // 次に押したら読み直す
-    online()
+    // 押しただけでは読み直さない（オフラインで押すたびに取りに行かない）
     fireEvent.pointerDown(window)
+    await act(async () => {})
+    expect(load).toHaveBeenCalledTimes(failed)
+    // 回線が戻ったら読み直す
+    online()
+    act(() => void window.dispatchEvent(new Event('online')))
     expect(await screen.findByText('opened')).toBeInTheDocument()
     expect(load).toHaveBeenCalledTimes(failed + 1)
     // 閉じて開き直しても取り直さない
@@ -125,8 +129,9 @@ describe('lazyNamed', () => {
     )
     expect(await screen.findByText('after preload')).toBeInTheDocument()
     expect(load).toHaveBeenCalledTimes(2)
-    // 先読みの失敗は記録しない（オフラインの手すきの時間に出るだけ）
+    // 先読みの失敗は記録せず、読み込み直しもしない（オフラインの手すきの時間に出るだけ。打っている途中の内容が消える）
     expect(reportError).not.toHaveBeenCalled()
+    expect(reloadForStaleChunk).not.toHaveBeenCalled()
   })
 
   it('preload は読めた後は取りに行かない', async () => {
@@ -160,6 +165,37 @@ describe('lazyNamed', () => {
       </ErrorBoundary>,
     )
     expect(await screen.findByText('render bug')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+    // 画面のエラーには常に「もう一度」
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+
+  it('読めなかったら onLoadFailed で閉じ、続けて失敗しても知らせは 1 回。開き直すと読み直す', async () => {
+    const { load, Panel, online } = failingUntilOnline()
+    useTaskStore.setState({ moveBannerText: null })
+    let open = true
+    const onLoadFailed = vi.fn(() => {
+      open = false
+    })
+    const host = () => <OverlaySuspense onLoadFailed={onLoadFailed}>{open && <Panel label="card" />}</OverlaySuspense>
+    const { rerender } = render(host())
+    await act(async () => {})
+    expect(onLoadFailed).toHaveBeenCalledTimes(1)
+    expect(useTaskStore.getState().moveBannerText).toBe("Couldn't open this. Check your connection and try again.")
+    // 閉じた（持ち主が描き直した）。まだオフラインのまま開き直す: 閉じるが、知らせは出し直さない
+    rerender(host())
+    useTaskStore.setState({ moveBannerText: null })
+    open = true
+    rerender(host())
+    await act(async () => {})
+    expect(onLoadFailed).toHaveBeenCalledTimes(2)
+    expect(useTaskStore.getState().moveBannerText).toBeNull()
+    const failed = load.mock.calls.length
+    // 回線が戻ってから開き直すと読める
+    rerender(host())
+    online()
+    open = true
+    rerender(host())
+    expect(await screen.findByText('card')).toBeInTheDocument()
+    expect(load).toHaveBeenCalledTimes(failed + 1)
   })
 })

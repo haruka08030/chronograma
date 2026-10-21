@@ -6,6 +6,7 @@ import { TRASH_KEEP_DAYS } from '../store/storeConstants'
 import { isArchivedTask, isDeletedTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
 import { isLogTask, type Task } from '../types/task'
+import { isHabitDeleted, type Habit } from '../types/habit'
 import { ICON_PATHS } from '../lib/iconPaths'
 import { buttonClass } from './ui/buttonClass'
 import { iconButtonClass } from './ui/iconButtonClass'
@@ -46,6 +47,9 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   const emptyDeleted = useTaskStore((s) => s.emptyDeleted)
   const unarchiveTasks = useTaskStore((s) => s.unarchiveTasks)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const habits = useTaskStore((s) => s.habits)
+  const restoreDeletedHabits = useTaskStore((s) => s.restoreDeletedHabits)
+  const permanentlyDeleteHabits = useTaskStore((s) => s.permanentlyDeleteHabits)
 
   const [menu, setMenu] = useState<{ x: number; y: number; taskIds: string[]; above?: boolean } | null>(null)
 
@@ -103,6 +107,13 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
   ]
 
   const df = useDateFormat()
+  const binStampLabel = (iso: string): string => {
+    try {
+      return df.monthDayTime(parseISO(iso))
+    } catch {
+      return ''
+    }
+  }
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists])
   const flagged = mode === 'deleted' ? isDeletedTask : isArchivedTask
 
@@ -128,6 +139,20 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
       }))
       .sort((a, b) => b.stamp.localeCompare(a.stamp))
   }, [tasks, flagged, mode])
+
+  // ゴミ箱の習慣（数は少ないので全部出す。タスクの選択・一覧とは別の行）
+  const habitRows = useMemo(
+    () => (mode === 'deleted' ? habits.filter(isHabitDeleted).sort((a, b) => b.deletedAt!.localeCompare(a.deletedAt!)) : []),
+    [habits, mode],
+  )
+  const removeHabit = useCallback(
+    async (habit: Habit) => {
+      if (await askConfirm({ message: t('taskBin.permanentConfirmHabit'), confirmLabel: t('taskBin.deleteForever'), danger: true }))
+        permanentlyDeleteHabits([habit.id])
+    },
+    [permanentlyDeleteHabits, t],
+  )
+  const total = rows.length + habitRows.length
 
   // 数千行になりうるので新しい順に 100 件だけ描き、「さらに表示」・最後の行で ↓ で足す（#288）。⌘A・選択も描いている行だけ
   const { limit, remaining, showMore } = useShowMore(rows.length, mode)
@@ -163,14 +188,14 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
           <h1 className={PAGE_TITLE_CLASS}>{title}</h1>
           {/* 空なら下の「ありません」で分かるので件数は出さない */}
           {/* ゴミ箱は日数で消える（Google カレンダーのゴミ箱と同じく、件数の横に添える） */}
-          {rows.length > 0 && (
+          {total > 0 && (
             <p className={`mt-1 ${META_TEXT}`}>
-              {t('taskBin.count', { count: rows.length })}
+              {t('taskBin.count', { count: total })}
               {mode === 'deleted' && ` · ${t('taskBin.autoPurge', { days: TRASH_KEEP_DAYS })}`}
             </p>
           )}
         </div>
-        {mode === 'deleted' && rows.length > 0 && (
+        {mode === 'deleted' && total > 0 && (
           <button
             type="button"
             onClick={() =>
@@ -185,12 +210,56 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
         )}
       </div>
 
+      {habitRows.length > 0 && (
+        <ul aria-label={t('taskBin.habit')} className="space-y-1 px-4 pb-1">
+          {habitRows.map((h) => (
+            <li
+              key={h.id}
+              className="flex items-center gap-3 rounded-xl border border-zinc-200 px-3 py-2.5 dark:border-zinc-800"
+              data-habit-row={h.id}
+            >
+              {/* 習慣は選べないが、To-Do の行の選択の枠（PC だけ幅を取る）の分を空けて題名の頭をそろえる */}
+              <span aria-hidden className="hidden h-4 w-4 shrink-0 md:block" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">{h.title || '\u00A0'}</p>
+                <div className={`mt-1 flex flex-wrap items-center gap-2 ${META_TEXT}`}>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="gc-dot h-2 w-2 rounded-full" style={colorVars(h.color)} />
+                    {t('taskBin.habit')}
+                  </span>
+                  <span>{binStampLabel(h.deletedAt!)}</span>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => restoreDeletedHabits([h.id])}
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  {...tip(restoreLabel, { name: true })}
+                >
+                  <PathIcon d={RESTORE_ICON} className="h-4 w-4" />
+                  <span className="hidden sm:inline">{restoreLabel}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void removeHabit(h)}
+                  className={iconButtonClass('p-1.5!')}
+                  {...tip(deleteLabel, { name: true })}
+                >
+                  <PathIcon d={DELETE_ICON} className="h-4 w-4" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div
         {...(rows.length > 0 ? listboxProps : {})}
         aria-label={rows.length > 0 ? title : undefined}
         className="flex-1 space-y-1 px-4 pb-6 outline-none"
       >
-        {rows.length === 0 ? (
+        {total === 0 ? (
           <EmptyState
             icon={<PathIcon d={boxIcon} strokeWidth={1} />}
             title={mode === 'deleted' ? t('taskBin.emptyDeleted') : t('taskBin.emptyArchived')}
@@ -204,12 +273,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                 .find((line) => line.trim())
                 ?.trim() ?? ''
             const timeLog = isLogTask(task)
-            let stampLabel = ''
-            try {
-              stampLabel = df.monthDayTime(parseISO(stamp))
-            } catch {
-              stampLabel = ''
-            }
+            const stampLabel = binStampLabel(stamp)
             const selection = makeSelection(task.id)
             return (
               // 行のクリックはマウスの近道。キーでは一覧（listbox）の ↑↓・Space・Enter で選べる

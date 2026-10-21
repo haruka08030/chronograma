@@ -21,7 +21,7 @@ import {
   signOutThisDevice,
 } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
-import { rememberGoogleConnected, wasGoogleConnected, wasGoogleConnectionLost } from '../lib/googleConnectedHint'
+import { googleCanWriteHint, rememberGoogleConnected, wasGoogleConnected, wasGoogleConnectionLost } from '../lib/googleConnectedHint'
 import { clearDeletedAccount, clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { readFunctionErrorBody } from '../lib/functionError'
 import { detachWebPush } from '../lib/webPush'
@@ -109,6 +109,8 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent, userId: strin
   // この端末で前につながっていたなら、聞かずにすぐ予定を取りに行く（つながっていなければ予定の取得が断り、連携を外す）
   if (wasGoogleConnected(userId)) {
     useTaskStore.getState().setGoogleConnected(true)
+    // 書き込めると分かっていれば、カレンダーを開く前からアプリの予定を Google に送る
+    if (googleCanWriteHint(userId)) useTaskStore.getState().setGoogleCanWrite(true)
     return
   }
 
@@ -151,7 +153,7 @@ async function onSignedOut(sb: SupabaseClient): Promise<void> {
     await clearDeletedAccount(userId)
   }
   if (seq !== sessionSeq) return
-  clearLocalAccountState(userId)
+  await clearLocalAccountState(userId)
 }
 
 /** ログインを始めるときに Supabase を読む。読めなければ（オフラインなど）画面に出すエラー */
@@ -325,7 +327,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (sb) await signOutThisDevice(sb)
         setSession(null)
         // 他のタブや期限切れでも SIGNED_OUT で同じ処理が走る。ここでも呼んで確実に消す（2 回目は何もしない）
-        clearLocalAccountState(session?.user.id ?? null)
+        await clearLocalAccountState(session?.user.id ?? null)
       },
       deleteAccount: async () => {
         const sb = getSupabase()
@@ -350,7 +352,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // ユーザーはもう無いので、サーバーに問い合わせずこの端末のセッションだけ消す
         await signOutThisDevice(sb)
         setSession(null)
-        clearLocalAccountState(userId)
+        await clearLocalAccountState(userId)
         return {}
       },
     }),

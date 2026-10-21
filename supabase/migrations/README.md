@@ -44,6 +44,7 @@
 | [`038_realtime_sync_wake.sql`](038_realtime_sync_wake.sql) | 同期する表（`lists` / `list_sections` / `tasks` / `habits` / `sync_tombstones`・設定の表 6 つ・`day_moods`）を Realtime の publication `supabase_realtime` に入れる（無ければ作る）。端末は本人の行（`user_id=eq.<自分>`）の INSERT / UPDATE の通知を同期を起こす合図にだけ使う。DELETE の通知は RLS が効かないので購読せず、消えた行は `sync_tombstones` の通知で知る |
 | [`040_task_dream_id.sql`](040_task_dream_id.sql) | 夢の一歩を予定にして To-Do になった行の元の夢 `tasks.dream_id`（タスクの id、null は無し。外部キーなし、1〜128 字 `tasks_dream_id_check`）。夢の進み具合・次の一歩に数え、行に夢の名前を添える（数えるのはアプリ）。夢を消す・かなえる・やりたいへ移しても外さない |
 | [`041_user_addons.sql`](041_user_addons.sql) | 追加機能のオン・オフ `user_addons`（利用者ごとに 1 行、`addons` は `{ enabled: { 機能: true/false } }` の object、256KB まで `user_addons_size_check`、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
+| [`042_habit_deleted_at.sql`](042_habit_deleted_at.sql) | 習慣のゴミ箱 `habits.deleted_at`（null はゴミ箱に無い）。ゴミ箱の習慣はどの画面・統計にも出さず、達成日は残る。30 日たつとアプリが行ごと消す |
 
 テーブル（最新の形）:
 
@@ -59,6 +60,7 @@
 | `user_event_templates` | よく入れる予定（利用者ごとに 1 行）。`templates` は `{ id, title, startTime, endTime, color }` の並び（バイトのシフトなど）。月表示で日を押して入れた予定は `tasks`（`is_event`）に入る。どの端末でも同じ並びになる |
 | `user_course_links` | 授業の予定の名前と LMS（Canvas・Moodle）の科目のつながり（利用者ごとに 1 行）。`links` は `{ title, course }` の並び（`title` は予定の名前、`course` は取り込んだ課題の科目のタグ、空なら「つながない」）。予定のカードに、その科目の未完了の課題を締切順に出す。どの端末でも同じつながりになる |
 | `user_timetable` | 時間割の設定（利用者ごとに 1 行）。`timetable` は時限 `periods`（`{ start, end }` の並び）・学期 `termStart` / `termEnd`・祝日に授業を入れないか `skipHolidays`。マスの中身（授業）は `tasks` の毎週の予定（`event_series`）から出す。どの端末でも同じ時間割になる |
+| `user_addons` | 追加機能の設定（利用者ごとに 1 行）。`addons` は機能のオン・オフ `enabled`・引き落とし・期限の日 `dues`・Google カレンダーに送らない予定の名前 `googleSkip`。知らない項目は残して送り直す。どの端末でも同じになる |
 | `day_moods` | 1 日の気分（1 とても悪い〜5 とても良い、null は選んでいない）とひとこと（利用者ごと・日ごとに 1 行。`day` はアプリのタイムゾーンの暦の日）。今日の計画の「1 日を締める」で選ぶ。睡眠・記録（`tasks`）と日付で突き合わせて読める。どの端末でも同じになる |
 | `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders`。止め忘れの列（`timer_started_at` / `timer_title`）と「あと何分」の終わり（`timer_ends_at`）は `user_active_timer` の写し（`019` / `028`）。`timer_end_notified_for` は時間の通知を送った終わり |
 | `google_oauth` | Google カレンダーのリフレッシュトークン（暗号化して保存、`_shared/secretBox.ts`）。クライアント向けポリシーなし（Edge Function `google-calendar` が service_role で読み書き） |

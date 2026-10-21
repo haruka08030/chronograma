@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.103.0'
 import { parseCanvasFeed } from './ical.ts'
 import { parseMoodleFeed } from './moodle.ts'
 import { parseFeedUrl } from './feedUrl.ts'
+import { feedFailureCode } from './feedStatus.ts'
 import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, integrationErrorStatus, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
@@ -59,7 +60,8 @@ class CanvasError extends Error {
 /**
  * 学校のサイトへ送る。名前を引いて公開のアドレスだけだと確かめ、確かめたアドレスにそのままつなぐ（`pinnedFetch.ts`。
  * 確かめたあとで名前の向き先を内部へ替えられても届かない。結果は覚えず、送るたびに引く）。リダイレクトは追わない。
- * 名前が引けない・内部を指す宛先は canvas_bad_url、名前解決の API が無い環境では送らない（canvas_api）
+ * 名前が引けない・内部を指す宛先は canvas_bad_url、名前解決の API が無い環境では送らない（canvas_api）。
+ * つながらない・時間切れなどのネットワークの失敗は、待てば直るかもしれないので canvas_api（URL の誤りにしない）
  */
 async function schoolFetch(url: string, init: PinnedInit = {}): Promise<Response> {
   try {
@@ -71,7 +73,7 @@ async function schoolFetch(url: string, init: PinnedInit = {}): Promise<Response
       console.error('[canvas] Deno.resolveDns is unavailable; refusing to call school sites')
       throw new CanvasError('canvas_api', 'DNS lookup unavailable')
     }
-    throw new CanvasError('canvas_bad_url', message)
+    throw new CanvasError('canvas_api', message)
   }
 }
 
@@ -115,11 +117,15 @@ async function feedItems(storedUrl: string) {
     }
   } catch (e) {
     if (e instanceof CanvasError) throw e
-    throw new CanvasError('canvas_bad_url', e instanceof Error ? e.message : String(e))
+    throw new CanvasError('canvas_api', e instanceof Error ? e.message : String(e))
   }
-  if (!res.ok) await res.body?.cancel()
-  const text = res.ok ? await readBody(res) : ''
-  // URL を作り直すと古い URL は 404 になる
+  if (!res.ok) {
+    await res.body?.cancel()
+    // 学校のサーバーの一時的な失敗（5xx・429）は、フィードが無効になったのではない（つなぎ直しを求めない）
+    throw new CanvasError(feedFailureCode(res.status), `HTTP ${res.status}`)
+  }
+  const text = await readBody(res)
+  // 200 でもカレンダーでない（ログイン画面など）なら、その URL ではもう読めない
   if (!text.includes('BEGIN:VCALENDAR')) throw new CanvasError('canvas_feed_invalid', `HTTP ${res.status}`)
   const now = Date.now()
   const windowStart = ymd(new Date(now - 86_400_000))
@@ -142,6 +148,7 @@ async function canvasRequest(baseUrl: string, token: string, url: string, init: 
   const text = await readTextCapped(res, 64 * 1024).catch(() => '')
   if (res.status === 401) throw new CanvasError('canvas_unauthorized', text.slice(0, 200))
   if (res.status === 403 && /rate limit/i.test(text)) throw new CanvasError('canvas_rate_limited')
+  if (res.status === 429) throw new CanvasError('canvas_rate_limited', `HTTP ${res.status}`)
   // 学校のログイン画面へのリダイレクトや、Canvas でないサイト
   if (res.status === 404 || (res.status >= 300 && res.status < 400)) throw new CanvasError('canvas_bad_url', `HTTP ${res.status}`)
   throw new CanvasError('canvas_api', `Canvas API ${res.status}: ${text.slice(0, 200)}`)

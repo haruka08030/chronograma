@@ -1,5 +1,6 @@
-import { useReducer } from 'react'
+import { useCallback } from 'react'
 import { hexForGoogleKey } from '../../lib/googleColors'
+import { useDialogDraft } from '../../hooks/useDialogDraft'
 import { canSubmitHabitDraft, habitFrequencyFromDraft, type HabitDraftFields } from '../../lib/habitDraft'
 import {
   HABIT_GOAL_MINUTES_MAX,
@@ -136,11 +137,12 @@ export function habitFromForm(f: HabitFormState) {
   }
 }
 
-/** フォームの中身。`patch` で一部の項目を変える */
-export function useHabitForm(initial: HabitFormState | (() => HabitFormState)) {
-  return useReducer(
-    (s: HabitFormState, p: Partial<HabitFormState>) => ({ ...s, ...p }),
-    undefined,
-    () => (typeof initial === 'function' ? initial() : initial),
-  )
+/**
+ * 閉じても書きかけを残すフォーム（`useDialogDraft`）。`key` は習慣ごとに分ける。
+ * 返すのは中身・一部を変える `patch`・書きかけを捨てる `discard`（保存・キャンセルのとき）
+ */
+export function useHabitFormDraft(key: string, initial: HabitFormState | (() => HabitFormState)) {
+  const [form, setForm, discard] = useDialogDraft(key, initial)
+  const patch = useCallback((p: Partial<HabitFormState>) => setForm((f) => ({ ...f, ...p })), [setForm])
+  return [form, patch, discard] as const
 }

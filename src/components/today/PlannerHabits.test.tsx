@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { Habit } from '../../types/habit'
 import type { Task } from '../../types/task'
@@ -48,15 +48,32 @@ const record = (startTime: string, endTime: string): Task => ({
 })
 
 describe('今日の計画の習慣: 時間の目標', () => {
-  it('届いていない日はリングの下に「12/30 min」、届いたら達成で何も出さない', () => {
+  it('届いていない日は行の右に「12/30 min」、届いたら達成で「達成 1 件」にたたむ', () => {
     useTaskStore.setState({ habits: [vocab], tasks: [record('08:00', '08:12')] })
     const { rerender } = render(<PlannerHabits dayHabits={[vocab]} dateKey={DAY} viewingToday={false} headingClass="" />)
     expect(screen.getByText('12/30 min')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Vocab' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('checkbox', { name: 'Vocab' })).toHaveAttribute('aria-checked', 'false')
 
     useTaskStore.setState({ tasks: [record('08:00', '08:12'), record('20:00', '20:20')] })
     rerender(<PlannerHabits dayHabits={[vocab]} dateKey={DAY} viewingToday={false} headingClass="" />)
     expect(screen.queryByText(/\/30 min/)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Vocab' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('checkbox', { name: 'Vocab' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /1 done/ }))
+    expect(screen.getByRole('checkbox', { name: 'Vocab' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('時刻のある習慣を時刻順に先に、時間なしを後ろに並べ、時刻と今週の回数を出す', () => {
+    const base = { ...vocab, goalMinutes: undefined, completedDates: [] as string[] }
+    const late = { ...base, id: 'late', title: 'Late', timeMode: 'fixed' as const, startTime: '21:00', endTime: null }
+    const early = { ...base, id: 'early', title: 'Early', timeMode: 'range' as const, startTime: '07:00', endTime: '07:30' }
+    const puff = { ...base, id: 'puff', title: 'Puff', timeMode: 'none' as const, startTime: null, endTime: null }
+    const weekly = { ...puff, id: 'weekly', title: 'Weekly', frequency: { type: 'timesPerWeek' as const, count: 2 } }
+    const all = [puff, late, weekly, early]
+    useTaskStore.setState({ habits: all, tasks: [] })
+    render(<PlannerHabits dayHabits={all} dateKey={DAY} viewingToday={false} headingClass="" />)
+    expect(screen.getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'))).toEqual(['Early', 'Late', 'Puff', 'Weekly'])
+    expect(screen.getByText('07:00–07:30')).toBeInTheDocument()
+    expect(screen.getByText('21:00')).toBeInTheDocument()
+    expect(screen.getByText('This week 0/2')).toBeInTheDocument()
   })
 })

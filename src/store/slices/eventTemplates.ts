@@ -15,6 +15,7 @@ export function createEventTemplatesSlice({ set, get, undo }: SliceContext): Eve
       const next = normalizeEventTemplates(templates)
       // 同じ中身なら時刻を付けない（同期で送り直さない）
       if (sameValue(next, get().eventTemplates)) return
+      pushUndo()
       set({ eventTemplates: next })
     },
 

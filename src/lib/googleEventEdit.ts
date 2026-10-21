@@ -5,6 +5,7 @@ import {
   applyTimingLocally,
   createGoogleEvent,
   deleteGoogleEvent,
+  googleWriteFailure,
   localizeGoogleError,
   updateGoogleEvent,
   type GoogleEventTiming,
@@ -42,10 +43,24 @@ function remove(id: string) {
   s.setCalendarEvents(s.calendarEvents.filter((e) => e.id !== id))
 }
 
+/**
+ * 直せなかった: 元に戻して知らせる。Google で消されていた予定は戻さずに一覧から外す
+ * （出ていたのは前に取った一覧。次の取り直しでも消えている）
+ */
+function failed(event: CalendarEvent, e: unknown) {
+  if (googleWriteFailure(e) === 'deleted') {
+    remove(event.id)
+    useTaskStore.getState().showMoveBanner(i18n.t('googleEdit.deletedInGoogle'))
+    return
+  }
+  upsert(event)
+  report(e)
+}
+
 function report(e: unknown) {
   const raw = e instanceof Error ? e.message : ''
   const s = useTaskStore.getState()
-  if (raw.toLowerCase().includes('write scope not granted')) s.setGoogleCanWrite(false)
+  if (googleWriteFailure(e) === 'scope') s.setGoogleCanWrite(false)
   const localized = raw ? localizeGoogleError(raw, i18n.t.bind(i18n)) : ''
   s.showMoveBanner(localized && localized !== raw ? localized : i18n.t('googleEdit.failed'))
 }
@@ -56,8 +71,7 @@ export async function moveGoogleEvent(event: CalendarEvent, timing: GoogleEventT
     const saved = await updateGoogleEvent(event.id, { timing })
     if (saved) upsert(saved)
   } catch (e) {
-    upsert(event)
-    report(e)
+    failed(event, e)
   }
 }
 
@@ -69,8 +83,7 @@ export async function renameGoogleEvent(event: CalendarEvent, summary: string) {
     const saved = await updateGoogleEvent(event.id, { summary: title })
     if (saved) upsert(saved)
   } catch (e) {
-    upsert(event)
-    report(e)
+    failed(event, e)
   }
 }
 

@@ -2,8 +2,8 @@
  * 端末に溜まり続けるものの片付け（#256）。写しや控えを作るところはあっても消すところが無く、
  * 容量を食い（保存できなくなる）、共用の端末では前の人の題名やデータが次の人の手元に残っていた。
  *
- * - 保存データの写し（読めなかった本体 `-unreadable-`・別の人のデータを取り込む前の本体 `-before-recovery-`）は種類ごとに新しい 1 つだけ。
- *   どこからも読まない（調べるときに開発者ツールで見るだけ）。ログアウトでは消す
+ * - 保存データの写し（読めなかった本体 `-unreadable-`・別の人のデータを取り込む前の本体 `-before-recovery-`・版を上げて移す前の本体 `-before-migration-`）は
+ *   種類ごとに新しい 1 つだけ。読めなかった本体は保存を止めたときのバナーから書き出す（`latestStorageCopy`）。ほかは開発者ツールで見るだけ。ログアウトでは消す
  * - 連携（Canvas・Notion）から前回取り込んだ値（題名・締切）は人ごとのキー。ログアウトでは誰の分も消す
  *   （ログインし直した人は、前回の値が分からない＝手元の値を上書きしない扱いから始まるだけ）
  * - 前回同期の控えは、ログアウトした人の分の中身を消して印だけ残す（`hasOtherUsersBaseline` が見るのはキーがあるかだけ。
@@ -14,11 +14,14 @@ import { BASELINE_KEY_PREFIX, PULL_STATE_KEY_PREFIX, readStored, storedKeys, wri
 import { CANVAS_PULLED_PREFIX, NOTION_PULLED_PREFIX } from './externalFields'
 import { CANVAS_SUBMITTED_PREFIX } from './canvasSubmitted'
 import { INTEGRATION_HINT_PREFIX } from './integrationHint'
+import { WRITE_BACK_PREFIX } from './writeBackQueue'
 import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
 
 export const UNREADABLE_COPY_PREFIX = `${PERSIST_STORAGE_KEY}-unreadable-`
 export const BEFORE_RECOVERY_COPY_PREFIX = `${PERSIST_STORAGE_KEY}-before-recovery-`
-const COPY_PREFIXES = [UNREADABLE_COPY_PREFIX, BEFORE_RECOVERY_COPY_PREFIX]
+/** 保存の版を上げて移す前の本体（#485。移し方を誤っても元に戻せるように） */
+export const BEFORE_MIGRATION_COPY_PREFIX = `${PERSIST_STORAGE_KEY}-before-migration-`
+const COPY_PREFIXES = [UNREADABLE_COPY_PREFIX, BEFORE_RECOVERY_COPY_PREFIX, BEFORE_MIGRATION_COPY_PREFIX]
 
 /**
  * 中身を消した前回同期の控え。`loadBaseline` は `null` として読む（控えが無いのと同じ。次の同期は両方を残す合わせ方）。
@@ -95,6 +98,18 @@ export function keepStorageCopy(prefix: string, raw: string, now = Date.now()): 
   for (const k of local) if (k !== key) removeLocal(k)
 }
 
+/** いちばん新しい写しの中身。無い・読めなければ null */
+export function latestStorageCopy(prefix: string): string | null {
+  const { stored, local } = copyKeys(prefix)
+  const newest = [...stored, ...local].sort((a, b) => copyTime(prefix, b) - copyTime(prefix, a))[0]
+  if (newest === undefined) return null
+  try {
+    return stored.includes(newest) ? readStored(newest) : localStorage.getItem(newest)
+  } catch {
+    return null
+  }
+}
+
 /** 新しい 1 つを残して、ほかの写しを消す（前の版で溜まった分）。消したら true */
 export function pruneStorageCopies(): boolean {
   let removed = false
@@ -117,14 +132,15 @@ export function clearStorageCopies(): boolean {
   return removed
 }
 
-/** 連携（Canvas・Notion）から前回取り込んだ値・Canvas の提出済みの控えを、誰の分も消す */
+/** 連携（Canvas・Notion）から前回取り込んだ値・Canvas の提出済みの控え・送り直し待ちの書き戻しを、誰の分も消す */
 export function clearIntegrationMemos(): void {
   for (const key of localKeys()) {
     if (
       key.startsWith(CANVAS_PULLED_PREFIX) ||
       key.startsWith(NOTION_PULLED_PREFIX) ||
       key.startsWith(CANVAS_SUBMITTED_PREFIX) ||
-      key.startsWith(INTEGRATION_HINT_PREFIX)
+      key.startsWith(INTEGRATION_HINT_PREFIX) ||
+      key.startsWith(WRITE_BACK_PREFIX)
     )
       removeLocal(key)
   }

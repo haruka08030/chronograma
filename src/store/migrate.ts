@@ -12,7 +12,10 @@ import { GOOGLE_COLOR_HEXES, nearestGoogleHex } from '../lib/googleColors'
 import { looksLikeSleep } from '../lib/sleep'
 import { normalizeExtraTimeZones } from '../lib/extraTimeZones'
 import { hasExistingData } from '../lib/onboarding'
-import { INBOX_COLOR, INBOX_ID, LEGACY_DATA_OWNER } from './storeConstants'
+import { INBOX_COLOR, INBOX_ID, LEGACY_DATA_OWNER, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
+import { blockPersisting } from '../lib/persistStorage'
+import { readStored } from '../lib/dataStore'
+import { BEFORE_MIGRATION_COPY_PREFIX, keepStorageCopy } from '../lib/deviceCleanup'
 import { defaultLogCategories } from './storeDefaults'
 import type { TaskState } from './storeTypes'
 import { appTodayKey } from '../lib/timeZone'
@@ -28,7 +31,27 @@ function withKindFromFlags(t: LegacyTask): Task {
   return { ...rest, kind: taskKindFromFlags(isTimeLog === true, isSleep === true) } as Task
 }
 
-/** persist の `migrate`。`version` は保存されていたデータの版 */
+/**
+ * persist の `migrate`（保存されていたデータの版 `version` が今の版と違うとき）。
+ * - 新しい版のアプリが書いたデータ（古いキャッシュ・戻した版で開いた）は移さず、保存を止める（#485）。
+ *   そのまま読むと知らない項目を落とし、古い版の番号で書き戻していた。画面には読める分だけ出し、再読み込みを促す
+ * - 古い版のデータは、移す前の本体を別のキーに写してから移す（`BEFORE_MIGRATION_COPY_PREFIX`）
+ */
+export function migratePersistedState(persisted: unknown, version: number): TaskState {
+  if (version > STORE_VERSION) {
+    blockPersisting('newer')
+    return (persisted ?? {}) as TaskState
+  }
+  try {
+    const raw = readStored(PERSIST_STORAGE_KEY)
+    if (raw) keepStorageCopy(BEFORE_MIGRATION_COPY_PREFIX, raw)
+  } catch {
+    /* 写せなくても移す */
+  }
+  return migrateTaskState(persisted, version)
+}
+
+/** 保存データを版ごとに移す。`version` は保存されていたデータの版 */
 export function migrateTaskState(persisted: unknown, version: number): TaskState {
   const state = persisted as Record<string, unknown>
   if (version < 2) {

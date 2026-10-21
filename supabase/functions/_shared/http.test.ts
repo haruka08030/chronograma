@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { errorResponse, integrationErrorStatus, jsonResponse, readJsonBody } from './http.ts'
+import { errorResponse, integrationErrorStatus, jsonResponse, readJsonBody, retryAfterMs } from './http.ts'
 
 const post = (body: string) => new Request('https://x.test/fn', { method: 'POST', body })
 
@@ -52,5 +52,20 @@ describe('integrationErrorStatus', () => {
     expect(integrationErrorStatus('canvas_unauthorized')).toBe(502)
     expect(integrationErrorStatus('notion_not_shared')).toBe(502)
     expect(integrationErrorStatus('canvas_api')).toBe(502)
+  })
+})
+
+describe('retryAfterMs', () => {
+  it('秒・HTTP の日時を ms に', () => {
+    expect(retryAfterMs('2', 5000)).toBe(2000)
+    expect(retryAfterMs('0', 5000)).toBe(0)
+    const now = Date.parse('2026-10-19T00:00:00Z')
+    expect(retryAfterMs('Mon, 19 Oct 2026 00:00:03 GMT', 5000, now)).toBe(3000)
+  })
+
+  it('無い・読めない・長すぎるときは null', () => {
+    expect(retryAfterMs(null, 5000)).toBeNull()
+    expect(retryAfterMs('soon', 5000)).toBeNull()
+    expect(retryAfterMs('60', 5000)).toBeNull()
   })
 })

@@ -36,6 +36,8 @@ export function UndoToast() {
   const googleUndo = useTaskStore((s) => s.googleUndo)
   const setGoogleUndo = useTaskStore((s) => s.setGoogleUndo)
   const undoLastOperation = useTaskStore((s) => s.undoLastOperation)
+  const undoOperation = useTaskStore((s) => s.undoOperation)
+  const restoreDiscardedTimer = useTaskStore((s) => s.restoreDiscardedTimer)
   const undoDelete = useTaskStore((s) => s.undoDelete)
   const clearDeletedTasks = useTaskStore((s) => s.clearDeletedTasks)
   const clearUndoBanner = useTaskStore((s) => s.clearUndoBanner)
@@ -80,6 +82,8 @@ export function UndoToast() {
 
   /** 何を消したか: 1 件ならタイトル、まとめてなら件数（一緒に消えたサブタスクは数えない） */
   function deletedMessage() {
+    // 文を決めて消したもの（Google で消された予定など）
+    if (recentDeletes.length === 1 && recentDeletes[0].label) return toastText(t, recentDeletes[0].label)
     const ids = new Set(deletedIds)
     const roots = deletedTasks.filter((x) => !x.parentId || !ids.has(x.parentId))
     if (roots.length === 1 && roots[0].title.trim()) return t('undo.taskDeleted', { title: toastTitle(roots[0].title) })
@@ -95,16 +99,21 @@ export function UndoToast() {
       className={`fixed left-1/2 z-50 -translate-x-1/2 ${toast.closing ? 'animate-toast-out' : 'animate-toast-in'} ${stacked}`}
       inert={toast.closing}
     >
-      <div className={`mx-3 flex max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}>
+      <div className={`mx-3 flex w-max max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}>
         <span className="min-w-0 line-clamp-2">{toast.shown}</span>
         <button
           onClick={() => {
             if (kind === 'google') {
               undoGoogleDelete()
             } else if (kind === 'deleted') {
-              if (!undoLastOperation()) undoDelete()
+              // トーストに出ている削除だけを戻す（あとにした別の操作は残す）。新しい削除から順に
+              for (const batch of [...recentDeletes].reverse()) {
+                if (batch.undoId === undefined || !undoOperation(batch.undoId)) undoDelete()
+              }
             } else {
-              undoLastOperation()
+              if (undoBanner?.restoreTimer) restoreDiscardedTimer()
+              else if (undoBanner?.undoId !== undefined) undoOperation(undoBanner.undoId)
+              else undoLastOperation()
               clearUndoBanner()
             }
             setVisible(false)

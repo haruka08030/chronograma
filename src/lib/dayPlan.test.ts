@@ -54,14 +54,8 @@ describe('getMoreSuggestions', () => {
     task('deleted', { deletedAt: '2026-09-01T00:00:00Z' }),
   ]
 
-  it('orders later deadlines, then undated, then later placements', () => {
-    expect(getMoreSuggestions(tasks, DAY, new Set(['someday'])).map((t) => t.id)).toEqual([
-      'dueNear',
-      'dueFar',
-      'undated1',
-      'undated2',
-      'placedLater',
-    ])
+  it('orders later deadlines, then undated, and leaves out what already has a day to do it (#480)', () => {
+    expect(getMoreSuggestions(tasks, DAY, new Set(['someday'])).map((t) => t.id)).toEqual(['dueNear', 'dueFar', 'undated1', 'undated2'])
   })
 
   it('never repeats what getDayPlan already shows', () => {
@@ -229,7 +223,7 @@ describe('サブタスクの締切（#308）', () => {
   ]
 
   it('日付のある子は 1 件の To-Do として締切間近・期限切れ・今日やるに出る。日付の無い子は出ない', () => {
-    const plan = getDayPlan([...tasks, task('esFuture', { parentId: 'company', scheduledDate: '2026-10-01', dueDate: '2026-10-02' })], DAY)
+    const plan = getDayPlan([...tasks, task('esFuture', { parentId: 'company', dueDate: '2026-10-02' })], DAY)
     expect(plan.overdue.map((x) => x.id)).toEqual(['late'])
     expect(plan.open.map((x) => x.id)).toEqual(['today'])
     expect(plan.carryOver.map((x) => x.id)).toEqual(['es'])
@@ -237,7 +231,10 @@ describe('サブタスクの締切（#308）', () => {
   })
 
   it('候補には日付のある子だけ（日付の無い子は親の中の手順のまま）', () => {
-    expect(getMoreSuggestions(tasks, DAY).map((x) => x.id)).toEqual(['later', 'company'])
+    expect(getMoreSuggestions([...tasks, task('dueLater', { parentId: 'company', dueDate: '2026-10-20' })], DAY).map((x) => x.id)).toEqual([
+      'dueLater',
+      'company',
+    ])
   })
 })
 
@@ -248,9 +245,24 @@ describe('締切が今日で先の日に置いた To-Do（#374）', () => {
     task('noDueLater', { scheduledDate: '2026-10-03' }),
   ]
 
-  it('締切が近い候補の先頭に入り、先の日に置いたものには残らない', () => {
+  it('締切が近い候補の先頭に入り、締切の無いものは候補に出ない', () => {
     expect(getDayPlan(tasks, DAY).dueSoon.map((x) => x.id)).toEqual(['dueTodayLater', 'soon'])
-    expect(getMoreSuggestions(tasks, DAY).map((x) => x.id)).toEqual(['noDueLater'])
+    expect(getMoreSuggestions(tasks, DAY).map((x) => x.id)).toEqual([])
+  })
+})
+
+describe('実行日を決めた To-Do は候補に出さない（#480）', () => {
+  const tasks = [
+    task('dueOnly', { dueDate: '2026-10-02' }),
+    task('decidedSoon', { scheduledDate: '2026-10-01', dueDate: '2026-10-02' }),
+    task('decidedFar', { scheduledDate: '2026-10-10', dueDate: '2026-10-20' }),
+    task('decidedNoDue', { scheduledDate: '2026-10-03' }),
+    task('afterDueFar', { scheduledDate: '2026-10-25', dueDate: '2026-10-20' }),
+  ]
+
+  it('締切だけのものと、実行日が締切より後のものだけ残る', () => {
+    expect(getDayPlan(tasks, DAY).dueSoon.map((x) => x.id)).toEqual(['dueOnly'])
+    expect(getMoreSuggestions(tasks, DAY).map((x) => x.id)).toEqual(['afterDueFar'])
   })
 })
 

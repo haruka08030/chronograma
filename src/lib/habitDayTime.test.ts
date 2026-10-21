@@ -59,6 +59,8 @@ describe('その日だけの時間（habitTimesOn）', () => {
     const fixed = gym({ timeMode: 'fixed', endTime: null, timeOverrides: { [DAY]: { startTime: '07:00', endTime: null } } })
     expect(habitTimesOn(fixed, DAY)).toEqual({ startTime: '07:00', endTime: null })
     expect(plannedRecordTimes(fixed, DAY)).toEqual({ startTime: '07:00', endTime: '07:15' })
+    // 「1 回の目標」があればその長さ
+    expect(plannedRecordTimes({ ...fixed, goalMinutes: 30 }, DAY)).toEqual({ startTime: '07:00', endTime: '07:30' })
     const placed = gym({ timeMode: 'fixed', endTime: null, timeOverrides: { [DAY]: { startTime: '07:00', endTime: '08:00' } } })
     expect(habitTimesOn(placed, DAY)).toEqual({ startTime: '07:00', endTime: '08:00' })
     expect(plannedRecordTimes(placed, DAY)).toEqual({ startTime: '07:00', endTime: '08:00' })
@@ -113,6 +115,10 @@ describe('setHabitDayTime', () => {
     expect(get().timeOverrides).toEqual({ [DAY]: { startTime: '18:00', endTime: '19:00' } })
     expect(isPointHabitOn(get(), DAY)).toBe(false)
     expect(isPointHabitOn(get(), OTHER)).toBe(true)
+    // チップに戻す
+    useTaskStore.getState().clearHabitDayTime('gym', DAY)
+    expect(get()).not.toHaveProperty('timeOverrides')
+    expect(isPointHabitOn(get(), DAY)).toBe(true)
   })
 
   it('✓ で作る記録はその日の時間になり、その時間で達成になる', () => {

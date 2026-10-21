@@ -157,6 +157,9 @@ describe('続けて押した分は 1 回の取り消しで戻る', () => {
     expect(activeEvents()).toHaveLength(2)
     S().undoLastOperation()
     expect(S().tasks.some((t) => t.title === 'メモ')).toBe(false)
+    // よく入れる予定の保存も 1 回分（#490）
+    S().undoLastOperation()
+    expect(S().eventTemplates.some((t) => t.id === 'x')).toBe(false)
     S().undoLastOperation()
     expect(activeEvents()).toHaveLength(0)
   })

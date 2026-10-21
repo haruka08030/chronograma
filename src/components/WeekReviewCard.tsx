@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { differenceInCalendarDays, format } from 'date-fns'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import {
   compareReviews,
   foldLabelMinutes,
@@ -85,7 +85,7 @@ function loggedDiffText(diff: number, period: ReviewPeriod, current: boolean, t:
 export function WeekReviewCard() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
-  const habits = useTaskStore((s) => s.habits)
+  const habits = useTaskStore(selectLiveHabits)
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   const selectView = useTaskStore((s) => s.selectView)
   const [period, setPeriod] = useState<ReviewPeriod>('week')

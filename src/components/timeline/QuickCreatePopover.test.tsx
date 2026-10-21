@@ -58,3 +58,50 @@ describe('QuickCreatePopover: 枠に入る To-Do を置く', () => {
     expect(view.queryByRole('button', { name: /レポート/ })).toBeNull()
   })
 })
+
+describe('QuickCreatePopover: 記録の列の「＋ 記録なし」', () => {
+  beforeEach(() => localStorage.clear())
+
+  const openLog = () => {
+    const log = (id: string, title: string, category: string | null) => ({
+      ...makeTask({ title, listId: INBOX_LIST_ID, dueDate: today, startTime: '08:00', endTime: '09:00' }, 0),
+      id,
+      kind: 'log' as const,
+      completed: true,
+      category,
+      tags: category ? [category] : [],
+    })
+    useTaskStore.setState({ tasks: [log('l1', '授業', '授業'), log('l2', '授業', '授業'), log('l3', 'メール返信', null)] })
+    const onClose = vi.fn()
+    const view = render(
+      <QuickCreatePopover
+        anchor={anchor}
+        dateKey={today}
+        startTime="07:00"
+        endTime="10:00"
+        asLog
+        onTimesChange={() => {}}
+        onClose={onClose}
+        onCreated={() => {}}
+      />,
+    )
+    return { view, onClose }
+  }
+
+  it('書く前は、よく記録するもののチップを出し、押すとその時間をその名前とラベルで記録する', () => {
+    const { view, onClose } = openLog()
+    fireEvent.click(view.getByRole('button', { name: /07:00.*10:00.*授業/ }))
+    expect(useTaskStore.getState().tasks.find((x) => x.startTime === '07:00')).toMatchObject({
+      title: '授業',
+      endTime: '10:00',
+      tags: ['授業'],
+    })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('名前を書き始めたらチップは消える', () => {
+    const { view } = openLog()
+    fireEvent.change(view.getByPlaceholderText(i18n.t('quickCreate.logPlaceholder')), { target: { value: 'ジ' } })
+    expect(document.querySelector('[data-recent-log-chips]')).toBeNull()
+  })
+})

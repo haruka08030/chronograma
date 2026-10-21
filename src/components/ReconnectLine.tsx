@@ -1,8 +1,8 @@
-import { ERROR_TEXT, PHRASE_WRAP } from './ui/textClass'
+import { ERROR_TEXT, HINT_TEXT, PHRASE_WRAP } from './ui/textClass'
 
 /**
  * 連携の接続が切れたときの 1 行（Google・Notion・Canvas で共通、#449・#450）。何が起きたかと、直すための 1 つのボタン。
- * × では消さない（つなぎ直すか、設定で外すまで出す）
+ * × では消さない（つなぎ直すか、設定で外すまで出す）。Google に送れていない予定の 1 行も同じ形（`quiet`）
  */
 export function ReconnectLine({
   message,
@@ -10,6 +10,7 @@ export function ReconnectLine({
   onAction,
   busy = false,
   detail,
+  quiet = false,
   className = '',
 }: {
   message: string
@@ -18,11 +19,13 @@ export function ReconnectLine({
   busy?: boolean
   /** ボタンを押して失敗したときの説明など */
   detail?: string | null
+  /** 急がない知らせ（赤くしない）。Google に送れていない予定など */
+  quiet?: boolean
   className?: string
 }) {
   return (
     <div className={`flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 py-1 text-xs ${className}`}>
-      <span className={`min-w-0 flex-1 md:flex-none ${ERROR_TEXT} ${PHRASE_WRAP}`}>{message}</span>
+      <span className={`min-w-0 flex-1 md:flex-none ${quiet ? HINT_TEXT : ERROR_TEXT} ${PHRASE_WRAP}`}>{message}</span>
       <button
         type="button"
         onClick={onAction}

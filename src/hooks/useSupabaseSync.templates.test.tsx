@@ -27,7 +27,7 @@ vi.mock('../lib/errorReport', async (importOriginal) => ({
 }))
 vi.mock('./useAutoBackup', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./useAutoBackup')>()),
-  backupNow: vi.fn(),
+  backupNow: vi.fn(async () => true),
 }))
 
 const late: EventTemplate = { id: 'late', title: 'バイト 遅番', startTime: '17:00', endTime: '22:00', color: '#039BE5' }

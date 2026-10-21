@@ -7,7 +7,7 @@ import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { useCanvasSubmitted } from '../lib/canvasSubmitted'
-import { isModKey, isSubmitEnter } from '../lib/keyboard'
+import { isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
 import { RowSelectCheckbox } from './ui/RowSelectCheckbox'
@@ -39,9 +39,6 @@ import { useAppTodayKey } from '../hooks/useAppClock'
 import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 import { dueDateLabel } from './ui/dueDateLabel'
 import { DAY_ROW_PAD_CLASS, DAY_ROW_TIME_CLASS } from './ui/DayRow'
-
-/** PC で題名を 1 回押してから詳細を開くまで（2 回目が来たら名前の変更） */
-const DOUBLE_CLICK_MS = 250
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
@@ -296,41 +293,18 @@ export const TaskItem = memo(function TaskItem({
     setEditValue(task.title)
     setEditing(true)
   }, [task.title])
-  // 題名を押したときも行と同じ（To-Do 一覧は詳細、今日の計画の指はシート。`useOpenTaskRow`）。名前の変更は PC はダブルクリックか F2、スマホは詳細から。
-  // 行に動きが無い所（詳細のサブタスク）は押すと名前の変更
+  // 題名を押したときも行と同じで、待たずに開く（To-Do 一覧は詳細、今日の計画の指はシート。`useOpenTaskRow`）。
+  // 名前の変更は詳細の題名か、題名にフォーカスして F2。行に動きが無い所（詳細のサブタスク）は押すと名前の変更
   const hasRowAction = !!onRowClick || !!onClick
-  const singleClickRef = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(singleClickRef.current), [])
   const isCoarse = useIsCoarsePointer()
 
   const handleTitleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (!hasRowAction) {
-        e.stopPropagation()
-        beginRename()
-        return
-      }
-      // 指・キー（detail 0）・修飾キー・選択中はそのまま行へ
-      if (isCoarse || e.detail === 0 || e.shiftKey || isModKey(e) || selection?.reveal) return
-      // PC: ダブルクリックの 2 回目より先に詳細が開いて背景を押さないよう、1 回目は少し待ってから行へ
+      if (hasRowAction) return
       e.stopPropagation()
-      window.clearTimeout(singleClickRef.current)
-      if (e.detail > 1) return
-      singleClickRef.current = window.setTimeout(() => {
-        if (onRowClick) onRowClick(e)
-        else onClick?.()
-      }, DOUBLE_CLICK_MS)
-    },
-    [hasRowAction, isCoarse, selection?.reveal, onRowClick, onClick, beginRename],
-  )
-  const handleTitleDoubleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (isCoarse || !hasRowAction || selection?.reveal) return
-      e.stopPropagation()
-      window.clearTimeout(singleClickRef.current)
       beginRename()
     },
-    [isCoarse, hasRowAction, selection?.reveal, beginRename],
+    [hasRowAction, beginRename],
   )
 
   /** 一覧がメニューを持っていれば任せる（選択中のまとめて操作）。無ければこの行だけのメニューを開く */
@@ -434,15 +408,15 @@ export const TaskItem = memo(function TaskItem({
         {/* 時刻の無い行は時刻の列を空けない（空けると左の色の線と丸の間が開きすぎる） */}
         {compact && task.startTime && <span className={DAY_ROW_TIME_CLASS}>{task.startTime}</span>}
 
-        {/* 予定（バイト・授業）には完了の丸を出さない */}
+        {/* 予定（バイト・授業）には完了の丸を出さない。日パネル（compact）は字が小さいので丸も小さく（サブタスクと同じ 16px） */}
         {isEventTask(task) ? (
-          <EventMark hex={planHex(task)} small={isSubtask} />
+          <EventMark hex={planHex(task)} small={isSubtask || compact} />
         ) : (
           <CompletionCircle
             completed={shownCompleted}
             justCompleted={justCompleted}
             priority={task.priority}
-            small={isSubtask}
+            small={isSubtask || compact}
             shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
             inert={Boolean(selection?.reveal)}
             onClick={(e) => {
@@ -479,7 +453,6 @@ export const TaskItem = memo(function TaskItem({
               id={optionId ? `${optionId}-title` : undefined}
               data-task-title
               onClick={handleTitleClick}
-              onDoubleClick={handleTitleDoubleClick}
               onKeyDown={(e) => {
                 if (e.key !== 'F2') return
                 e.preventDefault()

@@ -9,9 +9,10 @@ import { canEditGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit
 import { useTaskColor } from '../../hooks/useTaskColor'
 import { ColorPalette } from '../labels/ColorPalette'
 import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
-import { CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
+import { CalendarIcon, CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
 import { useScheduleEntry } from '../../hooks/useScheduleEntry'
 import { deleteTaskAsking } from '../../lib/seriesScope'
+import { isGoogleSkipped } from '../../lib/googleSkip'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 
@@ -22,35 +23,40 @@ function Dot({ hex }: { hex: string }) {
 
 /**
  * タイムラインの予定・記録を右クリックしたときのメニュー（押して出るカードと同じ操作を、カードを開かずに）。
- * 予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・複製・削除。記録: 色（＝ラベル）・詳細・削除
+ * 予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・複製・（Google に送っているとき）この名前は Google に送らない・削除。
+ * 記録: 色（＝ラベル）・詳細・削除
  */
 export function TaskEventMenu({
   x,
   y,
+  alignRight,
   taskId,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
+  alignRight?: boolean
   taskId: string
   onClose: () => void
   onOpenDetail: (taskId: string) => void
 }) {
   const task = useTaskStore((s) => s.tasks.find((t) => t.id === taskId) ?? null)
   if (!task) return null
-  return <TaskEventMenuBody x={x} y={y} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
+  return <TaskEventMenuBody x={x} y={y} alignRight={alignRight} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
 }
 
 function TaskEventMenuBody({
   x,
   y,
+  alignRight,
   task,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
+  alignRight?: boolean
   task: Task
   onClose: () => void
   onOpenDetail: (taskId: string) => void
@@ -61,8 +67,12 @@ function TaskEventMenuBody({
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   const duplicateTasks = useTaskStore((s) => s.duplicateTasks)
-  const isLog = isLogTask(task)
   const isEvent = isEventTask(task)
+  // 予定を Google に送っているときだけ（To-Do・記録は送らない）
+  const googleSending = useTaskStore((s) => isEvent && s.googleConnected && s.googleCanWrite)
+  const googleSkipped = useTaskStore((s) => isGoogleSkipped(s.addons.googleSkip, task.title))
+  const setGoogleSkip = useTaskStore((s) => s.setGoogleSkip)
+  const isLog = isLogTask(task)
   const color = useTaskColor(task, !isLog)
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
   const { canLogAsPlanned, ended } = planTiming(task)
@@ -80,6 +90,7 @@ function TaskEventMenuBody({
       extra: (close) => (
         <ColorPalette
           bare
+          fill
           selectedHex={color.current}
           onChoose={(h) => {
             color.choose(h)
@@ -164,6 +175,19 @@ function TaskEventMenuBody({
             },
           },
         ]),
+    // 名前ごとに Google に送らない（移動・面接対策のような段取りの予定、#461）
+    ...(googleSending && task.title.trim()
+      ? [
+          {
+            kind: 'leaf' as const,
+            id: 'google-skip',
+            label: t('taskMenu.googleSkip'),
+            icon: <CalendarIcon className={ICON} />,
+            checked: googleSkipped,
+            run: () => setGoogleSkip(task.title, !googleSkipped),
+          },
+        ]
+      : []),
     {
       kind: 'leaf',
       id: 'delete',
@@ -174,14 +198,36 @@ function TaskEventMenuBody({
       run: () => void deleteTaskAsking(task.id),
     },
   ]
-  return <ActionMenu x={x} y={y} header={task.title || t('taskMenu.one')} entries={entries} onClose={onClose} searchable={false} />
+  return (
+    <ActionMenu
+      x={x}
+      y={y}
+      alignRight={alignRight}
+      header={task.title || t('taskMenu.one')}
+      entries={entries}
+      onClose={onClose}
+      searchable={false}
+    />
+  )
 }
 
 /**
  * Google の予定を右クリックしたときのメニュー（Google カレンダーの右クリックと同じく、色と削除）。
  * 書き込めない予定は「Google カレンダーで開く」だけ。繰り返しの色はカードの既定と同じく「すべての予定」に付ける
  */
-export function GoogleEventMenu({ x, y, eventId, onClose }: { x: number; y: number; eventId: string; onClose: () => void }) {
+export function GoogleEventMenu({
+  x,
+  y,
+  alignRight,
+  eventId,
+  onClose,
+}: {
+  x: number
+  y: number
+  alignRight?: boolean
+  eventId: string
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const event = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
@@ -202,6 +248,7 @@ export function GoogleEventMenu({ x, y, eventId, onClose }: { x: number; y: numb
             extra: (close: () => void) => (
               <ColorPalette
                 bare
+                fill
                 selectedHex={event.color ?? DEFAULT_GOOGLE_EVENT_HEX}
                 onChoose={(h) => {
                   setGoogleEventColor(event, h, scope)
@@ -243,5 +290,5 @@ export function GoogleEventMenu({ x, y, eventId, onClose }: { x: number; y: numb
       : []),
   ]
   if (entries.length === 0) return null
-  return <ActionMenu x={x} y={y} header={event.summary} entries={entries} onClose={onClose} searchable={false} />
+  return <ActionMenu x={x} y={y} alignRight={alignRight} header={event.summary} entries={entries} onClose={onClose} searchable={false} />
 }

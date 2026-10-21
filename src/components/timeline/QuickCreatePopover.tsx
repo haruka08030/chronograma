@@ -31,6 +31,7 @@ import { formatDuration } from '../../lib/timeGrid'
 import { menuDateHint } from '../../lib/menuDateHint'
 import { toastTitle } from '../../lib/undoWindow'
 import { MENU_ROW_HOVER, MENU_ROW_PRESS } from '../ui/surface'
+import { RecentLogChips } from '../RecentLogChips'
 import { useExitGhost } from '../../hooks/useExitGhost'
 
 const WIDTH = 340
@@ -256,6 +257,17 @@ export function QuickCreatePopover({
           onKeyDown={onTitleKeyDown}
           placeholder={t('quickCreate.titlePlaceholder')}
           className={TITLE_INPUT}
+        />
+      )}
+      {asLog && title.trim() === '' && (
+        // 書く前に、よく記録するものから 1 タップでこの時間を埋める（今日の画面の締めにあった記録の無い時間の埋め方）
+        <RecentLogChips
+          className="mt-2"
+          ariaLabel={(name) => t('planner.gapRecordAs', { title: name, start: startTime, end: endTime })}
+          onPick={(r) => {
+            addTimeLog(r.title, dateKey, startTime, endTime, r.category ? [r.category] : [])
+            onClose()
+          }}
         />
       )}
       {showFit && fit.estimateMinutes != null && (

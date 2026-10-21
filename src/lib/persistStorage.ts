@@ -5,6 +5,7 @@
  *   上書きし合い、storage イベントが往復し続ける）
  * - 最後に自分が書いた・取り込んだ文字列を覚えておき、他のタブの変更かどうかを見分ける
  * - 保存する値（`partialize` の結果）がどれも前と同じ参照なら、文字列にもしない（`createPersistStorage`）
+ * - 保存データを読めなかった・新しい版のアプリが書いたデータだったときは、開いている間ずっと書かない（`blockPersisting`）
  */
 import type { PersistStorage, StateStorage, StorageValue } from 'zustand/middleware'
 import { readStored, usingIndexedDb, writeStored } from './dataStore'
@@ -23,6 +24,35 @@ interface WriteHandlers {
   onRecovered: () => void
 }
 let handlers: WriteHandlers | null = null
+
+/**
+ * 保存を止めている理由（#485）。`newer` は新しい版のアプリが書いたデータ（古いアプリが知らない項目を落として書き戻さない）、
+ * `unreadable` は保存データを読めなかった・移せなかった（初期状態のまま次の編集で元のデータを上書きしない）。
+ * 一度止めたら開き直すまで戻さない
+ */
+export type PersistBlock = 'newer' | 'unreadable'
+let blocked: PersistBlock | null = null
+const blockListeners = new Set<() => void>()
+
+export function blockPersisting(reason: PersistBlock): void {
+  if (blocked) return
+  blocked = reason
+  blockListeners.forEach((l) => l())
+}
+
+/** 保存を止めているか（止めていればその理由） */
+export function persistBlocked(): PersistBlock | null {
+  return blocked
+}
+
+export function onPersistBlockedChange(listener: () => void): () => void {
+  blockListeners.add(listener)
+  return () => blockListeners.delete(listener)
+}
+
+export function unblockPersistingForTests(): void {
+  blocked = null
+}
 
 export function setPersistWriteHandlers(h: WriteHandlers) {
   handlers = h
@@ -66,7 +96,7 @@ export const persistStorage: StateStorage = {
     }
   },
   setItem: (key, value) => {
-    if (suppressWrites) return
+    if (suppressWrites || blocked) return
     // 中身が変わっていなければ書かない（画面の状態だけの変更で、全データを書き直して他のタブに読み直させない）
     if (value === lastKnownRaw && !writeFailed) return
     const saved = () => {
@@ -145,7 +175,7 @@ export function createPersistStorage<S>(): PersistStorage<S> {
       return raw === null ? null : (JSON.parse(raw) as StorageValue<S>)
     },
     setItem: (name, value) => {
-      if (suppressWrites) return
+      if (suppressWrites || blocked) return
       const prev = lastWritten
       if (
         prev &&

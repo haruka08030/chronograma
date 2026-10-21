@@ -37,7 +37,7 @@ describe('追加機能の画面と設定（#453）', () => {
 
   it('設定でも同じオン・オフで、最後の行から追加機能の画面へ', async () => {
     const user = userEvent.setup()
-    useTaskStore.setState({ addons: { enabled: { timetable: true }, dues: [] } })
+    useTaskStore.setState({ addons: { enabled: { timetable: true }, dues: [], googleSkip: [] } })
     render(<AddonsSettingsGroup />)
     await user.click(screen.getByRole('switch', { name: '時間割・欠席を使う' }))
     expect(useTaskStore.getState().addons.enabled).toEqual({ timetable: false })
@@ -50,7 +50,7 @@ describe('引き落とし・期限の日（#454）', () => {
   it('オンにして開き、足すと一覧に出る。今日の計画には近いものだけ出る', async () => {
     const user = userEvent.setup()
     const { PlannerDues } = await import('../today/PlannerDues')
-    useTaskStore.setState({ addons: { enabled: { dues: true }, dues: [] } })
+    useTaskStore.setState({ addons: { enabled: { dues: true }, dues: [], googleSkip: [] } })
     const today = (await import('../../lib/timeZone')).appTodayKey()
     render(
       <>
@@ -70,7 +70,7 @@ describe('引き落とし・期限の日（#454）', () => {
     const { PlannerDues } = await import('../today/PlannerDues')
     const today = (await import('../../lib/timeZone')).appTodayKey()
     useTaskStore.setState({
-      addons: { enabled: { dues: false }, dues: [{ id: 'a', title: '家賃', date: today, repeat: 'none', notifyDays: 0 }] },
+      addons: { enabled: { dues: false }, dues: [{ id: 'a', title: '家賃', date: today, repeat: 'none', notifyDays: 0 }], googleSkip: [] },
     })
     render(<PlannerDues dateKey={today} />)
     expect(screen.queryByRole('list', { name: '引き落とし・期限' })).toBeNull()

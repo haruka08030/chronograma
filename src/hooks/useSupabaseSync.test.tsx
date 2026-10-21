@@ -1,6 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
+import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
+import { blockPersisting, unblockPersistingForTests } from '../lib/persistStorage'
 import { loadBaseline, saveBaseline } from '../lib/syncMerge'
 import { fakeDb, inboxRow, taskRow } from '../test/fakeSupabaseDb'
 import { clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
@@ -35,7 +37,7 @@ vi.mock('../lib/errorReport', async (importOriginal) => ({
 }))
 vi.mock('./useAutoBackup', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./useAutoBackup')>()),
-  backupNow: vi.fn(),
+  backupNow: vi.fn(async () => true),
 }))
 
 // 通知の購読（Service Worker）は jsdom に無いので、外したか・購読し直したかだけ見る
@@ -157,6 +159,28 @@ describe('useSupabaseSync', () => {
       )
     })
 
+    it('入れないと答えても、控えを取れず取消を選んだら手元を消さず、アカウントにも送らない（#486）', async () => {
+      db.tables.lists!.push({ ...inboxRow })
+      db.tables.tasks!.push(taskRow('r1', { title: 'from account' }))
+      useTaskStore.getState().addTask('someone else offline')
+      vi.mocked(backupNow).mockResolvedValueOnce(false)
+      // 入れるか → 入れない。控えを取れなかったので書き出して進むか → 取消
+      confirm.ask.mockResolvedValue(false)
+
+      signIn('u1')
+      for (let i = 0; i < 50 && confirm.ask.mock.calls.length < 2; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10)
+        })
+      }
+
+      expect(confirm.ask).toHaveBeenCalledTimes(2)
+      expect(confirm.ask.mock.calls[1]![0].confirmLabel).toBe(i18n.t('accountBackup.exportAndContinue'))
+      expect(storeTitles()).toEqual(['someone else offline'])
+      expect(serverTitles('u1')).toEqual(['from account'])
+      expect(useTaskStore.getState().dataOwner).toBeNull()
+    })
+
     it('アカウントが空なら聞かずに送る', async () => {
       useTaskStore.getState().addTask('made offline')
 
@@ -211,7 +235,7 @@ describe('useSupabaseSync', () => {
       env.user = null
       hook.rerender()
       useTaskStore.getState().addTask('left over')
-      clearLocalAccountState('u1')
+      await clearLocalAccountState('u1')
       expect(useTaskStore.getState().tasks).toEqual([])
       expect(beforeSignOutBackups()).toEqual([])
     })
@@ -466,7 +490,7 @@ describe('useSupabaseSync', () => {
 
       env.user = null
       hook.rerender()
-      clearLocalAccountState('u1')
+      await clearLocalAccountState('u1')
       expect(useTaskStore.getState().timeLogTagPresets).not.toContain('A社 面接')
       expect(useTaskStore.getState().logLabelsUpdatedAt).toBeNull()
       expect(push.detach).toHaveBeenCalled()
@@ -632,5 +656,108 @@ describe('useSupabaseSync', () => {
       await untilSynced()
       expect(calls()).toHaveLength(1)
     })
+  })
+
+  describe('読めなかった行・大量の削除でクラウドの行を消さない（#484）', () => {
+    const tenTasks = () => {
+      db.tables.lists!.push({ ...inboxRow })
+      for (let i = 0; i < 10; i++) db.tables.tasks!.push(taskRow(`t${i}`, { title: `task ${i}` }))
+    }
+    const all = Array.from({ length: 10 }, (_, i) => `task ${i}`).sort()
+
+    it('保存データの行が読めなくても、次の同期でクラウドから消さず、この端末に戻す', async () => {
+      tenTasks()
+      signIn('u1')
+      await untilSynced()
+      expect(loadBaseline('u1')).not.toBeNull()
+
+      // 保存データの 1 行が読めなくなった（題名が文字列でない）まま開き直した
+      const saved = JSON.parse(localStorage.getItem(PERSIST_STORAGE_KEY)!) as { state: { tasks: { id: string; title: unknown }[] } }
+      saved.state.tasks = saved.state.tasks.map((t) => (t.id === 't3' ? { ...t, title: 3 } : t))
+      localStorage.setItem(PERSIST_STORAGE_KEY, JSON.stringify(saved))
+      await act(async () => {
+        await useTaskStore.persist.rehydrate()
+      })
+      expect(storeTitles()).not.toContain('task 3')
+
+      window.dispatchEvent(new Event('online'))
+      await untilSynced()
+
+      expect(confirm.ask).not.toHaveBeenCalled()
+      expect(serverTitles('u1')).toEqual(all)
+      expect(storeTitles()).toEqual(all)
+    })
+
+    it('サーバーの行を大量に消す同期は、控えを取ってから確かめる。消さないと答えたら両方を残す', async () => {
+      tenTasks()
+      signIn('u1')
+      await untilSynced()
+      vi.mocked(backupNow).mockClear()
+
+      confirm.ask.mockResolvedValue(false)
+      const before = useTaskStore.getState().lastSyncedAt
+      useTaskStore.setState({ tasks: useTaskStore.getState().tasks.filter((t) => Number(t.id.slice(1)) >= 7) })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_700)
+      })
+      await untilSynced(before)
+
+      expect(confirm.ask).toHaveBeenCalledTimes(1)
+      expect(confirm.ask.mock.calls[0]![0].confirmLabel).toBe(i18n.t('sync.massDeleteConfirm', { count: 7 }))
+      // 控えには消える前のサーバーの行も入れる
+      const backup = vi.mocked(backupNow).mock.calls.find(([kind]) => kind === 'beforeSync')
+      expect(backup?.[2]?.tasks.map((t) => t.title).sort()).toEqual(all)
+      expect(serverTitles('u1')).toEqual(all)
+      expect(storeTitles()).toEqual(all)
+    })
+
+    it('消すと答えたらクラウドからも消す', async () => {
+      tenTasks()
+      signIn('u1')
+      await untilSynced()
+
+      const before = useTaskStore.getState().lastSyncedAt
+      useTaskStore.setState({ tasks: useTaskStore.getState().tasks.filter((t) => Number(t.id.slice(1)) >= 7) })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_700)
+      })
+      await untilSynced(before)
+
+      expect(confirm.ask).toHaveBeenCalledTimes(1)
+      expect(serverTitles('u1')).toEqual(['task 7', 'task 8', 'task 9'])
+    })
+
+    it('少し消すだけなら聞かない', async () => {
+      tenTasks()
+      signIn('u1')
+      await untilSynced()
+
+      const before = useTaskStore.getState().lastSyncedAt
+      useTaskStore.setState({ tasks: useTaskStore.getState().tasks.filter((t) => t.id !== 't0') })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_700)
+      })
+      await untilSynced(before)
+
+      expect(confirm.ask).not.toHaveBeenCalled()
+      expect(serverTitles('u1')).not.toContain('task 0')
+    })
+  })
+
+  it('保存を止めている間（新しい版のデータ・読めなかったデータ、#485）は同期しない', async () => {
+    db.tables.lists!.push({ ...inboxRow })
+    db.tables.tasks!.push(taskRow('r1', { title: 'from account' }))
+    blockPersisting('newer')
+    try {
+      signIn('u1')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3_000)
+      })
+      expect(db.selects).toHaveLength(0)
+      expect(storeTitles()).toEqual([])
+      expect(loadBaseline('u1')).toBeNull()
+    } finally {
+      unblockPersistingForTests()
+    }
   })
 })

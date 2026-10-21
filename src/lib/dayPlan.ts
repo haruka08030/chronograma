@@ -77,6 +77,14 @@ function compareDayTasks(a: Task, b: Task): number {
 const DUE_SOON_DAYS = 3
 
 /**
+ * 先の日にやると決めてあるか（今日の計画の候補に出さない）。実行日が締切より後のものは置き直しが要るので、
+ * 決めたことにせず締切の近い候補に出す（#374）
+ */
+function isDecidedLater(task: Pick<Task, 'scheduledDate' | 'dueDate'>): boolean {
+  return task.scheduledDate !== null && !(task.dueDate && task.scheduledDate > task.dueDate)
+}
+
+/**
  * 今日の計画（やる・やり残し・期限切れ・締切間近・候補・完了の数）に 1 件の To-Do として入れるか。
  * ルートは全部、サブタスクは実行日か締切のあるものだけ（企業の下の ES 締切・面接など。日付の無い子は親の中の手順のまま）。
  * 夜の締め・朝のまとめのサーバー側（`wrapUp.ts`）も同じ決まり
@@ -119,7 +127,7 @@ export function getDayPlan(
       overdue.push(task)
     } else if (placed && placed < dateKey) {
       carryOver.push(task)
-    } else if (placed && task.dueDate && task.dueDate >= dateKey && task.dueDate <= dueSoonLimit) {
+    } else if (task.dueDate && task.dueDate >= dateKey && task.dueDate <= dueSoonLimit && !isDecidedLater(task)) {
       dueSoon.push(task)
     }
   }
@@ -133,13 +141,12 @@ export function getDayPlan(
 
 /**
  * 「今日やる候補」をスクロールで足していく分。やり残し・締切間近（getDayPlan）より後ろに並べる。
- * 締切がもっと先のもの（締切順）→ 日付なし（並び順）→ 先の日に置いたもの（日付順）。
+ * 締切がもっと先のもの（締切順）→ 日付なし（並び順）。実行日を決めたものは出さない（#480）
  */
 export function getMoreSuggestions(tasks: readonly Task[], dateKey: string, excludedListIds: ReadonlySet<string> = new Set()): Task[] {
   const dueSoonLimit = toDateKey(addDays(fromDateKey(dateKey), DUE_SOON_DAYS))
   const dueLater: Task[] = []
   const undated: Task[] = []
-  const placedLater: Task[] = []
   for (const task of tasks) {
     if (!isActiveTask(task) || task.completed || !isTodoTask(task)) continue
     if (!isDayPlanTask(task) || excludedListIds.has(task.listId)) continue
@@ -148,14 +155,12 @@ export function getMoreSuggestions(tasks: readonly Task[], dateKey: string, excl
     else if (placed <= dateKey) continue
     // 締切切れは getDayPlan の overdue で先頭に出している
     else if (task.dueDate && task.dueDate < dateKey) continue
-    else if (task.dueDate && task.dueDate > dueSoonLimit) dueLater.push(task)
     // 締切が見ている日〜3 日以内のものは getDayPlan の dueSoon（締切が近い候補）に出している
-    else if (!task.dueDate) placedLater.push(task)
+    else if (task.dueDate && task.dueDate > dueSoonLimit && !isDecidedLater(task)) dueLater.push(task)
   }
   dueLater.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
   undated.sort(compareByOrder)
-  placedLater.sort((a, b) => (taskPlacementDate(a) ?? '').localeCompare(taskPlacementDate(b) ?? ''))
-  return [...dueLater, ...undated, ...placedLater]
+  return [...dueLater, ...undated]
 }
 
 /** 候補を締切で分けた 1 まとまり。`day` は 1 週間以内のその日、`later` はそれより先、`none` は締切なし */

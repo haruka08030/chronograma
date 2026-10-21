@@ -58,7 +58,9 @@ export function useEventTemplateStamp() {
       const added = [...createdRef.current].filter((id) => byId.has(id) && !byId.get(id)!.deletedAt).length
       const removed = [...removedRef.current].filter((id) => byId.get(id)?.deletedAt).length
       const text = stampToastText(tpl.title, added, removed)
-      useTaskStore.setState({ undoBanner: text ? { text, at: Date.now() } : null })
+      // トーストはこの回（`asUndoSession`）の取り消しを指す
+      const undoId = useTaskStore.getState().lastUndoId() ?? undefined
+      useTaskStore.setState({ undoBanner: text ? { text, at: Date.now(), undoId } : null })
     },
     [active],
   )

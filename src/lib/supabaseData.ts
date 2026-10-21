@@ -15,7 +15,7 @@ import {
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
-import { appTimeZone } from './timeZone'
+import { appTimeZone, readTimeZone } from './timeZone'
 import { withLogCategory } from './taskDefaults'
 import type { LogLabelRow, RemoteLabels } from './labelSync'
 import { validTargetMinutes } from './labelTargets'
@@ -70,6 +70,8 @@ interface HabitRow {
   weekday_times?: unknown
   /** 時間の目標（分、`031`）。古い DB には無い。無い・null は無し */
   goal_minutes?: number | null
+  /** ゴミ箱に入れた時刻（`042`）。古い DB には無い。無い・null はゴミ箱に無い */
+  deleted_at?: string | null
 }
 
 interface TaskRow {
@@ -200,6 +202,7 @@ function rowToHabit(row: HabitRow): Habit {
     ...withRestDates(row.rest_dates),
     ...withWeekdayTimes(row.weekday_times),
     ...withGoalMinutes(row.goal_minutes),
+    ...(typeof row.deleted_at === 'string' ? { deletedAt: row.deleted_at } : {}),
   }
 }
 
@@ -244,6 +247,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     rest_dates: h.restDates ?? null,
     weekday_times: h.weekdayTimes ?? null,
     goal_minutes: h.goalMinutes ?? null,
+    deleted_at: h.deletedAt ?? null,
   }
 }
 
@@ -316,8 +320,9 @@ function rowToTaskFields(row: TaskRow): Task {
     kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true, row.is_event === true),
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
     sourceTaskId: typeof row.source_task_id === 'string' ? row.source_task_id : null,
-    timeZone: typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null,
-    timeZoneAnchor: typeof row.time_zone_anchor === 'string' && row.time_zone_anchor ? row.time_zone_anchor : null,
+    // 知らないタイムゾーン名は無いものとして読む（いまのタイムゾーンで書いたとみなす）
+    timeZone: readTimeZone(row.time_zone),
+    timeZoneAnchor: readTimeZone(row.time_zone_anchor),
     reminders: parseReminders(row.reminders),
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
     deletedAt: typeof row.deleted_at === 'string' ? row.deleted_at : null,

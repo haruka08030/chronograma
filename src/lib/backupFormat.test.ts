@@ -14,6 +14,17 @@ import i18n from '../i18n/config'
 const file = (data: Record<string, unknown>) => JSON.stringify({ version: 3, ...data })
 
 describe('parseBackupJson', () => {
+  it('知らないタイムゾーン名は読まない（変換で落ちないように）', () => {
+    const parsed = parseBackupJson(
+      file({
+        lists: [{ id: '__inbox__', name: '未分類' }],
+        tasks: [{ id: 't1', title: '課題', listId: '__inbox__', timeZone: 'Mars/Base', timeZoneAnchor: 'Asia/Tokyo' }],
+      }),
+    )
+    expect(parsed!.tasks[0].timeZone).toBeNull()
+    expect(parsed!.tasks[0].timeZoneAnchor).toBe('Asia/Tokyo')
+  })
+
   it('fills in fields a hand-edited or old file left out, so screens do not crash', () => {
     const parsed = parseBackupJson(
       file({
