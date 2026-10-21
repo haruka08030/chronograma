@@ -655,6 +655,7 @@ export default {
     nudgeBlock: 'タイムラインの選んだ・開いた予定や記録を 15 分ずつ前後へ動かす',
     resizeBlock: 'タイムラインの選んだ・開いた予定や記録の終わりを 15 分ずつ伸び縮み',
     completeSelected: '完了／未完了を切り替え',
+    addWithDetails: '追加欄で: 追加して詳細を開く',
     todayToggle: '今日やる / 明日へ回す',
     pickTime: '選んだ時間未定の To-Do の「時間を決める」を開く（↑↓ で空き、←→ で長さ、Enter で置く）',
     moveRow: 'To-Do の行を移動（Shift で選択を広げる）',
@@ -1034,6 +1035,8 @@ export default {
   quickAdd: {
     placeholder: 'To-Do を追加',
     sharedNote: '共有した本文はメモに入ります',
+    expand: '詳しく書く',
+    expandHint: '追加して詳細を開く（⌘/Ctrl+Enter）',
     chip: {
       date: '日付',
       time: '時間',

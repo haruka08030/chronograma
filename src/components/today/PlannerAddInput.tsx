@@ -9,6 +9,7 @@ import { flyIntoTimeline, nudgeTimelineTab } from '../../lib/onboardingMotion'
 import { InlineAddInput } from '../ui/InlineAddInput'
 import { ExampleChips } from '../ui/ExampleChips'
 import { QuickAddDetails } from '../QuickAddDetails'
+import { openTaskDetail } from '../../lib/overlays'
 
 /** はじめの案内の間、追加欄の薄い文字の例を入れ替える間隔 */
 export const GUIDE_PLACEHOLDER_MS = 2600
@@ -45,10 +46,15 @@ export function PlannerAddInput({
     if (!v.trim()) setPicks({})
   }
 
-  const submit = () => {
+  /** 足す。`details` なら続けて詳細を開く */
+  const submit = (details = false) => {
     if (!draft.trim()) return
     const id = addTaskFromQuickText(draft, { defaultListId: INBOX_LIST_ID, defaultDate: dateKey, picks, last: true })
     change('')
+    if (details && id) {
+      openTaskDetail(id)
+      return
+    }
     if (!onboarding || !id) return
     const added = useTaskStore.getState().tasks.find((t) => t.id === id)
     if (!added?.startTime || !added.endTime || taskPlacementDate(added) !== dateKey) return
@@ -88,7 +94,8 @@ export function PlannerAddInput({
         data-quickadd
         value={draft}
         onValueChange={change}
-        onSubmit={submit}
+        onSubmit={() => submit()}
+        onExpand={() => submit(true)}
         placeholder={placeholder}
       />
       {guide && draft === '' && (

@@ -14,7 +14,8 @@ import { LogTimeRow } from './LogTimeRow'
 import { zonedNow } from '../lib/timeZone'
 import { ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
-import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
+import { isCancelEscape, isModKey, isSubmitEnter } from '../lib/keyboard'
+import { openTaskDetail } from '../lib/overlays'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { addClockMinutes, clockOf, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
@@ -162,7 +163,8 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
   )
   const canSaveManual = Boolean(name && start && end && start !== end && !inFuture)
 
-  const submit = () => {
+  /** 保存する。`details`（後から記録だけ）なら続けて記録の詳細を開く */
+  const submit = (details = false) => {
     if (!name) return
     const tags = category.trim() ? [category.trim()] : []
     if (mode === 'timer') {
@@ -171,7 +173,8 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
       if (!canSaveManual) return
       // 終わりが始まりより前なら日をまたいだ記録（夜〜翌朝の睡眠など）
       const endDate = overnight ? toDateKey(addDays(fromDateKey(dateKey), 1)) : null
-      addTimeLog(name, dateKey, start, end, tags, undefined, endDate, color, taskId)
+      const id = addTimeLog(name, dateKey, start, end, tags, undefined, endDate, color, taskId)
+      if (details) openTaskDetail(id)
     }
     close()
   }
@@ -181,7 +184,9 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
   const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isSubmitEnter(e)) {
       e.preventDefault()
-      submit()
+      // ⌘/Ctrl+Enter は保存して詳細へ（選んだ行を完了する ⌘Enter には渡さない）
+      if (isModKey(e)) e.stopPropagation()
+      submit(isModKey(e) && mode === 'manual')
     }
     if (isCancelEscape(e)) close()
   }
@@ -315,9 +320,21 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
             <button type="button" onClick={close} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
               {t('common.cancel')}
             </button>
+            {/* 保存してそのまま記録の詳細（メモなど）へ。タイマーは始めてから詳細を開けるので出さない */}
+            {mode === 'manual' && (
+              <button
+                type="button"
+                onClick={() => submit(true)}
+                disabled={!canSaveManual}
+                {...tip(t('quickAdd.expandHint'))}
+                className={buttonClass({ variant: 'secondary', size: 'sm' })}
+              >
+                {t('quickAdd.expand')}
+              </button>
+            )}
             <button
               type="button"
-              onClick={submit}
+              onClick={() => submit()}
               disabled={mode === 'timer' ? !name : !canSaveManual}
               className={buttonClass({ variant: 'primary', size: 'sm' })}
             >

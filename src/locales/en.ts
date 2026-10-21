@@ -671,6 +671,7 @@ export default {
     nudgeBlock: 'Move the focused or open timeline block 15 minutes earlier / later',
     resizeBlock: 'Make the focused or open timeline block end 15 minutes earlier / later',
     completeSelected: 'Toggle complete',
+    addWithDetails: 'In an add field: add and open details',
     todayToggle: 'Do today / move to tomorrow',
     pickTime: 'Set a time for the selected untimed task (↑↓ free slot, ←→ length, Enter to place)',
     moveRow: 'Move between tasks (Shift to extend the selection)',
@@ -1066,6 +1067,8 @@ export default {
   quickAdd: {
     placeholder: 'Add a to-do',
     sharedNote: 'The shared text goes into the note',
+    expand: 'Details',
+    expandHint: 'Add and open details (⌘/Ctrl+Enter)',
     chip: {
       date: 'Date',
       time: 'Time',

@@ -1,13 +1,17 @@
 import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react'
-import { PlusIcon } from '../icons'
+import { useTranslation } from 'react-i18next'
+import { OpenPanelIcon, PlusIcon } from '../icons'
 import { useTextEntry } from '../../hooks/useTextEntry'
 import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
+import { isModKey, isSubmitEnter } from '../../lib/keyboard'
+import { tip } from '../../lib/tooltip'
 
 /**
  * 一覧の上・カレンダーの中・サブタスクの「追加」欄（どこでも同じ見た目と動き）。
  * 細い枠に ＋ と文字。押すと薄い背景。Enter で追加して続けて書ける、Esc で書いた分を消す。
  * 外したとき: 既定は書いた分を欄に残すだけ。開いて使う欄（カレンダーの中・サブタスク）は `onBlurSubmit` で足す。
  * `size="sm"` は月のマス・週の終日行の小さい版（＋ なし）。
+ * `onExpand`: 書いた 1 行を足してそのまま詳細を開く（⌘/Ctrl+Enter。大きい欄は書いている間だけ右端に「詳しく書く」）
  */
 export const InlineAddInput = forwardRef<
   HTMLInputElement,
@@ -18,6 +22,8 @@ export const InlineAddInput = forwardRef<
     /** Esc。省略時は書いた分を消してフォーカスを外す */
     onCancel?: () => void
     onBlurSubmit?: () => void
+    /** 足して詳細を開く（⌘/Ctrl+Enter・右端のボタン） */
+    onExpand?: () => void
     /** ＋ の代わりの印（いつかは ☆） */
     icon?: ReactNode
     size?: 'md' | 'sm'
@@ -26,9 +32,23 @@ export const InlineAddInput = forwardRef<
     className?: string
   } & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'onKeyDown' | 'size' | 'className'>
 >(function InlineAddInput(
-  { value, onValueChange, onSubmit, onCancel, onBlurSubmit, icon, size = 'md', underline = false, className = '', onBlur, ...inputProps },
+  {
+    value,
+    onValueChange,
+    onSubmit,
+    onCancel,
+    onBlurSubmit,
+    onExpand,
+    icon,
+    size = 'md',
+    underline = false,
+    className = '',
+    onBlur,
+    ...inputProps
+  },
   ref,
 ) {
+  const { t } = useTranslation()
   const entry = useTextEntry({
     onSubmit,
     onCancel: () => {
@@ -45,7 +65,16 @@ export const InlineAddInput = forwardRef<
       value={value}
       onChange={(e) => onValueChange(e.target.value)}
       maxLength={TITLE_MAX_LENGTH}
-      onKeyDown={entry.onKeyDown}
+      onKeyDown={(e) => {
+        // ⌘/Ctrl+Enter は足して詳細へ（選んだ行を完了する ⌘Enter には渡さない）
+        if (onExpand && isModKey(e) && isSubmitEnter(e)) {
+          e.preventDefault()
+          e.stopPropagation()
+          if (value.trim()) onExpand()
+          return
+        }
+        entry.onKeyDown(e)
+      }}
       onBlur={(e) => {
         entry.onBlur()
         onBlur?.(e)
@@ -67,6 +96,19 @@ export const InlineAddInput = forwardRef<
     >
       {size === 'md' && (icon ?? <PlusIcon className="h-5 w-5 shrink-0 text-zinc-300 dark:text-zinc-600" />)}
       {input}
+      {onExpand && size === 'md' && value.trim() && (
+        <button
+          type="button"
+          // 押しても欄からフォーカスを外さない（外すと書いた分を足して閉じる欄がある）
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onExpand}
+          {...tip(t('quickAdd.expandHint'))}
+          className="-mr-1 inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-700/70 dark:hover:text-zinc-200"
+        >
+          <OpenPanelIcon className="h-3.5 w-3.5" />
+          {t('quickAdd.expand')}
+        </button>
+      )}
     </div>
   )
 })

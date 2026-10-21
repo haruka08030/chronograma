@@ -372,7 +372,7 @@ export interface TaskState {
     color?: string | null,
     /** 元の To-Do（記録の候補から To-Do を選んだとき）。統計の「見積もりと記録」に入る */
     sourceTaskId?: string | null,
-  ) => void
+  ) => string
   /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
   logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void
   /** 記録を開始。既に走っていれば先にそれを記録として閉じる（黙って捨てない） */

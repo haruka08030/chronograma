@@ -9,6 +9,7 @@ import { tip } from '../lib/tooltip'
 import { InlineAddInput } from './ui/InlineAddInput'
 import { QuickAddReading } from './QuickAddReading'
 import { QuickAddDetails } from './QuickAddDetails'
+import { openTaskDetail } from '../lib/overlays'
 
 /** カレンダー各面の控えめな「＋」ボタン（クリックでインライン追加を開く） */
 export function CalendarAddTaskButton({
@@ -75,14 +76,15 @@ export function CalendarInlineTaskAdd({
     if (autoFocus) ref.current?.focus()
   }, [autoFocus])
 
-  const commit = (): boolean => {
+  /** 足す（足したら id）。書いていなければ何もしない */
+  const commit = (): string | undefined => {
     const trimmed = value.trim()
-    if (!trimmed) return false
+    if (!trimmed) return undefined
     const { selectedListId, lists } = useTaskStore.getState()
     const defaultListId = defaultListFor(selectedListId, lists)
-    addTaskFromQuickText(trimmed, { defaultListId, currentListId: defaultListId, defaultDate: dateKey, picks })
+    const id = addTaskFromQuickText(trimmed, { defaultListId, currentListId: defaultListId, defaultDate: dateKey, picks })
     change('')
-    return true
+    return id
   }
 
   // Enter は足して続けて書ける（空なら閉じる）。Esc は閉じる。外したら書いた分を足して閉じる。
@@ -113,6 +115,12 @@ export function CalendarInlineTaskAdd({
           if (!commit()) onDone()
         }}
         onCancel={onDone}
+        // 足して詳細を開く。欄は閉じる（詳細で続きを書く）
+        onExpand={() => {
+          const id = commit()
+          onDone()
+          if (id) openTaskDetail(id)
+        }}
         onBlurSubmit={detailed ? undefined : blurOut}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}

@@ -136,6 +136,8 @@ export const SHORTCUTS = {
   selectAll: { hotkeys: ['mod+a'], display: [['mod', 'A']], label: 'shortcuts.selectAll' },
   openMenu: { hotkeys: ['mod+/', 'ContextMenu', 'shift+F10'], display: [['mod', '/']], label: 'shortcuts.openMenu' },
   completeSelected: { hotkeys: ['mod+Enter'], display: [['mod', 'Enter']], label: 'shortcuts.completeSelected' },
+  /** 追加欄の中だけ（欄が受け取る。外の ⌘Enter には渡さない） */
+  addWithDetails: { hotkeys: [], display: [['mod', 'Enter']], label: 'shortcuts.addWithDetails' },
   todayToggle: { hotkeys: ['shift+t'], display: [['Shift', 'T']], label: 'shortcuts.todayToggle' },
   pickTime: { hotkeys: ['s'], display: [['S']], label: 'shortcuts.pickTime' },
   close: { hotkeys: ['Escape'], display: [['Esc']], label: 'shortcuts.close' },

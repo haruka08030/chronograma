@@ -18,7 +18,7 @@ import { TimeZonePicker } from '../TimeZonePicker'
 import { ClockIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { PillToggle } from '../ui/PillToggle'
-import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
+import { isCancelEscape, isModKey, isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useDateFormat } from '../../hooks/useDateFormat'
@@ -133,8 +133,18 @@ export function QuickCreatePopover({
     if (asLog) {
       // 空欄なら分類名で記録（記録の入力はどこでも同じ規則）
       const name = title.trim() || category.trim() || t('quickCreate.untitled')
-      addTimeLog(name, dateKey, startTime, endTime, category.trim() ? [category.trim()] : [], undefined, undefined, color, taskId)
-      onClose()
+      const id = addTimeLog(
+        name,
+        dateKey,
+        startTime,
+        endTime,
+        category.trim() ? [category.trim()] : [],
+        undefined,
+        undefined,
+        color,
+        taskId,
+      )
+      onCreated(id, openDetail)
       return
     }
     const name = title.trim() || t('quickCreate.untitled')
@@ -199,7 +209,9 @@ export function QuickCreatePopover({
   const onTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isSubmitEnter(e)) {
       e.preventDefault()
-      save(false)
+      // ⌘/Ctrl+Enter は「その他のオプション」と同じ（保存して詳細へ。Google の予定は詳細が無いのでふつうに保存）
+      if (isModKey(e)) e.stopPropagation()
+      save(isModKey(e) && !toGoogle)
     }
   }
 
@@ -361,8 +373,13 @@ export function QuickCreatePopover({
         </label>
       )}
       <div className="mt-4 flex items-center justify-end gap-2">
-        {!asLog && !toGoogle && (
-          <button type="button" onClick={() => save(true)} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+        {!toGoogle && (
+          <button
+            type="button"
+            onClick={() => save(true)}
+            {...tip(t('quickAdd.expandHint'))}
+            className={buttonClass({ variant: 'ghost', size: 'md' })}
+          >
             {t('quickCreate.more')}
           </button>
         )}

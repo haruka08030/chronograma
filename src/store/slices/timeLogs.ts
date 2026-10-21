@@ -90,6 +90,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       }
       pushUndo()
       set((s) => ({ tasks: [...s.tasks, log] }))
+      return log.id
     },
     logSleep: (wakeDateKey, bedTime, wakeTime) => {
       if (bedTime === wakeTime) return

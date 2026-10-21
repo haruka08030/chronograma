@@ -5,6 +5,7 @@ import { useTaskStore } from '../store/taskStore'
 import { INBOX_ID } from '../store/storeConstants'
 import { taskTimedInterval } from '../lib/taskTimeRange'
 import { QuickAdd } from './QuickAdd'
+import { closeTaskDetail, useOverlays } from '../lib/overlays'
 
 const tasks = () => useTaskStore.getState().tasks
 
@@ -23,6 +24,26 @@ describe('QuickAdd', () => {
     expect(tasks()).toHaveLength(1)
     expect(tasks()[0]).toMatchObject({ title: 'Buy milk', completed: false, parentId: null })
     expect(input).toHaveValue('')
+  })
+
+  it('⌘/Ctrl+Enter・「詳しく書く」は足してそのまま詳細を開く。空のときはボタンを出さない', async () => {
+    const user = userEvent.setup()
+    render(<QuickAdd />)
+    const input = screen.getByPlaceholderText('Add a to-do')
+    expect(screen.queryByRole('button', { name: 'Details' })).toBeNull()
+
+    await user.type(input, 'Essay')
+    await user.keyboard('{Meta>}{Enter}{/Meta}')
+    expect(tasks()).toHaveLength(1)
+    expect(useOverlays.getState().detailTaskId).toBe(tasks()[0]!.id)
+    expect(input).toHaveValue('')
+    closeTaskDetail()
+
+    await user.type(input, 'Slides')
+    await user.click(screen.getByRole('button', { name: 'Details' }))
+    expect(tasks()).toHaveLength(2)
+    expect(useOverlays.getState().detailTaskId).toBe(tasks().find((t) => t.title === 'Slides')!.id)
+    closeTaskDetail()
   })
 
   it('空のまま Enter では増えない', async () => {
