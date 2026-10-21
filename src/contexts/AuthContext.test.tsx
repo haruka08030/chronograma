@@ -87,3 +87,27 @@ describe('SIGNED_OUT の片付け', () => {
     expect(backupNow).toHaveBeenCalledWith('beforeSignOut', 'u1')
   })
 })
+
+describe('自分でログアウトしていないときは理由を覚える（#468）', () => {
+  beforeEach(() => localStorage.clear())
+  const notice = () =>
+    JSON.parse(localStorage.getItem('chronograma.signedOutNotice') ?? 'null') as { reason: string; userId: string } | null
+
+  it('期限切れ・ほかで取り消された', async () => {
+    await signedInThenSignedOut()
+    expect(notice()).toMatchObject({ reason: 'expired', userId: 'u1' })
+  })
+
+  it('別の端末でアカウントが削除された', async () => {
+    sb.gone = true
+    await signedInThenSignedOut()
+    expect(notice()).toMatchObject({ reason: 'deleted', userId: 'u1' })
+  })
+
+  it('自分でログアウトした（ほかのタブで、を含む）なら覚えない', async () => {
+    const { noteUserSignOut } = await import('../lib/signedOutNotice')
+    noteUserSignOut()
+    await signedInThenSignedOut()
+    expect(notice()).toBeNull()
+  })
+})
