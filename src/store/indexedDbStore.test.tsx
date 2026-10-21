@@ -153,6 +153,40 @@ describe('移した後に localStorage で動いた回', () => {
   })
 })
 
+describe('移した後に localStorage で動いた回（型の違う設定）', () => {
+  it('その回の設定の型が違っても、読み込みと同じく既定値にして合わせる（画面が落ちない）', async () => {
+    const first = await openTab()
+    first.useTaskStore.getState().addTask('in IndexedDB')
+    await settle()
+    first.data.closeDataStore()
+
+    const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
+      throw new DOMException('blocked', 'InvalidStateError')
+    })
+    const fallback = await openTab()
+    expect(fallback.mode).toBe('localStorage')
+    fallback.useTaskStore.getState().addTask('while on localStorage')
+    // その回の保存（前の版の書き方などで、時間割・追加機能の型が違う）
+    const saved = JSON.parse(localStorage.getItem(PERSIST_STORAGE_KEY)!) as { state: Record<string, unknown> }
+    Object.assign(saved.state, {
+      timetable: 'x',
+      timetableUpdatedAt: '2099-01-01T00:00:00.000Z',
+      addons: null,
+      addonsUpdatedAt: '2099-01-01T00:00:00.000Z',
+    })
+    localStorage.setItem(PERSIST_STORAGE_KEY, JSON.stringify(saved))
+    open.mockRestore()
+
+    const again = await openTab()
+    expect(again.data.dataStoreRecoveredFromLocalStorage()).toBe(true)
+    const st = again.useTaskStore.getState()
+    expect(titles(again).sort()).toEqual(['in IndexedDB', 'while on localStorage'])
+    expect(Array.isArray(st.timetable.periods)).toBe(true)
+    expect(st.addons.enabled).toEqual({})
+    expect(Array.isArray(st.addons.dues)).toBe(true)
+  })
+})
+
 describe('他のタブ（BroadcastChannel）', () => {
   it('2 つのタブで別々に足したタスクが、どちらのタブにも保存にも両方残る', async () => {
     const a = await openTab()

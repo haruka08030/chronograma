@@ -12,20 +12,13 @@
  */
 import { sameValue } from '../lib/sameValue'
 import { DATA_KEYS } from './persistKeys'
+import { ROW_KEYS, SETTING_STAMPS } from './storedSettings'
 
 type State = Record<string, unknown>
 
-const ROW_KEYS = ['tasks', 'lists', 'habits', 'sections'] as const
-/** 変えた時刻と、その時刻で比べる値 */
-const STAMPED: Record<string, readonly string[]> = {
-  logLabelsUpdatedAt: ['timeLogTagPresets', 'logCategoryColors', 'logLabelTargets', 'logLabelIds'],
-  extraTimeZonesUpdatedAt: ['extraTimeZones'],
-  eventTemplatesUpdatedAt: ['eventTemplates'],
-  courseLinksUpdatedAt: ['courseLinks'],
-  timetableUpdatedAt: ['timetable'],
-  addonsUpdatedAt: ['addons'],
-}
 const KEEP_STORED = ['activeTimer', 'activeTimerUpdatedAt', 'dataOwner']
+/** 変えた時刻と、その時刻で比べる値（`STORED_SETTINGS` の表から。動いているタイマーは IndexedDB の本体のまま） */
+const STAMPED = Object.fromEntries(Object.entries(SETTING_STAMPS).filter(([stamp]) => !KEEP_STORED.includes(stamp)))
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const idOf = (v: unknown) => (isPlainObject(v) ? v.id : undefined)
@@ -61,7 +54,7 @@ export function mergeRecoveredState(stored: State, local: State, defaults: State
   const state: State = { ...stored }
   for (const key of DATA_KEYS as readonly string[]) {
     if (!(key in local) || KEEP_STORED.includes(key) || (ROW_KEYS as readonly string[]).includes(key)) continue
-    if (key in STAMPED || Object.values(STAMPED).some((keys) => keys.includes(key))) continue
+    if (key in STAMPED || Object.values(STAMPED).some((keys) => (keys as string[]).includes(key))) continue
     if (sameValue(local[key], defaults[key])) continue
     state[key] = mergeChanged(stored[key], local[key], defaults[key])
   }

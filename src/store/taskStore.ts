@@ -7,13 +7,11 @@ import { clearImportRollback, loadImportRollback } from '../lib/importRollback'
 import { setAppTimeZoneSetting, appTodayKey } from '../lib/timeZone'
 import { reanchorTasks } from '../lib/taskTimeZone'
 import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
-import { normalizeExtraTimeZones, type ExtraTimeZone } from '../lib/extraTimeZones'
-import { normalizeEventTemplates, type EventTemplate } from '../lib/eventTemplates'
-import { normalizeLabelTargets } from '../lib/labelTargets'
-import { normalizeLabelIds } from '../lib/labelIds'
-import { courseKey, normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/courseLinks'
+import type { ExtraTimeZone } from '../lib/extraTimeZones'
+import type { EventTemplate } from '../lib/eventTemplates'
+import { courseKey, withCourseLink, type CourseLink } from '../lib/courseLinks'
 import { sameValue } from '../lib/sameValue'
-import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
+import { DEFAULT_WEEK_STARTS_ON, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import {
   blockPersisting,
   createPersistStorage,
@@ -58,14 +56,15 @@ import { createUiSlice } from './slices/ui'
 import { createDataSlice } from './slices/data'
 import { createEventTemplatesSlice } from './slices/eventTemplates'
 import { createDayMoodsSlice } from './slices/dayMoods'
-import { normalizeDayMoods, type DayMoods } from '../lib/dayMood'
-import { DEFAULT_TIMETABLE, normalizeTimetable, renameAttendance, withAbsence, withAbsenceLimit, type Timetable } from '../lib/timetable'
-import { DEFAULT_ADDONS, normalizeAddons, withAddonOn, type Addons } from '../lib/addons'
+import type { DayMoods } from '../lib/dayMood'
+import { DEFAULT_TIMETABLE, renameAttendance, withAbsence, withAbsenceLimit, type Timetable } from '../lib/timetable'
+import { DEFAULT_ADDONS, withAddonOn, type Addons } from '../lib/addons'
 import { normalizeDues } from '../lib/dues'
 import { withGoogleSkip } from '../lib/googleSkip'
 import { hasAbsenceCourse, renamedAbsenceCourse, withAbsenceCourse, withoutAbsenceCourse } from '../lib/absenceCourses'
 import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
+import { SETTING_STAMPS, normalizeStoredState } from './storedSettings'
 
 /*
  * タスク・リスト・習慣・記録・設定をまとめて持つストア（`lib/dataStore.ts` に保存。IndexedDB、使えない端末は localStorage）。
@@ -76,10 +75,8 @@ export { MAX_EXTRA_TIME_ZONES, LEGACY_DATA_OWNER, INBOX_LIST_ID } from './storeC
 export type { ActiveTimer, CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode } from './storeTypes'
 export { recurrenceNextId } from './taskRecurrence'
 export { selectLiveHabits } from './liveHabits'
-import { withTaskDefaults } from '../lib/taskDefaults'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { pendingAddsAfterImport } from '../lib/labelSync'
-import { normalizeStoredRows } from '../lib/backupFormat'
 import { clearBaseline } from '../lib/syncMerge'
 import { readViewState } from './viewState'
 import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
@@ -312,28 +309,10 @@ export const useTaskStore = create<TaskState>()(
       merge: (persisted, current) => {
         // 前の版は画面の状態や選んだ日も本体に保存していた。読むのはデータと画面の好みだけ（選んだ日などは今日から）
         const saved = pickKeys((persisted ?? {}) as Record<string, unknown>, [...DATA_KEYS, ...VIEW_KEYS])
+        // 行の中身もバックアップの取り込みと同じ基準でそろえる（`title` が文字列でない・`tags` が配列でない行で描画が落ちていた）。
+        // 設定も同じ表でそろえる（他のタブ・localStorage で動いた回と同じ、`storedSettings.ts`）。読めない一覧・前の版の保存に無い項目は既定値
+        const { broken } = normalizeStoredState(saved)
         const merged = { ...current, ...(saved as Partial<TaskState>) } as TaskState
-        // 行の中身もバックアップの取り込みと同じ基準でそろえる（`title` が文字列でない・`tags` が配列でない行で描画が落ちていた）
-        let broken = false
-        for (const key of ['tasks', 'lists', 'habits', 'sections'] as const) {
-          const { rows, broken: bad } = normalizeStoredRows(key, merged[key] as unknown)
-          if (bad || !rows) broken = true
-          ;(merged as unknown as Record<string, unknown>)[key] = rows ?? current[key]
-        }
-        // 前の版の保存には無い項目がある。必ず持つ項目は既定値で埋める
-        merged.tasks = merged.tasks.map(withTaskDefaults)
-        merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
-        merged.eventTemplates = normalizeEventTemplates(merged.eventTemplates)
-        merged.courseLinks = normalizeCourseLinks(merged.courseLinks)
-        merged.dayMoods = normalizeDayMoods(merged.dayMoods)
-        merged.timetable = normalizeTimetable(merged.timetable)
-        merged.addons = normalizeAddons(merged.addons)
-        merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
-        merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
-        merged.logLabelIds = normalizeLabelIds(merged.logLabelIds)
-        merged.logLabelPendingAdds = Array.isArray(merged.logLabelPendingAdds)
-          ? merged.logLabelPendingAdds.filter((n): n is string => typeof n === 'string')
-          : []
         if (broken) {
           preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
           forgetBaselineOf(merged.dataOwner)
@@ -369,11 +348,8 @@ function takeInRecoveredLocal() {
     >
     const pick = (s: TaskState) => pickKeys(s as unknown as Record<string, unknown>, DATA_KEYS) as Record<string, unknown>
     const { state, replaced } = mergeRecoveredState(pick(useTaskStore.getState()), localState, pick(useTaskStore.getInitialState()))
-    for (const key of ['tasks', 'lists', 'habits', 'sections'] as const) {
-      const { rows } = normalizeStoredRows(key, state[key])
-      state[key] = rows ?? useTaskStore.getState()[key]
-    }
-    state.tasks = (state.tasks as TaskState['tasks']).map(withTaskDefaults)
+    // 読み込み・他のタブと同じ基準でそろえる（読めない一覧はいまのストアの値のまま）
+    normalizeStoredState(state)
     if (replaced) {
       // 別の人のデータだった: その回のほうにして、IndexedDB の本体は別のキーに残す
       const before = readStored(PERSIST_STORAGE_KEY)
@@ -440,19 +416,6 @@ useTaskStore.subscribe((s, prev) => {
   if (s.weekStartsOn !== prev.weekStartsOn) setAppWeekStartSetting(s.weekStartsOn)
 })
 
-// ラベル表を変えたら時刻を付ける（ほかの端末とどちらが新しいかを比べる）。同期・他のタブ・連携で届いた変更では付けない
-useTaskStore.subscribe((s, prev) => {
-  if (
-    s.timeLogTagPresets === prev.timeLogTagPresets &&
-    s.logCategoryColors === prev.logCategoryColors &&
-    s.logLabelTargets === prev.logLabelTargets &&
-    s.logLabelIds === prev.logLabelIds
-  )
-    return
-  if (isIncomingChange() || isAdoptingFromOtherTab()) return
-  useTaskStore.setState({ logLabelsUpdatedAt: new Date().toISOString() })
-})
-
 /**
  * 取り込み（Notion・フォルダを畳む）でラベル表を変えた結果を当てる（#357）。ラベル表の変えた時刻は進めず、足した名前を覚えておき、
  * 次の同期で「無ければ足す」だけ送る（`labelSync.ts`）。時刻を進めると手元が新しい扱いになり、ほかの端末の編集を上書きしていた
@@ -474,42 +437,17 @@ export function dropPendingLabelAdds(names: readonly string[]): void {
   if (next.length !== s.logLabelPendingAdds.length) useTaskStore.setState({ logLabelPendingAdds: next })
 }
 
-// 他のタイムゾーン（並び・名前）を変えたときも同じ
-useTaskStore.subscribe((s, prev) => {
-  if (s.extraTimeZones === prev.extraTimeZones) return
-  if (isIncomingChange() || isAdoptingFromOtherTab()) return
-  useTaskStore.setState({ extraTimeZonesUpdatedAt: new Date().toISOString() })
-})
-// よく入れる予定（登録・名前・時刻・ラベル）を変えたときも同じ
-useTaskStore.subscribe((s, prev) => {
-  if (s.eventTemplates === prev.eventTemplates) return
-  if (isIncomingChange() || isAdoptingFromOtherTab()) return
-  useTaskStore.setState({ eventTemplatesUpdatedAt: new Date().toISOString() })
-})
-// 授業の予定と科目のつながり（#309）を変えたときも同じ
-useTaskStore.subscribe((s, prev) => {
-  if (s.courseLinks === prev.courseLinks) return
-  if (isIncomingChange() || isAdoptingFromOtherTab()) return
-  useTaskStore.setState({ courseLinksUpdatedAt: new Date().toISOString() })
-})
-// 時間割の設定（時限・学期、#279）を変えたときも同じ
-useTaskStore.subscribe((s, prev) => {
-  if (s.timetable === prev.timetable) return
-  if (isIncomingChange() || isAdoptingFromOtherTab()) return
-  useTaskStore.setState({ timetableUpdatedAt: new Date().toISOString() })
-})
-// 追加機能のオン・オフ（#453）を変えたときも同じ
-useTaskStore.subscribe((s, prev) => {
-  if (s.addons === prev.addons) return
-  if (isIncomingChange() || isAdoptingFromOtherTab()) return
-  useTaskStore.setState({ addonsUpdatedAt: new Date().toISOString() })
-})
-// 動いているタイマーを始めた・止めたときも同じ（別の端末とどちらに合わせるかを比べる）
-useTaskStore.subscribe((s, prev) => {
-  if (s.activeTimer === prev.activeTimer) return
-  if (isIncomingChange() || isAdoptingFromOtherTab()) return
-  useTaskStore.setState({ activeTimerUpdatedAt: new Date().toISOString() })
-})
+// 設定（ラベル表・他のタイムゾーン・よく入れる予定・科目のつながり・時間割・追加機能・動いているタイマー）を変えたら時刻を付ける
+// （ほかの端末とどちらが新しいかを比べる）。同期・他のタブ・連携で届いた変更では付けない。どの設定がどの時刻かは `STORED_SETTINGS`
+for (const [stamp, keys] of Object.entries(SETTING_STAMPS)) {
+  useTaskStore.subscribe((s, prev) => {
+    const cur = s as unknown as Record<string, unknown>
+    const before = prev as unknown as Record<string, unknown>
+    if (keys.every((k) => cur[k] === before[k])) return
+    if (isIncomingChange() || isAdoptingFromOtherTab()) return
+    useTaskStore.setState({ [stamp]: new Date().toISOString() } as Partial<TaskState>)
+  })
+}
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
 })
@@ -565,15 +503,8 @@ export function adoptOtherTabChanges(): void {
   const incoming: Record<string, unknown> = { ...parsed.state }
   // 取り込むのはデータだけ（画面の状態はタブごと。前の版の保存に残っていても無視する）
   for (const key of Object.keys(incoming)) if (!(DATA_KEYS as readonly string[]).includes(key)) delete incoming[key]
-  // 行の中身は読み込みと同じ基準でそろえる。読めない行は外し、元の中身は別のキーに写す
-  let broken = false
-  for (const key of ['tasks', 'lists', 'habits', 'sections'] as const) {
-    if (!(key in incoming)) continue
-    const { rows, broken: bad } = normalizeStoredRows(key, incoming[key])
-    if (bad) broken = true
-    if (rows) incoming[key] = rows
-    else delete incoming[key]
-  }
+  // 行・設定の中身は読み込みと同じ基準でそろえる（`storedSettings.ts`）。読めない行は外し、元の中身は別のキーに写す
+  const { broken } = normalizeStoredState(incoming)
   if (broken) {
     preserveUnreadableStorage('other-tab-rows', 'unreadable rows were dropped')
     forgetBaselineOf(typeof incoming.dataOwner === 'string' ? incoming.dataOwner : useTaskStore.getState().dataOwner)
