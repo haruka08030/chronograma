@@ -3,15 +3,16 @@ import { sameValue } from './sameValue'
 import { settingSyncStep } from './settingSync'
 import { normalizeDues, type DueItem } from './dues'
 import { normalizeGoogleSkip } from './googleSkip'
+import { normalizeAbsenceCourses } from './absenceCourses'
 
 /**
- * 追加機能（#453）。生活まわりの機能（時間割・欠席 …）は使う人だけがオンにし、オフの機能は普段の画面に出さない。
+ * 追加機能（#453）。生活まわりの機能（時間割・学校・引き落とし …）は使う人だけがオンにし、オフの機能は普段の画面に出さない。
  * 「追加機能」の画面と設定のどちらからでもオン・オフでき、端末間で同期する（`user_addons`、`041`）
  */
-export type AddonId = 'timetable' | 'dues'
+export type AddonId = 'timetable' | 'school' | 'dues'
 
 /** 追加機能の画面・設定に並べる順 */
-export const ADDON_IDS: readonly AddonId[] = ['timetable', 'dues']
+export const ADDON_IDS: readonly AddonId[] = ['timetable', 'school', 'dues']
 
 export type Addons = {
   /** 決めた機能だけ。無い機能は既定（`isAddonOn`） */
@@ -20,9 +21,11 @@ export type Addons = {
   dues: DueItem[]
   /** Google カレンダーに送らない予定の名前（#461、`lib/googleSkip.ts`） */
   googleSkip: string[]
+  /** 授業の欠席の一覧に並べる授業の名前（#503、`lib/absenceCourses.ts`。休んだ日・休める回数は時間割の設定） */
+  absenceCourses: string[]
 }
 
-export const DEFAULT_ADDONS: Addons = { enabled: {}, dues: [], googleSkip: [] }
+export const DEFAULT_ADDONS: Addons = { enabled: {}, dues: [], googleSkip: [], absenceCourses: [] }
 
 const isAddonId = (v: string): v is AddonId => (ADDON_IDS as readonly string[]).includes(v)
 
@@ -31,7 +34,7 @@ const isAddonId = (v: string): v is AddonId => (ADDON_IDS as readonly string[]).
  * （前の版のアプリが送り直しても、後の版の中身を消さない）
  */
 export function normalizeAddons(raw: unknown): Addons {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { enabled: {}, dues: [], googleSkip: [] }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { enabled: {}, dues: [], googleSkip: [], absenceCourses: [] }
   const x = raw as Record<string, unknown>
   const enabled: Addons['enabled'] = {}
   if (x.enabled && typeof x.enabled === 'object' && !Array.isArray(x.enabled)) {
@@ -39,7 +42,13 @@ export function normalizeAddons(raw: unknown): Addons {
       if (isAddonId(id) && typeof on === 'boolean') enabled[id] = on
     }
   }
-  return { ...x, enabled, dues: normalizeDues(x.dues), googleSkip: normalizeGoogleSkip(x.googleSkip) }
+  return {
+    ...x,
+    enabled,
+    dues: normalizeDues(x.dues),
+    googleSkip: normalizeGoogleSkip(x.googleSkip),
+    absenceCourses: normalizeAbsenceCourses(x.absenceCourses),
+  }
 }
 
 /** 時間割の授業を入れているか（毎週の予定がある。時間割が追加機能になる前から使っていた人はオンのまま） */

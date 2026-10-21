@@ -287,8 +287,8 @@ function EventPopoverBody({
         </div>
       )}
 
-      {/* 時間割の授業: 欠席の数と、休める上限まであと何回か（#452） */}
-      {isEvent && task.series && <ClassAttendance task={task} />}
+      {/* 授業（時間割の授業・欠席の一覧にある名前の予定）: 欠席の数と、休める上限まであと何回か（#452・#503） */}
+      {isEvent && task.scheduledDate && <ClassAttendance title={task.title} date={task.scheduledDate} task={task} />}
 
       {/* 授業の予定（時刻のある予定）: その科目の未完了の課題（#309） */}
       {isEvent && task.startTime && (
