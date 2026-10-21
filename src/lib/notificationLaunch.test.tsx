@@ -9,7 +9,7 @@ import {
   stopTimerFromNotification,
   taskLaunchDate,
 } from './notificationLaunch'
-import { notifyActiveTimerSynced } from './timerSync'
+import { notifyActiveTimerSynced } from './activeTimerSynced'
 import { isLogTask, type Task } from '../types/task'
 import { appTodayKey } from './timeZone'
 

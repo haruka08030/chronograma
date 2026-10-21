@@ -6,8 +6,6 @@ import { fetchCalendarEvents, googleWriteGeneration, localizeGoogleError, should
 import { cacheGoogleEvents, cachedGoogleEvents, rangeKey } from '../lib/googleEventCache'
 import { withoutPendingDeletes } from '../lib/googleEventEdit'
 import { taskIdForGoogleEventId, withoutPushedEvents } from '../lib/googlePush'
-import { trashGoogleDeleted } from '../lib/googleDeleted'
-import { loadPushQueue } from '../lib/googlePushQueue'
 import { appTimeZone } from '../lib/timeZone'
 import { markGoogleConnectionLost, rememberGoogleCanWrite } from '../lib/googleConnectedHint'
 import { notify } from '../lib/notify'
@@ -97,7 +95,11 @@ export function useGoogleCalendarEvents(timeMin: Date, timeMax: Date) {
             ids.push(id)
             if (e.updated) deletedAt.set(id, e.updated)
           }
-          void trashGoogleDeleted(ids, { pending: new Set(Object.keys(loadPushQueue(owner))), deletedAt })
+          // 消すときだけ読む（起動時に読まない）
+          void Promise.all([import('../lib/googleDeleted'), import('../lib/googlePushQueue')]).then(
+            ([{ trashGoogleDeleted }, { loadPushQueue }]) =>
+              trashGoogleDeleted(ids, { pending: new Set(Object.keys(loadPushQueue(owner))), deletedAt }),
+          )
         }
         prefetchNeighbors()
       } catch (e) {

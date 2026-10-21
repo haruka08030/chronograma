@@ -54,6 +54,10 @@ jobs:
       - name: Unchecked index access (ratchet)
         run: npm run lint:unchecked-index
 
+      # 起動時に読む JS（gzip）が上限を超えたら落とす（scripts/build/startup-size.mjs の LIMIT_GZIP_KB）。数えるのに manifest が要るのでもう一度ビルドする
+      - name: Startup bundle size
+        run: npx vite build --manifest && node scripts/build/startup-size.mjs --list
+
   # 単体テスト（node）と部品のテスト（jsdom）。ファイルを 2 つに分けて同時に流す
   test:
     runs-on: ubuntu-latest

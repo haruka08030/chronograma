@@ -79,7 +79,7 @@
 
 - `src/main.tsx`: 保存データを読み終えて（`openDataStore`）から `src/boot.tsx` を読み込む（`startAfterDataLoaded`）
 - `src/boot.tsx`: `./i18n/config` を読み込み後、`AuthProvider` で `App` をラップ
-- `src/App.tsx`: レイアウト（ルートは `h-dvh`＝iOS Safari のツールバー分の見切れ回避）、`useSupabaseSync()`、ビュー切替（`calendar` は
+- `src/App.tsx`: レイアウト（ルートは `h-dvh`＝iOS Safari のツールバー分の見切れ回避）、同期と連携（`AccountSyncLoader` がログインしてから `AccountSync` を読み、`useSupabaseSync`・Notion・Canvas・Google への送信を動かす）、ビュー切替（`calendar` は
   `CalendarHubView`）、グローバルキーバインド、DnD ルート。**ToDo
   面**（リスト選択 `selectedView === null` または `all` / `today` / `upcoming` /
   `overdue`）かつ検索が空のときだけ グローバルヘッダーは ToDo

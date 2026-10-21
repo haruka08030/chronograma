@@ -3,7 +3,6 @@ import type { Task } from '../../types/task'
 import { newId } from '../../lib/id'
 import { assignColorsInOrder } from '../../lib/logCategoryColors'
 import { buildBackupPayload, parseBackupJson, withFreshStamps, type BackupImportResult } from '../../lib/backupFormat'
-import { csvListTarget, parseTasksCsv } from '../../lib/importTasksCsv'
 import { ensureLabel, type LabelTable } from '../../lib/foldTaskFolders'
 import { fillLabelIds, labelIndex } from '../../lib/labelIds'
 import { clearImportRollback, loadImportRollback, saveImportRollback } from '../../lib/importRollback'
@@ -209,7 +208,9 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       clearImportRollback()
       return true
     },
-    importTasksFromCsv: (csv, options = {}) => {
+    importTasksFromCsv: async (csv, options = {}) => {
+      // 取り込むときだけ読む（起動時に読まない）
+      const { csvListTarget, parseTasksCsv } = await import('../../lib/importTasksCsv')
       const { rows, skipped, errors } = parseTasksCsv(csv, { fileName: options.fileName })
       if (errors.length > 0 || rows.length === 0) {
         return { imported: 0, skipped, errors }
