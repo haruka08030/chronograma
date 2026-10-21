@@ -21,7 +21,7 @@ import { addClockMinutes, clockOf, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
 import { ERROR_TEXT } from './ui/textClass'
 import { usePendingAction } from '../lib/pendingAction'
-import { OPEN_LOG_LATER_ACTION, takePendingLaterSpan } from '../lib/logLater'
+import { OPEN_LOG_LATER_ACTION } from '../lib/logLater'
 import { isLogTask, isSleepTask } from '../types/task'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
@@ -136,17 +136,8 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     }
     setMode('manual')
   }
-  const panelRef = useRef<HTMLDivElement>(null)
   usePendingAction(OPEN_LOG_LATER_ACTION, () => {
-    const span = takePendingLaterSpan()
-    if (!canLogLater) return
-    openManual()
-    if (span) {
-      setStart(span.start)
-      setEnd(span.end)
-      // 下の締めから開いたとき、上のフォームまで連れていく（タップの端末は入力欄に自動でフォーカスしない）
-      requestAnimationFrame(() => panelRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
-    }
+    if (canLogLater) openManual()
   })
 
   // 題名もラベルも空なら「記録」で始める（あとから題名・ラベルを付けられる。押せないボタンで止めない）
@@ -262,7 +253,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
 
   if (mode !== 'idle') {
     return (
-      <div ref={panelRef} className="scroll-mt-4 space-y-3">
+      <div className="space-y-3">
         {summary}
         <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
           <LogTitleInput

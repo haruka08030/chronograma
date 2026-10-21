@@ -124,7 +124,7 @@
   英語は today/tomorrow/tmr/tonight/曜日/noon と、空白をまたぐ next fri（来週の金曜）・this fri・this week/next week（その週の日曜締切）・
   this weekend（土曜）・in 2 days/in 3 weeks/in a week・Dec 5/5 Dec/Dec 5 2027 も読む（表示言語を問わない。`readEnPhrase`）
   時刻があれば予定（`scheduledDate`+時間幅、長さ未指定は 60 分）、日付だけなら To‑Do では期限日・「今日の計画」では予定日
-- **週のふりかえり**: `WeekReviewCard`（統計の先頭）＋ `getWeekReview`（`src/lib/weekReview.ts`）。
+- **週のふりかえり**: `WeekReviewCard`（統計の先頭）＋ `getReview`（`src/lib/weekReview.ts`）。
   計画どおり実行率は、時刻つき予定（タスク・範囲習慣）を `matchPlanAndActualForDate` でログと突き合わせた割合
 - **同期**: `useSupabaseSync` は毎回 取得（`lib/syncPull.ts` の `pullRemote`。ふだんは差分）→ `mergeSnapshots`（`src/lib/syncMerge.ts`）で前回同期ベースライン
   （`chronograma-sync-baseline-v1:{userId}`、本体と同じ置き場所）との三方向マージ → ローカル反映 → push（削除は
@@ -133,7 +133,7 @@
 - **リストの種類**（`TaskList.kind`、`src/types/list.ts`）: `tasks` は未分類（表示名「To‑Do」）だけ / `someday`（いつか・Wish）/ `checklist`（買い物など）。
   To‑Do はラベルで分ける。ほかの `tasks` のリストと未分類のセクションは `foldTaskFolders`（`src/lib/foldTaskFolders.ts`）がラベルに畳む
   （`taskStore` の購読で、読み込み・同期・取り込みのどこから来ても）。未分類を開いていたら「すべて」へ（`settleTodoView`）。
-  `unplannedListIds`（`src/lib/listKind.ts`）の ID は スマートビュー（今日・近日中・期限切れ・すべて）、`getDayPlan`、`getWeekReview`、
+  `unplannedListIds`（`src/lib/listKind.ts`）の ID は スマートビュー（今日・近日中・期限切れ・すべて）、`getDayPlan`、`getReview`、
   統計、`checkAndNotify`、Edge Function `daily-reminders` の残り件数から除外（そのリストを開けば見える）。いつか・チェックリストの切り替えはリスト見出しの
   `ListKindPicker`、サイドバーのリスト行に種類アイコン。新規ユーザーの初期リストは 未分類 / いつか / 買い物（`initialLists`）。
   クイック追加の `@名前`（`parseQuickAddTitle` の `listName`、`findListByName`）で追加先を指定。`tasks` 以外のリストには日付を付けない。
@@ -551,7 +551,7 @@ limit 50;
 - `dev` — Vite 開発サーバー
 - `build` — `tsc -b` && `vite build`
 - `lint` — ESLint（CI で必須）。型を見るルール（`no-floating-promises`・`no-misused-promises`・`await-thenable`）入り: Promise を返す関数を `onClick` などに直接渡さず、`() => void fn()` で呼ぶ
-- `lint:unchecked-index` — `noUncheckedIndexedAccess` を入れたときの型エラーをファイルごとの件数で出す（テスト以外。0 件になったら `tsconfig.app.json` で有効にする）
+- `lint:unchecked-index` — `noUncheckedIndexedAccess` を入れたときの型エラーをファイルごとの件数で出す（テスト以外。0 件になったら `tsconfig.app.json` で有効にする）。合計が上限（スクリプトの `LIMIT`）を超えると落ち、CI でも流す。減ったら `LIMIT` を下げる
 - `format` / `format:check` — Prettier（設定は `.prettierrc`、対象外は `.prettierignore`）
 - `preview` — プレビュー
 

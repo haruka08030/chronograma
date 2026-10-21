@@ -50,6 +50,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      # noUncheckedIndexedAccess で出る件数が上限を超えたら落とす（scripts/lint/unchecked-index.mjs の LIMIT）
+      - name: Unchecked index access (ratchet)
+        run: npm run lint:unchecked-index
+
   # 単体テスト（node）と部品のテスト（jsdom）。ファイルを 2 つに分けて同時に流す
   test:
     runs-on: ubuntu-latest

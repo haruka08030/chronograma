@@ -8,8 +8,6 @@ import {
   getPlanDriftCells,
   getPrevReview,
   getReview,
-  getWeekReview,
-  loggedMinutesVsPrevWeek,
   recentDailyLoggedMinutes,
   type LabelSource,
 } from './weekReview'
@@ -44,31 +42,31 @@ const task = (id: string, over: Partial<Task> = {}): Task => ({
 // 2026-10-03 (土)
 const at = (hm: string) => new Date(`2026-10-03T${hm}:00`)
 
-describe('getWeekReview followRate', () => {
+describe('getReview（週） followRate', () => {
   const tasks = [task('ゼミ', { scheduledDate: '2026-10-03', startTime: '15:00', endTime: '16:30' })]
 
   it('does not judge a plan that has not ended yet', () => {
-    const review = getWeekReview(tasks, [], at('00:30'), new Set(), at('00:30'))
+    const review = getReview(tasks, [], 'week', at('00:30'), new Set(), at('00:30'))
     expect(review.timedPlanned).toBe(0)
     expect(review.followRate).toBeNull()
   })
 
   it('counts the plan once its time has passed', () => {
-    const review = getWeekReview(tasks, [], at('17:00'), new Set(), at('17:00'))
+    const review = getReview(tasks, [], 'week', at('17:00'), new Set(), at('17:00'))
     expect(review.timedPlanned).toBe(1)
     expect(review.followRate).toBe(0)
   })
 
   it('counts a plan already recorded before it ends', () => {
     const log = task('log', { title: 'ゼミ', kind: 'log', dueDate: '2026-10-03', startTime: '15:00', endTime: '15:40' })
-    const review = getWeekReview([...tasks, log], [], at('15:45'), new Set(), at('15:45'))
+    const review = getReview([...tasks, log], [], 'week', at('15:45'), new Set(), at('15:45'))
     expect(review.timedPlanned).toBe(1)
     expect(review.followRate).toBe(1)
     expect(review.followed).toBe(1)
   })
 })
 
-describe('getWeekReview: ✓ で終えた予定・▶ の記録・授業などの予定（#284）', () => {
+describe('getReview（週）: ✓ で終えた予定・▶ の記録・授業などの予定（#284）', () => {
   const day = '2026-10-03'
   const tasks = [
     // ✓ で終えた時刻つきの To-Do（記録なし）
@@ -97,7 +95,7 @@ describe('getWeekReview: ✓ で終えた予定・▶ の記録・授業など�
   ]
 
   it('✓ だけの To-Do と、題名を直した ▶ の記録は計画どおり。予定（授業）は分母に入れない', () => {
-    const review = getWeekReview(tasks, [], at('20:00'), new Set(), at('20:00'))
+    const review = getReview(tasks, [], 'week', at('20:00'), new Set(), at('20:00'))
     expect(review.timedPlanned).toBe(2)
     expect(review.followed).toBe(2)
   })
@@ -117,12 +115,12 @@ describe('getWeekReview: ✓ で終えた予定・▶ の記録・授業など�
   })
 
   it('日ごとの棒の予定の枠は、計画どおりと同じ To-Do（と習慣の枠）から。予定（授業）は入れない', () => {
-    const review = getWeekReview(tasks, [], at('20:00'), new Set(), at('20:00'))
+    const review = getReview(tasks, [], 'week', at('20:00'), new Set(), at('20:00'))
     expect(review.days.find((d) => d.dateKey === day)?.plannedMinutes).toBe(180 + 60)
   })
 })
 
-describe('getWeekReview: 移した予定（#158）', () => {
+describe('getReview（週）: 移した予定（#158）', () => {
   // 10/3 13:00 の予定を 10/5 へ移した（控えだけが 10/3 に残る）
   const moved = task('report', {
     title: 'レポート',
@@ -133,7 +131,7 @@ describe('getWeekReview: 移した予定（#158）', () => {
   })
 
   it('移した予定も元の日の分母に入れる（やらなかった予定）。棒の予定の枠にも入る', () => {
-    const review = getWeekReview([moved], [], at('20:00'), new Set(), at('20:00'))
+    const review = getReview([moved], [], 'week', at('20:00'), new Set(), at('20:00'))
     expect(review.timedPlanned).toBe(1)
     expect(review.followed).toBe(0)
     expect(review.days.find((d) => d.dateKey === '2026-10-03')?.plannedMinutes).toBe(60)
@@ -149,7 +147,7 @@ describe('getWeekReview: 移した予定（#158）', () => {
       completed: true,
       sourceTaskId: 'report',
     })
-    const review = getWeekReview([moved, log], [], at('20:00'), new Set(), at('20:00'))
+    const review = getReview([moved, log], [], 'week', at('20:00'), new Set(), at('20:00'))
     expect(review.followed).toBe(1)
   })
 })
@@ -174,7 +172,7 @@ describe('foldLabelMinutes', () => {
   })
 })
 
-describe('loggedMinutesVsPrevWeek', () => {
+describe('前の週との差（getPrevReview + compareReviews）', () => {
   const log = (id: string, date: string, start: string, end: string) =>
     task(id, { kind: 'log', dueDate: date, startTime: start, endTime: end })
   // 今週（9/28〜）は土曜 10/03 まで。前の週は同じ土曜 9/26 までで比べる
@@ -183,28 +181,27 @@ describe('loggedMinutesVsPrevWeek', () => {
     log('prevTue', '2026-09-22', '10:00', '11:00'),
     log('prevSun', '2026-09-27', '10:00', '15:00'),
   ]
+  const loggedDiff = (list: readonly Task[], anchor: Date, now: Date) =>
+    compareReviews(getReview(list, [], 'week', anchor, new Set(), now), getPrevReview(list, [], 'week', anchor, new Set(), now)).loggedDiff
 
   it('前の週の同じ曜日までと比べる', () => {
     const now = at('20:00')
-    const review = getWeekReview(tasks, [], now, new Set(), now)
-    expect(review.loggedMinutes).toBe(100)
-    expect(loggedMinutesVsPrevWeek(review.loggedMinutes, tasks, [], now, new Set(), now)).toBe(40)
+    expect(getReview(tasks, [], 'week', now, new Set(), now).loggedMinutes).toBe(100)
+    expect(loggedDiff(tasks, now, now)).toBe(40)
   })
 
   it('過ぎた週どうしは丸ごと比べる', () => {
     const now = at('20:00')
     const anchor = new Date('2026-09-23T12:00:00')
-    const review = getWeekReview(tasks, [], anchor, new Set(), now)
-    expect(review.loggedMinutes).toBe(360)
+    expect(getReview(tasks, [], 'week', anchor, new Set(), now).loggedMinutes).toBe(360)
     // 前の週（9/14〜）は記録なし
-    expect(loggedMinutesVsPrevWeek(review.loggedMinutes, tasks, [], anchor, new Set(), now)).toBeNull()
-    const next = new Date('2026-10-01T12:00:00')
-    expect(loggedMinutesVsPrevWeek(0, tasks, [], next, new Set(), new Date('2026-10-10T12:00:00'))).toBe(-360)
+    expect(loggedDiff(tasks, anchor, now)).toBeNull()
+    expect(loggedDiff(tasks, new Date('2026-10-01T12:00:00'), new Date('2026-10-10T12:00:00'))).toBe(100 - 360)
   })
 
   it('前の週に記録が無ければ null', () => {
     const now = at('20:00')
-    expect(loggedMinutesVsPrevWeek(100, [tasks[0]], [], now, new Set(), now)).toBeNull()
+    expect(loggedDiff([tasks[0]], now, now)).toBeNull()
   })
 })
 
@@ -299,7 +296,7 @@ describe('getReview: 月（#304）', () => {
   })
 })
 
-describe('getWeekReview: 記録なしの時間（#298）', () => {
+describe('getReview（週）: 記録なしの時間（#298）', () => {
   const log = (id: string, dueDate: string, startTime: string, endTime: string, over: Partial<Task> = {}) =>
     task(id, { kind: 'log', completed: true, dueDate, startTime, endTime, ...over })
 
@@ -312,7 +309,7 @@ describe('getWeekReview: 記録なしの時間（#298）', () => {
       log('s', '2026-10-03', '00:30', '07:00', { kind: 'sleep' }),
       log('c', '2026-10-03', '08:00', '09:00'),
     ]
-    const review = getWeekReview(tasks, [], at('10:00'), new Set(), at('10:00'))
+    const review = getReview(tasks, [], 'week', at('10:00'), new Set(), at('10:00'))
     expect(review.days.find((d) => d.dateKey === '2026-10-02')!.unrecordedMinutes).toBe(120)
     expect(review.days.find((d) => d.dateKey === '2026-10-03')!.unrecordedMinutes).toBe(120)
     expect(review.unrecordedMinutes).toBe(240)
