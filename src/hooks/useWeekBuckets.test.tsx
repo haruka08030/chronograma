@@ -1,5 +1,7 @@
-import { renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { refreshAppClock } from '../lib/appClock'
+import { useTaskStore } from '../store/taskStore'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { appTimeZone, instantFromWall } from '../lib/timeZone'
 import { fromDateKey } from '../lib/dateKey'
@@ -47,5 +49,30 @@ describe('useWeekBuckets: 日をまたぐ Google の予定', () => {
     const { result } = renderHook(() => useWeekBuckets([], [], [allDay], days))
     expect(result.current.timedEventsByDate.size).toBe(0)
     expect(result.current.eventsByDate.get('2026-10-06')).toEqual([allDay])
+  })
+})
+
+describe('useWeekBuckets: 開いたまま 0 時をまたぐ', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    refreshAppClock()
+  })
+
+  it('移した予定の控えは、昨日になった日にタスクが変わらなくても出る', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 6, 23, 58))
+    refreshAppClock()
+    // 今日（10/6）の 9:00–10:00 の予定を、夜に明日へ移した（元の予定は控えに残る）
+    const id = useTaskStore.getState().addTask('Report')!
+    useTaskStore.getState().updateTask(id, { scheduledDate: '2026-10-06', startTime: '09:00', endTime: '10:00' })
+    useTaskStore.getState().updateTask(id, { scheduledDate: '2026-10-07', startTime: '10:00', endTime: '11:00' })
+    const tasks = useTaskStore.getState().tasks
+    const { result } = renderHook(() => useWeekBuckets(tasks, [], [], days))
+    // 10/6 はまだ今日なので控えは出さない
+    expect(result.current.movedByDate.get('2026-10-06')).toBeUndefined()
+
+    vi.setSystemTime(new Date(2026, 9, 7, 0, 2))
+    act(() => refreshAppClock())
+    expect(result.current.movedByDate.get('2026-10-06')?.map((t) => t.id)).toEqual([id])
   })
 })

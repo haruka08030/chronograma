@@ -75,7 +75,7 @@ function nextDay(ymd: string): string {
 
 /**
  * 時刻のある記録・予定の瞬間。記録は終了が開始以前なら翌日まで、予定は 0:00 終わりだけ翌日
- * （`taskTimedInterval` と同じ決まり。こちらは端末ではなく書いたタイムゾーンで瞬間を出す）
+ * （`taskWallInterval` と同じ決まり。こちらは端末ではなく書いたタイムゾーンで瞬間を出す）
  */
 export function exportInterval(task: Task, zone: string = appTimeZone()): { startMs: number; endMs: number } | null {
   const isRecord = task.kind === 'log' || task.kind === 'sleep'

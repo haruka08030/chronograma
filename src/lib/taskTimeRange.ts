@@ -1,22 +1,9 @@
-import { addDays, addMinutes, differenceInCalendarDays, differenceInMinutes, max, min, startOfDay } from 'date-fns'
 import { isLogTask, type Task, type TaskKind } from '../types/task'
 import { HOUR_HEIGHT, SNAP_MINUTES, timeToMinutes } from './timeGrid'
-import { clockOf } from './clockTime'
-import { fromDateKey, toDateKey } from './dateKey'
+import { minutesToTime } from './clockTime'
+import { dateKeyOfDayIndex, dayIndexOf, wallDayDiff, wallMinutes, wallParts, wallSegmentOnDay, type WallInterval } from './wallTime'
 
 const DAY_MINUTES = 24 * 60
-
-/** `yyyy-MM-dd` + `HH:mm` をローカル暦の Date に（DST 境界はブラウザ実装に従う） */
-export function ymdHmToLocalDate(ymd: string, hm: string): Date {
-  const [y, mo, da] = ymd.split('-').map((x) => Number(x))
-  const [hh, mm] = hm.split(':').map((x) => Number(x))
-  return new Date(y, mo - 1, da, hh, Number.isFinite(mm) ? mm : 0, 0, 0)
-}
-
-function dateKeyToNoon(ymd: string): Date {
-  const [y, mo, da] = ymd.split('-').map((x) => Number(x))
-  return new Date(y, mo - 1, da, 12, 0, 0, 0)
-}
 
 /**
  * タスクをカレンダー/タイムラインに置く日（`yyyy-MM-dd`）。
@@ -29,20 +16,21 @@ export function taskPlacementDate(task: { dueDate?: string | null; scheduledDate
 }
 
 /**
- * 開始 `placementDate`+`startTime` 〜 終了 `endDate ?? placementDate`+`endTime`。
+ * 開始 `placementDate`+`startTime` 〜 終了 `endDate ?? placementDate`+`endTime` の壁時計の区間（通しの分、`wallTime.ts`）。
  * 置く日はタイムログ=`dueDate`、通常タスク=`scheduledDate ?? dueDate`。
  * `endDate` がなく終了時刻が開始以前のとき、記録と 0:00 終わりの予定は翌日まで（+24h）。
+ * 端末の Date にしないので、端末の夏時間が切り替わる日も壁時計どおりの長さ・位置になる
  */
-export function taskTimedInterval(task: Task): { start: Date; end: Date } | null {
+export function taskWallInterval(task: Task): WallInterval | null {
   if (!task.startTime || !task.endTime) return null
   const startYmd = taskPlacementDate(task)
   if (!startYmd) return null
   const endYmd = task.endDate ?? startYmd
-  const start = ymdHmToLocalDate(startYmd, task.startTime)
-  let end = ymdHmToLocalDate(endYmd, task.endTime)
+  const start = wallMinutes(startYmd, task.startTime)
+  let end = wallMinutes(endYmd, task.endTime)
   // 記録は終了が開始以前なら翌日まで。予定は 0:00 終わりだけ翌日の 0:00（23:00–0:00 など）
   if (end <= start && !task.endDate && (isLogTask(task) || task.endTime === '00:00')) {
-    end = addMinutes(end, DAY_MINUTES)
+    end += DAY_MINUTES
   }
   if (end <= start) return null
   return { start, end }
@@ -59,9 +47,9 @@ export function durationMinutesForTaskSlot(task: {
 }): number | null {
   if (!task.startTime || !task.endTime) return null
   if (taskPlacementDate(task)) {
-    const iv = taskTimedInterval(task as Task)
+    const iv = taskWallInterval(task as Task)
     if (!iv) return null
-    return differenceInMinutes(iv.end, iv.start)
+    return iv.end - iv.start
   }
   let diff = timeToMinutes(task.endTime) - timeToMinutes(task.startTime)
   if (isLogTask(task) && diff < 0) diff += DAY_MINUTES
@@ -77,44 +65,26 @@ export function durationMinutesForTaskId(tasks: Task[], taskId: string): number 
 /** その暦日にかかるログの分数（サマリー用） */
 export function minutesOfLogOnCalendarDay(task: Task, dateKey: string): number {
   if (!isLogTask(task)) return 0
-  const iv = taskTimedInterval(task)
-  if (!iv) return 0
-  const day = dateKeyToNoon(dateKey)
-  const d0 = startOfDay(day)
-  const d1 = startOfDay(addDays(day, 1))
-  const segStart = max([iv.start, d0])
-  const segEnd = min([iv.end, d1])
-  if (segEnd <= segStart) return 0
-  return differenceInMinutes(segEnd, segStart)
+  const iv = taskWallInterval(task)
+  const seg = iv && wallSegmentOnDay(iv, dateKey)
+  return seg ? seg.endMin - seg.startMin : 0
 }
 
 export function logOverlapsDateKey(task: Task, dateKey: string): boolean {
   if (!isLogTask(task) || !task.dueDate || !task.startTime || !task.endTime || task.parentId) return false
-  const iv = taskTimedInterval(task)
-  if (!iv) return false
-  const day = dateKeyToNoon(dateKey)
-  const d0 = startOfDay(day)
-  const d1 = startOfDay(addDays(day, 1))
-  return iv.start < d1 && iv.end > d0
+  const iv = taskWallInterval(task)
+  return !!iv && wallSegmentOnDay(iv, dateKey) !== null
 }
 
 /** その日の列に表示するタイムログの top/height（px）。重ならなければ null */
 export function timeLogSegmentLayoutForDay(task: Task, dateKey: string): { top: number; height: number; span: number } | null {
   if (!isLogTask(task) || !task.dueDate || !task.startTime || !task.endTime) return null
-  const iv = taskTimedInterval(task)
-  if (!iv) return null
-  const day = dateKeyToNoon(dateKey)
-  const d0 = startOfDay(day)
-  const d1 = startOfDay(addDays(day, 1))
-  const segStart = max([iv.start, d0])
-  const segEnd = min([iv.end, d1])
-  if (segEnd <= segStart) return null
-  const startMin = differenceInMinutes(segStart, d0)
-  const endMin = differenceInMinutes(segEnd, d0)
-  const dur = endMin - startMin
-  if (dur <= 0) return null
+  const iv = taskWallInterval(task)
+  const seg = iv && wallSegmentOnDay(iv, dateKey)
+  if (!seg) return null
+  const dur = seg.endMin - seg.startMin
   return {
-    top: (startMin / 60) * HOUR_HEIGHT,
+    top: (seg.startMin / 60) * HOUR_HEIGHT,
     height: (dur / 60) * HOUR_HEIGHT,
     span: (dur / 60) * HOUR_HEIGHT,
   }
@@ -131,17 +101,16 @@ export function endDateAfterStartDateEdit(
 ): string | null {
   if (!endDate) return null
   if (!startDate) return endDate
-  const days = differenceInCalendarDays(fromDateKey(nextStart), fromDateKey(startDate))
-  return toDateKey(addDays(fromDateKey(endDate), days))
+  return dateKeyOfDayIndex(dayIndexOf(endDate) + dayIndexOf(nextStart) - dayIndexOf(startDate))
 }
 
 export function isOvernightTimeLog(task: Task): boolean {
   if (!isLogTask(task) || !task.startTime || !task.endTime) return false
   if (task.endDate && task.dueDate && task.endDate !== task.dueDate) return true
   if (!task.dueDate) return timeToMinutes(task.endTime!) <= timeToMinutes(task.startTime!)
-  const iv = taskTimedInterval(task)
+  const iv = taskWallInterval(task)
   if (!iv) return false
-  return differenceInCalendarDays(iv.end, iv.start) >= 1
+  return wallDayDiff(iv.end, iv.start) >= 1
 }
 
 /**
@@ -149,20 +118,14 @@ export function isOvernightTimeLog(task: Task): boolean {
  * 端を引いて長さを変えるときは、記録全体ではなくこの区間を元の値にする
  */
 export function logSegmentClockOnDay(task: Task, dateKey: string): { startTime: string; endTime: string } | null {
-  const iv = taskTimedInterval(task)
+  const iv = taskWallInterval(task)
   return iv ? intervalSegmentClockOnDay(iv, dateKey) : null
 }
 
 /** 区間のうち、その日にかかる部分の時刻（`HH:mm`。日の終わりまでなら終わりは '24:00'）。かからなければ null */
-export function intervalSegmentClockOnDay(iv: { start: Date; end: Date }, dateKey: string): { startTime: string; endTime: string } | null {
-  const d0 = startOfDay(dateKeyToNoon(dateKey))
-  const d1 = startOfDay(addDays(d0, 1))
-  const segStart = max([iv.start, d0])
-  const segEnd = min([iv.end, d1])
-  if (segEnd <= segStart) return null
-  const minutesOf = (d: Date) => differenceInMinutes(d, d0)
-  const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-  return { startTime: hm(minutesOf(segStart)), endTime: hm(minutesOf(segEnd)) }
+export function intervalSegmentClockOnDay(iv: WallInterval, dateKey: string): { startTime: string; endTime: string } | null {
+  const seg = wallSegmentOnDay(iv, dateKey)
+  return seg ? { startTime: minutesToTime(seg.startMin), endTime: minutesToTime(seg.endMin) } : null
 }
 
 /**
@@ -175,10 +138,10 @@ export function patchAfterLogResize(
   startTime: string,
   endTime: string,
 ): Pick<Task, 'dueDate' | 'startTime' | 'endTime' | 'endDate'> | null {
-  const iv = taskTimedInterval(task)
+  const iv = taskWallInterval(task)
   const seg = logSegmentClockOnDay(task, dateKey)
   if (!iv || !seg) return null
-  const at = (hm: string) => addMinutes(startOfDay(dateKeyToNoon(dateKey)), timeToMinutes(hm))
+  const at = (hm: string) => wallMinutes(dateKey, hm)
   const start = startTime !== seg.startTime ? at(startTime) : iv.start
   const end = endTime !== seg.endTime ? at(endTime) : iv.end
   if (end <= start) return null
@@ -186,18 +149,18 @@ export function patchAfterLogResize(
 }
 
 /**
- * 記録の開始・終わり（壁時計の Date）を、記録の日付と時刻に直す。日をまたがなければ `endDate` は付けない
+ * 記録の開始・終わり（壁時計の通しの分）を、記録の日付と時刻に直す。日をまたがなければ `endDate` は付けない
  * （翌日の 0:00 ちょうどに終わるときも付けない。終わりが開始以前の記録は翌日まで、で読める）
  */
-export function logPatchForInterval(start: Date, end: Date): Pick<Task, 'dueDate' | 'startTime' | 'endTime' | 'endDate'> {
-  const dueDate = toDateKey(start)
-  const endsAtNextMidnight = clockOf(end) === '00:00' && differenceInCalendarDays(end, start) === 1
-  const endKey = toDateKey(end)
+export function logPatchForInterval(start: number, end: number): Pick<Task, 'dueDate' | 'startTime' | 'endTime' | 'endDate'> {
+  const s = wallParts(start)
+  const e = wallParts(end)
+  const endsAtNextMidnight = e.time === '00:00' && wallDayDiff(end, start) === 1
   return {
-    dueDate,
-    startTime: clockOf(start),
-    endTime: clockOf(end),
-    endDate: endKey !== dueDate && !endsAtNextMidnight ? endKey : null,
+    dueDate: s.date,
+    startTime: s.time,
+    endTime: e.time,
+    endDate: e.date !== s.date && !endsAtNextMidnight ? e.date : null,
   }
 }
 
@@ -225,17 +188,13 @@ export function patchAfterTimelineMove(
   if (isLogTask(task)) {
     const dur = durationMinutesForTaskSlot(task)
     if (dur != null && dur > 0) {
-      const start = ymdHmToLocalDate(targetDueDate, newStartTime)
-      const end = addMinutes(start, dur)
-      const due = toDateKey(start)
-      const ed = toDateKey(end)
-      const st = clockOf(start)
-      const et = clockOf(end)
+      const start = wallParts(wallMinutes(targetDueDate, newStartTime))
+      const end = wallParts(wallMinutes(targetDueDate, newStartTime) + dur)
       return {
-        dueDate: due,
-        startTime: st,
-        endTime: et,
-        endDate: ed !== due ? ed : null,
+        dueDate: start.date,
+        startTime: start.time,
+        endTime: end.time,
+        endDate: end.date !== start.date ? end.date : null,
       }
     }
   }

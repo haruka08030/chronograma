@@ -678,10 +678,12 @@ describe('server time and stale writes (#77)', () => {
   })
 
   it('does not measure the clock from a row whose time was only bumped past a future-dated old version', async () => {
-    // 前の版のアプリ（時計が 1 年進んだ）が書いた行。サーバーはその 1 マイクロ秒（偽物では 1 ミリ秒）後にするだけ
+    // 前の版のアプリ（時計が 1 年進んだ）が書いた行。サーバーはその 1 マイクロ秒（偽物では 1 ミリ秒）後にするだけ。
+    // 未来の時刻は今からの相対にする（決まった日付だと、その日を過ぎると未来でなくなる）
+    const future = Date.now() + 365 * 86_400_000
     const rows = fresh()
     rows.tasks[0] = task('a')
-    rows.tasks[0].updated_at = '2027-10-03T00:00:00.000Z'
+    rows.tasks[0].updated_at = new Date(future).toISOString()
     const { client } = fakeSupabase(rows, { serverNow: () => new Date(Date.now()).toISOString() })
     const remote = await fetchAll(client)
     const res = await pushListsTasksHabits(
@@ -694,7 +696,7 @@ describe('server time and stale writes (#77)', () => {
       noDeletes,
       remote,
     )
-    expect(res.written.map((w) => w.updatedAt)).toEqual(['2027-10-03T00:00:00.001Z'])
+    expect(res.written.map((w) => w.updatedAt)).toEqual([new Date(future + 1).toISOString()])
     expect(res.clockOffsetMs).toBeUndefined()
   })
 

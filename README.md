@@ -57,6 +57,8 @@ npm run dev
 
 ビルドは `npm run build`、Lint は `npm run lint`、整形は `npm run format`（確認だけなら `npm run format:check`）です。`npm install` で入るコミット前のフック（`.githooks/pre-commit`）が、ステージしたファイルの書式を確かめ、崩れていればコミットを止めます。
 
+端末のタイムゾーンと今日を決めて全部のテストを回すのは `npm run test:tz`（Los Angeles の夏時間の切り替わる日、東京の年末の 15:30Z とうるう日。時刻は `FAKE_NOW` と `src/test/fakeNow.ts`）。CI は Los Angeles の 2026-11-01 で 1 回回します。
+
 DB のテスト（RLS とトリガー、pgTAP の `supabase/tests/*.sql`）は Docker と Supabase CLI で、手元の DB に対して流します（本番には向けない）:
 
 ```bash

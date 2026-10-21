@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:tz": "TZ=America/Los_Angeles FAKE_NOW=2026-11-01T08:30:00Z vitest run && TZ=America/Los_Angeles FAKE_NOW=2027-03-14T09:30:00Z vitest run && TZ=Asia/Tokyo FAKE_NOW=2026-12-31T15:30:00Z vitest run && TZ=Asia/Tokyo FAKE_NOW=2028-02-29T12:00:00+09:00 vitest run",
     "shots": "node scripts/shots/capture.mjs",
     "og": "node scripts/og/render.mjs",
     "preview": "vite preview",

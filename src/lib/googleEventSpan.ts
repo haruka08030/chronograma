@@ -1,15 +1,14 @@
-import { addDays } from 'date-fns'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { appTimeZone, wallInZone } from './timeZone'
-import { intervalSegmentClockOnDay, ymdHmToLocalDate } from './taskTimeRange'
-import { toDateKey } from './dateKey'
+import { intervalSegmentClockOnDay } from './taskTimeRange'
+import { dateKeyOfDayIndex, dayIndexOf, wallMinutes, type WallInterval } from './wallTime'
 
-/** 時刻つきの Google の予定の、アプリのタイムゾーンの壁時計での開始〜終了。終日・時刻なしは null */
-export function googleEventInterval(e: CalendarEvent): { start: Date; end: Date } | null {
+/** 時刻つきの Google の予定の、アプリのタイムゾーンの壁時計での開始〜終了（通しの分）。終日・時刻なしは null */
+export function googleEventInterval(e: CalendarEvent): WallInterval | null {
   if (e.isAllDay || !e.startTime || !e.endTime) return null
   const endWall = wallInZone(new Date(e.end).getTime(), appTimeZone())
-  const start = ymdHmToLocalDate(e.date, e.startTime)
-  const end = ymdHmToLocalDate(endWall.date, endWall.time)
+  const start = wallMinutes(e.date, e.startTime)
+  const end = wallMinutes(endWall.date, endWall.time)
   return end > start ? { start, end } : null
 }
 
@@ -21,7 +20,7 @@ export function googleEventDateKeys(e: CalendarEvent): string[] {
   const iv = googleEventInterval(e)
   if (!iv) return [e.date]
   const keys: string[] = []
-  for (let d = ymdHmToLocalDate(e.date, '00:00'); d < iv.end; d = addDays(d, 1)) keys.push(toDateKey(d))
+  for (let d = dayIndexOf(e.date); d * 24 * 60 < iv.end; d++) keys.push(dateKeyOfDayIndex(d))
   return keys
 }
 

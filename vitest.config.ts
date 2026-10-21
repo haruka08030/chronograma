@@ -11,7 +11,7 @@ export default defineConfig({
           include: ['src/**/*.test.ts', 'supabase/functions/**/*.test.ts'],
           environment: 'node',
           // 文言は後から読むので、i18n を使うテストのために先に読んでおく
-          setupFiles: ['src/test/setupUnit.ts'],
+          setupFiles: ['src/test/fakeNow.ts', 'src/test/setupUnit.ts'],
         },
       },
       {
@@ -21,7 +21,7 @@ export default defineConfig({
           name: 'components',
           include: ['src/**/*.test.tsx'],
           environment: 'jsdom',
-          setupFiles: ['src/test/setup.ts'],
+          setupFiles: ['src/test/fakeNow.ts', 'src/test/setup.ts'],
         },
       },
     ],

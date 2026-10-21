@@ -17,7 +17,7 @@ import { buttonClass } from './ui/buttonClass'
 import { isCancelEscape, isModKey, isSubmitEnter } from '../lib/keyboard'
 import { openTaskDetail } from '../lib/overlays'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
-import { addClockMinutes, clockOf, timeToMinutes } from '../lib/clockTime'
+import { addClockMinutes, clockOf, minutesOfDay, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
 import { ERROR_TEXT } from './ui/textClass'
 import { usePendingAction } from '../lib/pendingAction'
@@ -43,7 +43,7 @@ const MOBILE_BREAKDOWN_ROWS = 2
 /** 今の時刻を 5 分単位に丸めた HH:MM */
 function nowRounded(): string {
   const d = zonedNow()
-  const m = Math.round((d.getHours() * 60 + d.getMinutes()) / 5) * 5
+  const m = Math.round(minutesOfDay(d) / 5) * 5
   return addClockMinutes('00:00', Math.min(m, 1435))
 }
 
@@ -153,7 +153,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
   const name = title.trim() || category.trim() || t('quickLog.untitled')
   const overnight = Boolean(start && end && timeToMinutes(end) < timeToMinutes(start))
   // 記録は今より先には作れない（今日は「今」まで。日をまたぐのも不可）
-  const nowMin = zonedNow().getHours() * 60 + zonedNow().getMinutes()
+  const nowMin = minutesOfDay(zonedNow())
   const inFuture = viewingToday && Boolean(start && end) && (overnight || timeToMinutes(end) > nowMin)
   // 候補の予定・いつもやっていることを引く時間（タイマーは今、後から記録は入れた時間）
   const nowHm = clockOf(zonedNow())

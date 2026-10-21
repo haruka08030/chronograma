@@ -102,7 +102,8 @@
 
 - アプリのタイムゾーンは設定「日付と時刻」（既定は端末）。「今」「今日」・Google の予定・止め忘れタイマー・Web Push がそれに従う（`src/lib/timeZone.ts` の `zonedNow()` / `isAppToday()`）
 - `src/components`・`src/hooks` の引数なしの `new Date()` は lint で止める（`.toISOString()`・`.getTime()` に続く瞬間の値は使える）。date-fns の `isToday`・`isPast`・`startOfToday` など端末の今日を見る関数はテスト以外で止める（`eslint.config.js`）
-- 画面で「今」「今日」を使うときは時計の購読（`src/hooks/useAppClock.ts` の `useNow()` / `useAppTodayKey()`）を読む。時計はアプリで 1 つ（`src/lib/appClock.ts`）で、分の境目と表に戻ったときに進む。画面ごとにタイマーを回さない。開いたまま日をまたぐと、今日を見ていた人の見ている日は新しい今日に進む（`useFollowToday`）
+- 画面で「今」「今日」を使うときは時計の購読（`src/hooks/useAppClock.ts` の `useNow()` / `useNowMinutes()` / `useAppTodayKey()`）を読む。`useMemo` の中で今日・今を読むなら、その値を依存に入れる（入れないと日をまたいでも昨日の結果のまま。`src/hooks/memoReadsClock.test.ts` で止める）。時計はアプリで 1 つ（`src/lib/appClock.ts`）で、分の境目と表に戻ったときに進む。画面ごとにタイマーを回さない。開いたまま日をまたぐと、今日を見ていた人の見ている日は新しい今日に進む（`useFollowToday`）
+- 予定・記録の時刻はアプリのタイムゾーンの壁時計（`yyyy-MM-dd` と `HH:mm`）。長さ・日の中の位置・日ごとの切り分けは端末の Date にせず、日の通し番号 × 1440 + 0 時からの分で数える（`src/lib/wallTime.ts`、`taskWallInterval`）。端末の夏時間が切り替わる日（23 時間・25 時間）も 09:00–10:00 は 9 時の位置で 60 分
 - タスク・記録ごとのタイムゾーンを持てる（`src/lib/taskTimeZone.ts`）。列はアプリのタイムゾーンで持ち、`timeZoneAnchor` で同じ瞬間へ書き直す
 - アプリのタイムゾーンを変えると、時刻のある予定・記録は同じ瞬間のままずれる（東京 19 時 → NY 6 時）。日付だけのタスクと習慣は動かない。書いたタイムゾーンが分からない古いものは、最初に開いたときのタイムゾーンで書いたとみなす
 - タイムラインの時間バーに他のタイムゾーンを 2 つまで並べられる（`TimeGutter.tsx`）

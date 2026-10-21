@@ -12,7 +12,7 @@ import { FIELD_FOCUS_RING } from './ui/fieldClass'
 import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
-import { minutesToTime, timeToMinutes } from '../lib/clockTime'
+import { minutesOfDay, minutesToTime, timeToMinutes } from '../lib/clockTime'
 import { ERROR_TEXT } from './ui/textClass'
 
 /** 5 分単位に切り捨てた hh:mm */
@@ -50,7 +50,7 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
   const logSleep = useTaskStore((s) => s.logSleep)
   const now = useNow()
   const todayKey = toDateKey(now)
-  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const nowMin = minutesOfDay(now)
   const isToday = dateKey === todayKey
 
   const [draft] = useState(() => {
