@@ -70,6 +70,7 @@ export function QuickAdd({ placeholder, somedayTier }: { placeholder?: string; s
       <QuickAddDetails
         text={value}
         color={viewColor()}
+        somedayTier={somedayTier}
         picks={picks}
         onPicksChange={setPicks}
         onPicked={() => inputRef.current?.focus()}
