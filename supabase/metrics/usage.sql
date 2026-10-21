@@ -326,7 +326,7 @@ timed as (
   where not t.is_sleep
     and t.deleted_at is null
     and t.archived_at is null
-    -- 記録は全部（夜の締めの「記録」と同じ）。To-Do は予定・サブタスク・いつか / チェックリストを外す
+    -- 記録は全部（夜のまとめの「記録」と同じ）。To-Do は予定・サブタスク・いつか / チェックリストを外す
     and (t.is_time_log or (not t.is_event and t.parent_id is null and l.kind = 'tasks'))
     -- 'HH:mm' の形の行だけ（形の違う値で time への変換を落とさない）
     and t.start_time ~ '^([01]\d|2[0-3]):[0-5]\d$'

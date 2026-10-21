@@ -96,7 +96,7 @@ describe('設定「通知」の夜のまとめ', () => {
   })
 })
 
-describe('設定「計画」の 1 日に計画する時間の目安（#275）', () => {
+describe('設定「計画」の 1 日に使える時間（#275）', () => {
   it('直近 2 週の、記録のある日の平均を添える。記録が無ければ出さない', () => {
     useTaskStore.setState({ tasks: [] })
     const { unmount } = render(<DailyRhythmSettings />)

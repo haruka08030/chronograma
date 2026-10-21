@@ -25,7 +25,7 @@ describe('追加機能「学校」の授業の欠席（#503）', () => {
     expect(S().addons.enabled).toEqual({ school: true })
     await user.click(screen.getByRole('button', { name: '開く' }))
     const dialog = screen.getByRole('dialog', { name: '授業の欠席' })
-    await user.click(within(dialog).getByRole('button', { name: '授業を足す' }))
+    await user.click(within(dialog).getByRole('button', { name: '授業を追加' }))
     await user.type(screen.getByLabelText('授業の名前'), '統計学')
     await user.type(screen.getByLabelText('休める回数（空なら決めない）'), '2')
     await user.click(screen.getByRole('button', { name: '保存' }))

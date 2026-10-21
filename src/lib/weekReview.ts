@@ -516,7 +516,7 @@ export function getPlanDriftCells(
 }
 
 /**
- * 直近 2 週（昨日まで）の、記録のある日の 1 日あたりの記録時間（設定「1 日に計画する時間の目安」の横に出す、#275）。
+ * 直近 2 週（昨日まで）の、記録のある日の 1 日あたりの記録時間（設定「1 日に使える時間」の横に出す、#275）。
  * 記録のある日が無ければ null
  */
 export function recentDailyLoggedMinutes(
