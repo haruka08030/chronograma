@@ -132,6 +132,17 @@ function noteDeltaMiss(): void {
   deltaMissReportedAt = Date.now()
 }
 
+/** 通知の購読が切れた・できなかった回数（まだ送っていない分）と、最後に送った時刻。送るのは 1 日 1 回まで（`delta-miss` と同じ） */
+let wakeFailures = 0
+let wakeFailureReportedAt = -Infinity
+function noteWakeFailure(status: string): void {
+  wakeFailures++
+  if (Date.now() - wakeFailureReportedAt < DELTA_MISS_REPORT_MS) return
+  reportSyncError('realtime', `subscription ${status}`, { count: wakeFailures })
+  wakeFailures = 0
+  wakeFailureReportedAt = Date.now()
+}
+
 /** 取得した後に他の端末が変えていて断られた行を、続けて取り直して送る回数（それを超えたら次の同期で） */
 const MAX_STALE_RETRIES = 3
 
@@ -909,14 +920,21 @@ export function useSupabaseSync() {
     }
     const startWake = () => {
       if (stopWake || document.visibilityState !== 'visible') return
+      // この購読で一度つながったか。切れてからつながり直したときは、切れていた間の通知が届いていないので差分で 1 回取る
+      // （1 分ごとの取得は 5 分ごとに戻るので、待つと最大 5 分届かない）。最初につながったときは画面に戻った・開いたときの同期が取る
+      let wasLive = false
       stopWake = subscribeSyncWake(supabase, userId, {
         onChange: (e) => {
           wakeQueue.push(e)
           clearTimeout(wakeTimer)
           wakeTimer = setTimeout(checkWake, WAKE_DEBOUNCE_MS)
         },
-        onStatus: (live) => {
+        onStatus: (live, status) => {
+          const reconnected = live && !wakeLive && wasLive
           wakeLive = live
+          if (live) wasLive = true
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') noteWakeFailure(status)
+          if (reconnected && !cancelled) void sync()
         },
       })
     }
