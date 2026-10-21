@@ -75,6 +75,18 @@ const DUES_ON = {
     ],
   },
 }
+/** 追加機能「学校」（#503）をオンにして、授業の欠席の一覧に残りの違う授業を入れた状態（ゼミは今日の予定と同じ名前） */
+const SCHOOL_ON = {
+  addons: { enabled: { school: true }, dues: [], absenceCourses: ['統計学', 'ゼミ', '英語コミュニケーション', '体育'] },
+  timetable: {
+    periods: [],
+    termStart: null,
+    termEnd: null,
+    skipHolidays: false,
+    absences: { 統計学: [tzDayKey(-14), tzDayKey(-7), tzDayKey(-3)], ゼミ: [tzDayKey(-7)], 英語コミュニケーション: [tzDayKey(-1)] },
+    absenceLimits: { 統計学: 4, ゼミ: 3, 英語コミュニケーション: 5 },
+  },
+}
 /** 時間割は追加機能（#453）。撮るときはオンにしておく */
 const TIMETABLE_ON = { addons: { enabled: { timetable: true }, dues: [] } }
 const addClass = (cell, title) => [
@@ -435,6 +447,20 @@ const SCREENS = [
   { name: 'calendar-month-dues', view: 'calendar', calendarMode: 'month', state: DUES_ON },
   { name: 'calendar-week-dues', view: 'calendar', state: DUES_ON },
   // 追加機能（#453）: 最初はどれもオフ・時間割をオンにしたところ・設定の「追加機能」
+  { name: 'addons-school', view: 'addons', state: SCHOOL_ON, steps: [{ click: '[data-addon="school"] button:has-text("開く")' }] },
+  {
+    name: 'addons-school-edit',
+    view: 'addons',
+    state: SCHOOL_ON,
+    steps: [{ click: '[data-addon="school"] button:has-text("開く")' }, { click: '[role=dialog] button:has-text("統計学")' }],
+  },
+  {
+    name: 'calendar-event-card-absence',
+    view: 'calendar',
+    state: SCHOOL_ON,
+    taskPatch: { s6: { kind: 'event' } },
+    click: '[data-block-id="s6"] >> visible=true',
+  },
   { name: 'addons', view: 'addons' },
   { name: 'addons-on', view: 'addons', state: TIMETABLE_ON },
   { name: 'settings-addons', view: 'settings', state: TIMETABLE_ON },

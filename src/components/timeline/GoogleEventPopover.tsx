@@ -27,6 +27,7 @@ import { htmlToPlainText } from '../../lib/linkify'
 import { MemoPreview } from '../ui/MemoPreview'
 import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
 import { CourseAssignments } from './CourseAssignments'
+import { ClassAttendance } from './ClassAttendance'
 import { useExitGhost } from '../../hooks/useExitGhost'
 
 const WIDTH = 320
@@ -276,6 +277,8 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           </>
         )}
       </div>
+      {/* 欠席の一覧にある名前の授業: 欠席の数と「欠席にする」（#503） */}
+      <ClassAttendance title={event.summary} date={event.date} />
       {/* 授業の予定（時刻のある予定）: その科目の未完了の課題（#309） */}
       {!event.isAllDay && (
         <CourseAssignments
