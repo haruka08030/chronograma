@@ -5,6 +5,9 @@ import { colorVars } from '../../lib/logCategoryColors'
 import type { Priority } from '../../types/task'
 
 /** 完了の印の形。To-Do は丸、チェックリスト（買い物）は四角、いつか（Wish）は ☆（かなえたら ★） */
+/** まだの丸の灰色の輪（To-Do の丸。今日の画面の習慣のまだの丸も同じ、#510） */
+export const COMPLETION_RING_IDLE = 'border-zinc-300 dark:border-zinc-600'
+
 export type CompletionShape = 'circle' | 'square' | 'star'
 
 /**
@@ -77,7 +80,7 @@ export function CompletionCircle({
             ? 'border-accent-500 bg-accent-500 text-on-accent'
             : ring
               ? `border-current ${ring}`
-              : 'border-zinc-300 group-hover/check:border-accent-500 dark:border-zinc-600'
+              : `${COMPLETION_RING_IDLE} group-hover/check:border-accent-500`
         }`}
       >
         {completed && (

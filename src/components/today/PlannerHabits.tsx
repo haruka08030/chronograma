@@ -3,7 +3,8 @@ import { useTaskStore } from '../../store/taskStore'
 import { habitMinutesOn, habitRecordFor, isTimedHabit, type buildHabitRecordIndex } from '../../lib/habitTiming'
 import type { HabitDayRow } from '../../hooks/usePlannerHabitRows'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
-import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL, HABIT_PENDING } from '../../lib/habitMark'
+import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL } from '../../lib/habitMark'
+import { COMPLETION_RING_IDLE } from '../ui/CompletionCircle'
 import { habitWeekDoneCount, habitWeekRequired } from '../../lib/habitSchedule'
 import { fromDateKey } from '../../lib/dateKey'
 import { tip } from '../../lib/tooltip'
@@ -99,7 +100,7 @@ function HabitRow({
       className={`flex min-h-11 items-center gap-3 rounded-lg px-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${ROW_PRESS_CLASS}`}
       style={colorVars(h.color)}
     >
-      {/* To-Do の丸と同じ大きさ・押せる範囲。色は習慣の色（To-Do と見分ける） */}
+      {/* To-Do の丸と同じ大きさ・押せる範囲。済んだ・時間外の丸だけ習慣の色 */}
       <button
         type="button"
         role="checkbox"
@@ -116,7 +117,8 @@ function HabitRow({
               ? HABIT_DONE_FILL
               : status === 'offTime'
                 ? HABIT_OFF_TIME_FILL
-                : `${HABIT_PENDING} hover:bg-[color-mix(in_srgb,var(--c)_12%,transparent)]`
+                : // まだの丸は To-Do と同じ灰色（習慣の色だと優先度・締切の色の丸と紛れる、#510）
+                  `border-[1.5px] ${COMPLETION_RING_IDLE} hover:border-zinc-400 dark:hover:border-zinc-500`
           }`}
         >
           {status !== 'missed' && <CheckIcon className="h-3 w-3" strokeWidth={2.75} />}
@@ -144,7 +146,7 @@ function HabitRow({
             if (!isTimedHabit(h) && !h.goalMinutes) toggleHabitDate(h.id, dateKey)
           }}
           {...tip(t('quickLog.resume', { title: h.title }), { name: true })}
-          className="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--c)] transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
         >
           <PlayIcon className="h-3 w-3" />
         </button>
