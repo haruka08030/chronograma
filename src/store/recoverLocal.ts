@@ -73,3 +73,27 @@ export function mergeRecoveredState(stored: State, local: State, defaults: State
   state.dataOwner = ownerA === ownerB ? ownerA : null
   return { state, replaced: false }
 }
+
+type BaselineRows = Partial<Record<(typeof ROW_KEYS)[number], Record<string, unknown>>>
+
+/**
+ * その回で消した行を外す。その回は同期していれば（その回の控えがあれば）サーバーの行を全部持っていたので、
+ * IndexedDB の本体にだけある行のうち、前に同期した（置き換える前の控え `before` にある）のにその回の控え `after` に無い行は、
+ * その回で完全に消した・ほかの端末で消された行。残すと次の同期で「この端末で足した行」として送り直していた。
+ * 前の控えに無い行（IndexedDB の側で足してまだ送っていない行）は残す
+ */
+export function dropRowsDeletedInRecovered(state: State, local: State, before: BaselineRows, after: BaselineRows): State {
+  const out: State = { ...state }
+  for (const key of ROW_KEYS) {
+    const prev = before[key]
+    const now = after[key]
+    if (!prev || !now || !Array.isArray(out[key])) continue
+    const localIds = new Set<unknown>(Array.isArray(local[key]) ? (local[key] as unknown[]).map(idOf) : [])
+    out[key] = (out[key] as unknown[]).filter((row) => {
+      const id = idOf(row)
+      if (typeof id !== 'string' || localIds.has(id)) return true
+      return !(id in prev) || id in now
+    })
+  }
+  return out
+}

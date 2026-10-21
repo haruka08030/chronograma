@@ -49,6 +49,11 @@ export const BEFORE_SYNC_KEEP = 5
  * その人がこの端末でまた使わない限り消えなかった（ゴミ箱と同じ 30 日）
  */
 export const OTHER_OWNER_KEEP_DAYS = 30
+/**
+ * 控えの中身（`json` の文字数）の合計の上限。どれも全データの写しで、データの大きい人は 1 件で数 MB になる。
+ * 超えたら古いものから外す（いちばん新しい 1 件は残す）
+ */
+export const MAX_TOTAL_CHARS = 50_000_000
 
 const DB_NAME = 'chronograma-backups'
 const STORE = 'snapshots'
@@ -151,6 +156,36 @@ export function idsToPrune(all: readonly AutoBackupMeta[], current?: { owner: st
   return out
 }
 
+/** 合計の上限（`MAX_TOTAL_CHARS`）を超えた分の、古いものの id（いちばん新しい 1 件は残す） */
+export function idsOverTotal(all: readonly Pick<AutoBackup, 'id' | 'savedAt' | 'json'>[], maxChars = MAX_TOTAL_CHARS): string[] {
+  const sorted = [...all].sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+  const out: string[] = []
+  let total = 0
+  sorted.forEach((b, i) => {
+    total += b.json.length
+    if (i > 0 && total > maxChars) out.push(b.id)
+  })
+  return out
+}
+
+/**
+ * 端末の保存領域が足りないとき、いちばん古い控えを 1 つ手放す（いちばん新しい 1 件は残す）。手放したら true。
+ * 本体の保存（`persistStorage.ts` の `freeMoreSpace`）が書けなかったときに呼ぶ
+ */
+export async function releaseOldestBackup(): Promise<boolean> {
+  try {
+    const all = await getAll()
+    if (all.length <= 1) return false
+    const oldest = all[all.length - 1]!
+    await withStore('readwrite', (s) => {
+      s.delete(oldest.id)
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function countTasks(tasks: readonly Task[]): { todoCount: number; logCount: number } {
   let todoCount = 0
   let logCount = 0
@@ -195,7 +230,8 @@ export async function saveAutoBackup(
       owner,
       json: typeof json === 'string' ? json : json(),
     }
-    const prune = idsToPrune([entry, ...all], { owner, now: Date.parse(savedAt) })
+    const counted = idsToPrune([entry, ...all], { owner, now: Date.parse(savedAt) })
+    const prune = [...counted, ...idsOverTotal([entry, ...all].filter((b) => !counted.includes(b.id)))]
     await withStore('readwrite', (s) => {
       s.put(entry)
       for (const id of prune) s.delete(id)

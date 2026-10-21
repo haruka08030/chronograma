@@ -335,6 +335,134 @@ describe('本体とどこまで合わせたかの記録（控え・設定の版�
   })
 })
 
+describe('保存先との接続・開けない回（#255 の残り）', () => {
+  it('接続が切れたら 1 回開き直して書き直す（容量不足を出さない）', async () => {
+    const tab = await openTab()
+    const real = IDBDatabase.prototype.transaction
+    let fail = true
+    vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(function (
+      this: IDBDatabase,
+      ...args: Parameters<IDBDatabase['transaction']>
+    ) {
+      if (fail && args[1] === 'readwrite') {
+        fail = false
+        throw new DOMException('Connection to Indexed Database server lost. Refresh the page to try again', 'UnknownError')
+      }
+      return real.apply(this, args)
+    })
+    tab.useTaskStore.getState().addTask('after reconnect')
+    await vi.waitFor(async () => expect(await diskTitles()).toEqual(['after reconnect']))
+    expect(tab.data.dataStoreLost()).toBe(false)
+    expect(tab.useTaskStore.getState().storageFull).toBe(false)
+  })
+
+  it('開き直せなければ容量不足とは別に知らせ、書けなかった分は次に開いたときに書く', async () => {
+    const tab = await openTab()
+    tab.useTaskStore.getState().addTask('saved')
+    await settle()
+    vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(() => {
+      throw new DOMException('Connection to Indexed Database server lost', 'UnknownError')
+    })
+    const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
+      throw new DOMException('lost', 'UnknownError')
+    })
+    tab.useTaskStore.getState().addTask('while lost')
+    await vi.waitFor(() => expect(tab.data.dataStoreLost()).toBe(true))
+    expect(tab.useTaskStore.getState().storageFull).toBe(false)
+    expect(localStorage.getItem('chronograma-data-unsaved')).toContain('while lost')
+    // 続けた編集も残す
+    tab.useTaskStore.getState().addTask('still lost')
+    await settle()
+    expect(localStorage.getItem('chronograma-data-unsaved')).toContain('still lost')
+    vi.mocked(IDBDatabase.prototype.transaction).mockRestore()
+    open.mockRestore()
+    tab.data.closeDataStore()
+
+    const again = await openTab()
+    expect(titles(again).sort()).toEqual(['saved', 'still lost', 'while lost'])
+  })
+
+  it('前に IndexedDB で開けた端末で開けなかったら、空のまま始めない印を立てる', async () => {
+    const first = await openTab()
+    expect(first.data.dataStoreUnavailable()).toBe(false)
+    first.data.closeDataStore()
+    const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
+      throw new DOMException('blocked', 'InvalidStateError')
+    })
+    const fallback = await openTab()
+    expect(fallback.mode).toBe('localStorage')
+    expect(fallback.data.dataStoreUnavailable()).toBe(true)
+    open.mockRestore()
+  })
+
+  it('書き終えるまで待ってから読み込み直す', async () => {
+    const tab = await openTab()
+    const reload = vi.fn()
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, reload } as Location)
+    tab.useTaskStore.getState().addTask('before reload')
+    tab.data.reloadWhenSaved()
+    expect(reload).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1))
+    expect(await diskTitles()).toEqual(['before reload'])
+  })
+
+  it('容量不足で書けなければ、自動バックアップの古いものを手放して書き直す', async () => {
+    const tab = await openTab()
+    const backup = await import('../lib/autoBackup')
+    await backup.saveAutoBackup('beforeSync', '2026-10-13', [{ id: 't' } as never], '{"old":1}', null)
+    await new Promise((r) => setTimeout(r, 2))
+    await backup.saveAutoBackup('beforeSync', '2026-10-13', [{ id: 't' } as never], '{"new":1}', null)
+    const real = IDBObjectStore.prototype.put
+    let full = true
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+      if (full && key === PERSIST_STORAGE_KEY) {
+        full = false
+        throw new DOMException('full', 'QuotaExceededError')
+      }
+      return real.call(this, value, key)
+    })
+    tab.useTaskStore.getState().addTask('fits after release')
+    await vi.waitFor(async () => expect(await diskTitles()).toEqual(['fits after release']))
+    expect(await backup.listAutoBackups(null)).toHaveLength(1)
+    expect(tab.useTaskStore.getState().storageFull).toBe(false)
+  })
+})
+
+describe('移した後に localStorage で動いた回（消した行）', () => {
+  it('その回で完全に消した行は、次に IndexedDB で開いたときに戻らない（前に送っていない行は残す）', async () => {
+    const first = await openTab()
+    const s = first.useTaskStore.getState()
+    s.addTask('kept')
+    s.addTask('purged')
+    s.addTask('not yet sent')
+    const byTitle = (title: string) => first.useTaskStore.getState().tasks.find((t) => t.title === title)!
+    const kept = byTitle('kept')
+    const purged = byTitle('purged')
+    // 前回の同期: kept と purged は送った（not yet sent はまだ）
+    first.useTaskStore.getState().setDataOwner('u1')
+    first.sync.saveBaseline('u1', { lists: {}, tasks: { [kept.id]: {}, [purged.id]: {} }, habits: {}, sections: {} } as never)
+    await settle()
+    first.data.closeDataStore()
+
+    const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
+      throw new DOMException('blocked', 'InvalidStateError')
+    })
+    const fallback = await openTab()
+    expect(fallback.mode).toBe('localStorage')
+    // その回: 同期でサーバーの行（kept・purged）を取り込み、purged をゴミ箱から完全に消して送った
+    fallback.useTaskStore.setState({ tasks: [kept], dataOwner: 'u1' })
+    fallback.sync.saveBaseline('u1', { lists: {}, tasks: { [kept.id]: {} }, habits: {}, sections: {} } as never)
+    open.mockRestore()
+
+    const again = await openTab()
+    expect(again.data.dataStoreRecoveredFromLocalStorage()).toBe(true)
+    expect(titles(again).sort()).toEqual(['kept', 'not yet sent'])
+    await settle()
+    expect(await diskTitles()).toEqual(['kept', 'not yet sent'])
+    expect(await readDisk(`${again.data.RECOVERED_BASELINE_PREFIX}chronograma-sync-baseline-v1:u1`)).toBeUndefined()
+  })
+})
+
 describe('読めない保存データ', () => {
   it('壊れた行を外したら、元の中身を IndexedDB の別のキーに残す', async () => {
     const first = await openTab()

@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Task } from '../types/task'
-import { listAutoBackups, saveAutoBackup } from './autoBackup'
+import { idsOverTotal, listAutoBackups, loadAutoBackup, releaseOldestBackup, saveAutoBackup } from './autoBackup'
 
 const tasks = [{ id: 't1' } as Task]
 
@@ -76,5 +76,25 @@ describe('To-Do が 0 件のとき（#486）', () => {
     expect(await saveAutoBackup('beforeSignOut', '2026-10-13', [], '{"habits":[1]}', 'u1', true)).toBe(true)
     expect(await saveAutoBackup('beforeSignOut', '2026-10-13', [], '{}', 'u1')).toBe(false)
     expect((await listAutoBackups('u1')).map((b) => b.kind)).toEqual(['beforeSignOut'])
+  })
+})
+
+describe('容量（#256）', () => {
+  it('合計の上限を超えたら古い控えから外す（いちばん新しい 1 件は残す）', () => {
+    const b = (id: string, savedAt: string, size: number) => ({ id, savedAt, json: 'x'.repeat(size) })
+    const all = [b('a', '2026-10-01', 40), b('b', '2026-10-02', 40), b('c', '2026-10-03', 40)]
+    expect(idsOverTotal(all, 100)).toEqual(['a'])
+    expect(idsOverTotal(all, 10)).toEqual(['b', 'a'])
+  })
+
+  it('保存領域が足りないときは、いちばん古い控えを 1 つ手放す（最後の 1 件は残す）', async () => {
+    await saveAutoBackup('beforeSync', '2026-10-13', tasks, '{"old":1}', 'u1')
+    await new Promise((r) => setTimeout(r, 2))
+    await saveAutoBackup('beforeSync', '2026-10-13', tasks, '{"new":1}', 'u1')
+    expect(await releaseOldestBackup()).toBe(true)
+    const left = await listAutoBackups('u1')
+    expect(left).toHaveLength(1)
+    expect((await loadAutoBackup(left[0]!.id, 'u1'))!.json).toBe('{"new":1}')
+    expect(await releaseOldestBackup()).toBe(false)
   })
 })

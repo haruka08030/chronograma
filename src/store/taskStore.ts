@@ -20,8 +20,19 @@ import {
   setPersistWriteHandlers,
   withoutPersisting,
 } from '../lib/persistStorage'
-import { RECOVERED_LOCAL_KEY, onOtherTabChange, readStored, refreshStored, usingIndexedDb, writeStored } from '../lib/dataStore'
-import { mergeRecoveredState } from './recoverLocal'
+import {
+  BASELINE_KEY_PREFIX,
+  RECOVERED_BASELINE_PREFIX,
+  RECOVERED_LOCAL_KEY,
+  onOtherTabChange,
+  reloadWhenSaved,
+  storedKeys,
+  readStored,
+  refreshStored,
+  usingIndexedDb,
+  writeStored,
+} from '../lib/dataStore'
+import { dropRowsDeletedInRecovered, mergeRecoveredState } from './recoverLocal'
 import {
   BEFORE_RECOVERY_COPY_PREFIX,
   UNREADABLE_COPY_PREFIX,
@@ -82,6 +93,7 @@ import { readViewState } from './viewState'
 import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
 import { NO_COMPLETED_FILTER, NO_TODO_FILTER } from '../lib/taskFilter'
 import { reportFailure } from '../lib/errorReport'
+import { releaseOldestBackup } from '../lib/autoBackup'
 import { flushPendingEdits } from '../lib/pendingEdits'
 
 /** Renamed app: copy persisted state once from the old localStorage key（IndexedDB に移すときは `dataStore.ts` が移す） */
@@ -347,7 +359,16 @@ function takeInRecoveredLocal() {
       unknown
     >
     const pick = (s: TaskState) => pickKeys(s as unknown as Record<string, unknown>, DATA_KEYS) as Record<string, unknown>
-    const { state, replaced } = mergeRecoveredState(pick(useTaskStore.getState()), localState, pick(useTaskStore.getInitialState()))
+    const merged = mergeRecoveredState(pick(useTaskStore.getState()), localState, pick(useTaskStore.getInitialState()))
+    const { replaced } = merged
+    let { state } = merged
+    // その回で完全に消した行は戻さない（その回の控えと、置き換える前の控えを比べる）
+    const owner = typeof localState.dataOwner === 'string' ? localState.dataOwner : null
+    if (!replaced && owner) {
+      const before = readStored(`${RECOVERED_BASELINE_PREFIX}${BASELINE_KEY_PREFIX}${owner}`)
+      const after = readStored(`${BASELINE_KEY_PREFIX}${owner}`)
+      if (before && after) state = dropRowsDeletedInRecovered(state, localState, JSON.parse(before), JSON.parse(after))
+    }
     // 読み込み・他のタブと同じ基準でそろえる（読めない一覧はいまのストアの値のまま）
     normalizeStoredState(state)
     if (replaced) {
@@ -362,6 +383,7 @@ function takeInRecoveredLocal() {
     keepStorageCopy(UNREADABLE_COPY_PREFIX, raw)
   }
   writeStored(RECOVERED_LOCAL_KEY, null)
+  for (const key of storedKeys()) if (key.startsWith(RECOVERED_BASELINE_PREFIX)) writeStored(key, null)
 }
 takeInRecoveredLocal()
 // 前の版で溜まった写しは、新しい 1 つだけ残す。取り込み前の控えは期限を過ぎていれば読んだときに捨てる
@@ -496,7 +518,7 @@ export function adoptOtherTabChanges(): void {
     // 打っている途中のメモ・場所は先にストアに入れて保存する（読み込み直すと手元の書きかけは消える）
     if (typeof parsed.version === 'number' && parsed.version > STORE_VERSION) {
       flushPendingEdits()
-      window.location.reload()
+      reloadWhenSaved()
     }
     return
   }
@@ -547,6 +569,7 @@ if (typeof window !== 'undefined') {
  * 保存領域がいっぱいのとき。以前は保存が黙って失敗し（操作も途中で例外になり）、
  * 再読み込みすると、いっぱいになってからの編集がすべて消えていた
  */
+let lostReported = false
 setPersistWriteHandlers({
   // 取り込み前の控え・保存データの写し（どれも全データの写し）と、ログイン中の人以外の前回同期の控えの中身を手放してもう一度書く
   freeSpace: () => {
@@ -562,6 +585,14 @@ setPersistWriteHandlers({
     const owner = useTaskStore.getState().dataOwner
     if (owner !== null && owner !== LEGACY_DATA_OWNER && shrinkBaselines(owner)) freed = true
     return freed
+  },
+  // 自動バックアップ（どれも全データの写しで、いちばん大きい）を古いものから手放す
+  freeMoreSpace: releaseOldestBackup,
+  // 保存先との接続が切れて開き直せなかった。バナー（`StorageFullBanner`）は `dataStoreLost` を見て再読み込みを促す
+  onLost: () => {
+    if (lostReported) return
+    lostReported = true
+    reportFailure('storage', 'connection-lost', 'the IndexedDB connection was lost and could not be reopened')
   },
   onFailed: (err) => {
     console.error('[storage] save failed', err)

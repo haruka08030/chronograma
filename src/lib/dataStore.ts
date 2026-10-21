@@ -117,6 +117,10 @@ function flush() {
   queue = new Map()
   if (batch.size === 0) return
   for (const [key, w] of batch) lastWrite.set(key, { value: w.value, at: w.at })
+  writeBatch(batch, false)
+}
+
+function writeBatch(batch: Map<string, PendingWrite>, retried: boolean) {
   const finish = (err: unknown) => {
     for (const key of batch.keys()) {
       const n = (busy.get(key) ?? 1) - 1
@@ -130,11 +134,28 @@ function flush() {
         /* 知らせられなくても、他のタブは見えるようになったときに読み直す */
       }
       for (const w of batch.values()) w.onSaved?.()
-    } else for (const w of batch.values()) w.onError?.(err)
+    } else {
+      if (lost && !closedForGood) {
+        // 書けなかった分は、次に開いたときに書く（閉じるのを待たずに置く。iOS は閉じる合図なしにページを捨てることがある）
+        for (const [key, w] of batch) lostWrites.set(key, w.at)
+        keepUnsavedForNextOpen()
+      }
+      for (const w of batch.values()) w.onError?.(err)
+    }
+    if (busy.size === 0) for (const resolve of savedWaiters.splice(0)) resolve()
+  }
+  const failed = (err: unknown) => {
+    // 接続が切れた（iOS の Safari は裏に長く回したあとに落とすことがある）: 1 回だけ開き直して書き直す。だめなら再読み込みを促す
+    if (!retried && !lost && isConnectionLost(err)) {
+      void reconnect().then((ok) => (ok ? writeBatch(batch, true) : finish(err)))
+      return
+    }
+    if (!lost && isConnectionLost(err)) markLost()
+    finish(err)
   }
   let tx: IDBTransaction | null = null
   try {
-    if (!db) throw new DOMException('the data store is closed', 'InvalidStateError')
+    if (!db || dbClosed) throw new DOMException('the data store is closed', 'InvalidStateError')
     tx = db.transaction([STORE, META], 'readwrite')
     const store = tx.objectStore(STORE)
     const meta = tx.objectStore(META)
@@ -149,12 +170,106 @@ function flush() {
     } catch {
       /* もう終わっている */
     }
-    finish(err)
+    failed(err)
     return
   }
   const t = tx
   t.oncomplete = () => finish(null)
-  t.onabort = () => finish(t.error ?? new DOMException('the write was aborted', 'AbortError'))
+  t.onabort = () => failed(t.error ?? new DOMException('the write was aborted', 'AbortError'))
+}
+
+/**
+ * 接続が切れた（ブラウザが閉じた `onclose`・新しい版のタブが開き直した `onversionchange`）。容量不足（`QuotaExceededError`）とは分ける
+ */
+let dbClosed = false
+/** 開き直せなかった。開いている間はもう書けないので、再読み込みを促す（`onDataStoreLost`） */
+let lost = false
+/** 開き直さない（テストでタブを閉じた） */
+let closedForGood = false
+const lostListeners = new Set<() => void>()
+/** 書けなかったキーと書いた時刻（閉じる前に localStorage に置き、次に開いたときに書く） */
+const lostWrites = new Map<string, number>()
+
+function isConnectionLost(err: unknown): boolean {
+  if (dbClosed || closedForGood) return true
+  if (!(err instanceof DOMException)) return false
+  return err.name === 'InvalidStateError' || err.name === 'UnknownError' || /connection/i.test(err.message)
+}
+
+function markLost() {
+  if (lost || closedForGood) return
+  lost = true
+  lostListeners.forEach((l) => l())
+}
+
+/** 保存先との接続が切れて、開き直せなかったか（再読み込みを促す。容量不足とは別） */
+export function dataStoreLost(): boolean {
+  return lost
+}
+
+export function onDataStoreLost(listener: () => void): () => void {
+  lostListeners.add(listener)
+  return () => lostListeners.delete(listener)
+}
+
+let reconnecting: Promise<boolean> | null = null
+/** 開き直す（同時に失敗した書き込みは同じ 1 回を待つ）。手元の写しはこのタブのものが新しいので読み直さない */
+function reconnect(): Promise<boolean> {
+  if (closedForGood) return Promise.resolve(false)
+  reconnecting ??= withTimeout(openDb(), OPEN_TIMEOUT_MS, (late) => late.close())
+    .then((d) => {
+      try {
+        db?.close()
+      } catch {
+        /* もう閉じている */
+      }
+      adoptDb(d)
+      return true
+    })
+    .catch(() => {
+      markLost()
+      return false
+    })
+    .finally(() => {
+      reconnecting = null
+    })
+  return reconnecting
+}
+
+/** 開いた接続を使う。切れた・新しい版のタブが開き直したいときは閉じて、次の書き込みで開き直す */
+function adoptDb(d: IDBDatabase) {
+  db = d
+  dbClosed = false
+  d.onclose = () => {
+    if (db === d) dbClosed = true
+  }
+  d.onversionchange = () => {
+    // 閉じないと新しい版のタブが開けない（古い版のまま書き続けない。次の書き込みは開き直せず、再読み込みを促す）
+    d.close()
+    if (db === d) dbClosed = true
+  }
+}
+
+/** 書き終えてから読み込み直す（書いていなければその場で） */
+export function reloadWhenSaved(): void {
+  if (!db || busy.size === 0) window.location.reload()
+  else void whenSaved().then(() => window.location.reload())
+}
+
+const savedWaiters: (() => void)[] = []
+/**
+ * いま書いている分を書き終えるまで待つ（読み込み直す前に。書き終える前に読み込み直すと、その編集が消える）。
+ * localStorage・書いていなければすぐ。いつまでも待たない（`timeoutMs`）
+ */
+export function whenSaved(timeoutMs = 3000): Promise<void> {
+  if (!db || busy.size === 0) return Promise.resolve()
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs)
+    savedWaiters.push(() => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
 }
 
 /** 他のタブが書いたキー（読み直した後）を受け取る。localStorage の間は storage イベント */
@@ -177,8 +292,10 @@ const UNSAVED_KEY = 'chronograma-data-unsaved'
 const lastWrite = new Map<string, { value: string | null; at: number }>()
 
 function keepUnsavedForNextOpen() {
-  if (!db || busy.size === 0) return
+  if (!db || (busy.size === 0 && lostWrites.size === 0)) return
   const unsaved: Record<string, { value: string | null; at: number }> = {}
+  // 書けなかった分はいまの値で（手元の写しはこのタブの最後に書いた値）
+  for (const [key, at] of lostWrites) unsaved[key] = { value: cache.get(key) ?? null, at }
   for (const key of busy.keys()) {
     const w = queue.get(key) ?? lastWrite.get(key)
     if (w) unsaved[key] = { value: w.value, at: w.at }
@@ -282,6 +399,8 @@ function localStorageEntries(): [string, string, string][] {
  * ストアを作った後に、ストアの既定値と比べてその回で変えた分だけを合わせる（`store/recoverLocal.ts`）
  */
 export const RECOVERED_LOCAL_KEY = `${PERSIST_STORAGE_KEY}-recovered-local`
+/** その回の控えで置き換える前の、IndexedDB の控え（キーはこの後に控えのキー）。取り込んだら消す */
+export const RECOVERED_BASELINE_PREFIX = `${RECOVERED_LOCAL_KEY}-baseline:`
 
 /** 移した後に localStorage で動いた回のデータを取り込んだ（`openDataStore` の後に 1 回だけ記録する） */
 let recoveredFromLocalStorage = false
@@ -373,8 +492,22 @@ function loadAll(
         from,
       ])
       copied.push(...recoveredEntries)
-      for (const [key, value] of recoveredEntries) kv.put(value, key)
-      readAll()
+      // その回の控えで置き換える前の控え（IndexedDB の本体と同期した版）を残す。その回で完全に消した行
+      // （IndexedDB の本体にだけ残る）を、この端末で足した行と読み違えて送り直さないために比べる（`store/recoverLocal.ts`）
+      const replaced = recoveredEntries.filter(([key]) => key.startsWith(BASELINE_KEY_PREFIX))
+      let pending = replaced.length
+      const putAll = () => {
+        for (const [key, value] of recoveredEntries) kv.put(value, key)
+        readAll()
+      }
+      if (pending === 0) putAll()
+      for (const [key] of replaced) {
+        const prev = kv.get(key)
+        prev.onsuccess = () => {
+          if (typeof prev.result === 'string') kv.put(prev.result, `${RECOVERED_BASELINE_PREFIX}${key}`)
+          if (--pending === 0) putAll()
+        }
+      }
     }
     tx.oncomplete = () => {
       try {
@@ -477,7 +610,12 @@ export async function openDataStore(opts: { timeoutMs?: number } = {}): Promise<
     recoveredFromLocalStorage = recovered
     cache.clear()
     for (const [key, value] of entries) cache.set(key, value)
-    db = d
+    adoptDb(d)
+    try {
+      localStorage.setItem(IN_INDEXED_DB_KEY, '1')
+    } catch {
+      /* 印が無ければ、開けなかった回は前と同じく localStorage で動く */
+    }
     channel = new BroadcastChannel(CHANNEL)
     channel.onmessage = (e: MessageEvent<{ keys?: unknown }>) => {
       const keys = Array.isArray(e.data?.keys) ? e.data.keys.filter((k): k is string => typeof k === 'string') : []
@@ -492,8 +630,25 @@ export async function openDataStore(opts: { timeoutMs?: number } = {}): Promise<
   }
 }
 
+/** この端末のデータを IndexedDB に置いている印（一度開けたら付ける）。開けなかった回を空のまま始めないために見る */
+const IN_INDEXED_DB_KEY = 'chronograma-data-in-indexeddb'
+
+/**
+ * IndexedDB を開けなかったのに、この端末のデータは IndexedDB にある（前に開けた）。空の localStorage のまま書き始めると、
+ * データが全部消えたように見え、作り直したものが次に開いたときに合わさる。保存を止めて再読み込みを促す（`main.tsx`）
+ */
+export function dataStoreUnavailable(): boolean {
+  if (db || openError === null) return false
+  try {
+    return localStorage.getItem(IN_INDEXED_DB_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
 /** 閉じる（テストで、タブを閉じた代わりに使う。閉じた後は書き込みが失敗する） */
 export function closeDataStore(): void {
+  closedForGood = true
   channel?.close()
   channel = null
   db?.close()
