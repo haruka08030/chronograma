@@ -9,6 +9,9 @@ import { COMPLETION_RING_IDLE } from '../ui/CompletionCircle'
 import { habitWeekDoneCount, habitWeekRequired } from '../../lib/habitSchedule'
 import { fromDateKey } from '../../lib/dateKey'
 import { tip } from '../../lib/tooltip'
+import { habitSlotId } from '../../lib/habitSlots'
+import { startTaskDrag } from '../../lib/taskDrag'
+import { startNativeTaskDragGhost } from '../../lib/nativeTaskDragGhost'
 import { CheckIcon, PlayIcon } from '../icons'
 import { ROW_PRESS_CLASS } from '../ui/rowStateClass'
 import { META_TONE_CLASS } from './plannerRowMeta'
@@ -20,6 +23,7 @@ type Deferred = ReturnType<typeof useDeferredComplete>
 /**
  * 今日の計画の「習慣」。To-Do の欄のすぐ下に、To-Do と同じ高さの行で出す（まだ選ぶ前の候補より上。その日やると決まっているもの）。
  * 行: その色の丸（押すと達成、もう一度押すと外す）・名前・右に時刻 / 今週の回数 / 時間の目標の進み・▶（その名前のタイマー）。
+ * まだの行は右のタイムラインへドラッグできる（予定の列＝その日だけの枠、記録の列＝その時間の記録）。
  * 出すのはまだの習慣だけ（済んだものは「完了 N 件」の中の `PlannerHabitRows`）。全部済んだら見出しも出さない。
  * 丸を押した行は済んだ見た目でその場に 1.5 秒残し、縮んでから「完了 N 件」へ移る（To-Do と同じ `useDeferredComplete`）
  */
@@ -102,7 +106,8 @@ function HabitRow({
   const minutes = h.goalMinutes && status === 'missed' ? habitMinutesOn(habitRecords, h, dateKey) : 0
   const date = fromDateKey(dateKey)
   const weekly = h.frequency.type === 'timesPerWeek'
-  const canTime = viewingToday && status === 'missed' && !weekMet && activeTimer?.taskTitle !== h.title
+  const open = status === 'missed' && !weekMet
+  const canTime = viewingToday && open && activeTimer?.taskTitle !== h.title
   // 右の文字: 時間外・目標の進みのどちらか → 今週の回数（週に◯回）か時刻
   const meta = [
     record ? t('planner.habitOffTime') : minutes > 0 ? t('habits.goalProgress', { done: minutes, goal: h.goalMinutes }) : null,
@@ -118,6 +123,16 @@ function HabitRow({
         deferred?.isLeaving(key) ? 'animate-row-collapse overflow-hidden' : ''
       }`}
       style={colorVars(h.color)}
+      // まだの習慣は To-Do と同じく右のタイムラインへ: 予定の列でその日だけその時間の枠、記録の列でその時間にやった記録
+      draggable={open}
+      onDragStart={
+        open
+          ? (e) => {
+              startTaskDrag(e, habitSlotId(h.id, dateKey))
+              startNativeTaskDragGhost(e, h.title)
+            }
+          : undefined
+      }
     >
       {/* 習慣の色は左の細い線（To-Do の行と同じ、#511）。済んだ行には出さない */}
       {h.color && status === 'missed' && <RowColorLine hex={h.color} />}

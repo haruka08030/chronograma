@@ -81,9 +81,9 @@ export function WeekHabitRow({
                     key={id}
                     data-block-id={id}
                     data-touch-menu
-                    // 時間なしは時刻が無いので格子に置かない
-                    draggable={time !== null}
-                    onDragStart={time !== null ? (e) => startTaskDrag(e, id) : undefined}
+                    // 予定の列に落とすとその日だけその時間の枠、記録の列ならその時間にやった記録（時間なしも同じ）
+                    draggable
+                    onDragStart={(e) => startTaskDrag(e, id)}
                     onClick={(e) => openHabitCard(id, e.currentTarget)}
                     onContextMenu={(e) => {
                       e.preventDefault()
@@ -92,7 +92,7 @@ export function WeekHabitRow({
                     }}
                     className={`${!done && state === 'upcoming' ? 'gc-plan' : 'gc-missed'} flex items-center gap-1 rounded px-1 py-0.5
                       text-[10px] leading-tight transition-[filter] hover:brightness-95
-                      ${time !== null ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+                      cursor-grab active:cursor-grabbing`}
                     style={colorVars(habit.color)}
                   >
                     {(done || started) && (

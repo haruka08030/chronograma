@@ -350,6 +350,8 @@ export interface TaskState {
   toggleHabitDate: (habitId: string, dateKey: string) => void
   /** 未達成なら達成にして、記録が無ければ予定どおりの時刻で作る（タイムラインの習慣の枠のチェック） */
   completeHabitAsPlanned: (habitId: string, dateKey: string) => void
+  /** その時間にやった記録を作る（記録の列に習慣を落とした）。時間なしの習慣はその日を達成に、時間を決めた習慣は記録の時刻で判定。「元に戻す」付きのトースト */
+  recordHabitAt: (habitId: string, dateKey: string, startTime: string, endTime: string) => void
 
   addList: (name: string, kind?: Exclude<ListKind, 'tasks'>) => void
   setListKind: (id: string, kind: ListKind) => void

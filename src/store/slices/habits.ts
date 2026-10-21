@@ -5,7 +5,7 @@ import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { newId } from '../../lib/id'
 import { buildHabitRecordIndex, habitDayStatus, habitTimesOn, habitUsualTimesOn } from '../../lib/habitTiming'
 import { logColorNames } from '../storeDefaults'
-import { completeHabitAsPlannedPatch, uncheckHabitDatePatch } from '../habitRecord'
+import { completeHabitAsPlannedPatch, recordHabitAtPatch, uncheckHabitDatePatch } from '../habitRecord'
 import type { TaskState } from '../storeTypes'
 import { patchChanges } from '../../lib/sameValue'
 import type { SliceContext } from './sliceTypes'
@@ -24,6 +24,7 @@ type HabitsActions = Pick<
   | 'restoreHabit'
   | 'toggleHabitDate'
   | 'completeHabitAsPlanned'
+  | 'recordHabitAt'
 >
 
 /** 一度に休みにできる日数（期間で選んだとき） */
@@ -73,14 +74,15 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
     },
     setHabitDayTime: (id, dateKey, startTime, endTime, label) => {
       const habit = get().habits.find((h) => h.id === id)
-      const current = habit ? habitTimesOn(habit, dateKey) : null
-      if (!habit || !current) return
+      if (!habit) return
+      // 時間を決めていない習慣は、その日だけ格子に置く（今日の計画の行を予定の列に落とした）
+      const current = habitTimesOn(habit, dateKey)
       // 時刻ひとつの習慣も終わりを持たせる（習慣の段から格子に置いた日は枠になる）
       const next = { startTime, endTime }
-      if (next.startTime === current.startTime && next.endTime === current.endTime) return
+      if (next.startTime === current?.startTime && next.endTime === current.endTime) return
       // その曜日のいつもの時間に戻したら、その日だけの時間は消す
-      const base = habitUsualTimesOn(habit, dateKey)!
-      const usual = next.startTime === base.startTime && next.endTime === base.endTime
+      const base = habitUsualTimesOn(habit, dateKey)
+      const usual = !!base && next.startTime === base.startTime && next.endTime === base.endTime
       const overrides: HabitTimeOverrides = { ...habit.timeOverrides }
       if (usual) delete overrides[dateKey]
       else overrides[dateKey] = next
@@ -204,6 +206,20 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
             }
           : undefined,
       )
+      set(patch)
+    },
+    recordHabitAt: (habitId, dateKey, startTime, endTime) => {
+      const patch = recordHabitAtPatch(
+        get(),
+        habitId,
+        dateKey,
+        { startTime, endTime },
+        { now: new Date().toISOString(), colorNames: logColorNames() },
+      )
+      if (!patch) return
+      const record = patch.tasks[patch.tasks.length - 1]
+      const name = get().habits.find((h) => h.id === habitId)?.title ?? ''
+      pushUndo({ key: record.category ? 'undo.habitRecordedLabel' : 'undo.habitRecorded', params: { name, label: record.category ?? '' } })
       set(patch)
     },
   }
