@@ -56,7 +56,7 @@ const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
 /**
  * 1 日単位の計画画面。左で「今日やること」を決め、右のタイムラインに置いて時間を確保する。
  * 情報は必要なときだけ出す: 候補（やり残し・締切間近）は畳んだ 1 行、締めは夕方か全部終わったとき。
- * 左の並び: 見出し（`PlannerHeader`）→ 引き落とし・期限（`PlannerDues`、追加機能）→ To-Do（`PlannerTodoSection`）→ 候補 → 習慣 → 完了 → 締め（`PlannerWrapUp`）
+ * 左の並び: 見出し（`PlannerHeader`）→ 引き落とし・期限（`PlannerDues`、追加機能）→ To-Do（`PlannerTodoSection`）→ 習慣 → 候補 → 完了 → 締め（`PlannerWrapUp`）
  */
 export function TodayPlannerView() {
   const { t } = useTranslation()
@@ -351,6 +351,11 @@ export function TodayPlannerView() {
           ownedGroupIds={ownedGroupIds}
         />
 
+        {/* 習慣はその日やると決まっているもの。まだ選ぶ前の候補より上に */}
+        {dayHabits.length > 0 && (
+          <PlannerHabits dayHabits={dayHabits} dateKey={dateKey} viewingToday={viewingToday} headingClass={sectionHeading} />
+        )}
+
         {(suggestions.length > 0 || moreSuggestions.length > 0) && (
           <PlannerSuggestions
             env={rowEnv}
@@ -364,10 +369,6 @@ export function TodayPlannerView() {
             onShowMore={showMore}
             groupId={suggestionGroupId}
           />
-        )}
-
-        {dayHabits.length > 0 && (
-          <PlannerHabits dayHabits={dayHabits} dateKey={dateKey} viewingToday={viewingToday} headingClass={sectionHeading} />
         )}
 
         {done.length > 0 && (
