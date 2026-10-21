@@ -1,4 +1,3 @@
-import { settingSyncStep } from './settingSync'
 import { timerRecordTimes } from './timerRecord'
 
 /**
@@ -50,36 +49,4 @@ export type SleepTimerSyncPlan = {
   apply?: RemoteSleepTimer
   push?: RemoteSleepTimer & { base: string | null }
   adopt?: string
-}
-
-export function planSleepTimerSync(
-  local: LocalSleepTimer,
-  remote: RemoteSleepTimer | null,
-  nowIso: string = new Date().toISOString(),
-  clockOffsetMs = 0,
-): SleepTimerSyncPlan {
-  const mine = normalizeSleepTimer(local.timer)
-  if (!remote) {
-    // 一度も押していなければ送らない
-    if (local.updatedAt === null) return {}
-    return { push: { timer: mine, updatedAt: local.updatedAt, base: null } }
-  }
-  const theirs = normalizeSleepTimer(remote.timer)
-  const step = settingSyncStep(
-    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
-    remote,
-    (mine?.startedAt ?? null) === (theirs?.startedAt ?? null),
-    clockOffsetMs,
-  )
-  switch (step.kind) {
-    case 'initial':
-    case 'apply':
-      return { apply: { timer: theirs, updatedAt: remote.updatedAt } }
-    case 'push':
-      return { push: { timer: mine, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
-    case 'adopt':
-      return { adopt: remote.updatedAt }
-    default:
-      return {}
-  }
 }

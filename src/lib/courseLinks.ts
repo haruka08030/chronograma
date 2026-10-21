@@ -1,7 +1,5 @@
 import type { Task } from '../types/task'
 import { parseCanvasTaskId } from './canvasIds'
-import { settingSyncStep } from './settingSync'
-import { bothChangedSince, merge3ById, mergedSettingPlan } from './settingMerge'
 
 /**
  * 授業の予定と、LMS（Canvas・Moodle）の科目のつながり（#309）。授業の予定を押したカードに、その科目の未完了の課題を締切順に出す。
@@ -137,57 +135,3 @@ export type CourseLinkSyncPlan = {
 
 export const sameCourseLinks = (a: readonly CourseLink[], b: readonly CourseLink[]) =>
   a.length === b.length && a.every((x, i) => x.title === b[i]!.title && x.course === b[i]!.course)
-
-export function planCourseLinkSync(
-  local: LocalCourseLinks,
-  remote: RemoteCourseLinks | null,
-  nowIso: string = new Date().toISOString(),
-  clockOffsetMs = 0,
-  /** 前回合わせた版の中身の控え（`settingSync.ts` の `saveSettingBase`）。無ければ null */
-  base: unknown = null,
-): CourseLinkSyncPlan {
-  if (!remote) return { push: { links: local.links, updatedAt: local.updatedAt ?? nowIso, base: null } }
-  const remoteLinks = normalizeCourseLinks(remote.links)
-  const step = settingSyncStep(
-    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
-    remote,
-    sameCourseLinks(local.links, remoteLinks),
-    clockOffsetMs,
-  )
-  // 両方の端末で前回合わせた後に変えた: 予定の名前ごとに合わせる（2 台で別々の授業につないだものをどちらも残す）
-  if (bothChangedSince(local, remote) && (step.kind === 'push' || step.kind === 'apply')) {
-    let conflicts = 0
-    const merged = normalizeCourseLinks(
-      merge3ById(
-        base ? normalizeCourseLinks(base) : null,
-        local.links,
-        remoteLinks,
-        (l) => courseKey(l.title),
-        step.kind === 'push' ? 'l' : 'r',
-        () => conflicts++,
-      ),
-    )
-    const p = mergedSettingPlan(merged, { value: remoteLinks, updatedAt: remote.updatedAt }, sameCourseLinks, nowIso, conflicts)
-    return {
-      apply: { links: p.apply.value, updatedAt: p.apply.updatedAt },
-      ...(p.push ? { push: { links: p.push.value, updatedAt: p.push.updatedAt, base: p.push.base } } : {}),
-      conflicts,
-    }
-  }
-  const neverSynced = (local.syncedAt ?? null) === null && (step.kind === 'push' || step.kind === 'apply')
-  switch (neverSynced ? 'initial' : step.kind) {
-    case 'initial': {
-      const links = normalizeCourseLinks([...remoteLinks, ...local.links])
-      if (sameCourseLinks(links, remoteLinks)) return { apply: { links, updatedAt: remote.updatedAt } }
-      return { apply: { links, updatedAt: nowIso }, push: { links, updatedAt: nowIso, base: remote.updatedAt } }
-    }
-    case 'apply':
-      return { apply: { links: remoteLinks, updatedAt: remote.updatedAt } }
-    case 'push':
-      return { push: { links: local.links, updatedAt: local.updatedAt ?? nowIso, base: step.kind === 'push' ? step.base : null } }
-    case 'adopt':
-      return { adopt: remote.updatedAt }
-    default:
-      return {}
-  }
-}

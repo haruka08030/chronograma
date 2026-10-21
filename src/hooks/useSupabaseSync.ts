@@ -65,17 +65,13 @@ import { fillLabelIds, labelIndex, relabelTasks, resolveIncomingLabels } from '.
 import { noteMergeConflicts } from '../lib/mergeConflictReport'
 import { reanchorTasks } from '../lib/taskTimeZone'
 import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
-import { planEventTemplateSync } from '../lib/eventTemplates'
-import { planCourseLinkSync } from '../lib/courseLinks'
-import { planAddonsSync } from '../lib/addons'
-import { planSleepTimerSync } from '../lib/sleepTimer'
 import { fetchSleepTimer, pushSleepTimer } from '../lib/sleepTimerSync'
-import { planTimetableSync } from '../lib/timetable'
 import { createDayMoodPullState, dayMoodSince, runDayMoodSync } from '../lib/dayMood'
 import { hasExistingData } from '../lib/onboarding'
 import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
 import { storeActiveTimerIo } from './activeTimerIo'
 import { isKnownChange, subscribeSyncWake, type WakeEvent } from '../lib/syncWake'
+import { planAddonsSync, planCourseLinkSync, planEventTemplateSync, planSleepTimerSync, planTimetableSync } from '../lib/settingPlans'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */

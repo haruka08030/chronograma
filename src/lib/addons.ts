@@ -1,11 +1,9 @@
 import { isEventTask, type Task } from '../types/task'
-import { sameValue } from './sameValue'
-import { settingSyncStep } from './settingSync'
 import { normalizeDues, type DueItem } from './dues'
 import { googleSkipKey, normalizeGoogleSkip } from './googleSkip'
 import { normalizeAbsenceCourses } from './absenceCourses'
 import { courseKey } from './courseLinks'
-import { bothChangedSince, merge3, merge3ById, merge3Record, merge3Set, mergedSettingPlan, type Side } from './settingMerge'
+import { merge3, merge3ById, merge3Record, merge3Set, type Side } from './settingMerge'
 
 /**
  * 追加機能（#453）。生活まわりの機能（時間割・学校・引き落とし …）は使う人だけがオンにし、オフの機能は普段の画面に出さない。
@@ -103,52 +101,4 @@ export function mergeAddons(base: Addons | null, l: Addons, r: Addons, prefer: S
     googleSkip: merge3Set(base?.googleSkip ?? null, l.googleSkip, r.googleSkip, prefer, googleSkipKey),
     absenceCourses: merge3Set(base?.absenceCourses ?? null, l.absenceCourses, r.absenceCourses, prefer, courseKey),
   })
-}
-
-export function planAddonsSync(
-  local: LocalAddons,
-  remote: RemoteAddons | null,
-  nowIso: string = new Date().toISOString(),
-  clockOffsetMs = 0,
-  /** 前回合わせた版の中身の控え（`settingSync.ts` の `saveSettingBase`）。無ければ null */
-  base: unknown = null,
-): AddonsSyncPlan {
-  if (!remote) {
-    if (local.updatedAt === null) return {}
-    return { push: { addons: local.addons, updatedAt: local.updatedAt, base: null } }
-  }
-  const remoteValue = normalizeAddons(remote.addons)
-  const step = settingSyncStep(
-    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
-    remote,
-    sameValue(local.addons, remoteValue),
-    clockOffsetMs,
-  )
-  if (bothChangedSince(local, remote) && (step.kind === 'push' || step.kind === 'apply')) {
-    let conflicts = 0
-    const merged = mergeAddons(
-      base ? normalizeAddons(base) : null,
-      local.addons,
-      remoteValue,
-      step.kind === 'push' ? 'l' : 'r',
-      () => conflicts++,
-    )
-    const p = mergedSettingPlan(merged, { value: remoteValue, updatedAt: remote.updatedAt }, sameValue, nowIso, conflicts)
-    return {
-      apply: { addons: p.apply.value, updatedAt: p.apply.updatedAt },
-      ...(p.push ? { push: { addons: p.push.value, updatedAt: p.push.updatedAt, base: p.push.base } } : {}),
-      conflicts,
-    }
-  }
-  switch (step.kind) {
-    case 'initial':
-    case 'apply':
-      return { apply: { addons: remoteValue, updatedAt: remote.updatedAt } }
-    case 'push':
-      return { push: { addons: local.addons, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
-    case 'adopt':
-      return { adopt: remote.updatedAt }
-    default:
-      return {}
-  }
 }

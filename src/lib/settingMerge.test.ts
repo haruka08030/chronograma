@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { merge3, merge3ById, merge3Record, merge3Set } from './settingMerge'
-import { DEFAULT_TIMETABLE, normalizeTimetable, planTimetableSync, withAbsence, withAbsenceLimit, type Timetable } from './timetable'
-import { DEFAULT_ADDONS, planAddonsSync, withAddonOn, type Addons } from './addons'
-import { planEventTemplateSync, type EventTemplate } from './eventTemplates'
-import { planCourseLinkSync } from './courseLinks'
+import { DEFAULT_TIMETABLE, normalizeTimetable, withAbsence, withAbsenceLimit, type Timetable } from './timetable'
+import { DEFAULT_ADDONS, withAddonOn, type Addons } from './addons'
+import { type EventTemplate } from './eventTemplates'
 import { runSettingSync, saveSettingBase, saveSettingSyncedAt } from './settingSync'
 import type { DueItem } from '../../supabase/functions/daily-reminders/dues.ts'
+import { planAddonsSync, planCourseLinkSync, planEventTemplateSync, planTimetableSync } from './settingPlans'
 
 /**
  * 1 つの値に別々に足せる小さなものがたくさん入っている設定・項目は、2 台で別々に足したものをどちらも残す。

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { TASK_DEFAULTS } from './taskDefaults'
-import { DEFAULT_ADDONS, isAddonOn, normalizeAddons, planAddonsSync, withAddonOn } from './addons'
+import { DEFAULT_ADDONS, isAddonOn, normalizeAddons, withAddonOn } from './addons'
+import { planAddonsSync } from './settingPlans'
 
 const NOW = '2026-10-08T00:00:00.000Z'
 const weekly = (extra: Partial<Task> = {}) =>

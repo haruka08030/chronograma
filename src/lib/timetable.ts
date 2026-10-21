@@ -2,8 +2,7 @@ import { isEventTask, type Task } from '../types/task'
 import { toMinutes } from './clockTime'
 import { isoWeekday } from './recurrence'
 import { fromDateKey } from './dateKey'
-import { settingSyncStep } from './settingSync'
-import { bothChangedSince, merge3, merge3Record, merge3Set, mergedSettingPlan, type Side } from './settingMerge'
+import { merge3, merge3Record, merge3Set, type Side } from './settingMerge'
 import { courseKey } from './courseLinks'
 import type { DateTone } from '../components/ui/dueTone'
 import type { Attendance } from './absenceCourses'
@@ -364,52 +363,3 @@ export function mergeTimetables(base: Timetable | null, l: Timetable, r: Timetab
 }
 
 export const sameTimetable = (a: Timetable, b: Timetable) => JSON.stringify(a) === JSON.stringify(b)
-
-export function planTimetableSync(
-  local: LocalTimetable,
-  remote: RemoteTimetable | null,
-  nowIso: string = new Date().toISOString(),
-  clockOffsetMs = 0,
-  /** 前回合わせた版の中身の控え（`settingSync.ts` の `saveSettingBase`）。無ければ null */
-  base: unknown = null,
-): TimetableSyncPlan {
-  if (!remote) {
-    // 一度も変えていない既定の値は送らない（ほかの端末で決めた時間割を既定で上書きしない）
-    if (local.updatedAt === null) return {}
-    return { push: { timetable: local.timetable, updatedAt: local.updatedAt, base: null } }
-  }
-  const remoteValue = normalizeTimetable(remote.timetable)
-  const step = settingSyncStep(
-    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
-    remote,
-    sameTimetable(local.timetable, remoteValue),
-    clockOffsetMs,
-  )
-  if (bothChangedSince(local, remote) && (step.kind === 'push' || step.kind === 'apply')) {
-    let conflicts = 0
-    const merged = mergeTimetables(
-      base ? normalizeTimetable(base) : null,
-      local.timetable,
-      remoteValue,
-      step.kind === 'push' ? 'l' : 'r',
-      () => conflicts++,
-    )
-    const p = mergedSettingPlan(merged, { value: remoteValue, updatedAt: remote.updatedAt }, sameTimetable, nowIso, conflicts)
-    return {
-      apply: { timetable: p.apply.value, updatedAt: p.apply.updatedAt },
-      ...(p.push ? { push: { timetable: p.push.value, updatedAt: p.push.updatedAt, base: p.push.base } } : {}),
-      conflicts,
-    }
-  }
-  switch (step.kind) {
-    case 'initial':
-    case 'apply':
-      return { apply: { timetable: remoteValue, updatedAt: remote.updatedAt } }
-    case 'push':
-      return { push: { timetable: local.timetable, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
-    case 'adopt':
-      return { adopt: remote.updatedAt }
-    default:
-      return {}
-  }
-}

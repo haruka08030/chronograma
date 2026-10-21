@@ -88,7 +88,7 @@ export type { ActiveTimer, CalendarMode, DailyReminders, SectionGrouping, Settin
 export { recurrenceNextId } from './taskRecurrence'
 export { selectLiveHabits } from './liveHabits'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
-import { pendingAddsAfterImport } from '../lib/labelSync'
+import { pendingAddsAfterImport } from '../lib/labelPendingAdds'
 import { clearBaseline } from '../lib/syncMerge'
 import { readViewState } from './viewState'
 import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
