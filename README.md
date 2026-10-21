@@ -152,13 +152,13 @@ select jobname, schedule, command from cron.job where jobname = 'chronograma-dai
 
 秘密を変えるときは、Edge Function の secret と Vault の両方を変えます: `supabase secrets set CRON_SECRET=NEW_SECRET` と `select vault.update_secret((select id from vault.secrets where name = 'chronograma_cron_secret'), 'NEW_SECRET');`
 
+通知時刻は各端末のタイムゾーンで判定し、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。1 回が失敗しても（読み込みの失敗・デプロイ中・タイムアウト）、次の回が前の成功の回から今まで（上限 60 分）の分を送ります（`reminder_runs`、migration `012`。送った通知は二度送りません）。
+
 **VAPID 鍵の入れ替え**（漏れたとき・作り直したとき）。前の鍵の購読にはプッシュサービスが 403 を返すので、`daily-reminders` はその購読を消し（`reminder_runs.last_key_mismatch` に数える。`supabase/metrics/health.sql` の 4）、端末はアプリを開いたときに購読の鍵が今の公開鍵と違えば今の鍵で購読し直します（`src/lib/webPush.ts` の `subscribedWithKey`）:
 
 1. 新しい鍵を作る: `npx web-push generate-vapid-keys`
 2. 公開鍵・秘密鍵を両方の側で同時に替える: Supabase の `supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=...` と、ホスティング（Vercel）の `VITE_VAPID_PUBLIC_KEY`（替えたら再デプロイ。公開鍵はビルドに入る）。片方だけ替えると、新しい購読にも 403 が返って消され続けます
 3. 替えたあと、各端末はアプリを開くまで通知が届きません（開いたときに購読し直す）。`last_key_mismatch` が 0 に戻れば、残っていた前の鍵の購読は片付いています
-
-、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。1 回が失敗しても（読み込みの失敗・デプロイ中・タイムアウト）、次の回が前の成功の回から今まで（上限 60 分）の分を送ります（`reminder_runs`、migration `012`。送った通知は二度送りません）。
 
 ### Google でログイン（任意）
 
