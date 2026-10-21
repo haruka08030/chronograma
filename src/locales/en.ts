@@ -1243,6 +1243,8 @@ export default {
     message: 'This device is out of storage, so changes aren’t being saved. Export your data before reloading.',
     newer: 'This data was saved by a newer version of the app, so changes aren’t being saved. Reload the page.',
     unreadable: 'Your saved data couldn’t be loaded, so changes aren’t being saved. Export the original data to keep it.',
+    unavailable: 'Your saved data couldn’t be opened, so changes aren’t being saved. Reload the page.',
+    lost: 'The connection to on-device storage was lost, so changes aren’t being saved. Reload the page.',
     export: 'Export',
   },
   accountBackup: {

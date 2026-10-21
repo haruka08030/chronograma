@@ -8,7 +8,7 @@
  * - 保存データを読めなかった・新しい版のアプリが書いたデータだったときは、開いている間ずっと書かない（`blockPersisting`）
  */
 import type { PersistStorage, StateStorage, StorageValue } from 'zustand/middleware'
-import { readStored, usingIndexedDb, writeStored } from './dataStore'
+import { dataStoreLost, readStored, usingIndexedDb, writeStored } from './dataStore'
 
 let suppressWrites = false
 /** この端末で最後に読み書きした保存内容（他のタブの書き込みと見分けるため） */
@@ -18,6 +18,10 @@ let writeFailed = false
 interface WriteHandlers {
   /** 保存に失敗した。場所を空けられたら true（もう一度だけ書いてみる） */
   freeSpace: () => boolean
+  /** `freeSpace` で足りなかったとき、IndexedDB で時間のかかるもの（自動バックアップ）を手放す。手放せたら true */
+  freeMoreSpace?: () => Promise<boolean>
+  /** 保存先との接続が切れて開き直せなかった（容量不足とは別に、再読み込みを促す） */
+  onLost?: () => void
   /** 空けても保存できなかった */
   onFailed: (err: unknown) => void
   /** 失敗のあと、また保存できるようになった */
@@ -27,10 +31,11 @@ let handlers: WriteHandlers | null = null
 
 /**
  * 保存を止めている理由（#485）。`newer` は新しい版のアプリが書いたデータ（古いアプリが知らない項目を落として書き戻さない）、
- * `unreadable` は保存データを読めなかった・移せなかった（初期状態のまま次の編集で元のデータを上書きしない）。
+ * `unreadable` は保存データを読めなかった・移せなかった（初期状態のまま次の編集で元のデータを上書きしない）、
+ * `unavailable` はデータを置いている IndexedDB を開けなかった（空のまま書き始めない、`dataStoreUnavailable`）。
  * 一度止めたら開き直すまで戻さない
  */
-export type PersistBlock = 'newer' | 'unreadable'
+export type PersistBlock = 'newer' | 'unreadable' | 'unavailable'
 let blocked: PersistBlock | null = null
 const blockListeners = new Set<() => void>()
 
@@ -112,14 +117,29 @@ export const persistStorage: StateStorage = {
         writeFailed = true
         handlers?.onFailed(err)
       }
+      /** いまの値をもう一度書く */
+      const retry = (onError: () => void) => {
+        const latest = readStored(key)
+        if (latest === null) return onError()
+        writeStored(key, latest, { onSaved: saved, onError })
+      }
+      /** 自動バックアップの古いものを手放して、もう一度だけ書く */
+      const freeMore = (err: unknown) => {
+        if (!handlers?.freeMoreSpace) return failed(err)
+        void handlers.freeMoreSpace().then((ok) => (ok ? retry(() => failed(err)) : failed(err)))
+      }
       writeStored(key, value, {
         onSaved: saved,
         onError: (err) => {
+          // 接続が切れて開き直せなかった: 場所を空けても書けない。容量不足とは別に知らせる
+          if (dataStoreLost()) {
+            writeFailed = true
+            handlers?.onLost?.()
+            return
+          }
           // 容量不足など。場所を空けられたら、いまの値をもう一度だけ書く
-          if (!handlers?.freeSpace()) return failed(err)
-          const latest = readStored(key)
-          if (latest === null) return failed(err)
-          writeStored(key, latest, { onSaved: saved, onError: () => failed(err) })
+          if (!handlers?.freeSpace()) return freeMore(err)
+          retry(() => freeMore(err))
         },
       })
       return

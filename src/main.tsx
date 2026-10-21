@@ -1,6 +1,7 @@
 import './index.css'
 import { renderBootFailure } from './lib/bootFailure'
-import { openDataStore } from './lib/dataStore'
+import { dataStoreUnavailable, openDataStore } from './lib/dataStore'
+import { blockPersisting } from './lib/persistStorage'
 import { installGlobalErrorReporting, reportError } from './lib/errorReport'
 import { startAfterDataLoaded } from './lib/startAfterDataLoaded'
 import { loadSupabase, needsSupabaseAtStart } from './lib/supabase'
@@ -19,8 +20,12 @@ if (needsSupabaseAtStart()) void loadSupabase().catch(() => {})
 // 端末の保存データ（IndexedDB）を読み終えてから、ストア・同期・画面を読み込む。
 // 先にストアを作ると空のデータで始まり、画面の書き込みが保存を上書きしたり、同期がサーバーの行を消したりする。
 // 本体が読めなかったら、素の画面で「起動できませんでした」と再読み込みを出す
+// データを置いている IndexedDB を開けなかったら、空のまま書き始めない（保存も同期も止め、バナーで再読み込みを促す）
 void startAfterDataLoaded(
-  openDataStore,
+  async () => {
+    await openDataStore()
+    if (dataStoreUnavailable()) blockPersisting('unavailable')
+  },
   () => import('./boot'),
   (err) => {
     console.error('[boot]', err)

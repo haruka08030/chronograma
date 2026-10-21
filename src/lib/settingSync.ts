@@ -13,6 +13,7 @@
  * （手元の時刻はサーバーの時計に直す。前回同期で測ったずれ `clockOffsetMs`）
  */
 import { reportSyncError } from './errorReport'
+import { SETTINGS_BASE_KEY_PREFIX, SETTINGS_SYNCED_KEY_PREFIX, readStored, writeStored } from './dataStore'
 
 export type SettingSyncStep =
   /** サーバーに行が無い・手元が新しい: 送る（`base` はサーバーの版、行が無ければ null） */
@@ -55,11 +56,16 @@ export function settingSyncStep(
 /** ラベル表・他のタイムゾーン・動いているタイマー（`timerSync.ts`）・よく入れる予定（`eventTemplates.ts`）・授業と科目のつながり（`courseLinks.ts`）・時間割（`timetable.ts`）・追加機能（`addons.ts`）・睡眠のタイマー（`sleepTimer.ts`） */
 export type SettingKey = 'labels' | 'zones' | 'timer' | 'templates' | 'courses' | 'timetable' | 'addons' | 'sleepTimer'
 
-const syncedKey = (userId: string) => `chronograma-settings-sync-v1:${userId}`
+/**
+ * 版と中身の控えは本体と同じ置き場所（`dataStore.ts`。IndexedDB なら本体と同じトランザクション）に置く。
+ * 別の置き場所だと、サーバーの値に合わせた後に本体だけ書けない・閉じて消えると、古い値なのに版だけ新しくなり、
+ * 次の同期で古い値を「手元で変えた」と読んでサーバーに送っていた
+ */
+const syncedKey = (userId: string) => `${SETTINGS_SYNCED_KEY_PREFIX}${userId}`
 
 function readAll(userId: string): Partial<Record<SettingKey, string>> {
   try {
-    const raw = localStorage.getItem(syncedKey(userId))
+    const raw = readStored(syncedKey(userId))
     const parsed = raw ? (JSON.parse(raw) as unknown) : null
     return parsed && typeof parsed === 'object' ? (parsed as Partial<Record<SettingKey, string>>) : {}
   } catch {
@@ -75,7 +81,7 @@ export function loadSettingSyncedAt(userId: string, key: SettingKey): string | n
 
 export function saveSettingSyncedAt(userId: string, key: SettingKey, at: string): void {
   try {
-    localStorage.setItem(syncedKey(userId), JSON.stringify({ ...readAll(userId), [key]: at }))
+    writeStored(syncedKey(userId), JSON.stringify({ ...readAll(userId), [key]: at }))
   } catch {
     /* 保存できなければ次回は編集時刻で比べる（前の版と同じ動き）だけ */
   }
@@ -83,8 +89,8 @@ export function saveSettingSyncedAt(userId: string, key: SettingKey, at: string)
 
 export function clearSettingSyncedAt(userId: string): void {
   try {
-    localStorage.removeItem(syncedKey(userId))
-    localStorage.removeItem(baseKey(userId))
+    writeStored(syncedKey(userId), null)
+    writeStored(baseKey(userId), null)
   } catch {
     /* ignore */
   }
@@ -94,11 +100,11 @@ export function clearSettingSyncedAt(userId: string): void {
  * 手元の値のもとになったサーバーの版の中身の控え（ラベル表はラベルの id の一覧、#357）。版（`at`）と一緒に持ち、
  * `syncedAt` と同じ版の控えだけを使う。両方の端末で変えたときに、片方で消したものを消したと分かるようにする
  */
-const baseKey = (userId: string) => `chronograma-settings-base-v1:${userId}`
+const baseKey = (userId: string) => `${SETTINGS_BASE_KEY_PREFIX}${userId}`
 
 function readBases(userId: string): Partial<Record<SettingKey, { at: string; value: unknown }>> {
   try {
-    const raw = localStorage.getItem(baseKey(userId))
+    const raw = readStored(baseKey(userId))
     const parsed = raw ? (JSON.parse(raw) as unknown) : null
     return parsed && typeof parsed === 'object' ? (parsed as Partial<Record<SettingKey, { at: string; value: unknown }>>) : {}
   } catch {
@@ -115,7 +121,7 @@ export function loadSettingBase(userId: string, key: SettingKey, at: string | nu
 
 export function saveSettingBase(userId: string, key: SettingKey, at: string, value: unknown): void {
   try {
-    localStorage.setItem(baseKey(userId), JSON.stringify({ ...readBases(userId), [key]: { at, value } }))
+    writeStored(baseKey(userId), JSON.stringify({ ...readBases(userId), [key]: { at, value } }))
   } catch {
     /* 保存できなければ控えの無いとき（前の版と同じ合わせ方）になるだけ */
   }

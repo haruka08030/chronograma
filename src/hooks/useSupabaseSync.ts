@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react'
+import { BASELINE_KEY_PREFIX, SETTINGS_BASE_KEY_PREFIX, SETTINGS_SYNCED_KEY_PREFIX, refreshStored, usingIndexedDb } from '../lib/dataStore'
+import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
 import { useAuth } from '../contexts/AuthContext'
 import { getSupabase, signOutThisDevice } from '../lib/supabase'
 import {
@@ -66,7 +68,8 @@ import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
 import { planCourseLinkSync } from '../lib/courseLinks'
 import { planAddonsSync } from '../lib/addons'
-import { fetchSleepTimer, planSleepTimerSync, pushSleepTimer } from '../lib/sleepTimer'
+import { planSleepTimerSync } from '../lib/sleepTimer'
+import { fetchSleepTimer, pushSleepTimer } from '../lib/sleepTimerSync'
 import { planTimetableSync } from '../lib/timetable'
 import { createDayMoodPullState, dayMoodSince, runDayMoodSync } from '../lib/dayMood'
 import { hasExistingData } from '../lib/onboarding'
@@ -132,6 +135,17 @@ function noteDeltaMiss(): void {
   reportSyncError('delta-miss', 'delta fetch missed rows; fetched everything', { count: deltaMisses })
   deltaMisses = 0
   deltaMissReportedAt = Date.now()
+}
+
+/** 通知の購読が切れた・できなかった回数（まだ送っていない分）と、最後に送った時刻。送るのは 1 日 1 回まで（`delta-miss` と同じ） */
+let wakeFailures = 0
+let wakeFailureReportedAt = -Infinity
+function noteWakeFailure(status: string): void {
+  wakeFailures++
+  if (Date.now() - wakeFailureReportedAt < DELTA_MISS_REPORT_MS) return
+  reportSyncError('realtime', `subscription ${status}`, { count: wakeFailures })
+  wakeFailures = 0
+  wakeFailureReportedAt = Date.now()
 }
 
 /** 取得した後に他の端末が変えていて断られた行を、続けて取り直して送る回数（それを超えたら次の同期で） */
@@ -504,6 +518,11 @@ export function useSupabaseSync() {
 
     /** ラベル表・他のタイムゾーン・動いているタイマー・よく入れる予定（タスクとは別に、まとめて 1 つの値として合わせる設定）と 1 日の気分（日ごと） */
     const syncSettings = async () => {
+      // 本体を保存できていない間（容量不足）は合わせない。版だけ進むと、再読み込みで古い本体を「手元で変えた」と読んで送る
+      if (useTaskStore.getState().storageFull) {
+        reportSyncError('settings', 'skipped while local storage is full')
+        return
+      }
       // 設定どうしは別の表・別の項目なので同時に合わせる（控えの書き込みは 1 回ずつ同期的なので混ざらない）。
       // 全部が終わるのを待ってから、最初の失敗を返す（失敗した 1 つで、ほかの設定を止めない）
       const results = await Promise.allSettled([
@@ -539,7 +558,17 @@ export function useSupabaseSync() {
 
     const syncOnceLocked = async (): Promise<boolean> => {
       if (holdLocal) return false
-      // 待っている間に他のタブが同期して保存した内容（手元のデータと控え）にそろえてから始める
+      // 待っている間に他のタブが同期して保存した内容（手元のデータ・控え・設定の版）にそろえてから始める。
+      // IndexedDB では他のタブの書き込みの読み直しが後から届くので、ロックを取った後に読み直す
+      if (usingIndexedDb()) {
+        await refreshStored([
+          PERSIST_STORAGE_KEY,
+          `${BASELINE_KEY_PREFIX}${userId}`,
+          `${SETTINGS_SYNCED_KEY_PREFIX}${userId}`,
+          `${SETTINGS_BASE_KEY_PREFIX}${userId}`,
+        ])
+        if (cancelled) return true
+      }
       adoptOtherTabChanges()
       // 差分を取る（変わった行と消えた行の印だけ）。この端末でこの人として初めての同期は全部を取る。
       // 版の下限・設定の版・1 日の気分も同じ 1 往復で取る（`sync_changes_since`、#258）
@@ -931,14 +960,21 @@ export function useSupabaseSync() {
     }
     const startWake = () => {
       if (stopWake || document.visibilityState !== 'visible') return
+      // この購読で一度つながったか。切れてからつながり直したときは、切れていた間の通知が届いていないので差分で 1 回取る
+      // （1 分ごとの取得は 5 分ごとに戻るので、待つと最大 5 分届かない）。最初につながったときは画面に戻った・開いたときの同期が取る
+      let wasLive = false
       stopWake = subscribeSyncWake(supabase, userId, {
         onChange: (e) => {
           wakeQueue.push(e)
           clearTimeout(wakeTimer)
           wakeTimer = setTimeout(checkWake, WAKE_DEBOUNCE_MS)
         },
-        onStatus: (live) => {
+        onStatus: (live, status) => {
+          const reconnected = live && !wakeLive && wasLive
           wakeLive = live
+          if (live) wasLive = true
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') noteWakeFailure(status)
+          if (reconnected && !cancelled) void sync()
         },
       })
     }

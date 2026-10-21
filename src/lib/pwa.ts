@@ -6,6 +6,7 @@ import { toSmartView } from './viewUrl'
 import { parseStartParam, type QuickStartRequest } from './quickStart'
 import { sharedQuickAdd, type QuickAddPrefill } from './shareTarget'
 import { flushPendingEdits, hasTypingInProgress } from './pendingEdits'
+import { reloadWhenSaved } from './dataStore'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -234,11 +235,11 @@ function watchForUpdates(reg: ServiceWorkerRegistration) {
   let hadController = navigator.serviceWorker.controller !== null
   let reloadPending = false
 
-  // 欄に打っている途中なら見送り、次に隠れたときにする。読み込み直す前に書きかけをストアに入れる
+  // 欄に打っている途中なら見送り、次に隠れたときにする。読み込み直す前に書きかけをストアに入れ、保存し終えるのを待つ
   const reloadIfHidden = () => {
     if (!reloadPending || document.visibilityState !== 'hidden' || hasTypingInProgress()) return
     flushPendingEdits()
-    window.location.reload()
+    reloadWhenSaved()
   }
 
   navigator.serviceWorker.addEventListener('controllerchange', () => {
