@@ -13,7 +13,7 @@ import { NEUTRAL_HEX } from '../lib/googleColors'
 import { DatePickerBody } from './DatePickerBody'
 import { TimeInput } from './TimeInput'
 import { ColorPalette } from './labels/ColorPalette'
-import { ArrowRightIcon, CalendarIcon, ClockIcon, FlagIcon, HourglassIcon } from './icons'
+import { ArrowRightIcon, CalendarIcon, ClockIcon, DueIcon, HourglassIcon } from './icons'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
 import { buttonClass } from './ui/buttonClass'
@@ -105,7 +105,7 @@ export function QuickAddDetails({
         t('quickAdd.chip.estimate'),
         t('quickAdd.chip.estimate'),
       ),
-      chip('due', <FlagIcon className={ICON} />, dueText, t('quickAdd.chip.due'), t('quickAdd.chip.due')),
+      chip('due', <DueIcon className={ICON} />, dueText, t('quickAdd.chip.due'), t('quickAdd.chip.due')),
     )
   }
   chips.push(

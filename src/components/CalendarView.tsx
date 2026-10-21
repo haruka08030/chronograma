@@ -21,7 +21,7 @@ import {
 import { movedGoogleEventTiming } from '../lib/googleCalendar'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { calendarDayKey, dueMarkDayKey, keepsTimeSlot } from '../lib/dayPlan'
-import { FlagIcon } from './icons'
+import { DueIcon } from './icons'
 import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { dueToneOf } from '../lib/dueTone'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
@@ -466,7 +466,7 @@ export function CalendarView({
                     const titles = due.map((d) => (d.dueTime ? `${d.dueTime} ${d.title}` : d.title)).join('\n')
                     return (
                       <div {...tip(titles)} className={`flex items-center gap-1 px-1 text-[10px] leading-tight ${DUE_TONE_CLASS[tone]}`}>
-                        <FlagIcon className="h-2.5 w-2.5 shrink-0" />
+                        <DueIcon className="h-2.5 w-2.5 shrink-0" />
                         <span className="truncate">{due.length === 1 ? due[0]!.title : t('calendar.dueCount', { count: due.length })}</span>
                       </div>
                     )

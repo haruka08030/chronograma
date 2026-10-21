@@ -11,7 +11,8 @@ import { CARRY_SHOW_DAYS, carriedDaysOn } from '../../lib/carryDays'
 import type { RowSwipeAction } from '../../hooks/useRowSwipe'
 import type { useTaskListSelection } from '../../hooks/useTaskListSelection'
 import type { useDeferredComplete } from '../../hooks/useDeferredComplete'
-import { ArrowRightIcon, CalendarArrowIcon, CheckIcon } from '../icons'
+import { ArrowRightIcon, CalendarArrowIcon, CheckIcon, DueIcon } from '../icons'
+import { PriorityFlag } from '../ui/PriorityFlag'
 import { GestureRow } from '../ui/GestureRow'
 import { CompletionCircle } from '../ui/CompletionCircle'
 import { HIDE_ON_ROW_HOVER } from '../ui/revealClass'
@@ -175,12 +176,15 @@ export function PlannerTaskRow({
         <span
           data-due-fit={dueOverHint ? 'over' : undefined}
           {...tip(dueOverHint)}
-          className={`shrink-0 text-xs tabular-nums ${dueOverHint ? META_TONE_CLASS.overdue : META_TONE_CLASS[meta.due.tone]} ${metaHide}`}
+          className={`inline-flex shrink-0 items-center gap-0.5 text-xs tabular-nums ${dueOverHint ? META_TONE_CLASS.overdue : META_TONE_CLASS[meta.due.tone]} ${metaHide}`}
         >
+          <DueIcon className="h-3 w-3" />
           {meta.due.text}
           {dueOverHint && <span className="sr-only"> {dueOverHint}</span>}
         </span>
       )}
+      {/* 優先度は旗（丸の縁の色と同じ色）。締切・時刻の並びの右端 */}
+      {!task.completed && <PriorityFlag priority={task.priority} className={metaHide} />}
       {meta.time && !task.completed && (
         <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.overdue : META_TONE_CLASS.muted} ${metaHide}`}>
           {meta.time}

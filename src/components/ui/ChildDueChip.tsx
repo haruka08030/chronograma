@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { ChildDue } from '../../hooks/useChildDue'
 import { tip } from '../../lib/tooltip'
-import { CalendarIcon } from '../icons'
+import { DueIcon } from '../icons'
 import { DUE_TONE_CLASS } from './dueTone'
 
 /**
@@ -16,7 +16,7 @@ export function ChildDueChip({ due }: { due: ChildDue }) {
       {...tip(t('taskItem.nextChildDueHint', { title: due.child.title }))}
       className={`inline-flex min-w-0 items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[due.tone]}`}
     >
-      <CalendarIcon className="w-3 h-3 shrink-0" />
+      <DueIcon className="w-3 h-3 shrink-0" />
       <span className="max-w-[10rem] truncate">{due.child.title}</span>
       <span className="shrink-0">{due.text}</span>
     </span>
