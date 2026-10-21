@@ -34,6 +34,7 @@ import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { useShortcutsHelpRequest } from './lib/shortcuts'
 import { useAppDnd } from './hooks/useAppDnd'
 import { useAppTheme } from './hooks/useAppTheme'
+import { MobileSyncNotice } from './components/MobileSyncNotice'
 import { useReminders } from './hooks/useReminders'
 import { useFollowToday } from './hooks/useFollowToday'
 import { useQuickStartLaunch } from './hooks/useQuickStartLaunch'
@@ -158,6 +159,10 @@ export default function App() {
           {/* 保存できていないときのバナー。画面の上に重ねると題名・日付の切り替えが隠れるので、画面の上に並べて押し下げる */}
           <PartBoundary name="storageFull" resetKey={partKey}>
             <StorageFullBanner />
+          </PartBoundary>
+          {/* スマホの同期の問題（PC はサイドバーの SyncIndicator） */}
+          <PartBoundary name="syncNotice" resetKey={partKey}>
+            <MobileSyncNotice />
           </PartBoundary>
           {!hideGlobalHeader && (
             <PartBoundary name="search" resetKey={partKey}>
