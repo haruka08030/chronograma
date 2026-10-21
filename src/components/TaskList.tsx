@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
+import { IntegrationReconnectLines } from './IntegrationReconnectLines'
 import { isTodoSurfaceView, sortKeyOf, sortModeOf } from '../lib/todoSurfaceView'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { displayListName } from '../lib/displayListName'
@@ -12,12 +13,12 @@ import { QuickAdd } from './QuickAdd'
 import { isLogTask, type Task } from '../types/task'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { useTodayToggle } from '../hooks/useTodayToggle'
-import { useOpenTaskRow } from '../hooks/useOpenTaskRow'
 import { CheckCircleIcon, CheckIcon } from './icons'
 import { SelectionBar } from './ui/SelectionBar'
 import { EmptyState } from './ui/EmptyState'
+import { ExampleChips } from './ui/ExampleChips'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
-import { openTaskMenu } from '../lib/overlays'
+import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { openTimeSlotForTask } from '../lib/timeSlotTarget'
 import { useTaskListDnd } from '../hooks/useTaskListDnd'
 import { useLiftedRowId } from '../hooks/useTouchLift'
@@ -31,7 +32,10 @@ import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { FilterNoMatch } from './ui/FilterChips'
 import { hasTaskFilter, NO_TODO_FILTER, todoFilterFor } from '../lib/taskFilter'
 import { compareByOrder } from '../lib/orderCompare'
-import { somedayTierOf } from '../lib/somedayTier'
+import { somedaySectionColor, somedayTierOf, splitSomeday, type SomedayTier } from '../lib/somedayTier'
+import { DreamBoard } from './todo/DreamBoard'
+import { SomedayBar, WishPick } from './todo/SomedayParts'
+import { GROUP_HEADING_TEXT } from './ListSectionHeading'
 import { useRememberScroll } from '../hooks/useRememberScroll'
 
 function countIncompleteDescendants(parentId: string, childrenByParent: Map<string, Task[]>): number {
@@ -64,6 +68,7 @@ export function TaskList({
   const filterColor = useTaskStore((s) => s.filterColor)
   const todoFilter = useTaskStore((s) => s.todoFilter)
   const setTodoFilter = useTaskStore((s) => s.setTodoFilter)
+  const requestQuickAdd = useTaskStore((s) => s.requestQuickAdd)
   // じょうごの絞り込み（優先度・見積もり）は To-Do のリスト・ビューだけ
   const taskFilter = useMemo(() => todoFilterFor(lists, selectedListId, todoFilter), [lists, selectedListId, todoFilter])
   const filtering = taskFilter !== undefined && hasTaskFilter(taskFilter)
@@ -71,8 +76,6 @@ export function TaskList({
   const addTaskAfter = useTaskStore((s) => s.addTaskAfter)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const sections = useTaskStore((s) => s.sections)
-  // 行を押したとき: PC は詳細、スマホは短いシート（今日の計画と同じ）
-  const openDetail = useOpenTaskRow()
   const [pendingAutoEditTaskId, setPendingAutoEditTaskId] = useState<string | null>(null)
   /** 選択の解除（下の useTaskListSelection が入れる。ドラッグの処理はそれより前に作るので参照で受ける） */
   const clearSelectionRef = useRef<() => void>(() => {})
@@ -110,24 +113,39 @@ export function TaskList({
     taskFilter,
   })
   const { filtered, groupingScope, groupBySection, hasSections } = rows
-  // いつかのリストは「夢」「やりたい」の 2 段で出す（#221）。段はセクションとは別なので、セクションの名前は行に添える
-  const tiered = listKind === 'someday' && Boolean(selectedListId)
-  const showSectionBlocks = !tiered && rows.showSectionBlocks
-  const sectionBlocks = tiered ? null : rows.sectionBlocks
-  const tiers = useMemo(
-    () =>
-      tiered
-        ? { dream: rows.active.filter((t) => somedayTierOf(t) === 'dream'), wish: rows.active.filter((t) => somedayTierOf(t) === 'wish') }
-        : null,
-    [tiered, rows.active],
+  // いつかのリストは夢ボードとやりたい棚の切り替え（#439）。セクションは上の絞り込み（# 海外）で、塊には分けない
+  const someday = listKind === 'someday' && Boolean(selectedListId)
+  const showSectionBlocks = !someday && rows.showSectionBlocks
+  const sectionBlocks = someday ? null : rows.sectionBlocks
+  const quickAddSectionId = useTaskStore((s) => s.quickAddSectionId)
+  const setQuickAddSectionId = useTaskStore((s) => s.setQuickAddSectionId)
+  const listSections = useMemo(
+    () => (someday ? sections.filter((s) => s.listId === selectedListId).sort(compareByOrder) : []),
+    [someday, sections, selectedListId],
   )
-  /** 出している順の未完了のルート（段に分けるときは夢 → やりたい） */
-  const active = useMemo(() => (tiers ? [...tiers.dream, ...tiers.wish] : rows.active), [tiers, rows.active])
+  /** 絞り込んでいるセクション（ナビのセクションを押したときも同じ） */
+  const filterSectionId = someday && quickAddSectionId && listSections.some((s) => s.id === quickAddSectionId) ? quickAddSectionId : null
+  const somedaySplit = useMemo(() => (someday ? splitSomeday(rows.active, filterSectionId) : null), [someday, rows.active, filterSectionId])
+  // 開いたときは夢があれば夢、無ければやりたい（押して切り替えたらそのまま）
+  const [pickedTab, setPickedTab] = useState<SomedayTier | null>(null)
+  const somedayTab: SomedayTier = pickedTab ?? (somedaySplit && somedaySplit.dreams.length === 0 ? 'wish' : 'dream')
+  const showBoard = Boolean(somedaySplit) && (filterSectionId !== null || somedayTab === 'dream')
+  const showShelf = !somedaySplit || filterSectionId !== null || somedayTab === 'wish'
+  const sectionIndex = useMemo(() => new Map(listSections.map((s, i) => [s.id, i])), [listSections])
+  const colorOfSection = useCallback(
+    (sectionId: string | null) => somedaySectionColor(sectionId ? (sectionIndex.get(sectionId) ?? -1) : -1),
+    [sectionIndex],
+  )
+  /** 一覧の行に出す未完了のルート（いつかはやりたいだけ。夢はボードのタイル） */
+  const active = useMemo(
+    () => (somedaySplit ? (showShelf ? somedaySplit.wishes : []) : rows.active),
+    [somedaySplit, showShelf, rows.active],
+  )
 
-  /** 塊で分けないとき、行に出すセクション名 */
+  /** 塊で分けないとき、行に出すセクション名（いつかはセクションで絞り込んでいなければ） */
   const sectionNameById = useMemo(() => new Map(sections.map((s) => [s.id, s.name])), [sections])
   const sectionLabelFor = (task: { sectionId: string | null }) =>
-    (!groupBySection || tiered) && task.sectionId ? (sectionNameById.get(task.sectionId) ?? null) : null
+    (someday ? !filterSectionId : !rows.showSectionBlocks) && task.sectionId ? (sectionNameById.get(task.sectionId) ?? null) : null
 
   /** 親 ID → サブタスク（`order` 昇順）。TickTick 風に一覧で親の直下へ出す */
   const childrenByParent = useMemo(() => {
@@ -153,9 +171,16 @@ export function TaskList({
 
   // 完了した To-Do はナビの「完了済み」に集める。チェックリスト（使い回す）といつか（かなえた）だけリストの下に残す
   const keepsDoneInList = listKind === 'checklist' || listKind === 'someday'
+  const doneInList = useMemo(
+    () =>
+      keepsDoneInList ? filtered.filter((t) => t.completed && !isLogTask(t) && (!filterSectionId || t.sectionId === filterSectionId)) : [],
+    [keepsDoneInList, filtered, filterSectionId],
+  )
+  // いつか: かなえた夢はボードの下に残し、下の「かなえた」の一覧はやりたいだけ（棚を出しているとき）
+  const fulfilledDreams = useMemo(() => (someday ? doneInList.filter((t) => somedayTierOf(t) === 'dream') : []), [someday, doneInList])
   const completedTodos = useMemo(
-    () => (keepsDoneInList ? filtered.filter((t) => t.completed && !isLogTask(t)) : []),
-    [keepsDoneInList, filtered],
+    () => (someday ? (showShelf ? doneInList.filter((t) => somedayTierOf(t) === 'wish') : []) : doneInList),
+    [someday, showShelf, doneInList],
   )
   const showQuickAdd = isTodoSurfaceView(selectedView)
   const canDrag = sortMode === 'manual'
@@ -220,7 +245,8 @@ export function TaskList({
   const { selected, clearSelection, makeRowClick, makeSelection, soloIds, listboxProps } = useTaskListSelection({
     rowIds: flatActiveIds,
     rangeIds: flatCombined,
-    openDetail,
+    // 行を押したら PC もスマホも詳細（一覧では中身を見に来る。操作は ⋯・スワイプ・長押しで。短いシートは今日の計画だけ）
+    openDetail: openTaskDetail,
     toggleRow: toggleTask,
     removeRows: deleteTasks,
     completeRows: bulk.toggleComplete,
@@ -314,20 +340,46 @@ export function TaskList({
           onAddSection={beginDraftSection}
           onOpenNav={onOpenNav}
         />
+        <IntegrationReconnectLines listId={selectedListId} />
 
         <div className="flex-1 px-4 pb-4 space-y-0.5">
+          {somedaySplit && (
+            <SomedayBar
+              tab={somedayTab}
+              onTab={setPickedTab}
+              dreamCount={somedaySplit.dreams.length}
+              wishCount={somedaySplit.wishes.length}
+              sections={listSections}
+              colorOfSection={colorOfSection}
+              filterSectionId={filterSectionId}
+              onFilter={(id) => setQuickAddSectionId(id)}
+            />
+          )}
           {showQuickAdd && (
-            <div className="mb-1.5">
+            <div className={someday ? 'mb-3' : 'mb-1.5'}>
               <QuickAdd
                 placeholder={
-                  listKind === 'someday'
-                    ? t('someday.addPlaceholder')
-                    : listKind === 'checklist'
-                      ? t('checklist.addPlaceholder')
-                      : undefined
+                  someday && !filterSectionId && somedayTab === 'dream'
+                    ? t('someday.dreamAddPlaceholder')
+                    : listKind === 'someday'
+                      ? t('someday.addPlaceholder')
+                      : listKind === 'checklist'
+                        ? t('checklist.addPlaceholder')
+                        : undefined
                 }
+                // 入れる先は開いている側（夢ボードを開いていれば夢）
+                somedayTier={someday && somedayTab === 'dream' ? 'dream' : undefined}
               />
             </div>
+          )}
+
+          {/* まだ何も無いいつかは、追加欄の下に例（押すと欄に入る） */}
+          {listKind === 'someday' && incompleteCount === 0 && completedTodos.length === 0 && !filtering && (
+            <ExampleChips
+              examples={t('someday.examples', { returnObjects: true }) as string[]}
+              onPick={(text) => requestQuickAdd({ text, note: '' })}
+              className="mb-2 ml-11"
+            />
           )}
 
           {incompleteCount === 0 && filtering && (
@@ -340,6 +392,22 @@ export function TaskList({
               title={t('taskList.allDoneTitle')}
               hint={t('taskList.allDoneSubtitle')}
             />
+          )}
+
+          {somedaySplit && showBoard && (
+            <DreamBoard
+              dreams={somedaySplit.dreams}
+              fulfilled={fulfilledDreams}
+              colorOf={(d) => (d.sectionId && sectionIndex.has(d.sectionId) ? colorOfSection(d.sectionId) : null)}
+              sectionNameOf={(d) => (filterSectionId || !d.sectionId ? null : (sectionNameById.get(d.sectionId) ?? null))}
+              heading={filterSectionId !== null}
+            />
+          )}
+          {somedaySplit && showShelf && (
+            <>
+              {filterSectionId && <h2 className={`px-1 pb-1 pt-5 ${GROUP_HEADING_TEXT}`}>{t('someday.tierWish')}</h2>}
+              {!filterSectionId && <WishPick wishes={somedaySplit.wishes} />}
+            </>
           )}
 
           {/* 読み上げ: 未完了の行は listbox（↑↓ の枠を aria-activedescendant で伝える） */}
@@ -364,7 +432,6 @@ export function TaskList({
               incompleteSubtasks={incompleteSubtasks}
               subtaskNestWithDrag={subtaskNestWithDrag}
               subtaskNestNoDrag={subtaskNestNoDrag}
-              tiers={tiers}
             />
           </div>
 

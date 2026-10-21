@@ -69,20 +69,15 @@ describe('TaskItem: 題名を押す（#378）', () => {
     expect(screen.queryByRole('textbox', { name: 'Edit title' })).toBeNull()
   })
 
-  it('PC は題名のダブルクリックで名前の変更（詳細は開かない）', async () => {
+  it('題名を押したら待たずに開く', async () => {
     const task = addTask('Write report')
     const onRowClick = vi.fn()
     const user = userEvent.setup()
     render(<RowWithClick id={task.id} onRowClick={onRowClick} />)
 
-    await user.dblClick(screen.getByRole('button', { name: 'Write report' }))
-    const input = screen.getByRole('textbox', { name: 'Edit title' })
-    await user.clear(input)
-    await user.type(input, 'Write essay{Enter}')
+    await user.click(screen.getByRole('button', { name: 'Write report' }))
 
-    expect(useTaskStore.getState().tasks.find((t) => t.id === task.id)?.title).toBe('Write essay')
-    await new Promise((r) => setTimeout(r, 300))
-    expect(onRowClick).not.toHaveBeenCalled()
+    expect(onRowClick).toHaveBeenCalledTimes(1)
   })
 
   it('題名にフォーカスして F2 で名前の変更', async () => {

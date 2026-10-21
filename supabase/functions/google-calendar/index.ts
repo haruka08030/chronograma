@@ -3,8 +3,11 @@ import { withCors } from '../_shared/cors.ts'
 import { BAD_JSON, errorResponse, jsonResponse, readJsonBody } from '../_shared/http.ts'
 import { RATE_LIMITS, withinRateLimit } from '../_shared/rateLimit.ts'
 import { withServerTiming } from '../_shared/serverTiming.ts'
+import { runInBackground } from '../_shared/background.ts'
 import { collectEventPages, type EventPage } from './pages.ts'
+import { withAccessToken, type AccessTokenDeps } from './accessToken.ts'
 import { classifyGoogleError, GoogleApiError, isRetryableGoogleError, parseGoogleErrorReasons } from './googleError.ts'
+import { type DeletedPushed, GoogleEventDeletedError, patchExisting, splitDeleted, upsertEvent } from './deleted.ts'
 import { needsReseal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
@@ -37,6 +40,10 @@ type CalendarEvent = {
 
 type GoogleEventItem = {
   id: string
+  /** 消された予定は cancelled（`showDeleted` で取ったとき・消された予定を直したとき） */
+  status?: string
+  /** 最後に変わった時刻（消された予定は消された時刻） */
+  updated?: string
   summary?: string
   description?: string
   start: { dateTime?: string; date?: string }
@@ -110,7 +117,7 @@ function normalizeEvents(items: GoogleEventItem[], timeZone: string): CalendarEv
   })
 }
 
-async function refreshGoogleAccessToken(refreshToken: string): Promise<string> {
+async function refreshGoogleAccessToken(refreshToken: string): Promise<{ accessToken: string; expiresIn: number }> {
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
   if (!clientId || !clientSecret) {
@@ -133,24 +140,41 @@ async function refreshGoogleAccessToken(refreshToken: string): Promise<string> {
     throw new GoogleApiError('token', res.status, parseGoogleErrorReasons(body), body)
   }
 
-  const data = (await res.json()) as { access_token?: string }
+  const data = (await res.json()) as { access_token?: string; expires_in?: number }
   if (!data.access_token) {
     throw new Error('Google token refresh returned no access_token')
   }
-  return data.access_token
+  return { accessToken: data.access_token, expiresIn: typeof data.expires_in === 'number' ? data.expires_in : 3600 }
 }
+
+/** カレンダー自体の色（予定に個別の色が無いときの色）。取れなくても予定は返すので、失敗は null */
+async function fetchCalendarColor(accessToken: string): Promise<{ calendarColor: string | null; calendarColorId: string | null }> {
+  try {
+    const res = await fetch(`${CALENDAR_API}/users/me/calendarList/primary`, { headers: { Authorization: `Bearer ${accessToken}` } })
+    if (!res.ok) return { calendarColor: null, calendarColorId: null }
+    const entry = (await res.json()) as { backgroundColor?: string; colorId?: string }
+    return { calendarColor: entry.backgroundColor ?? null, calendarColorId: entry.colorId ?? null }
+  } catch {
+    return { calendarColor: null, calendarColorId: null }
+  }
+}
+
+/** 保存してある接続を読む操作（回数制限を数えるのと同時に読み始める） */
+const CONNECTION_ACTIONS = new Set(['status', 'events', 'create', 'update', 'delete', 'upsert'])
 
 async function fetchGoogleEvents(
   accessToken: string,
   timeMin: string,
   timeMax: string,
   timeZone: string,
-): Promise<{ events: CalendarEvent[]; truncated: boolean }> {
+): Promise<{ events: CalendarEvent[]; deletedPushed: DeletedPushed[]; truncated: boolean }> {
   const load = async (pageToken: string | undefined) => {
     const params = new URLSearchParams({
       timeMin,
       timeMax,
       singleEvents: 'true',
+      // Google で消されたアプリの予定を見つける（アプリでもゴミ箱に入れる）
+      showDeleted: 'true',
       orderBy: 'startTime',
       // 1 ページの上限（2500）。続きは nextPageToken でたどる
       maxResults: '2500',
@@ -175,7 +199,8 @@ async function fetchGoogleEvents(
     }
   })
 
-  return { events: normalizeEvents(items, timeZone), truncated }
+  const { live, deletedPushed } = splitDeleted(items)
+  return { events: normalizeEvents(live, timeZone), deletedPushed, truncated }
 }
 
 type EventTime = { date?: string; dateTime?: string; timeZone?: string }
@@ -222,24 +247,11 @@ async function writeGoogleEvent(
   return (await res.json()) as GoogleEventItem
 }
 
-/**
- * ID を決めて作る。あれば直し（消した予定も戻す）、無ければその ID で作る。
- * アプリの予定から ID を決めるので、何度送っても・どの端末から送っても 1 つにしかならない
- */
-async function upsertGoogleEvent(accessToken: string, eventId: string, fields: Record<string, unknown>): Promise<GoogleEventItem> {
-  try {
-    return (await writeGoogleEvent(accessToken, 'PATCH', eventId, { ...fields, status: 'confirmed' }))!
-  } catch (e) {
-    if (!(e instanceof GoogleApiError) || e.status !== 404) throw e
-  }
-  try {
-    return (await writeGoogleEvent(accessToken, 'POST', null, { ...fields, id: eventId }))!
-  } catch (e) {
-    // 同時に作られていた（409）ら、もう一度直す
-    if (!(e instanceof GoogleApiError) || e.status !== 409) throw e
-    return (await writeGoogleEvent(accessToken, 'PATCH', eventId, { ...fields, status: 'confirmed' }))!
-  }
-}
+/** `deleted.ts` に渡す書き込み（PATCH はその ID、POST は新しく作る） */
+const eventWriter =
+  (accessToken: string, eventId: string) =>
+  async (method: 'PATCH' | 'POST', fields: Record<string, unknown>): Promise<GoogleEventItem> =>
+    (await writeGoogleEvent(accessToken, method, method === 'PATCH' ? eventId : null, fields))!
 
 /**
  * 利用上限の文言。"too many requests" を含めておくと、古いクライアントも「少し待って」と出し、連携も外さない
@@ -248,10 +260,22 @@ async function upsertGoogleEvent(accessToken: string, eventId: string, fields: R
 const RATE_LIMITED_CODE = 'google_rate_limited'
 const RATE_LIMITED_MESSAGE = 'Google Calendar: too many requests. Wait a moment, then try again.'
 const AUTH_EXPIRED_MESSAGE = 'Google Calendar authorization expired. Disconnect and reconnect.'
+const DELETED_MESSAGE = 'Google Calendar event was deleted.'
+const NOT_CONNECTED_MESSAGE = 'Google Calendar not connected. Reconnect in settings.'
+const WRITE_SCOPE_MESSAGE = 'Google Calendar write scope not granted. Reconnect and approve calendar access.'
 
 /** 予定の取得の失敗。前と同じ形（events: [] と connected）に code を足して返す */
 function eventsError(status: number, connected: boolean, code: string, error: string): Response {
   return jsonResponse({ ok: false, events: [], connected, code, error }, status)
+}
+
+/** 保存してある接続（`refresh_token` は開いたもの。`stored_refresh_token` は行にある暗号のまま） */
+type Connection = {
+  refresh_token: string
+  stored_refresh_token: string
+  scope: string | null
+  access_token: string | null
+  access_token_expires_at: string | null
 }
 
 function hasWriteScope(scope: string | null | undefined): boolean {
@@ -291,34 +315,72 @@ Deno.serve(
         }
 
         const admin = createClient(supabaseUrl, serviceRoleKey)
-        if (!(await timing.time('rate', () => withinRateLimit(admin, user.id, RATE_LIMITS.google)))) {
-          return errorResponse(429, 'Too many requests. Wait a moment, then try again.')
-        }
         const body = await readJsonBody(req)
-        if (!body) return errorResponse(400, BAD_JSON)
-        const action = (body.action as string) ?? ''
+        const action = (body?.action as string | undefined) ?? ''
 
         const tokenContext = secretContext.google(user.id)
         /**
          * 保存してある接続（リフレッシュトークンは開いたもの）。前の鍵・前の形の行は、読んだついでに今の鍵で閉じ直す
          */
-        const loadConnection = (): Promise<{
-          row: { refresh_token: string; scope: string | null } | null
-          error: { message: string } | null
-        }> =>
+        const loadConnection = (): Promise<{ row: Connection | null; error: { message: string } | null }> =>
           timing.time('db', async () => {
-            const { data, error } = await admin.from('google_oauth').select('refresh_token, scope').eq('user_id', user.id).maybeSingle()
+            const { data, error } = await admin
+              .from('google_oauth')
+              .select('refresh_token, scope, access_token, access_token_expires_at')
+              .eq('user_id', user.id)
+              .maybeSingle()
             if (error || !data?.refresh_token) return { row: null, error }
-            const refreshToken = await openSecret(data.refresh_token as string, tokenContext)
-            if (await needsReseal(data.refresh_token as string)) {
-              await admin
+            let stored = data.refresh_token as string
+            const refreshToken = await openSecret(stored, tokenContext)
+            if (await needsReseal(stored)) {
+              const resealed = await sealSecret(refreshToken, tokenContext)
+              const { error: resealError } = await admin
                 .from('google_oauth')
-                .update({ refresh_token: await sealSecret(refreshToken, tokenContext) })
+                .update({ refresh_token: resealed })
                 .eq('user_id', user.id)
-                .eq('refresh_token', data.refresh_token as string)
+                .eq('refresh_token', stored)
+              if (!resealError) stored = resealed
             }
-            return { row: { refresh_token: refreshToken, scope: data.scope as string | null }, error: null }
+            return {
+              row: {
+                refresh_token: refreshToken,
+                stored_refresh_token: stored,
+                scope: data.scope as string | null,
+                access_token: (data.access_token as string | null) ?? null,
+                access_token_expires_at: (data.access_token_expires_at as string | null) ?? null,
+              },
+              error: null,
+            }
           })
+
+        // 回数制限を数えるのと、接続を読むのは互いに関係しないので同時に始める
+        const connection = CONNECTION_ACTIONS.has(action) ? loadConnection() : null
+        // 回数制限や本文の誤りで先に返したとき、読み込みの失敗が「誰も受け取らない失敗」にならないように
+        connection?.catch(() => {})
+        if (!(await timing.time('rate', () => withinRateLimit(admin, user.id, RATE_LIMITS.google)))) {
+          return errorResponse(429, 'Too many requests. Wait a moment, then try again.', RATE_LIMITED_CODE)
+        }
+        if (!body) return errorResponse(400, BAD_JSON)
+
+        const accessContext = secretContext.googleAccess(user.id)
+        /** アクセストークンを使い回す（`accessToken.ts`）。作り直したら行に保存する（応答は待たせない） */
+        const accessDeps = (row: Connection): AccessTokenDeps => ({
+          cached: { sealed: row.access_token, expiresAt: row.access_token_expires_at },
+          open: (sealed) => timing.time('token-cached', () => openSecret(sealed, accessContext)),
+          refresh: () => timing.time('token', () => refreshGoogleAccessToken(row.refresh_token)),
+          save: (accessToken, expiresAt) =>
+            runInBackground(
+              (async () => {
+                // つなぎ直しで替わった行には書かない（前の許可のトークンになる）
+                const { error } = await admin
+                  .from('google_oauth')
+                  .update({ access_token: await sealSecret(accessToken, accessContext), access_token_expires_at: expiresAt.toISOString() })
+                  .eq('user_id', user.id)
+                  .eq('refresh_token', row.stored_refresh_token)
+                if (error) console.error('[google] save access token failed', error.message)
+              })().catch((e) => console.error('[google] save access token failed', e instanceof Error ? e.message : String(e))),
+            ),
+        })
 
         if (action === 'exchange') {
           const code = body.code as string | undefined
@@ -377,6 +439,9 @@ Deno.serve(
             {
               user_id: user.id,
               refresh_token: await sealSecret(refreshToken, tokenContext),
+              // 前の許可のアクセストークンは使わない
+              access_token: null,
+              access_token_expires_at: null,
               // ユーザーが同意画面で書き込みを外すこともあるので、実際に許可された範囲を保存する
               scope: tokenData.scope ?? SCOPES,
               updated_at: new Date().toISOString(),
@@ -411,7 +476,7 @@ Deno.serve(
         }
 
         if (action === 'status') {
-          const { row, error: fetchError } = await loadConnection()
+          const { row, error: fetchError } = await connection!
 
           if (fetchError) {
             console.error('[google] load connection failed', fetchError.message)
@@ -423,7 +488,8 @@ Deno.serve(
 
           try {
             await timing.time('token', () => refreshGoogleAccessToken(row.refresh_token))
-            return jsonResponse({ connected: true })
+            // canWrite: 予定を書き換える許可があるか（カレンダーを開かなくても、アプリの予定を Google に送れるか分かる）
+            return jsonResponse({ connected: true, canWrite: hasWriteScope(row.scope) })
           } catch (e) {
             // 取り消された・期限切れのときだけ連携を外す。通信の失敗や Google の一時的なエラー、
             // サーバーの設定ミスで全員の連携を外さない
@@ -444,41 +510,39 @@ Deno.serve(
             return errorResponse(400, 'timeMin and timeMax are required')
           }
 
-          const { row, error: fetchError } = await loadConnection()
+          const { row, error: fetchError } = await connection!
 
           if (fetchError) {
             console.error('[google] load connection failed', fetchError.message)
             return errorResponse(500, 'Failed to load Google connection')
           }
           if (!row?.refresh_token) {
-            return jsonResponse(
-              { ok: false, events: [], connected: false, error: 'Google Calendar not connected. Reconnect in settings.' },
-              409,
-            )
+            return eventsError(409, false, 'google_not_connected', NOT_CONNECTED_MESSAGE)
           }
 
           try {
             const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
-            const accessToken = await timing.time('token', () => refreshGoogleAccessToken(row.refresh_token))
-            const { events, truncated } = await timing.time('events', () => fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone))
-            // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（取れなくても予定は返す）
-            // colorId（1〜24）の方が確実に色を特定できるので両方返す
-            let calendarColor: string | null = null
-            let calendarColorId: string | null = null
-            try {
-              const res = await timing.time('color', () =>
-                fetch(`${CALENDAR_API}/users/me/calendarList/primary`, { headers: { Authorization: `Bearer ${accessToken}` } }),
-              )
-              if (res.ok) {
-                const entry = (await res.json()) as { backgroundColor?: string; colorId?: string }
-                calendarColor = entry.backgroundColor ?? null
-                calendarColorId = entry.colorId ?? null
-              }
-            } catch {
-              /* ignore */
-            }
+            // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（colorId の方が確実に色を特定できるので両方）。
+            // 予定と色は互いに関係しないので同時に聞く
+            const [{ events, deletedPushed, truncated }, { calendarColor, calendarColorId }] = await withAccessToken(
+              accessDeps(row),
+              (accessToken) =>
+                Promise.all([
+                  timing.time('events', () => fetchGoogleEvents(accessToken, timeMin, timeMax, timeZone)),
+                  timing.time('color', () => fetchCalendarColor(accessToken)),
+                ]),
+            )
             // truncated: 上限までページをたどっても続きがあった（範囲の後ろの予定が欠けている）
-            return jsonResponse({ events, truncated, calendarColor, calendarColorId, connected: true, canWrite: hasWriteScope(row.scope) })
+            // deletedPushed: Google で消されたアプリの予定の ID（アプリでもゴミ箱に入れる）
+            return jsonResponse({
+              events,
+              deletedPushed,
+              truncated,
+              calendarColor,
+              calendarColorId,
+              connected: true,
+              canWrite: hasWriteScope(row.scope),
+            })
           } catch (e) {
             const kind = classifyGoogleError(e)
             if (kind === 'rate_limited') return eventsError(429, true, RATE_LIMITED_CODE, RATE_LIMITED_MESSAGE)
@@ -498,49 +562,40 @@ Deno.serve(
         }
 
         if (action === 'create' || action === 'update' || action === 'delete' || action === 'upsert') {
-          const { row, error: fetchError } = await loadConnection()
+          const { row, error: fetchError } = await connection!
           if (fetchError) {
             console.error('[google] load connection failed', fetchError.message)
             return errorResponse(500, 'Failed to load Google connection')
           }
-          if (!row?.refresh_token) {
-            return errorResponse(409, 'Google Calendar not connected. Reconnect in settings.')
-          }
-          if (!hasWriteScope(row.scope)) {
-            return errorResponse(409, 'Google Calendar write scope not granted. Reconnect and approve calendar access.')
-          }
+          if (!row?.refresh_token) return errorResponse(409, NOT_CONNECTED_MESSAGE, 'google_not_connected')
+          if (!hasWriteScope(row.scope)) return errorResponse(409, WRITE_SCOPE_MESSAGE, 'google_scope_missing')
           const eventId = (body.eventId as string | undefined)?.trim() || null
           if (action !== 'create' && !eventId) return errorResponse(400, 'eventId is required')
           // upsert の ID はアプリが決める（Google の ID に使える英小文字 a〜v と数字、5〜1024 文字）
           if (action === 'upsert' && !/^[a-v0-9]{5,1024}$/.test(eventId!)) return errorResponse(400, 'eventId is invalid')
           try {
             const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
-            const accessToken = await timing.time('token', () => refreshGoogleAccessToken(row.refresh_token))
             const fields = action === 'delete' ? null : pickEventFields(body.fields)
-            if (action === 'upsert') {
-              const item = await timing.time('write', () => upsertGoogleEvent(accessToken, eventId!, fields!))
-              return jsonResponse({ ok: true, event: normalizeEvents([item], timeZone)[0] })
-            }
-            const item = await timing.time('write', () =>
-              writeGoogleEvent(
-                accessToken,
-                action === 'create' ? 'POST' : action === 'update' ? 'PATCH' : 'DELETE',
-                action === 'create' ? null : eventId,
-                fields,
-              ),
+            // Google で消された予定を戻すか（アプリが Google から消した予定だけ戻す）。送らない前の版のクライアントは今までどおり戻す
+            const revive = body.revive !== false
+            // 断られた書き込みは何も変えていないので、トークンを作り直してやり直してよい
+            const item = await withAccessToken(accessDeps(row), (accessToken) =>
+              timing.time('write', () => {
+                if (action === 'upsert') return upsertEvent(eventWriter(accessToken, eventId!), eventId!, fields!, revive)
+                // 出ている予定を直す: Google で消されていたら戻さない
+                if (action === 'update') return patchExisting(eventWriter(accessToken, eventId!), fields!, true)
+                return writeGoogleEvent(accessToken, action === 'create' ? 'POST' : 'DELETE', action === 'create' ? null : eventId, fields)
+              }),
             )
             return jsonResponse({ ok: true, event: item ? normalizeEvents([item], timeZone)[0] : null })
           } catch (e) {
+            if (e instanceof GoogleEventDeletedError) return errorResponse(409, DELETED_MESSAGE, 'google_deleted')
             const kind = classifyGoogleError(e)
             if (kind === 'rate_limited') return errorResponse(429, RATE_LIMITED_MESSAGE, RATE_LIMITED_CODE)
             if (kind === 'auth_expired') return errorResponse(409, AUTH_EXPIRED_MESSAGE, 'google_auth_expired')
             // 権限（scope）不足と、他人の予定で変更できないのを分ける
             if (kind === 'scope') {
-              return errorResponse(
-                409,
-                'Google Calendar write scope not granted. Reconnect and approve calendar access.',
-                'google_scope_missing',
-              )
+              return errorResponse(409, WRITE_SCOPE_MESSAGE, 'google_scope_missing')
             }
             if (kind === 'forbidden') return errorResponse(409, 'Google Calendar event is read-only for you.', 'google_read_only')
             console.error('[google] write failed', e instanceof Error ? e.message : String(e))

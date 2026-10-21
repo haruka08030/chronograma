@@ -113,3 +113,49 @@ describe('⌘Z は変えた行だけを戻す', () => {
     expect(useTaskStore.getState().tasks.every((t) => !t.completed)).toBe(true)
   })
 })
+
+describe('トーストは自分の操作だけを戻す（undoOperation）', () => {
+  const get = (id: string) => useTaskStore.getState().tasks.find((t) => t.id === id)!
+
+  it('削除→別の操作→削除のトーストで、削除だけが戻る', async () => {
+    useTaskStore.getState().deleteTasks(['a'])
+    await tick()
+    const undoId = useTaskStore.getState().recentDeletes[0].undoId!
+    useTaskStore.getState().updateTask('b', { title: 'B2' })
+    await tick()
+    expect(useTaskStore.getState().undoOperation(undoId)).toBe(true)
+    expect(get('a').deletedAt ?? null).toBeNull()
+    expect(get('b').title).toBe('B2')
+    expect(useTaskStore.getState().recentDeletes).toHaveLength(0)
+    // 残った操作は ⌘Z でいつもどおり戻る。戻した操作は 2 度戻さない
+    expect(useTaskStore.getState().undoOperation(undoId)).toBe(false)
+    expect(useTaskStore.getState().undoLastOperation()).toBe(true)
+    expect(get('b').title).toBe('B')
+  })
+
+  it('ラベル付きの操作はトーストに番号が付き、その操作だけを戻す', async () => {
+    useTaskStore.getState().archiveTasks(['a'])
+    await tick()
+    const undoId = useTaskStore.getState().undoBanner!.undoId!
+    useTaskStore.getState().updateTask('b', { title: 'B2' })
+    await tick()
+    useTaskStore.getState().undoOperation(undoId)
+    expect(get('a').archivedAt ?? null).toBeNull()
+    expect(get('b').title).toBe('B2')
+  })
+
+  it('あとの操作も同じ行を変えていたら、その操作が変えた項目だけを戻す', async () => {
+    useTaskStore.getState().updateTask('a', { title: 'A2' })
+    await tick()
+    const id = useTaskStore.getState().lastUndoId()!
+    useTaskStore.getState().updateTask('a', { description: 'メモ' })
+    await tick()
+    useTaskStore.getState().undoOperation(id)
+    expect(get('a').title).toBe('A')
+    expect(get('a').description).toBe('メモ')
+    // あとの操作を戻しても、先に戻した題名は戻ってこない
+    useTaskStore.getState().undoLastOperation()
+    expect(get('a').title).toBe('A')
+    expect(get('a').description).toBe('')
+  })
+})

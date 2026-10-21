@@ -47,6 +47,8 @@ export const DATA_KEYS = [
   'dayMoods',
   'timetable',
   'timetableUpdatedAt',
+  'addons',
+  'addonsUpdatedAt',
 ] as const satisfies readonly (keyof TaskState)[]
 
 export const VIEW_KEYS = [
@@ -77,6 +79,7 @@ export const TRANSIENT_KEYS = [
   'taskDragHoverListId',
   'syncState',
   'lastSyncedAt',
+  'cloudPulledAt',
   'syncRejected',
   'quickAddRequested',
   'quickAddPrefill',
@@ -87,7 +90,9 @@ export const TRANSIENT_KEYS = [
   'googleConnected',
   'googleAccessToken',
   'googleConnectionError',
+  'googleReconnectNeeded',
   'googleCanWrite',
+  'googlePushFailed',
   // 毎週の予定のカード・詳細を開いている間だけ（閉じたら「この予定のみ」に戻る）
   'seriesEditScope',
 ] as const satisfies readonly (keyof TaskState)[]

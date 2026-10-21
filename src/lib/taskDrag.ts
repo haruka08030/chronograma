@@ -45,3 +45,20 @@ export function acceptTaskDrag(e: React.DragEvent, options?: { googleEvents?: bo
   e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'move' ? 'move' : 'copy'
   return true
 }
+
+/** これより動かさずすぐ離したドラッグは、行を押したことにする（`isTinyDrag`） */
+const TINY_DRAG_PX = 8
+const TINY_DRAG_MS = 500
+
+/**
+ * どこにも落とさず、ほとんど動かさずすぐ離したドラッグか。行全体をつかめる一覧では、押すときに 3px ほど動くだけで
+ * ブラウザがドラッグを始めて click が来ない（トラックパッドで起きやすい）。そのときは行を押したことにする
+ */
+export function isTinyDrag(
+  press: { x: number; y: number; t: number },
+  last: { x: number; y: number },
+  now: number,
+  dropEffect: DataTransfer['dropEffect'],
+): boolean {
+  return dropEffect === 'none' && now - press.t <= TINY_DRAG_MS && Math.hypot(last.x - press.x, last.y - press.y) <= TINY_DRAG_PX
+}

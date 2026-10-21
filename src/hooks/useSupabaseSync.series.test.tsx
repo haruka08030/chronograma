@@ -27,11 +27,18 @@ vi.mock('../lib/errorReport', async (importOriginal) => ({
 }))
 vi.mock('./useAutoBackup', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./useAutoBackup')>()),
-  backupNow: vi.fn(),
+  backupNow: vi.fn(async () => true),
 }))
 
 let db: ReturnType<typeof fakeDb>
-const term: Timetable = { periods: [...DEFAULT_PERIODS], termStart: '2026-10-01', termEnd: '2026-11-30', skipHolidays: true }
+const term: Timetable = {
+  periods: [...DEFAULT_PERIODS],
+  termStart: '2026-10-01',
+  termEnd: '2026-11-30',
+  skipHolidays: true,
+  absences: {},
+  absenceLimits: {},
+}
 
 beforeEach(() => {
   vi.useFakeTimers()

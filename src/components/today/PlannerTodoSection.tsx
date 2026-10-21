@@ -1,19 +1,18 @@
-import { useId, useState, type HTMLAttributes, type Ref } from 'react'
+import { useId, type HTMLAttributes, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { useAuth } from '../../contexts/AuthContext'
+import { useShowsOnboarding } from '../../hooks/useShowsOnboarding'
 import type { Task } from '../../types/task'
 import { buttonClass } from '../ui/buttonClass'
 import { DisclosureButton } from '../ui/Disclosure'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
-import { CalendarDoubleArrowIcon } from '../icons'
+import { MoveAllButton } from './MoveAllButton'
 import { PlannerTaskRow, type PlannerRowEnv } from './PlannerTaskRow'
 import { MoveHereButton, SetTimeButton, TimerButton, TomorrowButton } from './PlannerRowActions'
 import { PlannerAddInput } from './PlannerAddInput'
 import { PlannerListStatus } from './PlannerListStatus'
 import { PlannerOnboarding } from './PlannerOnboarding'
 import { OnboardingNudges } from './OnboardingNudges'
-import { focusQuickAdd } from '../../lib/quickAddFocus'
 import type { NowNextPlan } from '../../lib/dayPlan'
 import { planHex } from '../../lib/planVisual'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
@@ -21,11 +20,10 @@ import { PlannerPlanRow } from './PlannerPlanRow'
 
 /**
  * 今日の計画の To-Do: 期限切れ → やり残し → 今日やる（時間未定 → 時間を決めた）→ 追加欄 → 一言。
- * どの行がどこに属すか見出しで分ける。期限切れは焦らせてよいので畳まない
+ * 期限切れ・やり残しは見出しで、今日やる行はその下の線で分ける（To-Do・今日やる・時間を決めたの見出しの文字は出さない）。期限切れは焦らせてよいので畳まない
  */
 export function PlannerTodoSection({
   env,
-  headingClass,
   overdue,
   overdueShown,
   onShowAllOverdue,
@@ -42,7 +40,6 @@ export function PlannerTodoSection({
   onOpenPlanCard,
 }: {
   env: PlannerRowEnv
-  headingClass: string
   overdue: Task[]
   /** 出している締切切れの行（スマホ幅は先頭の 2 行。残りは「他 N 件」で開く） */
   overdueShown: Task[]
@@ -67,17 +64,10 @@ export function PlannerTodoSection({
   const ids = useId()
   const { t } = useTranslation()
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
-  const onboardingDone = useTaskStore((s) => s.onboardingDone)
-  const dataOwner = useTaskStore((s) => s.dataOwner)
-  const { user, loading: authLoading } = useAuth()
-  const [draft, setDraft] = useState('')
   const { day, viewingToday } = env
   const { dateKey, tomorrowKey } = day
-  // はじめの案内を出している間は、書き方の例は案内の方に出す（追加欄と 2 回出さない）
-  // ログイン中で、この端末でこの人としての初めての同期がまだ終わっていない間は出さない（アカウントのデータが届く前に一瞬出ていた）。
-  // 終わると持ち主（dataOwner）がこの人になる。アカウントにデータがあれば、その同期で案内は終わる
-  const awaitingFirstSync = authLoading || (user !== null && dataOwner !== user.id)
-  const showOnboarding = viewingToday && !onboardingDone && !awaitingFirstSync
+  const showOnboarding = useShowsOnboarding(viewingToday)
+  const emptyDay = totalCount === 0 && overdue.length === 0 && leftOver.length === 0
   const timedAction = (task: Task) => (
     <>
       <TomorrowButton task={task} tomorrowKey={tomorrowKey} viewingToday={viewingToday} />
@@ -95,7 +85,8 @@ export function PlannerTodoSection({
 
   return (
     <>
-      <h2 className={`${headingClass} px-6`}>{t('planner.todoHeading')}</h2>
+      {/* 今日の画面にいれば何の一覧か分かるので、見出しは読み上げだけ（文字を減らして感覚で使えるように） */}
+      <h2 className="sr-only">{t('planner.todoHeading')}</h2>
 
       {/* 読み上げ: 期限切れ・やり残し・今日やるの行は 1 つの listbox（まとまりは group）。候補の行は aria-owns で入れる。
           やり残しの見出しのボタンだけは listbox の中に残る（行の並びの途中にあるため） */}
@@ -148,18 +139,7 @@ export function PlannerTodoSection({
                 <span className="truncate">{t('planner.carryOverHeading', { count: leftOver.length })}</span>
               </DisclosureButton>
               {leftOver.length > 1 ? (
-                // 一覧が組み変わる操作なので、印だけでなく文字でも何をするか出す
-                <button
-                  type="button"
-                  onClick={moveAllLeftOver}
-                  className={buttonClass(
-                    { variant: 'secondary', size: 'xs' },
-                    'shrink-0 text-zinc-600 pointer-coarse:min-h-9 dark:text-zinc-300',
-                  )}
-                >
-                  <CalendarDoubleArrowIcon className="h-3.5 w-3.5" />
-                  {t('planner.moveAllToToday')}
-                </button>
+                <MoveAllButton onClick={moveAllLeftOver}>{t('planner.moveAllToToday')}</MoveAllButton>
               ) : (
                 // 1 件なら行の「今日やる」と同じ。開いたら行の方だけにする
                 !showLeftOver && moveHere(leftOver[0]!)
@@ -176,11 +156,9 @@ export function PlannerTodoSection({
         )}
 
         <div className="px-3">
-          {/* 上に期限切れ・やり残しがあるときだけ、ここからが今日やる行だと見出しで示す */}
+          {/* 上に期限切れ・やり残しがあるときだけ、ここからが今日やる行だと線で分ける（見出しの文字は出さない） */}
           {(overdue.length > 0 || leftOver.length > 0) && open.length > 0 && (
-            <p aria-hidden className="mt-3 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-              {viewingToday ? t('planner.doToday') : t('planner.doThisDay')}
-            </p>
+            <div aria-hidden className="mx-3 mb-1 mt-3 border-t border-zinc-100 dark:border-zinc-800" />
           )}
           {nowNext && (
             // スマホだけ（横にタイムラインが無い）。To-Do ならキー操作の並びでもここが先頭（下の時間を決めた行からは外してある）
@@ -227,13 +205,9 @@ export function PlannerTodoSection({
               />
             ))}
           </ul>
-          {/* 時間未定（まだいつやるか決める行）を上、時間を決めた行はその下に時刻順（横のタイムラインにも出ている） */}
-          {timedOpen.length > 0 && untimedOpen.length > 0 && (
-            <p aria-hidden className="ml-11 mt-3 text-xs text-zinc-400 dark:text-zinc-500">
-              {t('planner.timedHeading')}
-            </p>
-          )}
-          <ul role="group" aria-label={t('planner.timedHeading')}>
+          {/* 時間未定（まだいつやるか決める行）を上、時間を決めた行はその下に時刻順（横のタイムラインにも出ている）。
+              右の時刻で分かるので見出しは出さず、間を空けるだけ */}
+          <ul role="group" aria-label={t('planner.timedHeading')} className={timedOpen.length > 0 && untimedOpen.length > 0 ? 'mt-3' : ''}>
             {timedOpen.map((task) => (
               <PlannerTaskRow key={task.id} task={task} env={env} action={timedAction(task)} dueMode="urgent" hoverActions />
             ))}
@@ -241,24 +215,12 @@ export function PlannerTodoSection({
         </div>
       </div>
 
-      <PlannerAddInput
-        dateKey={dateKey}
-        draft={draft}
-        onDraftChange={setDraft}
-        showExample={!showOnboarding && totalCount === 0 && overdue.length === 0 && leftOver.length === 0}
-      />
+      <PlannerAddInput dateKey={dateKey} showExample={emptyDay} guide={showOnboarding && emptyDay} onboarding={showOnboarding} />
 
       <PlannerListStatus totalCount={totalCount} openCount={open.length} overdueCount={overdue.length} />
 
-      {/* はじめて使う人だけ: 今日を見ているとき、追加欄の下に 3 ステップ */}
-      {showOnboarding && (
-        <PlannerOnboarding
-          onUseExample={(text) => {
-            setDraft(text)
-            focusQuickAdd()
-          }}
-        />
-      )}
+      {/* はじめて使う人だけ: 今日を見ているとき、追加欄の下に進み具合の 1 行 */}
+      {showOnboarding && <PlannerOnboarding />}
       {/* 案内を終えた直後の 1 回だけの誘い（iPhone の Safari ならホーム画面への追加） */}
       {viewingToday && <OnboardingNudges />}
     </>

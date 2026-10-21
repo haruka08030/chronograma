@@ -10,7 +10,9 @@ type GoogleActions = Pick<
   | 'setGoogleConnected'
   | 'setGoogleAccessToken'
   | 'setGoogleConnectionError'
+  | 'setGoogleReconnectNeeded'
   | 'setGoogleCanWrite'
+  | 'setGooglePushFailed'
   | 'setGoogleUndo'
 >
 
@@ -34,10 +36,14 @@ export function createGoogleSlice({ set }: SliceContext): GoogleActions {
         return { googleEventColors: choices, calendarEvents: resolveEventColors(s.calendarEvents, choices) }
       })
     },
-    setGoogleConnected: (connected) => set({ googleConnected: connected }),
+    // つながったら「もう一度つなぐ」は要らない
+    setGoogleConnected: (connected) =>
+      set(connected ? { googleConnected: true, googleReconnectNeeded: false } : { googleConnected: false }),
     setGoogleAccessToken: (token) => set({ googleAccessToken: token }),
     setGoogleConnectionError: (error) => set({ googleConnectionError: error }),
+    setGoogleReconnectNeeded: (needed) => set({ googleReconnectNeeded: needed }),
     setGoogleCanWrite: (canWrite) => set({ googleCanWrite: canWrite }),
+    setGooglePushFailed: (count) => set((s) => (s.googlePushFailed === count ? s : { googlePushFailed: count })),
 
     setGoogleUndo: (next) => set({ googleUndo: next ? { ...next, at: Date.now() } : null }),
   }

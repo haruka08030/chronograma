@@ -85,10 +85,15 @@ export function groupBy<T>(items: readonly T[], key: (item: T) => string): T[][]
   return [...groups.values()]
 }
 
-/** Web Push の失効（アプリ削除・権限取り消し）。この購読は消す */
+/**
+ * この購読にはもう送れない。購読は消す（アプリを開けば端末が付け直す）。
+ * - 404・410: 失効（アプリ削除・権限取り消し・ブラウザが購読を更新した）
+ * - 400・403・413: 購読が壊れている・鍵が合わない・送る中身を受け付けない。送り直しても同じなので、
+ *   残すと 1 件のせいで毎回の実行が失敗扱いになる
+ */
 export function isGoneStatus(err: unknown): boolean {
   const status = (err as { statusCode?: number } | null)?.statusCode
-  return status === 404 || status === 410
+  return status === 400 || status === 403 || status === 404 || status === 410 || status === 413
 }
 
 export type SendOutcome<J> = {

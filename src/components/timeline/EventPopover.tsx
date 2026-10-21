@@ -5,6 +5,7 @@ import { displayListName } from '../../lib/displayListName'
 import { planTiming } from '../../lib/planTiming'
 import { colorVars, labelForHex, recordHex } from '../../lib/logCategoryColors'
 import { CourseAssignments } from './CourseAssignments'
+import { ClassAttendance } from './ClassAttendance'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
@@ -24,6 +25,8 @@ import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
 import { MemoPreview } from '../ui/MemoPreview'
 import { isEventTask, isLogTask, type Task } from '../../types/task'
+import { isClassTask } from '../../lib/timetable'
+import { useAddonOn } from '../../hooks/useAddon'
 import { endKeepingLength } from '../../lib/clockTime'
 import { isOvernightTimeLog } from '../../lib/taskTimeRange'
 import { useTaskTimes } from '../detail/useTaskTimes'
@@ -99,6 +102,8 @@ function EventPopoverBody({
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const timeLogTagPresets = useTaskStore((s) => s.timeLogTagPresets)
   const activeTimer = useTaskStore((s) => s.activeTimer)
+  const timetable = useTaskStore((s) => s.timetable)
+  const timetableOn = useAddonOn('timetable')
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   // タイムゾーンを決めたタスクはそのタイムゾーンの時刻で見せて直す（詳細と同じ）
@@ -125,7 +130,13 @@ function EventPopoverBody({
     }
     updateTimes({ startTime: v, endTime: endKeepingLength(tv.startTime!, tv.endTime!, v) })
   }
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (isLog ? 270 : 280) + (editableTimes ? 30 : 0) + memoHeightEstimate(memo))
+  // 時間割の授業は欠席の行（#452）の分だけ高い
+  const attendanceRow = timetableOn && isClassTask(task, timetable) ? 42 : 0
+  const { style, sheet } = anchoredCardStyle(
+    anchor,
+    WIDTH,
+    (isLog ? 270 : 280) + (editableTimes ? 30 : 0) + attendanceRow + memoHeightEstimate(memo),
+  )
   // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに。予定（完了の無いもの）は「記録にする」
   const recordAndComplete = () => {
     openRecordPrompt(task.id)
@@ -163,12 +174,12 @@ function EventPopoverBody({
         >
           <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
-        {/* ⋮: 右クリックと同じメニュー（複製など）。Google カレンダーのカードと同じ位置。メニューを出したらカードは閉じる */}
+        {/* ⋮: 右クリックと同じメニュー（複製など）。Google カレンダーのカードと同じ位置で、メニューは右端を ⋮ にそろえて真下に。メニューを出したらカードは閉じる */}
         <button
           type="button"
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect()
-            openTaskMenu({ kind: 'event', x: r.left, y: r.bottom, taskId: task.id })
+            openTaskMenu({ kind: 'event', x: r.right, y: r.bottom, alignRight: true, taskId: task.id })
             onClose()
           }}
           className={iconButtonClass()}
@@ -275,6 +286,9 @@ function EventPopoverBody({
           {isLog && <ColorLabelPicker task={task} compact label={t('labels.pickerAria')} />}
         </div>
       )}
+
+      {/* 時間割の授業: 欠席の数と、休める上限まであと何回か（#452） */}
+      {isEvent && task.series && <ClassAttendance task={task} />}
 
       {/* 授業の予定（時刻のある予定）: その科目の未完了の課題（#309） */}
       {isEvent && task.startTime && (

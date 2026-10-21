@@ -34,7 +34,7 @@ export function ColorSwatches({
   swatches?: readonly Swatch[]
   /** 狭いポップオーバー（ナビのリストの色）は 6 */
   columns?: 6 | 12
-  /** 置き場所の幅いっぱいに 8 列で並べ、丸の大きさを幅に合わせる（予定のカードの中） */
+  /** 置き場所の幅いっぱいに 8 列で並べ、丸の大きさを幅に合わせる（予定のカード・右クリックの中のメニュー） */
   fill?: boolean
   className?: string
 }) {

@@ -49,3 +49,10 @@ export function CalendarCheck({
     </button>
   )
 }
+
+/**
+ * 月・終日のチップで ✓ の代わりに置く予定（完了の無いもの）の印。`CalendarCheck` と同じ大きさの色の丸（色は親の `--c`）
+ */
+export function CalendarDot({ size = 'sm' }: { size?: 'sm' | 'md' }) {
+  return <span aria-hidden className={`gc-dot shrink-0 rounded-full ${size === 'md' ? 'h-4 w-4' : 'h-3.5 w-3.5'}`} />
+}

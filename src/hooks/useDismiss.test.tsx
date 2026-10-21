@@ -131,6 +131,31 @@ describe('useDismiss', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('onOutsidePress が受け持ったら閉じない（受け持たなければ閉じる）', async () => {
+    const handled = { value: true }
+    const onPress = vi.fn(() => handled.value)
+    function Sheet() {
+      const [open, setOpen] = useState(true)
+      const root = useRef<HTMLDivElement>(null)
+      const panel = useRef<HTMLDivElement>(null)
+      useDismiss({ open, onClose: () => setOpen(false), inside: [panel], backdrop: root, onOutsidePress: onPress })
+      return open ? (
+        <div ref={root} data-testid="backdrop">
+          <div ref={panel} role="dialog" aria-label="Sheet" />
+        </div>
+      ) : null
+    }
+    const user = userEvent.setup()
+    render(<Sheet />)
+    await arm()
+    await user.click(screen.getByTestId('backdrop'))
+    expect(onPress).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('dialog', { name: 'Sheet' })).toBeInTheDocument()
+    handled.value = false
+    await user.click(screen.getByTestId('backdrop'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('Esc でも閉じる', async () => {
     const user = userEvent.setup()
     render(<Harness onBehind={() => {}} />)

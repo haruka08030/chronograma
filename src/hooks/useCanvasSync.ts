@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import i18n from '../i18n/config'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -10,16 +10,21 @@ import {
   CanvasRequestError,
   fetchCanvasItems,
   markCanvasComplete,
+  markCanvasCompleteOnLeave,
   parseCanvasTaskId,
   reconcileCanvasItems,
 } from '../lib/canvas'
 import { useTaskStore, isAdoptingFromOtherTab } from '../store/taskStore'
+import { cloudReady } from '../lib/cloudReady'
+import { needsReconnect } from '../lib/integrationReconnect'
+import { knownNotConnected, noteIntegrationConnected, shouldRefetchOnReturn } from '../lib/integrationHint'
 import { reportFailure } from '../lib/errorReport'
 import { notify } from '../lib/notify'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
 import { CANVAS_PULLED_PREFIX, loadPulled, savePulled } from '../lib/externalFields'
 import { bindCanvasSubmitted, noteCanvasSubmitted } from '../lib/canvasSubmitted'
+import { WRITE_BACK_PREFIX, writeBackQueue } from '../lib/writeBackQueue'
 import type { SyncStatus } from '../types/sync'
 
 /** Canvas は 1 回の取り込みで数ページ読むので、開いている間の取り込みは控えめに */
@@ -67,6 +72,19 @@ export function requestCanvasSync() {
 /** 前回 Canvas から取り込んだタイトル・期限（この端末だけ。ユーザーが変えた値を上書きしないため） */
 const pulledKey = (userId: string) => `${CANVAS_PULLED_PREFIX}${userId}`
 
+/** まだ Canvas に届いていない完了の付け外し（この端末だけ。届くまで間隔をあけて送り直す）。付けるか外すかは送るときのタスクの状態 */
+type CanvasWritePayload = { connectionId: string; type: string; id: string }
+const canvasWriteKey = (userId: string) => `${WRITE_BACK_PREFIX}canvas:${userId}`
+
+/** どこかの学校の接続が切れていて、つなぎ直さないと直らない */
+export function canvasReconnectNeeded(s: CanvasSyncState): boolean {
+  return needsReconnect(s.error) || Object.values(s.connectionErrors).some(needsReconnect)
+}
+
+export function useCanvasReconnectNeeded(): boolean {
+  return canvasReconnectNeeded(useCanvasSyncState())
+}
+
 export function useCanvasSyncState(): CanvasSyncState {
   return useSyncExternalStore(
     (l) => {
@@ -81,8 +99,13 @@ export function useCanvasSyncState(): CanvasSyncState {
  * つないだ学校ごとに Canvas の課題をその学校のリストに取り込み、タスクの完了を Canvas の To Do に書き戻す。
  */
 export function useCanvasSync() {
-  const { user, loading } = useAuth()
+  const { user, session, loading } = useAuth()
   const userId = user?.id ?? null
+  // タブを閉じるときはセッションの読み出しを待てないので、手元に持っておく
+  const accessTokenRef = useRef<string | null>(null)
+  useEffect(() => {
+    accessTokenRef.current = session?.access_token ?? null
+  }, [session])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !userId || loading) {
@@ -95,27 +118,39 @@ export function useCanvasSync() {
     let cancelled = false
     let running = false
     let rerun = false
+    /** 前に取り込みを始めた時刻（画面に戻ったときの取り直しの間隔に使う） */
+    let lastStartedAt = 0
     /** 自動で完了にしたタスク。ユーザーの完了ではないので Canvas に書き戻さない */
     const autoCompleted = new Set<string>()
-    const pendingWrite = new Map<string, ReturnType<typeof setTimeout>>()
+    /** 猶予中の書き戻し（猶予が明けたら送る） */
+    const pendingWrite = new Map<string, { timer: ReturnType<typeof setTimeout>; payload: CanvasWritePayload }>()
+    /** 送り直し待ち。届くまで、そのタスクは取り込みで上書きしない（外した完了が次の同期で戻らないように） */
+    const writeQueue = writeBackQueue<CanvasWritePayload>(canvasWriteKey(userId))
+    /** 送っている最中のもの（同じものを同時に 2 回送らない） */
+    const sending = new Set<string>()
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
     /** カレンダーフィードでつないだ学校。完了を書き戻さない */
     const readOnly = new Set<string>()
 
     /** `manual`: 設定の「今すぐ同期」など。代表でないタブからでも取り込む */
     const run = async (manual = false) => {
       // 取り込みは代表の 1 つのタブだけ（ほかのタブは保存の共有で同じ結果を受け取る）
-      if (!manual && !isLeaderTab()) return
+      if (!manual && !(await isLeaderTab())) return
+      // つないでいないと分かっていれば呼ばない（設定からの同期・接続は呼ぶ）
+      if (!manual && knownNotConnected('canvas', userId)) return
       if (running) {
         rerun = true
         return
       }
       running = true
+      lastStartedAt = Date.now()
       setSyncState({ syncing: true })
       try {
         do {
           rerun = false
           const res = await fetchCanvasItems()
           if (cancelled) return
+          noteIntegrationConnected('canvas', userId, res.connections.length > 0)
           // 取得と反映の間に await を挟まない（この間のローカル編集を取りこぼさない）
           const s = useTaskStore.getState()
           let next = { lists: s.lists, sections: s.sections, tasks: s.tasks }
@@ -149,8 +184,8 @@ export function useCanvasSync() {
               now: new Date().toISOString(),
               timeZone: appTimeZone(),
               untitled: i18n.t('canvas.untitled'),
-              // 書き戻し待ちのものは、Canvas がまだ古い状態なので触らない
-              skipIds: new Set(pendingWrite.keys()),
+              // 書き戻し待ち・送り直し待ちのものは、Canvas がまだ古い状態なので触らない
+              skipIds: new Set([...pendingWrite.keys(), ...writeQueue.all().map(([id]) => id)]),
               pulled,
             })
             Object.assign(pulled, result.pulled)
@@ -164,39 +199,105 @@ export function useCanvasSync() {
           savePulled(pulledKey(userId), pulled)
           if (changed) asIncomingChange(() => useTaskStore.setState({ ...next, selectedListId }))
           for (const [id, ids] of submitted) noteCanvasSubmitted(id, ids)
+          const wasLost = canvasReconnectNeeded(syncState)
           setSyncState({ lastSyncedAt: new Date().toISOString(), error: null, connectionErrors })
+          // 接続が切れたら 1 回だけ知らせる（Canvas のリストの上と設定には直るまで出す）
+          if (!wasLost && canvasReconnectNeeded(syncState)) notify(i18n.t('integrationReconnect.lost', { name: 'Canvas' }))
+          // 届いていない書き戻しを、待ち時間を待たずに送り直す（いま Canvas に届くと分かったので）
+          void flushWrites(true)
         } while (rerun && !cancelled)
       } catch (e) {
         if (cancelled) return
         console.error('[canvas]', e)
         reportFailure('integration', 'canvas', e, { code: e instanceof CanvasRequestError ? e.code : null })
+        const wasLost = canvasReconnectNeeded(syncState)
         setSyncState({ error: e instanceof CanvasRequestError && e.code ? e.code : e instanceof Error ? e.message : String(e) })
+        if (!wasLost && canvasReconnectNeeded(syncState)) notify(i18n.t('integrationReconnect.lost', { name: 'Canvas' }))
       } finally {
         running = false
         if (!cancelled) setSyncState({ syncing: false })
       }
     }
 
+    /**
+     * 1 件送る（付けるか外すかは、いまのタスクの状態）。送れたら送り直し待ちから外し、送れなければ間隔をあけて次に回す。
+     * 送っている間に付け外しが変わったら、外さずに残して送り直す
+     */
+    const sendWrite = async (taskId: string, p: CanvasWritePayload) => {
+      const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
+      if (!task || sending.has(taskId)) return
+      sending.add(taskId)
+      const complete = task.completed
+      try {
+        await markCanvasComplete(p.connectionId, p.type, p.id, complete)
+        if (useTaskStore.getState().tasks.find((t) => t.id === taskId)?.completed === complete) writeQueue.done(taskId)
+        else writeQueue.put(taskId, p)
+      } catch (e) {
+        writeQueue.fail(taskId)
+        console.error('[canvas] complete', e)
+        reportFailure('integration', 'canvas:complete', e, { code: e instanceof CanvasRequestError ? e.code : null })
+        if (!cancelled) setSyncState({ error: e instanceof CanvasRequestError && e.code ? e.code : String(e) })
+      } finally {
+        sending.delete(taskId)
+        if (!cancelled) scheduleRetry()
+      }
+    }
+
+    /** 送り直し待ちのうち、いま送ってよいものを送る。`now`: 次に送ってよい時刻を待たずに全部 */
+    const flushWrites = async (now = false) => {
+      for (const [taskId, e] of now ? writeQueue.all() : writeQueue.due()) {
+        if (cancelled) return
+        // 猶予中のものは、猶予が明けたときに送る。まだ手元に読み込まれていないものは次に回す（古くなれば捨てる）
+        if (pendingWrite.has(taskId)) continue
+        await sendWrite(taskId, e.payload)
+      }
+    }
+
+    /** 送り直しは代表のタブだけ（取り込みと同じ。同じ端末のタブで送り直し待ちを分け合う） */
+    const retryAsLeader = (now = false) => {
+      void isLeaderTab().then((leader) => {
+        if (leader && !cancelled) void flushWrites(now)
+      })
+    }
+
+    /** 次に送ってよい時刻に、送り直しを起こす */
+    function scheduleRetry() {
+      clearTimeout(retryTimer)
+      const at = writeQueue.nextDueAt()
+      if (at === null || cancelled) return
+      retryTimer = setTimeout(() => retryAsLeader(), Math.max(1_000, at - Date.now()))
+    }
+
     const write = (taskId: string, connectionId: string, type: string, id: string) => {
-      clearTimeout(pendingWrite.get(taskId))
-      pendingWrite.set(
-        taskId,
-        setTimeout(() => {
-          const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
-          if (!task) {
-            pendingWrite.delete(taskId)
-            return
-          }
-          // 猶予のあいだに付け外しを繰り返しても、最後の状態だけを書く
-          markCanvasComplete(connectionId, type, id, task.completed)
-            .catch((e) => {
-              console.error('[canvas] complete', e)
-              reportFailure('integration', 'canvas:complete', e, { code: e instanceof CanvasRequestError ? e.code : null })
-              if (!cancelled) setSyncState({ error: e instanceof CanvasRequestError && e.code ? e.code : String(e) })
-            })
-            .finally(() => pendingWrite.delete(taskId))
+      const payload = { connectionId, type, id }
+      clearTimeout(pendingWrite.get(taskId)?.timer)
+      pendingWrite.set(taskId, {
+        payload,
+        timer: setTimeout(() => {
+          pendingWrite.delete(taskId)
+          if (!useTaskStore.getState().tasks.some((t) => t.id === taskId)) return
+          // 猶予のあいだに付け外しを繰り返しても、最後の状態だけを書く。
+          // 送れなかったら、閉じても次に開いたときに送り直せるよう先に覚えておく
+          writeQueue.put(taskId, payload)
+          void sendWrite(taskId, payload)
         }, WRITE_DELAY_MS),
-      )
+      })
+    }
+
+    /**
+     * 猶予中のものを待たずに送る（タブを閉じる・隠れるとき）。応答は待てないので送り直し待ちにも積んでおき、
+     * 次に開いたときにもう一度送る（同じ状態を書くだけなので、二重に届いても変わらない）
+     */
+    const flushPending = () => {
+      const token = accessTokenRef.current
+      for (const [taskId, p] of [...pendingWrite]) {
+        clearTimeout(p.timer)
+        pendingWrite.delete(taskId)
+        const task = useTaskStore.getState().tasks.find((t) => t.id === taskId)
+        if (!task) continue
+        writeQueue.put(taskId, p.payload)
+        if (token) markCanvasCompleteOnLeave(p.payload.connectionId, p.payload.type, p.payload.id, task.completed, token)
+      }
     }
 
     const unsub = useTaskStore.subscribe((state, prev) => {
@@ -223,7 +324,7 @@ export function useCanvasSync() {
 
     requestSync = () => void run(true)
 
-    // 初回はクラウド同期が一度終わるのを待つ（時間切れなら待たずに始める）
+    // 初回はクラウドの内容を取り込み終えるのを待つ（送信・設定の同期は待たない。時間切れなら待たずに始める）
     let firstTimer: ReturnType<typeof setTimeout> | undefined
     let unsubFirst: (() => void) | undefined
     const start = () => {
@@ -232,19 +333,27 @@ export function useCanvasSync() {
       unsubFirst = undefined
       if (!cancelled) void run()
     }
-    if (useTaskStore.getState().lastSyncedAt) {
+    if (cloudReady(useTaskStore.getState())) {
       start()
     } else {
       unsubFirst = useTaskStore.subscribe((s) => {
-        if (s.lastSyncedAt) start()
+        if (cloudReady(s)) start()
       })
       firstTimer = setTimeout(start, FIRST_SYNC_WAIT_MS)
     }
 
+    // スマホではタブを閉じても pagehide が来ないことがあるので、隠れたときにも送る
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void run()
+      if (document.visibilityState === 'visible') {
+        if (shouldRefetchOnReturn(running, lastStartedAt)) void run()
+      } else flushPending()
     }
+    // 回線が戻ったら、送り直し待ちをすぐ送る
+    const onOnline = () => retryAsLeader(true)
     document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('pagehide', flushPending)
+    window.addEventListener('online', onOnline)
+    scheduleRetry()
     const poll = setInterval(() => {
       if (document.visibilityState === 'visible') void run()
     }, POLL_MS)
@@ -255,8 +364,11 @@ export function useCanvasSync() {
       clearTimeout(firstTimer)
       unsubFirst?.()
       clearInterval(poll)
-      pendingWrite.forEach((t) => clearTimeout(t))
+      pendingWrite.forEach((p) => clearTimeout(p.timer))
+      clearTimeout(retryTimer)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('pagehide', flushPending)
+      window.removeEventListener('online', onOnline)
       unsub()
     }
   }, [userId, loading])

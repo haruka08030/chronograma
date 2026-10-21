@@ -42,6 +42,9 @@
 | [`036_feedback.sql`](036_feedback.sql) | お問い合わせ・フィードバック `feedback`（文面 1〜2000 文字・アプリの版・ブラウザ、`feedback_size_check`）。端末は本人の行の insert だけ（読めない・変えられない・消せない。anon は送れない）。`created_at` はサーバーの時刻、1 人 24 時間に 20 件まで（トリガー `limit_feedback`、SECURITY DEFINER。超えたら errcode `P0001`・メッセージ `feedback_rate_limited`）。アカウントの削除で消える |
 | [`037_task_carried_days.sql`](037_task_carried_days.sql) | To-Do の続けて持ち越した日数 `tasks.carried_days`（既定 0、0〜3650 `tasks_carried_days_range`）。今日・前の日に置いて終わっていない To-Do を後ろの日へ回した日数の合計で、完了・実行日を外す・いつか / チェックリストへ移すと 0（数えるのはアプリ）。今日の計画の行の「3日目」と週のふりかえりの「持ち越しが多いタスク」 |
 | [`038_realtime_sync_wake.sql`](038_realtime_sync_wake.sql) | 同期する表（`lists` / `list_sections` / `tasks` / `habits` / `sync_tombstones`・設定の表 6 つ・`day_moods`）を Realtime の publication `supabase_realtime` に入れる（無ければ作る）。端末は本人の行（`user_id=eq.<自分>`）の INSERT / UPDATE の通知を同期を起こす合図にだけ使う。DELETE の通知は RLS が効かないので購読せず、消えた行は `sync_tombstones` の通知で知る |
+| [`040_task_dream_id.sql`](040_task_dream_id.sql) | 夢の一歩を予定にして To-Do になった行の元の夢 `tasks.dream_id`（タスクの id、null は無し。外部キーなし、1〜128 字 `tasks_dream_id_check`）。夢の進み具合・次の一歩に数え、行に夢の名前を添える（数えるのはアプリ）。夢を消す・かなえる・やりたいへ移しても外さない |
+| [`041_user_addons.sql`](041_user_addons.sql) | 追加機能のオン・オフ `user_addons`（利用者ごとに 1 行、`addons` は `{ enabled: { 機能: true/false } }` の object、256KB まで `user_addons_size_check`、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
+| [`042_habit_deleted_at.sql`](042_habit_deleted_at.sql) | 習慣のゴミ箱 `habits.deleted_at`（null はゴミ箱に無い）。ゴミ箱の習慣はどの画面・統計にも出さず、達成日は残る。30 日たつとアプリが行ごと消す |
 
 テーブル（最新の形）:
 
@@ -49,7 +52,7 @@
 |----------|------|
 | `lists` | リスト。`kind`（`tasks` / `someday` / `checklist`）で、いつか・チェックリストを予定・統計・通知から外す |
 | `list_sections` | リスト内のセクション |
-| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、指しているラベルの id `label_id`（`033`。名前・色は前の版のアプリが読む写しで、古いことがある）、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id`、毎週の予定の印 `event_series`、続けて持ち越した日数 `carried_days`、いつかの段 `someday_tier` を含む |
+| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、指しているラベルの id `label_id`（`033`。名前・色は前の版のアプリが読む写しで、古いことがある）、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id`、毎週の予定の印 `event_series`、続けて持ち越した日数 `carried_days`、いつかの段 `someday_tier`、夢の一歩の元の夢 `dream_id` を含む |
 | `habits` | 習慣。`time_mode`（`none` / `fixed` / `range`）、アーカイブ `archived_at`（null は使用中）、日ごとの時間 `time_overrides`（null は無し） |
 | `user_settings` | 利用者ごとの設定（1 行）。`log_labels` は記録のラベル（id・分類名・色・週の目安）の並び。どの端末でも同じラベル表になる |
 | `user_extra_time_zones` | 時間バーに並べる他のタイムゾーン（利用者ごとに 1 行）。`zones` は `{ tz, label }` の並び（`label` は利用者が付けた名前、空でもよい）。どの端末でも同じ並び・名前になる |
@@ -57,6 +60,7 @@
 | `user_event_templates` | よく入れる予定（利用者ごとに 1 行）。`templates` は `{ id, title, startTime, endTime, color }` の並び（バイトのシフトなど）。月表示で日を押して入れた予定は `tasks`（`is_event`）に入る。どの端末でも同じ並びになる |
 | `user_course_links` | 授業の予定の名前と LMS（Canvas・Moodle）の科目のつながり（利用者ごとに 1 行）。`links` は `{ title, course }` の並び（`title` は予定の名前、`course` は取り込んだ課題の科目のタグ、空なら「つながない」）。予定のカードに、その科目の未完了の課題を締切順に出す。どの端末でも同じつながりになる |
 | `user_timetable` | 時間割の設定（利用者ごとに 1 行）。`timetable` は時限 `periods`（`{ start, end }` の並び）・学期 `termStart` / `termEnd`・祝日に授業を入れないか `skipHolidays`。マスの中身（授業）は `tasks` の毎週の予定（`event_series`）から出す。どの端末でも同じ時間割になる |
+| `user_addons` | 追加機能の設定（利用者ごとに 1 行）。`addons` は機能のオン・オフ `enabled`・引き落とし・期限の日 `dues`・Google カレンダーに送らない予定の名前 `googleSkip`。知らない項目は残して送り直す。どの端末でも同じになる |
 | `day_moods` | 1 日の気分（1 とても悪い〜5 とても良い、null は選んでいない）とひとこと（利用者ごと・日ごとに 1 行。`day` はアプリのタイムゾーンの暦の日）。今日の計画の「1 日を締める」で選ぶ。睡眠・記録（`tasks`）と日付で突き合わせて読める。どの端末でも同じになる |
 | `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders`。止め忘れの列（`timer_started_at` / `timer_title`）と「あと何分」の終わり（`timer_ends_at`）は `user_active_timer` の写し（`019` / `028`）。`timer_end_notified_for` は時間の通知を送った終わり |
 | `google_oauth` | Google カレンダーのリフレッシュトークン（暗号化して保存、`_shared/secretBox.ts`）。クライアント向けポリシーなし（Edge Function `google-calendar` が service_role で読み書き） |

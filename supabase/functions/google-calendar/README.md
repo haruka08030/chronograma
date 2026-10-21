@@ -20,10 +20,12 @@ Use the **same** Google OAuth Client ID/Secret as Supabase Auth → Google provi
 
 | action | body |
 |--------|------|
-| `status` | `{}` → `{ "connected": true/false }` |
-| `events` | `{ "timeMin": ISO, "timeMax": ISO }` |
+| `status` | `{}` → `{ "connected": true/false, "canWrite": true/false }`（canWrite はつながっているときだけ） |
+| `events` | `{ "timeMin": ISO, "timeMax": ISO }` → `{ events, deletedPushed: [{ id, updated }], … }`。消された予定も取り、アプリから作った予定（ID が `chronograma` で始まる）の分を `deletedPushed` で返す |
 | `disconnect` | `{}` |
 | `create` | `{ "fields": { summary, description?, colorId?, start, end } }` |
-| `update` | `{ "eventId", "fields" }`（変えるものだけ） |
+| `update` | `{ "eventId", "fields" }`（変えるものだけ）。消されていた予定は `google_deleted` |
 | `delete` | `{ "eventId" }`（消えている予定も成功） |
-| `upsert` | `{ "eventId", "fields" }`。ID を決めて、あれば直し（消した予定も戻す）、無ければその ID で作る。アプリの予定を Google に送るのに使う |
+| `upsert` | `{ "eventId", "fields", "revive"? }`。ID を決めて、あれば直し、無ければその ID で作る。アプリの予定を Google に送るのに使う。消された予定は `revive: true`（省略も同じ）のときだけ戻し、`revive: false` なら `google_deleted` |
+
+失敗は `{ "ok": false, "error", "code" }`。`code`: `google_not_connected`（連携が無い）・`google_auth_expired`（取り消された・期限切れ）・`google_scope_missing`（許可が足りない）・`google_read_only`（その予定を変える権限が無い）・`google_deleted`（Google で消された予定）・`google_rate_limited`（送りすぎ）・`google_failed`（それ以外）。

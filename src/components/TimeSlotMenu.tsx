@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { EstimateBiasHint } from './EstimateBiasHint'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
@@ -60,10 +61,11 @@ export function TimeSlotMenu({
   // 見積もりがあればその長さから（無ければ設定の既定の予定の長さ）
   const initialDuration = task?.estimateMinutes ?? defaultBlockMinutes
   const [duration, setDuration] = useState<number>(initialDuration)
-  const durations = useMemo(
-    () => (DURATIONS.includes(initialDuration) ? DURATIONS : [...DURATIONS, initialDuration].sort((a, b) => a - b)),
-    [initialDuration],
-  )
+  // 見積もりのクセで直した長さ（#417）も選べるように並べる
+  const durations = useMemo(() => {
+    const extra = [initialDuration, duration].filter((d) => !DURATIONS.includes(d))
+    return [...new Set([...DURATIONS, ...extra])].sort((a, b) => a - b)
+  }, [initialDuration, duration])
   const [custom, setCustom] = useState(false)
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
@@ -205,6 +207,10 @@ export function TimeSlotMenu({
                   : t(d < 60 ? 'timeSlot.minutes' : 'timeSlot.hours', { count: d < 60 ? d : d / 60 }),
             }))}
           />
+          {/* 初めの長さ（見積もり・既定）のままの間だけ。直したら出さない */}
+          {duration === initialDuration && (
+            <EstimateBiasHint minutes={duration} labelId={task.labelId ?? null} onApply={changeDuration} className="mt-1.5 px-1" />
+          )}
         </div>
         {slots.length > 0 ? (
           <ul>

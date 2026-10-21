@@ -1,17 +1,17 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { DraggableSyntheticListeners } from '@dnd-kit/core'
-import { dreamSteps } from '../lib/somedayTier'
+import { dreamOfStep, dreamSteps } from '../lib/somedayTier'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
 import { startNativeTaskDragGhost } from '../lib/nativeTaskDragGhost'
 import { sourceLinkOf } from '../lib/sourceLink'
 import { useCanvasSubmitted } from '../lib/canvasSubmitted'
-import { isModKey, isSubmitEnter } from '../lib/keyboard'
+import { isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
 import { RowSelectCheckbox } from './ui/RowSelectCheckbox'
-import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, RepeatIcon, TrashIcon } from './icons'
+import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, RepeatIcon, StarIcon, TrashIcon } from './icons'
 import { CompletionCircle, EventMark } from './ui/CompletionCircle'
 import { planHex } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
@@ -20,7 +20,7 @@ import { tip } from '../lib/tooltip'
 import { ChildDueChip } from './ui/ChildDueChip'
 import { useChildDue } from '../hooks/useChildDue'
 import { recurrenceLabel } from '../lib/recurrenceLabel'
-import { startTaskDrag } from '../lib/taskDrag'
+import { isTinyDrag, startTaskDrag } from '../lib/taskDrag'
 import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { fromDateKey } from '../lib/dateKey'
 import { formatShortDateWeekday } from '../lib/dateFormat'
@@ -39,9 +39,6 @@ import { useAppTodayKey } from '../hooks/useAppClock'
 import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 import { dueDateLabel } from './ui/dueDateLabel'
 import { DAY_ROW_PAD_CLASS, DAY_ROW_TIME_CLASS } from './ui/DayRow'
-
-/** PC で題名を 1 回押してから詳細を開くまで（2 回目が来たら名前の変更） */
-const DOUBLE_CLICK_MS = 250
 
 function dateTone(d: Date): DateTone {
   if (isAppToday(d)) return 'today'
@@ -146,6 +143,12 @@ export const TaskItem = memo(function TaskItem({
     return steps ? `${steps.done}/${steps.total}\u0000${steps.next?.title ?? ''}` : ''
   })
   const [dreamProgress, dreamNext] = dreamStepKey ? dreamStepKey.split('\u0000') : ['', '']
+  // 夢の一歩を予定にした To-Do（#430）: 元の夢の名前を添える（夢でなくなったら出さない）
+  const stepOfDream = useTaskStore((s) =>
+    task.dreamId
+      ? (dreamOfStep(s.tasks, task, new Set(s.lists.filter((l) => l.kind === 'someday').map((l) => l.id)))?.title ?? null)
+      : null,
+  )
   // 子のある行は「済/全部」（中国語 1/3、カレー 2/3）。消した・アーカイブした子と記録は数えない。夢は上の進み具合で出す
   const childProgress = useTaskStore((s) => {
     if (dream) return null
@@ -241,6 +244,11 @@ export const TaskItem = memo(function TaskItem({
     return { text: timePart ? `${datePart} ${timePart}` : datePart, tone: dateTone(d) }
   }, [timeLog, task.scheduledDate, task.startTime, task.endTime, language, t, dayKey])
   const [isDragging, setIsDragging] = useState(false)
+  /** 行を押した所と時刻・ドラッグ中の最後の位置（少し動いただけのドラッグを押したことにする。`isTinyDrag`） */
+  const pressRef = useRef<{ x: number; y: number; t: number } | null>(null)
+  const dragPosRef = useRef<{ x: number; y: number } | null>(null)
+  const stopTrackRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => stopTrackRef.current?.(), [])
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -248,14 +256,31 @@ export const TaskItem = memo(function TaskItem({
       startTaskDrag(e, task.id, group)
       startNativeTaskDragGhost(e, task.title || '', group.length)
       setIsDragging(true)
+      // dragend の座標は Firefox で 0 になるので、dragover で追う
+      dragPosRef.current = null
+      const track = (ev: DragEvent) => {
+        dragPosRef.current = { x: ev.clientX, y: ev.clientY }
+      }
+      window.addEventListener('dragover', track, true)
+      stopTrackRef.current = () => window.removeEventListener('dragover', track, true)
     },
     [task.id, task.title, dragGroupIds],
   )
 
-  const handleDragEnd = useCallback(() => {
+  const pressRow = (e: React.MouseEvent) => {
+    if (editing) return
+    if (onRowClick) onRowClick(e)
+    else onClick?.()
+  }
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    stopTrackRef.current?.()
+    stopTrackRef.current = null
     setIsDragging(false)
     onNativeDragEnd?.()
-  }, [onNativeDragEnd])
+    const press = pressRef.current
+    if (press && isTinyDrag(press, dragPosRef.current ?? press, performance.now(), e.dataTransfer.dropEffect)) pressRow(e)
+  }
 
   const rowNativeDraggable = !hasSortableHandle
 
@@ -268,41 +293,18 @@ export const TaskItem = memo(function TaskItem({
     setEditValue(task.title)
     setEditing(true)
   }, [task.title])
-  // 題名を押したときも行と同じ（PC は詳細、指はシート。`useOpenTaskRow`）。名前の変更は PC はダブルクリックか F2、スマホは詳細から。
-  // 行に動きが無い所（詳細のサブタスク）は押すと名前の変更
+  // 題名を押したときも行と同じで、待たずに開く（To-Do 一覧は詳細、今日の計画の指はシート。`useOpenTaskRow`）。
+  // 名前の変更は詳細の題名か、題名にフォーカスして F2。行に動きが無い所（詳細のサブタスク）は押すと名前の変更
   const hasRowAction = !!onRowClick || !!onClick
-  const singleClickRef = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(singleClickRef.current), [])
   const isCoarse = useIsCoarsePointer()
 
   const handleTitleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (!hasRowAction) {
-        e.stopPropagation()
-        beginRename()
-        return
-      }
-      // 指・キー（detail 0）・修飾キー・選択中はそのまま行へ
-      if (isCoarse || e.detail === 0 || e.shiftKey || isModKey(e) || selection?.reveal) return
-      // PC: ダブルクリックの 2 回目より先に詳細が開いて背景を押さないよう、1 回目は少し待ってから行へ
+      if (hasRowAction) return
       e.stopPropagation()
-      window.clearTimeout(singleClickRef.current)
-      if (e.detail > 1) return
-      singleClickRef.current = window.setTimeout(() => {
-        if (onRowClick) onRowClick(e)
-        else onClick?.()
-      }, DOUBLE_CLICK_MS)
-    },
-    [hasRowAction, isCoarse, selection?.reveal, onRowClick, onClick, beginRename],
-  )
-  const handleTitleDoubleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (isCoarse || !hasRowAction || selection?.reveal) return
-      e.stopPropagation()
-      window.clearTimeout(singleClickRef.current)
       beginRename()
     },
-    [isCoarse, hasRowAction, selection?.reveal, beginRename],
+    [hasRowAction, beginRename],
   )
 
   /** 一覧がメニューを持っていれば任せる（選択中のまとめて操作）。無ければこの行だけのメニューを開く */
@@ -383,11 +385,10 @@ export const TaskItem = memo(function TaskItem({
           swipe.onClickCapture(e)
           longPress.onClickCapture(e)
         }}
-        onClick={(e) => {
-          if (editing) return
-          if (onRowClick) onRowClick(e)
-          else onClick?.()
+        onMouseDown={(e) => {
+          pressRef.current = { x: e.clientX, y: e.clientY, t: performance.now() }
         }}
+        onClick={pressRow}
       >
         {rowHex && (
           // 丸の中と同じ薄い色。ベタ塗りだとここだけポップに浮く
@@ -407,15 +408,15 @@ export const TaskItem = memo(function TaskItem({
         {/* 時刻の無い行は時刻の列を空けない（空けると左の色の線と丸の間が開きすぎる） */}
         {compact && task.startTime && <span className={DAY_ROW_TIME_CLASS}>{task.startTime}</span>}
 
-        {/* 予定（バイト・授業）には完了の丸を出さない */}
+        {/* 予定（バイト・授業）には完了の丸を出さない。日パネル（compact）は字が小さいので丸も小さく（サブタスクと同じ 16px） */}
         {isEventTask(task) ? (
-          <EventMark hex={planHex(task)} small={isSubtask} />
+          <EventMark hex={planHex(task)} small={isSubtask || compact} />
         ) : (
           <CompletionCircle
             completed={shownCompleted}
             justCompleted={justCompleted}
             priority={task.priority}
-            small={isSubtask}
+            small={isSubtask || compact}
             shape={listKind === 'checklist' ? 'square' : listKind === 'someday' ? 'star' : 'circle'}
             inert={Boolean(selection?.reveal)}
             onClick={(e) => {
@@ -452,7 +453,6 @@ export const TaskItem = memo(function TaskItem({
               id={optionId ? `${optionId}-title` : undefined}
               data-task-title
               onClick={handleTitleClick}
-              onDoubleClick={handleTitleDoubleClick}
               onKeyDown={(e) => {
                 if (e.key !== 'F2') return
                 e.preventDefault()
@@ -513,6 +513,15 @@ export const TaskItem = memo(function TaskItem({
                 </span>
               )}
               {sectionLabel && <span className="max-w-[12rem] truncate text-[11px] text-zinc-500 dark:text-zinc-400">{sectionLabel}</span>}
+              {stepOfDream && (
+                <span
+                  className="inline-flex min-w-0 items-center gap-0.5 text-[11px] text-zinc-500 dark:text-zinc-400"
+                  aria-label={t('someday.stepOfDreamAria', { title: stepOfDream })}
+                >
+                  <StarIcon className="h-3 w-3 shrink-0" aria-hidden />
+                  <span className="max-w-[12rem] truncate">{stepOfDream}</span>
+                </span>
+              )}
               {repeatText && (
                 <span role="img" aria-label={repeatText} {...tip(repeatText)} className="inline-flex">
                   <RepeatIcon className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />

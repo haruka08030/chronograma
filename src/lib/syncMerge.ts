@@ -64,10 +64,10 @@ export function fieldHash(value: unknown): string {
 const NOT_MERGED = new Set(['id', 'updatedAt'])
 
 /**
- * 値のある行だけが持つ項目（毎週の予定の印・移した予定の控え・習慣の曜日ごとの時間と時間の目標・いつかの夢の段・ラベルの id）。前回同期のときにどの行も持っていなければ
+ * 値のある行だけが持つ項目（毎週の予定の印・移した予定の控え・習慣の曜日ごとの時間と時間の目標とゴミ箱に入れた時刻・いつかの夢の段・ラベルの id）。前回同期のときにどの行も持っていなければ
  * 控えの並びに無いが、そのときの値は「無い」と分かっているので、無い値として比べる（新しいほうに任せると、手元で足した控えが消えていた）
  */
-const ABSENT_WHEN_EMPTY = new Set(['series', 'movedPlans', 'weekdayTimes', 'goalMinutes', 'somedayTier', 'labelId'])
+const ABSENT_WHEN_EMPTY = new Set(['series', 'movedPlans', 'weekdayTimes', 'goalMinutes', 'somedayTier', 'dreamId', 'labelId', 'deletedAt'])
 
 function fieldsBaseline<T extends object>(rows: readonly T[]): { order: string[]; rows: Record<string, string> } {
   const keys = new Set<string>()
@@ -514,6 +514,37 @@ export function mergeSnapshots(
 export function mergeWithoutBaseline(local: SyncSnapshot, remote: SyncSnapshot): SyncSnapshot {
   const empty: SyncBaseline = { lists: {}, sections: {}, tasks: {}, habits: {} }
   return mergeSnapshots(local, remote, empty).merged
+}
+
+/** 1 回の同期で消すサーバーの行がこれより多く、かつ種類ごとの行の `MASS_DELETE_RATIO` を超えたら、消す前に確かめる */
+export const MASS_DELETE_MIN_ROWS = 5
+export const MASS_DELETE_RATIO = 0.3
+
+/**
+ * 1 回の同期でサーバーの行を大量に消すか（#484）。消す前に確かめる（読めなかった行・取り違えた控えで、全端末から消さないように）。
+ * 数えるのはゴミ箱に入っていない行だけ（30 日たったゴミ箱の片付け・ゴミ箱を空にするのは、もう消したものなので聞かない）。
+ * 手元に行が 1 つも無いのに前回同期の控えに行があり、サーバーの行を消すときも確かめる
+ */
+export function isMassDelete(local: SyncSnapshot, remote: SyncSnapshot, baseline: SyncBaseline, deletes: SyncDeletes): boolean {
+  const live = <T extends { id: string; deletedAt?: string | null }>(rows: readonly T[]) => rows.filter((r) => !r.deletedAt)
+  const remoteLive = {
+    lists: remote.lists.filter((l) => l.id !== SYNC_INBOX_LIST_ID),
+    sections: remote.sections,
+    tasks: live(remote.tasks),
+    habits: remote.habits,
+  }
+  let total = 0
+  for (const kind of ['lists', 'sections', 'tasks', 'habits'] as const) {
+    const ids = new Set(deletes[kind])
+    const rows = remoteLive[kind] as readonly { id: string }[]
+    const n = rows.filter((r) => ids.has(r.id)).length
+    if (n > MASS_DELETE_MIN_ROWS && n > rows.length * MASS_DELETE_RATIO) return true
+    total += n
+  }
+  const localEmpty = local.tasks.length + local.habits.length + local.sections.length === 0
+  const baselineHasRows =
+    Object.keys(baseline.tasks).length + Object.keys(baseline.habits).length + Object.keys(baseline.sections).length > 0
+  return localEmpty && baselineHasRows && total > 0
 }
 
 /** 最初から作る「いつか」「買い物」の id。どの端末・どの言語で作っても同じ id にして、同期で 2 つにならないように */

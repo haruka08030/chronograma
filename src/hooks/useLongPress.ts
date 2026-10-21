@@ -18,6 +18,8 @@ export function useLongPress(onLongPress: (e: React.PointerEvent) => void, enabl
     pressRef.current = null
   }, [])
   const onPointerDown = (e: React.PointerEvent) => {
+    // 長押しの後に click が来ない端末（iOS など）では印が残る。次に触れたら下ろす（次のタップを止めない）
+    suppressClickRef.current = false
     if (e.pointerType !== 'touch' || !enabled) return
     const timer = window.setTimeout(() => {
       pressRef.current = null

@@ -8,18 +8,20 @@ import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { ERROR_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { SettingsLinkRow } from './SettingsPrimitives'
+import { useDialogDraft } from '../../hooks/useDialogDraft'
 
 /**
  * 設定の「お問い合わせ・フィードバック」。1 つの欄に書いて送る（`lib/feedback.ts`）。
  * 送れるのはログインしている人だけ（返事はアカウントのメールアドレスへ）。ログインしていなければ、そう伝えるだけにする。
- * 送れたら閉じて画面下で知らせる。送れなければ書いたものを残してダイアログの中に出す
+ * 送れたら閉じて画面下で知らせる。送れなければ書いたものを残してダイアログの中に出す。
+ * 外側・Esc で閉じても書きかけは残す（`useDialogDraft`）。キャンセルで捨てる
  */
 export function FeedbackDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const { user } = useAuth()
   const titleId = useId()
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const [text, setText] = useState('')
+  const [text, setText, discardDraft] = useDialogDraft('feedback', '')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -30,6 +32,7 @@ export function FeedbackDialog({ onClose }: { onClose: () => void }) {
     const res = await sendFeedback(text)
     setSending(false)
     if (res.ok) {
+      discardDraft()
       notify(t('feedback.sent'))
       onClose()
       return
@@ -63,7 +66,14 @@ export function FeedbackDialog({ onClose }: { onClose: () => void }) {
             </p>
           )}
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={onClose} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+            <button
+              type="button"
+              onClick={() => {
+                discardDraft()
+                onClose()
+              }}
+              className={buttonClass({ variant: 'ghost', size: 'md' })}
+            >
               {t('common.cancel')}
             </button>
             <button type="submit" disabled={sending || !text.trim()} className={buttonClass({ variant: 'primary', size: 'md' })}>

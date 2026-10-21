@@ -25,6 +25,7 @@ type TimeLogsActions = Pick<
   | 'editActiveTimer'
   | 'resolveStaleTimer'
   | 'discardActiveTimer'
+  | 'restoreDiscardedTimer'
   | 'askComplete'
   | 'dismissCompletePrompt'
   | 'dismissLabelPrompt'
@@ -58,6 +59,8 @@ export function timerLogTask(timer: ActiveTimer, endedAt: string, tasks: readonl
 
 export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsActions {
   const { pushUndo } = undo
+  /** 破棄した記録（1 つだけ。メモリ上だけ） */
+  let discardedTimer: ActiveTimer | null = null
   return {
     addCompletedTaskWithTime: (title, dueDate, startTime, endTime, color) => {
       pushUndo()
@@ -184,7 +187,31 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         tasks: [...s.tasks, log],
       }))
     },
-    discardActiveTimer: () => set({ activeTimer: null, completePromptTaskId: null }),
+    discardActiveTimer: () => {
+      const timer = get().activeTimer
+      if (!timer) return
+      // ⌘Z の履歴には入れない（タイマーは取り消しの対象外）。1 つだけ取っておき、トーストから戻す
+      discardedTimer = timer
+      set({
+        activeTimer: null,
+        completePromptTaskId: null,
+        undoBanner: {
+          text: timer.taskTitle.trim()
+            ? { key: 'undo.timerDiscarded', params: { title: timer.taskTitle.trim() } }
+            : { key: 'undo.timerDiscardedUntitled' },
+          at: Date.now(),
+          restoreTimer: true,
+        },
+      })
+    },
+    restoreDiscardedTimer: () => {
+      const timer = discardedTimer
+      discardedTimer = null
+      // ほかの記録を始めていたら戻さない（今の記録を消さない）
+      if (!timer || get().activeTimer) return false
+      set({ activeTimer: timer })
+      return true
+    },
     askComplete: (taskId) => {
       const task = get().tasks.find((t) => t.id === taskId)
       if (task && !task.completed && isTodoTask(task)) set({ completePromptTaskId: taskId, labelPromptLogId: null })

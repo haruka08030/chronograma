@@ -100,7 +100,8 @@ function isoWeekdayOf(dateKey: string): HabitWeekday {
 
 /**
  * その日の時間（時間を決めた習慣だけ）。その日だけの時間があればそれ、無ければその曜日のいつもの時間（`habitUsualTimesOn`）。
- * 範囲の習慣で、その日の時間に終わりが無い（時刻ひとつのときに動かした）なら、いつもの長さのまま開始をずらす
+ * 範囲の習慣で、その日の時間に終わりが無い（時刻ひとつのときに動かした）なら、いつもの長さのまま開始をずらす。
+ * 時刻ひとつの習慣も、習慣の段から格子に置いた日は終わりを持つ
  */
 export function habitTimesOn(habit: Habit, dateKey: string): { startTime: string; endTime: string | null } | null {
   const usual = habitUsualTimesOn(habit, dateKey)
@@ -108,8 +109,8 @@ export function habitTimesOn(habit: Habit, dateKey: string): { startTime: string
   const o = habit.timeOverrides?.[dateKey]
   if (!o) return usual
   const startTime = o.startTime
-  if (usual.endTime === null) return { startTime, endTime: null }
   if (o.endTime) return { startTime, endTime: o.endTime }
+  if (usual.endTime === null) return { startTime, endTime: null }
   const length = (timeToMinutes(usual.endTime) - timeToMinutes(usual.startTime) + 1440) % 1440
   return { startTime, endTime: minutesToTime((timeToMinutes(startTime) + length) % 1440) }
 }
@@ -225,11 +226,14 @@ export function habitDayStatus(habit: Habit, dateKey: string, index?: HabitRecor
   return candidates(index.deleted, linkKey(habit.id), habit, dateKey).length > 0 ? 'missed' : 'done'
 }
 
-/** チェックで作る記録（＝タイムラインの枠）のその日の時間。時刻ひとつの習慣は許容幅ぶんの長さにする */
+/**
+ * チェックで作る記録（＝タイムラインの枠）のその日の時間。時刻ひとつの習慣は「1 回の目標」の長さ、
+ * 目標が無ければ許容幅ぶんの長さにする
+ */
 export function plannedRecordTimes(habit: Habit, dateKey: string): { startTime: string; endTime: string } | null {
   const times = habitTimesOn(habit, dateKey)
   if (!times) return null
   if (times.endTime !== null) return { startTime: times.startTime, endTime: times.endTime }
-  const end = Math.min(timeToMinutes(times.startTime) + HABIT_ON_TIME_TOLERANCE_MIN, 23 * 60 + 59)
+  const end = Math.min(timeToMinutes(times.startTime) + (habit.goalMinutes ?? HABIT_ON_TIME_TOLERANCE_MIN), 23 * 60 + 59)
   return { startTime: times.startTime, endTime: minutesToTime(end) }
 }

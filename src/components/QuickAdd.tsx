@@ -14,7 +14,7 @@ function viewColor(): string | undefined {
 }
 
 /** To-Do 一覧の上の追加欄（今日画面と同じ形）。N キーなど「追加して」の合図でフォーカスする */
-export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
+export function QuickAdd({ placeholder, somedayTier }: { placeholder?: string; somedayTier?: 'dream' } = {}) {
   const { t } = useTranslation()
   const [value, setValue] = useState('')
   // 下のチップで選んだ値（消したら・足したら空に）
@@ -51,7 +51,7 @@ export function QuickAdd({ placeholder }: { placeholder?: string } = {}) {
 
   const submit = () => {
     if (!value.trim()) return
-    addTaskFromQuickText(value, { currentListId: useTaskStore.getState().selectedListId, color: viewColor(), picks, note })
+    addTaskFromQuickText(value, { currentListId: useTaskStore.getState().selectedListId, color: viewColor(), picks, note, somedayTier })
     change('')
   }
 

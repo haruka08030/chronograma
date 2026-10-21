@@ -18,8 +18,10 @@ import { readEstimateMinutes } from './estimate'
 import { readCarriedDays } from './carryDays'
 import { readEventSeries } from './eventSeries'
 import { readMovedPlans } from './movedPlans'
-import { readSomedayTier } from './somedayTier'
+import { readDreamId, readSomedayTier } from './somedayTier'
 import { isLabelId, normalizeLabelIds } from './labelIds'
+import { normalizeLabelTargets } from './labelTargets'
+import { readTimeZone } from './timeZone'
 
 /** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
 export const BACKUP_SCHEMA_VERSION = 3
@@ -44,6 +46,8 @@ export interface BackupExportInput {
   logCategoryColors: Record<string, string>
   /** ラベルの id（#365）。名前を変えたラベルだけ */
   logLabelIds?: Record<string, string>
+  /** ラベルの週の目安（名前 → 分） */
+  logLabelTargets?: Record<string, number>
 }
 
 export interface BackupImportResult {
@@ -56,6 +60,8 @@ export interface BackupImportResult {
   logCategoryColors: Record<string, string> | null
   /** ラベルの id（#365）。旧バックアップには無い（名前から決まる id になり、行は名前・色から付け直す） */
   logLabelIds: Record<string, string>
+  /** ラベルの週の目安。旧バックアップには無い（無ければ今の目安のまま） */
+  logLabelTargets?: Record<string, number>
 }
 
 /** 取り込めない理由。画面側で文言にする（`backupProblemText`） */
@@ -225,11 +231,14 @@ export function normalizeTaskRow(raw: unknown): Task | null {
   // 移した予定の控え（#158）は To-Do の行だけ。控えのある行だけ項目を持つ
   // いつかの段（#221）は To-Do の行だけ。夢の行だけ項目を持つ
   const somedayTier = kind === 'todo' ? readSomedayTier(row.somedayTier ?? row.someday_tier) : null
+  // 夢の一歩だった To-Do の元の夢（#430）は To-Do の行だけ
+  const dreamId = kind === 'todo' ? readDreamId(row.dreamId ?? row.dream_id) : null
   const movedPlans = kind === 'todo' ? readMovedPlans(row.movedPlans ?? row.moved_plans) : null
   return {
     ...(series ? { series } : {}),
     ...(movedPlans ? { movedPlans } : {}),
     ...(somedayTier ? { somedayTier } : {}),
+    ...(dreamId ? { dreamId } : {}),
     id,
     title,
     listId,
@@ -252,8 +261,9 @@ export function normalizeTaskRow(raw: unknown): Task | null {
     location: typeof row.location === 'string' ? row.location : null,
     estimateMinutes: readEstimateMinutes(row.estimateMinutes ?? row.estimate_minutes),
     carriedDays: readCarriedDays(row.carriedDays ?? row.carried_days),
-    timeZone: typeof row.timeZone === 'string' ? row.timeZone : null,
-    timeZoneAnchor: typeof row.timeZoneAnchor === 'string' ? row.timeZoneAnchor : null,
+    // 知らないタイムゾーン名は無いものとして読む（いまのタイムゾーンで書いたとみなす）
+    timeZone: readTimeZone(row.timeZone),
+    timeZoneAnchor: readTimeZone(row.timeZoneAnchor),
     sectionId: typeof sectionRaw === 'string' ? sectionRaw : null,
     parentId: typeof parentRaw === 'string' ? parentRaw : null,
     dueTime: readTime(dueTimeRaw),
@@ -318,6 +328,7 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
   const restDates = readHabitRestDates(rec.restDates)
   const weekdayTimes = readHabitWeekdayTimes(rec.weekdayTimes)
   const goalMinutes = readHabitGoalMinutes(rec.goalMinutes)
+  const deletedAt = typeof rec.deletedAt === 'string' && !Number.isNaN(Date.parse(rec.deletedAt)) ? rec.deletedAt : null
   // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
     id,
@@ -337,6 +348,8 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
     ...(restDates ? { restDates } : {}),
     ...(weekdayTimes ? { weekdayTimes } : {}),
     ...(goalMinutes ? { goalMinutes } : {}),
+    // ゴミ箱に無い習慣には無い
+    ...(deletedAt ? { deletedAt } : {}),
   }
 }
 
@@ -357,6 +370,7 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
     timeLogTagPresets: input.timeLogTagPresets,
     logCategoryColors: input.logCategoryColors,
     logLabelIds: input.logLabelIds ?? {},
+    ...(input.logLabelTargets ? { logLabelTargets: input.logLabelTargets } : {}),
   }
 }
 
@@ -406,6 +420,7 @@ export function readBackupJson(json: string): BackupReadResult {
       : null
 
   const logLabelIds = normalizeLabelIds(data.logLabelIds)
+  const logLabelTargets = data.logLabelTargets === undefined ? undefined : normalizeLabelTargets(data.logLabelTargets)
 
   // 形は合っていても、中身の食い違うものは取り込まない（どこが悪いかを返す）
   const duplicateLists = findDuplicateIds(lists, (l) => l.name)
@@ -454,6 +469,7 @@ export function readBackupJson(json: string): BackupReadResult {
       timeLogTagPresets,
       logCategoryColors,
       logLabelIds,
+      ...(logLabelTargets ? { logLabelTargets } : {}),
     },
   }
 }

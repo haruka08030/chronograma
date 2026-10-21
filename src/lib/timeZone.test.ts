@@ -5,6 +5,7 @@ import {
   fromAppWall,
   gmtLabel,
   instantFromWall,
+  readTimeZone,
   setAppTimeZoneSetting,
   toAppWall,
   wallInZone,
@@ -162,5 +163,37 @@ describe('timesPatchFromZone', () => {
     // a view that crossed midnight must not keep its stale end date after the end time changes
     const crossing = { ...base, scheduledDate: '2026-10-05', startTime: '23:00', endTime: '00:30', endDate: '2026-10-06' }
     expect(timesPatchFromZone(crossing, { endTime: '23:30' }, 'Asia/Tokyo')).toMatchObject({ endTime: '23:30', endDate: null })
+  })
+})
+
+describe('知らないタイムゾーン名', () => {
+  it('読むときに捨てる（別の端末・バックアップから来た名前）', () => {
+    expect(readTimeZone('Asia/Tokyo')).toBe('Asia/Tokyo')
+    expect(readTimeZone('Mars/Olympus_Mons')).toBeNull()
+    expect(readTimeZone('')).toBeNull()
+    expect(readTimeZone(9)).toBeNull()
+  })
+
+  it('変換は投げず、アプリのタイムゾーンとして扱う', () => {
+    setAppTimeZoneSetting('Asia/Tokyo')
+    expect(() => zoneOffsetMinutes('Mars/Olympus_Mons')).not.toThrow()
+    expect(zoneOffsetMinutes('Mars/Olympus_Mons', Date.UTC(2026, 0, 1))).toBe(540)
+    expect(convertWall('2026-10-05', '09:00', 'Mars/Olympus_Mons', 'Asia/Tokyo')).toEqual({ date: '2026-10-05', time: '09:00' })
+    expect(() => gmtLabel('Bad/Zone')).not.toThrow()
+  })
+
+  it('書いたタイムゾーンが知らない名前でも、タスクの書き直しで落ちない', () => {
+    setAppTimeZoneSetting('Asia/Tokyo')
+    const task = {
+      ...TASK_DEFAULTS,
+      id: 't',
+      title: 'x',
+      listId: 'l',
+      scheduledDate: '2026-10-05',
+      startTime: '09:00',
+      endTime: '10:00',
+      timeZoneAnchor: 'Bad/Zone',
+    } as Task
+    expect(() => reanchorTask(task)).not.toThrow()
   })
 })

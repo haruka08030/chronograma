@@ -295,7 +295,7 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
           </div>
         )}
       </div>
-      <OverlaySuspense>
+      <OverlaySuspense onLoadFailed={() => setGoogleCard(null)}>
         {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
       </OverlaySuspense>
     </div>

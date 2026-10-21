@@ -2,6 +2,7 @@
  * 通知を押して開いたときの動き（起動 URL・Service Worker のメッセージは `pwa.ts` が読む）。
  * - 開始前・締切 1 件: その To-Do・予定の詳細と、その日の今日の計画を開く
  * - 止め忘れの「止める」: そのタイマーを止め、できた記録の詳細を開く（終わりの時刻を直せる）
+ * - 開始の通知の「記録を始める」: その予定のタイマーを ▶ と同じく始める（#419）
  * - 夜の締め: 今日の計画の「1 日を締める」の所を見せる
  */
 import { useTaskStore } from '../store/taskStore'
@@ -11,6 +12,12 @@ import { isActiveTask } from './taskLifecycle'
 import { taskPlacementDate } from './taskTimeRange'
 import { appTodayKey } from './timeZone'
 import { onActiveTimerSynced } from './timerSync'
+import { canStartTimerFor, startTimerForTask } from './timerDrop'
+import { askConfirm } from './confirmDialog'
+import { planEndMs } from '../../supabase/functions/daily-reminders/schedule.ts'
+import { toReminderTask } from './localReminders'
+import { zonedNow } from './timeZone'
+import i18n from '../i18n/config'
 
 /** 開いた時点で手元に無い件（別の端末で作った直後など）を、同期で届くまで待つ長さ */
 export const TASK_LAUNCH_WAIT_MS = 15_000
@@ -114,6 +121,76 @@ export function stopTimerFromNotification(startedAt: string | null, waitMs = TIM
   }
   const off = onActiveTimerSynced(settle)
   const timer = setTimeout(settle, waitMs)
+}
+
+/** 予定の終わりを過ぎたか（アプリのタイムゾーンの壁時計で。終わりの無い予定は過ぎない） */
+export function planHasEnded(task: Task, now: Date = zonedNow()): boolean {
+  const end = planEndMs(toReminderTask(task))
+  if (end == null) return false
+  const nowWall = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds())
+  return nowWall >= end
+}
+
+/** 手元にその件が届くまで待つ（ログインしていなければ待たない）。届かなければ null */
+function waitForTask(taskId: string, waitMs: number): Promise<Task | null> {
+  const found = findActive(taskId)
+  if (found || useTaskStore.getState().dataOwner === null) return Promise.resolve(found)
+  return new Promise((resolve) => {
+    const off = useTaskStore.subscribe((st, prev) => {
+      if (st.tasks === prev.tasks) return
+      const task = findActive(taskId)
+      if (task) finish(task)
+    })
+    const timer = setTimeout(() => finish(null), waitMs)
+    function finish(task: Task | null) {
+      clearTimeout(timer)
+      off()
+      resolve(task)
+    }
+  })
+}
+
+/** ほかの端末で動いているタイマーが届くまで待つ（ログインしていなければ待たない） */
+function waitForTimerSync(waitMs: number): Promise<void> {
+  if (useTaskStore.getState().dataOwner === null) return Promise.resolve()
+  return new Promise((resolve) => {
+    const off = onActiveTimerSynced(finish)
+    const timer = setTimeout(finish, waitMs)
+    function finish() {
+      clearTimeout(timer)
+      off()
+      resolve()
+    }
+  })
+}
+
+/**
+ * 開始の通知の「記録を始める」（#419）: 今日の計画を開き、その予定のタイマーを ▶ と同じく始める（`startTimerForTask`。元の予定の id を持つ）。
+ * - 予定の終わりを過ぎていた・済んでいたら始めず、詳細を開く
+ * - 別のタイマーが動いていたら、確かめてから切り替える（前のタイマーは記録にして閉じる）。同じ予定ならそのまま
+ * - 手元にまだ無い件・ほかの端末のタイマーは、同期で届くまで少し待つ
+ */
+export async function startTimerFromNotification(taskId: string, date: string | null, waitMs = TASK_LAUNCH_WAIT_MS): Promise<void> {
+  cancelWait?.()
+  const s = useTaskStore.getState()
+  s.selectView('planner')
+  s.setSelectedCalendarDateKey(appTodayKey())
+  const [task] = await Promise.all([waitForTask(taskId, waitMs), waitForTimerSync(TIMER_STOP_WAIT_MS)])
+  if (!task) return
+  if (!canStartTimerFor(task) || planHasEnded(task)) {
+    reveal(task, date)
+    return
+  }
+  const running = useTaskStore.getState().activeTimer
+  if (running?.taskId === task.id) return
+  if (running) {
+    const ok = await askConfirm({
+      message: i18n.t('reminders.switchTimerConfirm', { current: running.taskTitle, next: task.title }),
+      confirmLabel: i18n.t('reminders.switchTimer'),
+    })
+    if (!ok) return
+  }
+  startTimerForTask(task.id)
 }
 
 /** 夜の締めの通知から開いた印（今日の計画がまだ描かれていなければ、描いたときに受け取る） */

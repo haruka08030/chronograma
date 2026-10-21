@@ -57,6 +57,26 @@ const SEED_TEMPLATES = [
 ]
 /** 週表示の見出しの「時間割」（#279）。マスを押して授業名を書いて保存する手順 */
 const TIMETABLE_BUTTON = 'button:has-text("時間割") >> visible=true'
+/** TIMEZONE の今日から n 日後の日付キー */
+const tzDayKey = (n) => {
+  const [y, m, d] = new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE }).format(new Date()).split('-').map(Number)
+  return dayKeyOf(new Date(y, m - 1, d + n))
+}
+/** 引き落とし・期限の日（#454）をオンにして、今日・明日・3 日後・先のものを入れた状態 */
+const DUES_ON = {
+  addons: {
+    enabled: { dues: true },
+    dues: [
+      { id: 'due-scholar', title: '奨学金の引き落とし', date: tzDayKey(0), repeat: 'none', notifyDays: 0 },
+      { id: 'due-trial', title: 'Amazon 無料体験の終わり', date: tzDayKey(1), repeat: 'none', notifyDays: 3 },
+      { id: 'due-rent', title: '家賃の引き落とし', date: tzDayKey(3), repeat: 'monthly', notifyDays: 3 },
+      { id: 'due-netflix', title: 'Netflix', date: tzDayKey(9), repeat: 'monthly', notifyDays: 0 },
+      { id: 'due-passport', title: 'パスポートの期限', date: '2029-03-01', repeat: 'none', notifyDays: 30 },
+    ],
+  },
+}
+/** 時間割は追加機能（#453）。撮るときはオンにしておく */
+const TIMETABLE_ON = { addons: { enabled: { timetable: true }, dues: [] } }
 const addClass = (cell, title) => [
   { click: `[data-timetable-cell="${cell}"]` },
   { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: title } },
@@ -68,6 +88,39 @@ const SEED_CLASSES = [
   ...addClass('4:0', '情報科学概論'),
   ...addClass('5:2', '統計学'),
 ]
+/** TIMEZONE の今日の曜日（0=日 … 6=土。ホストの時刻で出すと日付がずれる） */
+const TODAY_WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(
+  new Intl.DateTimeFormat('en-US', { timeZone: TIMEZONE, weekday: 'short' }).format(new Date()),
+)
+/**
+ * 欠席の数（#452）を撮るときの時間割の設定。学期は今日を含む前期・後期（`suggestTerm` と同じ）、
+ * 経済学入門は 2 回休み（上限は学期の 1/3）、統計学は休める 3 回を使い切った
+ */
+const ABSENCE_TIMETABLE = (() => {
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = today.getMonth() + 1
+  const term =
+    m >= 3 && m <= 8
+      ? { termStart: `${y}-04-01`, termEnd: `${y}-07-31` }
+      : m >= 9
+        ? { termStart: `${y}-10-01`, termEnd: `${y + 1}-01-31` }
+        : { termStart: `${y - 1}-10-01`, termEnd: `${y}-01-31` }
+  const daysAgo = (n) => dayKeyOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() - n))
+  return {
+    periods: [
+      { start: '09:00', end: '10:30' },
+      { start: '10:40', end: '12:10' },
+      { start: '13:00', end: '14:30' },
+      { start: '14:40', end: '16:10' },
+      { start: '16:20', end: '17:50' },
+    ],
+    ...term,
+    skipHolidays: false,
+    absences: { 経済学入門: [daysAgo(1), daysAgo(2)], 統計学: [daysAgo(1), daysAgo(2), daysAgo(3)] },
+    absenceLimits: { 統計学: 3 },
+  }
+})()
 /** ラベルの週の目安（分、#291）。種データのラベル名 */
 const SEED_TARGETS = { 授業: 600, 課題: 480, 就活: 180 }
 /** ふりかえりのラベル別の時間の行（スマホでも行が見えるところまで送る） */
@@ -77,7 +130,7 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など） */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする。手の `select` は <select> の選択肢を選ぶ */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -135,6 +188,8 @@ const SCREENS = [
     click: 'button:has-text("ラベルなしの記録") >> visible=true',
     scrollTo: '[data-wrap-up]',
   },
+  // 「1 日を締める」の記録の無い時間（最近の記録のチップ・ほかを記録・何もしていない、#418）
+  { name: 'planner-wrap-up-gaps', view: 'planner', at: '21:00', scrollTo: '[data-wrap-up-gaps]' },
   {
     name: 'settings-untagged',
     view: 'settings',
@@ -354,21 +409,61 @@ const SCREENS = [
     ],
   },
   // 時間割（#279）: 授業を入れたマス・空きのマスを押して授業名を入れるところ・入れた授業が毎週の予定として出る次の週（スマホは翌日）
-  { name: 'calendar-timetable', view: 'calendar', click: TIMETABLE_BUTTON, steps: SEED_CLASSES },
+  { name: 'calendar-timetable', view: 'calendar', click: TIMETABLE_BUTTON, state: TIMETABLE_ON, steps: SEED_CLASSES },
   {
     name: 'calendar-timetable-cell',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
+    state: TIMETABLE_ON,
     steps: [
       ...SEED_CLASSES,
       { click: '[data-timetable-cell="2:1"]' },
       { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: 'ミクロ経済学' } },
     ],
   },
+  // 引き落とし・期限の日（#454）: 一覧・今日の計画の行・月と週のカレンダーの印
+  { name: 'addons-dues', view: 'addons', state: DUES_ON, steps: [{ click: '[data-addon="dues"] button:has-text("開く")' }] },
+  { name: 'planner-dues', view: 'planner', state: DUES_ON },
+  { name: 'calendar-month-dues', view: 'calendar', calendarMode: 'month', state: DUES_ON },
+  { name: 'calendar-week-dues', view: 'calendar', state: DUES_ON },
+  // 追加機能（#453）: 最初はどれもオフ・時間割をオンにしたところ・設定の「追加機能」
+  { name: 'addons', view: 'addons' },
+  { name: 'addons-on', view: 'addons', state: TIMETABLE_ON },
+  { name: 'settings-addons', view: 'settings', state: TIMETABLE_ON },
+  // 欠席の数（#452）: 休んだ授業のマスに数・使い切った授業は赤、マスの授業の休める回数、授業の予定のカード（今日の 4 限に入れて押す）
+  {
+    name: 'calendar-timetable-absence',
+    view: 'calendar',
+    click: TIMETABLE_BUTTON,
+    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
+    steps: SEED_CLASSES,
+  },
+  {
+    name: 'calendar-timetable-limit',
+    view: 'calendar',
+    click: TIMETABLE_BUTTON,
+    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
+    steps: [...SEED_CLASSES, { click: '[data-timetable-cell="5:2"]' }],
+  },
+  {
+    name: 'calendar-class-card',
+    view: 'calendar',
+    click: TIMETABLE_BUTTON,
+    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
+    // 日曜は時間割に無いので、日曜に撮るときは次の月曜の回（週表示は次の週・スマホは翌日へ）
+    steps: [
+      ...addClass(`${TODAY_WEEKDAY === 0 ? 1 : TODAY_WEEKDAY}:3`, '経済学入門'),
+      { click: '[role=dialog] button:has-text("閉じる")' },
+      { wait: 400 },
+      ...(TODAY_WEEKDAY === 0 ? [{ press: 'n' }, { wait: 400 }] : []),
+      { click: '[data-block-id]:has-text("経済学入門") >> visible=true' },
+    ],
+  },
   {
     name: 'calendar-week-classes',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
+    state: TIMETABLE_ON,
     steps: [
       ...SEED_CLASSES,
       { click: '[role=dialog] button:has-text("閉じる")' },
@@ -588,6 +683,9 @@ const SCREENS = [
   { name: 'settings-week-start', view: 'settings', weekStartsOn: 0, scrollTo: '#settings-time-zone' },
   { name: 'calendar-time-zones', view: 'calendar', extraTimeZones: true, hover: '[data-tip^="ロンドンの友達"]' },
   { name: 'someday', list: 'seed-someday' },
+  // いつかのやりたい棚と、# セクションで絞り込んだとき（夢とやりたいを上下に、#439）
+  { name: 'someday-wishes', list: 'seed-someday', click: 'button[role=tab]:has-text("やりたい") >> visible=true' },
+  { name: 'someday-filter', list: 'seed-someday', click: 'button:has-text("# 旅行") >> visible=true' },
   { name: 'checklist', list: 'seed-shopping' },
   // 行に乗せたとき（PC だけ）。いつかは締切の代わりに「予定する」
   { name: 'todo-hover', view: 'all', hover: 'div.group.cursor-pointer:has-text("ES 書く（第一志望）")' },
@@ -644,6 +742,62 @@ const SCREENS = [
     name: 'completed-filtered',
     view: 'completed',
     click: [TODO_FILTER, '[role=menu] >> text=期間で絞る >> visible=true', '[role=menu] >> text=過去 7 日 >> visible=true'],
+  },
+  // 消した習慣はゴミ箱の上に、To-Do と並べて出す（#489。`habitsDeleted` はその ID の習慣を消した状態にする）
+  { name: 'trash-habit', view: 'deleted', deleted: ['s19', 's20'], habitsDeleted: ['h4'] },
+  // 元に戻すトースト（#488 / #490）: 習慣の削除・買い物の「すべて戻す」・予定の繰り返しの曜日を外して消えた回
+  {
+    name: 'undo-habit-deleted',
+    view: 'habits',
+    steps: [
+      { rightClick: 'li[data-habit-row]:has-text("ジム")', longPress: 'li[data-habit-row]:has-text("ジム")' },
+      { click: '[role=menuitem]:has-text("削除") >> visible=true' },
+    ],
+  },
+  {
+    name: 'undo-unchecked',
+    list: 'seed-shopping',
+    doneNow: ['s15', 's16'],
+    steps: [{ click: 'button:has-text("すべて戻す") >> visible=true' }],
+  },
+  {
+    name: 'undo-occurrences',
+    view: 'calendar',
+    desktopOnly: true,
+    taskPatch: { s6: { kind: 'event' } },
+    steps: [
+      { click: '[data-block-id="s6"] >> visible=true' },
+      { click: '[role=dialog] button[aria-label="詳細を編集"]' },
+      { select: { selector: 'select[id="repeat-s6"] >> visible=true', value: 'weekly' } },
+      { click: '[aria-label="繰り返す曜日"] button:has-text("木") >> visible=true' },
+      { click: '[aria-label="繰り返す曜日"] button:has-text("木") >> visible=true' },
+    ],
+  },
+  // 保存を止めているときのバナー（#485）: 新しい版のアプリが書いたデータ（`seedVersion`）・読めない保存データ（`rawSeed`）
+  { name: 'storage-newer', view: 'planner', seedVersion: 999 },
+  { name: 'storage-unreadable', rawSeed: '{"state":{"tasks":[', ignoreErrors: /could not load saved data/ },
+  // 本体（boot）を読み込めなかったときの素の画面（#492。`blockRequests` に合う読み込みを失敗させる）
+  { name: 'boot-failure', blockRequests: ['**/assets/boot-*.js'], ignoreErrors: /ERR_FAILED|\[boot\]/ },
+  // 通知の見出しの下の「アプリを開いている間だけ届きます」（#495。ログインしていないので閉じていると届かない）
+  {
+    name: 'settings-notifications',
+    view: 'settings',
+    notificationsGranted: true,
+    state: { notificationsEnabled: true },
+    scrollTo: '#settings-rhythm',
+  },
+  // 外側・Esc で閉じたダイアログを開き直すと、書きかけが残っている（#491）
+  {
+    name: 'labels-draft',
+    view: 'settings',
+    click: 'button:has-text("ラベルを編集") >> visible=true',
+    steps: [
+      { fill: { selector: '[role=dialog] input[aria-label="「課題」の週の目安（時間）"]', text: '8' } },
+      { fill: { selector: '[role=dialog] input[aria-label="「就活」の週の目安（時間）"]', text: '3' } },
+      { press: 'Escape' },
+      { wait: 400 },
+      { click: 'button:has-text("ラベルを編集") >> visible=true' },
+    ],
   },
 ]
 
@@ -800,6 +954,11 @@ async function main() {
             reducedMotion: 'reduce',
             ...(screen.iosSafari ? { userAgent: IOS_SAFARI_UA } : {}),
           })
+          // 通知を許可した状態で開く（`notificationsGranted`。ヘッドレスの Chromium は許可しても denied のままなので、値を差し替える）
+          if (screen.notificationsGranted)
+            await context.addInitScript(() => {
+              if ('Notification' in window) Object.defineProperty(Notification, 'permission', { get: () => 'granted' })
+            })
           // iPhone の Safari はホーム画面に追加するまで Notification が無い
           if (screen.iosSafari) await context.addInitScript(() => delete window.Notification)
 
@@ -860,11 +1019,16 @@ async function main() {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedInstant.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedInstant.toISOString()
             if (screen.estimates?.[x.id] != null) x.estimateMinutes = screen.estimates[x.id]
+            if (screen.taskPatch?.[x.id]) Object.assign(x, screen.taskPatch[x.id])
             if (screen.doneNow?.includes(x.id)) {
               x.completed = true
               x.completedAt = seedInstant.toISOString()
             }
           }
+          for (const h of seed.state.habits) {
+            if (screen.habitsDeleted?.includes(h.id)) h.deletedAt = seedInstant.toISOString()
+          }
+          if (screen.seedVersion !== undefined) seed.version = screen.seedVersion
           if (screen.list) {
             seed.state.selectedView = null
             seed.state.selectedListId = screen.list
@@ -883,15 +1047,18 @@ async function main() {
             // fresh: データは入れず、開く画面だけ決める（はじめの案内などは新しい人と同じに出る）
             [
               PERSIST_KEY,
-              screen.fresh
-                ? screen.view
-                  ? JSON.stringify({ state: { selectedView: screen.view, selectedListId: null }, version: seed.version })
-                  : null
-                : JSON.stringify(seed),
+              screen.rawSeed !== undefined
+                ? screen.rawSeed
+                : screen.fresh
+                  ? screen.view
+                    ? JSON.stringify({ state: { selectedView: screen.view, selectedListId: null }, version: seed.version })
+                    : null
+                  : JSON.stringify(seed),
             ],
           )
 
           const page = await context.newPage()
+          for (const pattern of screen.blockRequests ?? []) await page.route(pattern, (route) => route.abort())
           if (at) await page.clock.setFixedTime(instant)
           const consoleErrors = []
           page.on('console', (m) => {
@@ -913,7 +1080,7 @@ async function main() {
               const clicks = Array.isArray(screen.click) ? screen.click : [screen.click]
               for (const [i, sel] of clicks.entries()) {
                 await page.click(sel, i === 0 && screen.clickAt ? { position: screen.clickAt } : undefined)
-                // PC で題名を押すと、ダブルクリックを待ってから詳細が開く（TaskItem の DOUBLE_CLICK_MS）
+                // 開く動き・読み込みを待つ
                 await page.waitForTimeout(600)
               }
             }
@@ -963,11 +1130,17 @@ async function main() {
                 await page.click(step.rightClick, { button: 'right' })
               } else if (step.click) {
                 await page.click(step.click)
+              } else if (step.wait) {
+                // 待つ（ミリ秒。閉じる動きが終わるまでなど）
+                await page.waitForTimeout(step.wait)
               } else if (step.press) {
                 // キーを押す（⌘K など。'ControlOrMeta+k'）
                 await page.keyboard.press(step.press)
               } else if (step.fill) {
                 await page.locator(step.fill.selector).first().fill(step.fill.text)
+              } else if (step.select) {
+                // 選択肢を選ぶ（<select>）
+                await page.locator(step.select.selector).first().selectOption(step.select.value)
               } else if (step.dragTime) {
                 // 今日の列の空きを時刻でドラッグする（左の予定の側。`from` / `to` は 'HH:MM'）
                 const col = page.locator(`[data-datekey="${dayKeyOf(seedNow)}"] >> visible=true`).first()
@@ -1022,7 +1195,8 @@ async function main() {
             shot++
             const errs = consoleErrors.filter(
               // Supabase 未設定・SW 未登録はローカル撮影では当然出るので無視
-              (e) => !/supabase|service ?worker|manifest|favicon|VAPID/i.test(e),
+              // `ignoreErrors` はその画面でわざと起こしたエラー（読めない保存データ・読み込めない本体）
+              (e) => !/supabase|service ?worker|manifest|favicon|VAPID/i.test(e) && !(screen.ignoreErrors && screen.ignoreErrors.test(e)),
             )
             const mark = errs.length > 0 ? ` ⚠ console: ${errs[0].slice(0, 80)}` : ''
             if (errs.length > 0) failures.push(`${screen.name}/${vp.name}/${theme}: ${errs[0]}`)

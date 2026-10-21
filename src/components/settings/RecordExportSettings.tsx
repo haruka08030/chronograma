@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n/config'
 import type { Task } from '../../types/task'
-import { useTaskStore } from '../../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
 import { unplannedListIds } from '../../lib/listKind'
 import { recordLabelKey } from '../../lib/logCategoryColors'
 import { recordLabelKeyText } from '../../lib/todoColorLabels'
@@ -37,7 +37,7 @@ const HEADER_KEYS = ['kind', 'date', 'start', 'end', 'endDate', 'minutes', 'labe
 export function RecordExportSettings() {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
-  const habits = useTaskStore((s) => s.habits)
+  const habits = useTaskStore(selectLiveHabits)
   const lists = useTaskStore((s) => s.lists)
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const colors = useTaskStore((s) => s.logCategoryColors)

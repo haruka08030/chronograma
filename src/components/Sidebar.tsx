@@ -109,6 +109,12 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
       {/* サブナビ展開時はナビがスクロールするので、固定行との境界を線で示す */}
       <div className="shrink-0 border-t border-zinc-200 px-2 pb-1 pt-1 dark:border-zinc-800">
         <SmartViewRow
+          view="addons"
+          icon={ICON_PATHS.squaresPlus}
+          isSelected={selectedView === 'addons'}
+          onSelect={() => handleNav(() => selectView('addons'))}
+        />
+        <SmartViewRow
           view={STATS_SMART_VIEW.id}
           icon={STATS_SMART_VIEW.icon}
           isSelected={selectedView === STATS_SMART_VIEW.id}

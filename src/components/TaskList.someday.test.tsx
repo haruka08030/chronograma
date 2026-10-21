@@ -1,10 +1,9 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { DndContext, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext } from '@dnd-kit/core'
 import { useTaskStore } from '../store/taskStore'
 import { makeTask } from '../store/taskHelpers'
-import { applyDragEnd } from '../lib/dragEnd'
 import { TaskList } from './TaskList'
 import { TaskContextMenu } from './TaskContextMenu'
 
@@ -31,24 +30,67 @@ function seed() {
   return wish.id
 }
 
-const tierOf = (title: string) => screen.getByRole('option', { name: title }).closest('[role="group"]')!.getAttribute('aria-label')
+const renderList = () =>
+  render(
+    <DndContext>
+      <TaskList />
+    </DndContext>,
+  )
 
-describe('いつかの 2 段（#221）', () => {
-  it('夢（上）・やりたい（下）に分け、夢の行に次の一歩と進み具合を出す。夢の本体には「予定する」を出さない', () => {
+describe('いつかの夢ボードとやりたい棚（#439）', () => {
+  it('夢があれば夢ボードで開く。タイルに次の一歩・進み具合。やりたいへ切り替えると行で出る', async () => {
     seed()
-    render(
-      <DndContext>
-        <TaskList />
-      </DndContext>,
-    )
-    const groups = screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))
-    expect(groups).toEqual(['Dreams', 'Wishes'])
-    expect(tierOf('マチュピチュに行く')).toBe('Dreams')
-    expect(tierOf('ピクニック')).toBe('Wishes')
-    const dreamRow = screen.getByRole('option', { name: 'マチュピチュに行く' })
-    expect(within(dreamRow).getByText('Next step: スペイン語を習う')).toBeInTheDocument()
-    expect(within(dreamRow).getByLabelText('Steps done 1/2')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Schedule “マチュピチュに行く”' })).toBeNull()
+    const user = userEvent.setup()
+    renderList()
+    const board = screen.getByRole('region', { name: 'Dreams' })
+    expect(within(board).getByRole('button', { name: 'マチュピチュに行く' })).toBeInTheDocument()
+    expect(within(board).getByText('Next step: スペイン語を習う')).toBeInTheDocument()
+    expect(within(board).getByRole('img', { name: 'Steps done 1/2' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'ピクニック' })).toBeNull()
+    await user.click(screen.getByRole('tab', { name: /Wishes/ }))
+    expect(screen.getByRole('option', { name: 'ピクニック' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Dreams' })).toBeNull()
+    // 夢の一歩は行に出さない
+    expect(screen.queryByRole('option', { name: 'スペイン語を習う' })).toBeNull()
+  })
+
+  it('夢ボードを開いて入れると夢になる', async () => {
+    seed()
+    const user = userEvent.setup()
+    renderList()
+    await user.type(screen.getByPlaceholderText('Add a dream'), 'オーロラを見る{Enter}')
+    expect(useTaskStore.getState().tasks.find((t) => t.title === 'オーロラを見る')!.somedayTier).toBe('dream')
+  })
+
+  it('# セクションで絞り込むと夢とやりたいを上下に出し、入れるとそのセクションに入る', async () => {
+    const listId = seed()
+    const travel = useTaskStore.getState().addSection(listId, '旅行')
+    useTaskStore.setState({
+      tasks: useTaskStore.getState().tasks.map((t) => (t.id === 'machu' || t.id === 'picnic' ? { ...t, sectionId: travel } : t)),
+    })
+    const user = userEvent.setup()
+    renderList()
+    await user.click(screen.getByRole('button', { name: '# 旅行' }))
+    expect(screen.queryByRole('tab', { name: /Wishes/ })).toBeNull()
+    expect(within(screen.getByRole('region', { name: 'Dreams' })).getByRole('button', { name: 'マチュピチュに行く' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'ピクニック' })).toBeInTheDocument()
+    await user.type(screen.getByPlaceholderText('Add something for someday'), '京都{Enter}')
+    expect(useTaskStore.getState().tasks.find((t) => t.title === '京都')!.sectionId).toBe(travel)
+  })
+
+  it('かなえた夢はボードの下に日付つきで残る', async () => {
+    seed()
+    const user = userEvent.setup()
+    useTaskStore.setState({
+      tasks: useTaskStore
+        .getState()
+        .tasks.map((t) => (t.id === 'machu' ? { ...t, completed: true, completedAt: '2026-03-02T03:00:00.000Z' } : t)),
+    })
+    // 夢が無い（かなえた夢だけ）ときはやりたいで開くので、夢へ切り替える
+    renderList()
+    await user.click(screen.getByRole('tab', { name: /Dreams/ }))
+    expect(screen.getByRole('heading', { name: 'Dreams come true' })).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Dreams' })).getByText(/2026/)).toHaveTextContent(/Mar.*2/)
   })
 
   it('メニューの「夢へ移す」「やりたいへ移す」で段を変える', async () => {
@@ -63,20 +105,20 @@ describe('いつかの 2 段（#221）', () => {
     expect('somedayTier' in useTaskStore.getState().tasks.find((t) => t.id === 'machu')!).toBe(false)
   })
 
-  it('ドラッグで段の見出しへ落とすとその段へ、別の段の行の前へ落とすとその段に並べる', () => {
-    seed()
-    const drop = (activeId: string, overId: string) =>
-      applyDragEnd({
-        active: { id: activeId, data: { current: {} } },
-        over: { id: overId },
-        delta: { x: 0, y: 0 },
-      } as unknown as DragEndEvent)
-    drop('task::picnic', 'tier::dream')
-    expect(useTaskStore.getState().tasks.find((t) => t.id === 'picnic')!.somedayTier).toBe('dream')
-    drop('task::machu', 'tier::wish')
-    expect('somedayTier' in useTaskStore.getState().tasks.find((t) => t.id === 'machu')!).toBe(false)
-    // やりたいのマチュピチュを、夢のピクニックの前へ
-    drop('task::machu', 'task::picnic')
-    expect(useTaskStore.getState().tasks.find((t) => t.id === 'machu')!.somedayTier).toBe('dream')
+  it('まだ何も無いいつかは、追加欄の下に例。押すと欄に入り、1 件あれば出ない', async () => {
+    const user = userEvent.setup()
+    useTaskStore.getState().addList('いつか', 'someday')
+    const wish = useTaskStore.getState().lists.find((l) => l.name === 'いつか')!
+    useTaskStore.getState().selectList(wish.id)
+    render(
+      <DndContext>
+        <TaskList />
+      </DndContext>,
+    )
+    await user.click(screen.getByRole('button', { name: 'Put “Travel abroad” in the add field' }))
+    const input = screen.getByDisplayValue('Travel abroad')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(screen.queryByRole('button', { name: 'Put “Travel abroad” in the add field' })).toBeNull()
   })
 })

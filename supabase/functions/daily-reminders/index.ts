@@ -1,5 +1,5 @@
 // Sends Web Push reminders: morning summary (with yesterday's numbers, #278), before plans, before deadlines, record prompts after plans,
-// the evening wrap-up with the day's numbers, a stale-timer nudge and the focus timer's time-up (#290). Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
+// the evening wrap-up with the day's numbers, a stale-timer nudge, the focus timer's time-up (#290) and payments / expiry dates (#454). Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
 // 送る時間は前の成功の回から今まで（上限 60 分。表 `reminder_runs`、migration 012）。
 //
 // 回の終わりに、連携のトークンのうち今の鍵で閉じていない行を少しずつ閉じ直す（`_shared/tokenSweep.ts`、鍵の入れ替え）。
@@ -16,6 +16,7 @@ import {
   localNow,
   morningDigest,
   remindersInWindow,
+  dropRecordedPrompts,
   staleTimerDue,
   timerEndDue,
   wrapUpDue,
@@ -23,6 +24,7 @@ import {
 } from './schedule.ts'
 import {
   MESSAGES,
+  duesPayload,
   morningPayload,
   reminderPayload,
   timerEndPayload,
@@ -31,6 +33,7 @@ import {
   type Msg,
   type Payload,
 } from './payload.ts'
+import { DUES_DEFAULT_TIME, duesSentKey, duesToNotify, normalizeDues, type DueItem } from './dues.ts'
 import { previousDay, wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpRow } from './wrapUp.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
 import { keyRing } from '../_shared/secretBox.ts'
@@ -225,6 +228,23 @@ Deno.serve(async (req) => {
   }
 
   /**
+   * 引き落とし・期限の日（#454）を、追加機能をオンにしている人の分だけまとめて読む（1 人ずつ読まない）。100 人ずつ `in` に並べる
+   */
+  const loadDues = async (userIds: readonly string[]): Promise<Map<string, DueItem[]>> => {
+    const byUser = new Map<string, DueItem[]>()
+    for (const group of chunks(userIds, LIST_USERS_PER_QUERY)) {
+      const { data, error } = await admin.from('user_addons').select('user_id,addons').in('user_id', group)
+      if (error) throw new Error(error.message)
+      for (const row of (data ?? []) as { user_id: string; addons: { enabled?: { dues?: unknown }; dues?: unknown } | null }[]) {
+        if (row.addons?.enabled?.dues !== true) continue
+        const dues = normalizeDues(row.addons.dues)
+        if (dues.length > 0) byUser.set(row.user_id, dues)
+      }
+    }
+    return byUser
+  }
+
+  /**
    * 通知に使う未完了のタスク（ルート・予定/締切のあるもの）。いつか / チェックリストのリストは除く。
    * 条件は部分索引 `tasks_reminder_open_idx`（migration 026）と同じ形にする（completed / is_time_log は `is false`。
    * 形が違うと索引を使えず、完了・削除・記録の行も含めて 1 人分を全部なめる）。
@@ -299,6 +319,35 @@ Deno.serve(async (req) => {
   }
 
   /** 1 つの端末へ、今送る通知を組み立てて並べて送り、送った印を 1 回で書く */
+  /**
+   * もう記録のある予定（`予定の id|日`）。その予定から始めた記録（`source_task_id`、その日の）と、今その予定を計っているタイマー（#419）。
+   * 読めなければ空（記録の確認は今までどおり送る）
+   */
+  const recordedPlans = async (userId: string, ids: string[], dates: string[]): Promise<Set<string>> => {
+    const out = new Set<string>()
+    try {
+      const [logs, timer] = await Promise.all([
+        admin
+          .from('tasks')
+          .select('source_task_id,due_date')
+          .eq('user_id', userId)
+          .is('is_time_log', true)
+          .is('deleted_at', null)
+          .in('source_task_id', ids)
+          .in('due_date', dates),
+        admin.from('user_active_timer').select('task_id,started_at').eq('user_id', userId).maybeSingle(),
+      ])
+      if (logs.error) throw new Error(logs.error.message)
+      if (timer.error) throw new Error(timer.error.message)
+      for (const r of (logs.data ?? []) as { source_task_id: string; due_date: string }[]) out.add(`${r.source_task_id}|${r.due_date}`)
+      const running = timer.data as { task_id: string | null; started_at: string | null } | null
+      if (running?.task_id && running.started_at) for (const d of dates) out.add(`${running.task_id}|${d}`)
+    } catch (err) {
+      console.error('[daily-reminders] load recorded plans failed', err)
+    }
+    return out
+  }
+
   const processSub = async (sub: Sub, tasks: ReminderTask[], digestOf: (sub: Sub, date: string) => Promise<WrapUpDigest | null>) => {
     const local = localNow(sub.timezone, now)
     const msg: Msg = sub.lang === 'en' ? MESSAGES.en : MESSAGES.ja
@@ -316,6 +365,15 @@ Deno.serve(async (req) => {
       })
     }
 
+    // 引き落とし・期限の日（#454）: 朝のまとめの時刻（使っていなければ締切の通知がオンの人に 8:00）に、知らせ始める日と当日のものを 1 通で
+    const dueDates = duesByUser?.get(sub.user_id)
+    const duesTime = sub.plan_time ?? (sub.due_reminders ? DUES_DEFAULT_TIME : null)
+    const duesKey = duesSentKey(local.date)
+    if (dueDates && dailyDue(duesTime, sentSet.has(duesKey) ? local.date : null, local.date, local.minutes)) {
+      const items = duesToNotify(dueDates, local.date)
+      if (items.length > 0) jobs.push({ payload: duesPayload(msg, items), keys: [duesKey] })
+    }
+
     if (wrapUpWindow(sub)) {
       // 読めなかったら夜の締めだけを送らない（印を残さないので次の回にやり直す）
       const d = await digestOf(sub, local.date)
@@ -324,7 +382,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const fired = remindersInWindow(
+    let fired = remindersInWindow(
       tasks,
       {
         eventReminderMinutes: sub.event_reminder_minutes ?? null,
@@ -335,6 +393,16 @@ Deno.serve(async (req) => {
       nowWall - (now.getTime() - windowStartMs),
       nowWall,
     ).filter((r) => !sentSet.has(r.key))
+    // もう記録のある予定には、終わったあとの記録の確認を出さない（#419）
+    const prompts = fired.filter((r) => r.kind === 'record')
+    if (prompts.length > 0) {
+      const recorded = await recordedPlans(
+        sub.user_id,
+        [...new Set(prompts.map((r) => r.taskId))],
+        [...new Set(prompts.map((r) => r.date))],
+      )
+      fired = dropRecordedPrompts(fired, (taskId, date) => recorded.has(`${taskId}|${date}`))
+    }
     // 同じ時刻に重なった締切は 1 通にまとめる（1 件ずつ出すと通知が洪水になる）
     const dues = fired.filter((r) => r.kind === 'due')
     if (dues.length > 1) {
@@ -380,7 +448,7 @@ Deno.serve(async (req) => {
     for (const f of outcome.failed) {
       console.error('[daily-reminders] send failed', (f.error as { statusCode?: number }).statusCode, f.error)
     }
-    // 購読が失効（アプリ削除・権限取り消し）したら消す
+    // 購読が失効した・受け付けられない（`isGoneStatus`）なら消す。アプリを開けば端末が付け直す
     if (outcome.gone) {
       await removeSub(sub.endpoint)
       return
@@ -445,6 +513,16 @@ Deno.serve(async (req) => {
     excludedByUser = await loadExcludedLists([...new Set(subs.filter((s) => needsTasks(s) || wrapUpWindow(s)).map((s) => s.user_id))])
   } catch (err) {
     console.error('[daily-reminders] load lists failed', err)
+  }
+
+  // 引き落とし・期限の日は、朝のまとめか締切の通知を使う人の分だけ読む。読めなければ期限の通知だけ送らない（ほかの通知は送る。
+  // 失敗に数えるので last_ok_at が進まず、次の回の 60 分の間に送り直す。送った印があれば二重には送らない）
+  let duesByUser: Map<string, DueItem[]> | null = null
+  try {
+    duesByUser = await loadDues([...new Set(subs.filter((s) => s.plan_time || s.due_reminders).map((s) => s.user_id))])
+  } catch (err) {
+    failed++
+    console.error('[daily-reminders] load dues failed', err)
   }
 
   const results = await runPool(

@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
 import { getDayReviews } from '../lib/weekReview'
@@ -32,6 +32,7 @@ import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { PlannerMobileBar, type PlannerPane } from './today/PlannerMobileBar'
 import { PlannerHeader } from './today/PlannerHeader'
+import { PlannerDues } from './today/PlannerDues'
 import { PlannerTodoSection } from './today/PlannerTodoSection'
 import { PlannerSuggestions } from './today/PlannerSuggestions'
 import { PlannerHabits } from './today/PlannerHabits'
@@ -55,12 +56,12 @@ const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
 /**
  * 1 日単位の計画画面。左で「今日やること」を決め、右のタイムラインに置いて時間を確保する。
  * 情報は必要なときだけ出す: 候補（やり残し・締切間近）は畳んだ 1 行、締めは夕方か全部終わったとき。
- * 左の並び: 見出し（`PlannerHeader`）→ To-Do（`PlannerTodoSection`）→ 候補 → 習慣 → 完了 → 締め（`PlannerWrapUp`）
+ * 左の並び: 見出し（`PlannerHeader`）→ 引き落とし・期限（`PlannerDues`、追加機能）→ To-Do（`PlannerTodoSection`）→ 候補 → 習慣 → 完了 → 締め（`PlannerWrapUp`）
  */
 export function TodayPlannerView() {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
-  const habits = useTaskStore((s) => s.habits)
+  const habits = useTaskStore(selectLiveHabits)
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deferredComplete = useDeferredComplete(toggleTask)
@@ -328,9 +329,10 @@ export function TodayPlannerView() {
           dayResult={dayResult}
         />
 
+        <PlannerDues dateKey={dateKey} />
+
         <PlannerTodoSection
           env={rowEnv}
-          headingClass={sectionHeading}
           overdue={overdue}
           overdueShown={overdueShown}
           onShowAllOverdue={() => setShowAllOverdue(true)}
@@ -386,6 +388,7 @@ export function TodayPlannerView() {
         <PlannerWrapUp
           showWrapUp={showWrapUp}
           showMood={showMood}
+          showGaps={viewingToday && (wrapUpFocus > 0 || nowMinutes >= wrapUpFrom)}
           dateKey={dateKey}
           focusKey={wrapUpFocus}
           open={open}

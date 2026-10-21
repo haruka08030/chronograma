@@ -11,6 +11,7 @@ import {
   getGoogleRedirectUri,
 } from '../lib/googleCalendar'
 import { askConfirm } from '../lib/confirmDialog'
+import { clearPushQueues } from '../lib/googlePushQueue'
 
 const CONNECT_TIMEOUT_MS = 15_000
 
@@ -23,6 +24,7 @@ export function useGoogleConnect() {
   const { user } = useAuth()
   const connected = useTaskStore((s) => s.googleConnected)
   const connectionError = useTaskStore((s) => s.googleConnectionError)
+  const reconnectNeeded = useTaskStore((s) => s.googleReconnectNeeded)
   const setGoogleConnected = useTaskStore((s) => s.setGoogleConnected)
   const setGoogleConnectionError = useTaskStore((s) => s.setGoogleConnectionError)
   const [loading, setLoading] = useState(false)
@@ -90,7 +92,11 @@ export function useGoogleConnect() {
     setGoogleConnected(false)
     setGoogleConnectionError(null)
     setError(null)
+    useTaskStore.getState().setGoogleReconnectNeeded(false)
     useTaskStore.getState().setCalendarEvents([])
+    // 外したら、まだ送っていない変更も送らない（つなぎ直しても、つなぐ前の変更は送らない）
+    clearPushQueues()
+    useTaskStore.getState().setGooglePushFailed(0)
   }
 
   return {
@@ -98,6 +104,8 @@ export function useGoogleConnect() {
     clientId: getClientId(),
     redirectUri: getGoogleRedirectUri(),
     connected,
+    /** つながっていたのに切れた（「もう一度接続する」を出す） */
+    reconnectNeeded: !connected && reconnectNeeded,
     loading,
     error: error ?? connectionError,
     connect,

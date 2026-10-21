@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTaskStore } from '../../store/taskStore'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { fetchNotionStatus } from '../../lib/notion'
 import { fetchCanvasStatus } from '../../lib/canvas'
@@ -15,7 +16,11 @@ import { CanvasSettings } from './CanvasSettings'
 export function MoreIntegrations() {
   const { t } = useTranslation()
   const { user } = useAuth()
-  const [open, setOpen] = useState(false)
+  // 「もう一度接続する」から Notion・Canvas の欄へ来たときは、最初から開いておく（畳んだままだと欄まで飛べない）
+  const [open, setOpen] = useState(() => {
+    const target = useTaskStore.getState().settingsScrollTarget
+    return target === 'notion' || target === 'canvas'
+  })
   const [touched, setTouched] = useState(false)
 
   useEffect(() => {

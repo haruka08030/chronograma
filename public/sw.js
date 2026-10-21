@@ -158,6 +158,29 @@ self.addEventListener('push', (event) => {
   )
 })
 
+/**
+ * ブラウザが購読を更新・失効させたとき。同じ鍵で付け直し、開いている画面に知らせて新しい購読を保存してもらう
+ * （SW にはログインの鍵が無いので、保存は画面が行う。開いている画面が無ければ、次に開いたときに画面が付け直す）。
+ * 付け直さないと、サーバーは古い購読を失効として消し、通知が黙って止まる
+ */
+self.addEventListener('pushsubscriptionchange', (event) => {
+  const oldSub = event.oldSubscription || null
+  const key = oldSub && oldSub.options ? oldSub.options.applicationServerKey : null
+  event.waitUntil(
+    (event.newSubscription
+      ? Promise.resolve(event.newSubscription)
+      : key
+        ? self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+        : Promise.resolve(null)
+    )
+      .catch(() => null)
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then((wins) => {
+        for (const w of wins) w.postMessage({ type: 'push-resubscribed', oldEndpoint: oldSub ? oldSub.endpoint : null })
+      }),
+  )
+})
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const data = event.notification.data || {}
@@ -172,10 +195,15 @@ self.addEventListener('notificationclick', (event) => {
   const asPlanned = event.action === 'as-planned'
   // 止め忘れの「止める」: そのタイマー（開始時刻）を止める
   const stopTimer = event.action === 'stop-timer'
+  // 開始の通知の「記録を始める」: その予定のタイマーを始める（#419）
+  const startTimer = event.action === 'start-timer' && !!openTaskId
   // 「予定どおり」「止める」は開いた画面で確かめずに記録する。同じ URL を他人のリンクから踏んでも記録されないよう、
   // この通知から開いたことを 1 回きりの印（launch）で示す。ページは控えに印があるときだけそのまま記録する
-  const nonce = (taskId && asPlanned) || stopTimer ? self.crypto.randomUUID() : null
-  if (nonce && stopTimer) {
+  const nonce = (taskId && asPlanned) || stopTimer || startTimer ? self.crypto.randomUUID() : null
+  if (nonce && startTimer) {
+    target.searchParams.set('start-timer', openTaskId)
+    target.searchParams.set('launch', nonce)
+  } else if (nonce && stopTimer) {
     target.searchParams.set('stop-timer', data.timerStartedAt || '1')
     target.searchParams.set('launch', nonce)
   } else if (nonce) {
@@ -189,15 +217,17 @@ self.addEventListener('notificationclick', (event) => {
         for (const w of wins) {
           if (new URL(w.url).origin === target.origin) {
             w.postMessage(
-              stopTimer
-                ? { type: 'stop-timer', startedAt: data.timerStartedAt || null }
-                : taskId
-                  ? { type: 'record', taskId, asPlanned }
-                  : openTaskId
-                    ? { type: 'open-task', taskId: openTaskId, date: target.searchParams.get('date') }
-                    : wrapUp
-                      ? { type: 'wrap-up' }
-                      : { type: 'open-view', view: target.searchParams.get('view') },
+              startTimer
+                ? { type: 'start-timer', taskId: openTaskId, date: target.searchParams.get('date') }
+                : stopTimer
+                  ? { type: 'stop-timer', startedAt: data.timerStartedAt || null }
+                  : taskId
+                    ? { type: 'record', taskId, asPlanned }
+                    : openTaskId
+                      ? { type: 'open-task', taskId: openTaskId, date: target.searchParams.get('date') }
+                      : wrapUp
+                        ? { type: 'wrap-up' }
+                        : { type: 'open-view', view: target.searchParams.get('view') },
             )
             return w.focus()
           }

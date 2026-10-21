@@ -170,6 +170,17 @@ const task = (id: string, userId = 'u1'): Row => ({
 const noDeletes = { lists: [], tasks: [], habits: [], sections: [] }
 
 describe('fetchListsTasksHabits', () => {
+  it('4 つの表を同時に読み始める（順に読むと表ごとの往復が足し算になる。#443）', async () => {
+    const { client } = fakeSupabase({ lists: [], list_sections: [], tasks: [task('t1')], habits: [] })
+    const asked: string[] = []
+    const from = client.from.bind(client)
+    const spy = { ...client, from: (table: string) => (asked.push(table), from(table)) } as typeof client
+    const res = await fetchListsTasksHabits(spy, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    expect(asked.slice(0, 4).sort()).toEqual(['habits', 'list_sections', 'lists', 'tasks'])
+    expect(res.tasks).toHaveLength(1)
+  })
+
   it('pages past the API row limit instead of stopping at the first page', async () => {
     const tasks = Array.from({ length: 2500 }, (_, i) => task(`t${String(i).padStart(4, '0')}`))
     const { client } = fakeSupabase({ lists: [], list_sections: [], tasks, habits: [] })
@@ -533,6 +544,55 @@ describe('habits.archived_at', () => {
     const res = await pushListsTasksHabits(old.client, 'u-arch-old', [], [], [h], [], noDeletes)
     expect(res.error).toMatch(/archived_at/)
     expect(old.upserts.find((u) => u.table === 'habits')).toBeUndefined()
+  })
+})
+
+describe('habits.deleted_at', () => {
+  it('reads the trash stamp, and rows without it (before 042) as not in the trash', async () => {
+    const { client } = fakeSupabase({
+      lists: [],
+      list_sections: [],
+      tasks: [],
+      habits: [habitRow('old'), habitRow('gone', { deleted_at: '2026-10-19T00:00:00+00:00' })],
+    })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    expect(res.habits.find((h) => h.id === 'gone')?.deletedAt).toBe('2026-10-19T00:00:00+00:00')
+    expect(res.habits.find((h) => h.id === 'old')).not.toHaveProperty('deletedAt')
+  })
+
+  it('sends deleted_at (null when restored)', async () => {
+    const h: Habit = {
+      id: 'h',
+      title: 'h',
+      color: '#33B679',
+      timeMode: 'none',
+      startTime: null,
+      endTime: null,
+      frequency: { type: 'daily' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      completedDates: [],
+      archivedAt: null,
+    }
+    const db = fakeSupabase({})
+    await pushListsTasksHabits(
+      db.client,
+      'u-trash',
+      [],
+      [],
+      [
+        { ...h, deletedAt: '2026-10-19T00:00:00.000Z' },
+        { ...h, id: 'h2' },
+      ],
+      [],
+      noDeletes,
+    )
+    const rows = db.upserts.find((u) => u.table === 'habits')!.rows
+    expect(rows.map((r) => [r.id, r.deleted_at])).toEqual([
+      ['h', '2026-10-19T00:00:00.000Z'],
+      ['h2', null],
+    ])
   })
 })
 

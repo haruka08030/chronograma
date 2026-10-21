@@ -1,6 +1,7 @@
 // 通知の文面と中身（Web Push で送る JSON）。index.ts（Deno）から使い、vitest でも確かめる
 import { dayWallMs, type FiredReminder, type MorningDigest } from './schedule.ts'
 import { hasDayNumbers, type WrapUpDigest } from './wrapUp.ts'
+import type { DueSoon } from './dues.ts'
 
 export const MESSAGES = {
   ja: {
@@ -24,6 +25,7 @@ export const MESSAGES = {
     timerTitle: 'タイマーが動いたままです',
     timerBody: (title: string) => `「${title}」を 3 時間以上記録しています`,
     stopTimer: '止める',
+    startTimer: '記録を始める',
     timerEndTitle: (title: string) => `「${title}」の時間です`,
     timerEndBody: '記録は止めずに続けています',
     wrapUpTitle: '1 日を締める',
@@ -33,6 +35,9 @@ export const MESSAGES = {
     wrapUpLeft: (n: number) => `残り ${n} 件`,
     yesterday: (parts: string) => `昨日: ${parts}`,
     duration: (h: number, m: number) => (h === 0 ? `${m}分` : m === 0 ? `${h}時間` : `${h}時間${m}分`),
+    duesTitle: '引き落とし・期限',
+    duesItem: (title: string, daysLeft: number) =>
+      `${title}（${daysLeft === 0 ? '今日' : daysLeft === 1 ? '明日' : `あと ${daysLeft} 日`}）`,
   },
   en: {
     morningTitle: 'Today at a glance',
@@ -55,6 +60,7 @@ export const MESSAGES = {
     timerTitle: 'Your timer is still running',
     timerBody: (title: string) => `"${title}" has been running for over 3 hours`,
     stopTimer: 'Stop',
+    startTimer: 'Start recording',
     timerEndTitle: (title: string) => `Time's up: "${title}"`,
     timerEndBody: 'The timer keeps running until you stop it.',
     wrapUpTitle: 'Wrap up the day',
@@ -64,6 +70,9 @@ export const MESSAGES = {
     wrapUpLeft: (n: number) => `${n} left`,
     yesterday: (parts: string) => `Yesterday: ${parts}`,
     duration: (h: number, m: number) => (h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h ${m}m`),
+    duesTitle: 'Payments & expiry dates',
+    duesItem: (title: string, daysLeft: number) =>
+      `${title} (${daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`})`,
   },
 } as const
 export type Msg = (typeof MESSAGES)['ja'] | (typeof MESSAGES)['en']
@@ -142,6 +151,8 @@ export function reminderPayload(msg: Msg, r: FiredReminder, today: string): Payl
       body: msg.startBody(r.minutesBefore, range(r.startTime, r.endTime)),
       tag: `chronograma-start-${r.taskId}`,
       url: taskUrl(r.taskId, r.date),
+      // 「記録を始める」: その予定のタイマーを ▶ と同じく始める（#419。Service Worker が URL の `task` から読む）
+      actions: [{ action: 'start-timer', title: msg.startTimer }],
     }
   }
   if (r.kind === 'due') {
@@ -213,5 +224,18 @@ export function wrapUpPayload(msg: Msg, d: WrapUpDigest): Payload {
     body: msg.wrapUpToday(parts.join(msg.sep)),
     tag: 'chronograma-wrap-up',
     url: WRAP_UP_URL,
+  }
+}
+
+/**
+ * 引き落とし・期限の日（#454）の通知。知らせ始める日と当日のものを 1 日 1 通にまとめる（「家賃の引き落とし（あと 3 日）、奨学金（今日）」）。
+ * 押すと今日の計画（見出しの下に同じものが出る）
+ */
+export function duesPayload(msg: Msg, items: readonly DueSoon[]): Payload {
+  return {
+    title: msg.duesTitle,
+    body: items.map((s) => msg.duesItem(s.item.title, s.daysLeft)).join(msg.listSep),
+    tag: 'chronograma-dues',
+    url: MORNING_URL,
   }
 }

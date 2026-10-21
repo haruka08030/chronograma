@@ -4,11 +4,20 @@ import { markTimelineDragOver } from './nativeTaskDragGhost'
 import { acceptTaskDrag, carriedTaskIds, GOOGLE_EVENT_DND_TYPE, TASK_DND_TYPE, TASK_MULTI_DND_TYPE } from './taskDrag'
 import { minutesToTime } from './clockTime'
 import { useTaskStore } from '../store/taskStore'
+import { parseHabitSlotId } from './habitSlots'
 
 export { TASK_DND_TYPE, GOOGLE_EVENT_DND_TYPE, TASK_MULTI_DND_TYPE }
 
-/** ドラッグ中の DataTransfer から対象 taskId を取り出す（複数選択対応） */
+/**
+ * ドラッグ中の DataTransfer から対象 taskId を取り出す（複数選択対応）。
+ * 習慣の段のチップ（習慣の枠の id）は時間の格子だけが受けるので、ほかの落とし先には渡さない
+ */
 export function readDraggedTaskIds(dataTransfer: DataTransfer): string[] {
+  return readDraggedIds(dataTransfer).filter((id) => !parseHabitSlotId(id))
+}
+
+/** 落とした ToDo と習慣の段のチップの id（時間の格子用） */
+function readDraggedIds(dataTransfer: DataTransfer): string[] {
   const multi = dataTransfer.getData(TASK_MULTI_DND_TYPE)
   if (multi) {
     try {
@@ -117,7 +126,7 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
     (e: React.DragEvent, dateKey: string) => {
       e.preventDefault()
       enterCountRef.current = 0
-      const taskIds = readDraggedTaskIds(e.dataTransfer)
+      const taskIds = readDraggedIds(e.dataTransfer)
       if (!taskIds.length) {
         setDropPreview(null)
         return

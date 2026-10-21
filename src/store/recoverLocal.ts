@@ -23,6 +23,7 @@ const STAMPED: Record<string, readonly string[]> = {
   eventTemplatesUpdatedAt: ['eventTemplates'],
   courseLinksUpdatedAt: ['courseLinks'],
   timetableUpdatedAt: ['timetable'],
+  addonsUpdatedAt: ['addons'],
 }
 const KEEP_STORED = ['activeTimer', 'activeTimerUpdatedAt', 'dataOwner']
 

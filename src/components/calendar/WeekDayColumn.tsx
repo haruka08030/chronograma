@@ -1,6 +1,6 @@
 import { memo, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore } from '../../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
 import { formatDuration, HOUR_HEIGHT, HOURS, timeToMinutes, yToTime } from '../../lib/timeGrid'
 import type { CreateIntent, CreatePopup, DragPreview, useTimelineDrag } from '../../lib/useTimelineDrag'
 import type { DropPreview, useTimelineDrop } from '../../lib/useTimelineDrop'
@@ -11,7 +11,7 @@ import { layoutPlanAndLog } from '../../lib/overlapLayout'
 import { recordHex } from '../../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex } from '../../lib/planVisual'
-import { habitToPlannedItem } from '../../lib/habitSlots'
+import { habitToPlannedItem, isPointHabitOn } from '../../lib/habitSlots'
 import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
 import { isAppToday, isNowOnDay } from '../../lib/timeZone'
 import { SELECTED_COLUMN, TODAY_COLUMN } from '../../lib/dayMarker'
@@ -20,6 +20,7 @@ import { formatDate } from '../../lib/dateFormat'
 import { minutesToTime } from '../../lib/clockTime'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
+import { OnboardingPlaceSlot } from './OnboardingPlaceSlot'
 import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
 import { googleEventCrossesDay, googleEventSegmentOnDay } from '../../lib/googleEventSpan'
 import { unrecordedGapsForDay } from '../../lib/unrecordedGaps'
@@ -132,7 +133,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const tr = t
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
-  const habits = useTaskStore((s) => s.habits)
+  const habits = useTaskStore(selectLiveHabits)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
@@ -144,8 +145,9 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     seg: googleEventSegmentOnDay(e, key) ?? { startTime: e.startTime!, endTime: e.endTime! },
   }))
   const today = isAppToday(day)
-  // 時間を決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）
+  // 始まりと終わりを決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）。時刻ひとつの習慣は習慣の段（`WeekHabitRow`）
   const dayHabitSlots = habits.flatMap((h) => {
+    if (isPointHabitOn(h, key)) return []
     const slot = habitToPlannedItem(h, key, habitIndex)
     return slot ? [{ habit: h, slot, done: habitDayStatus(h, key, habitIndex) !== 'missed' }] : []
   })
@@ -336,6 +338,9 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           </button>
         )
       })}
+
+      {/* はじめの案内の間、今日の計画のタイムラインに「ここに置く」（ドラッグ・作成中は出さない） */}
+      {singleDay && !dragPreview && !dropPreview && !popup && <OnboardingPlaceSlot dateKey={key} splitLanes={splitLanes} />}
 
       {dayMovedPlans.map((m) => {
         const geo = blockGeometry(

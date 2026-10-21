@@ -4,13 +4,13 @@ import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
 import { canCopyOnDrop, placeCopies } from './dragCopy'
 import type { CalendarEvent } from '../types/calendarEvent'
-import { parseHabitSlotId, habitToPlannedItem } from './habitSlots'
-import { buildHabitRecordIndex, habitDayStatus } from './habitTiming'
+import { isPlacedPointHabitOn, isPointHabitOn, parseHabitSlotId, habitToPlannedItem } from './habitSlots'
+import { buildHabitRecordIndex, habitDayStatus, habitTimesOn } from './habitTiming'
 import { canEditGoogleEvent, moveGoogleEvent } from './googleEventEdit'
 import { googleEventTiming, movedGoogleEventTiming } from './googleCalendar'
 import { googleEventCrossesDay } from './googleEventSpan'
 import { SNAP_MINUTES, timeToMinutes } from './timeGrid'
-import { minutesToTime } from './clockTime'
+import { endWithinDay, minutesToTime } from './clockTime'
 import { toDateKey } from './dateKey'
 import { shortDate } from './moveToast'
 import { zonedNow } from './timeZone'
@@ -47,14 +47,14 @@ export type BlockEditContext = {
 }
 
 /** 習慣の枠を動かした・伸ばした: その日だけの時間にする */
-function setHabitDayTimeFromSlot(slot: { habitId: string; dateKey: string }, startTime: string, endTime: string) {
+/** 習慣の枠をその日だけの時間にする（枠を動かす・伸ばす、習慣の段のチップを格子に置く） */
+export function setHabitDayTimeFromSlot(slot: { habitId: string; dateKey: string }, startTime: string, endTime: string) {
   const { habits, setHabitDayTime } = useTaskStore.getState()
   const habit = habits.find((h) => h.id === slot.habitId)
   if (!habit) return
-  const time = habit.timeMode === 'range' ? `${startTime}–${endTime}` : startTime
   setHabitDayTime(habit.id, slot.dateKey, startTime, endTime, {
     key: 'undo.habitDayTime',
-    params: { name: habit.title, date: shortDate(slot.dateKey), time },
+    params: { name: habit.title, date: shortDate(slot.dateKey), time: `${startTime}–${endTime}` },
   })
 }
 
@@ -264,4 +264,30 @@ export function nudgeBlockByKey(id: string, e: Pick<KeyboardEvent, 'key' | 'shif
   const res = nudgeTimelineBlock(id, e.shiftKey ? 'resize' : 'move', dir)
   if (res) announce(i18n.t('weekCalendar.blockTimeAnnounce', { title: res.title, start: res.startTime, end: res.endTime }))
   return res
+}
+
+/** 格子に置いた時刻ひとつの習慣を、その日のチップに戻す（「元に戻す」付き） */
+export function unplaceHabitSlot(slotId: string): boolean {
+  const slot = parseHabitSlotId(slotId)
+  if (!slot) return false
+  const { habits, clearHabitDayTime } = useTaskStore.getState()
+  const habit = habits.find((h) => h.id === slot.habitId)
+  if (!habit || !isPlacedPointHabitOn(habit, slot.dateKey)) return false
+  clearHabitDayTime(habit.id, slot.dateKey, { key: 'undo.habitUnplaced', params: { name: habit.title, date: shortDate(slot.dateKey) } })
+  return true
+}
+
+/**
+ * 習慣の段のチップを、その日だけ習慣の時刻からの枠にする（カードの「時間に置く」。指ではドラッグできないため）。
+ * 長さは既定の予定の長さ（目標のある習慣ははじめから枠なのでチップにならない）
+ */
+export function placeHabitSlot(slotId: string): boolean {
+  const slot = parseHabitSlotId(slotId)
+  if (!slot) return false
+  const { habits, defaultBlockMinutes } = useTaskStore.getState()
+  const habit = habits.find((h) => h.id === slot.habitId)
+  const times = habit ? habitTimesOn(habit, slot.dateKey) : null
+  if (!habit || !times || !isPointHabitOn(habit, slot.dateKey)) return false
+  setHabitDayTimeFromSlot(slot, times.startTime, endWithinDay(times.startTime, defaultBlockMinutes))
+  return true
 }

@@ -14,7 +14,14 @@ import { normalizeLabelIds } from '../lib/labelIds'
 import { normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/courseLinks'
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
-import { createPersistStorage, markRawKnown, readChangedRaw, setPersistWriteHandlers, withoutPersisting } from '../lib/persistStorage'
+import {
+  blockPersisting,
+  createPersistStorage,
+  markRawKnown,
+  readChangedRaw,
+  setPersistWriteHandlers,
+  withoutPersisting,
+} from '../lib/persistStorage'
 import { RECOVERED_LOCAL_KEY, onOtherTabChange, readStored, refreshStored, usingIndexedDb, writeStored } from '../lib/dataStore'
 import { mergeRecoveredState } from './recoverLocal'
 import {
@@ -37,7 +44,7 @@ import {
 import type { CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode, TaskState } from './storeTypes'
 import type { SyncState } from '../types/sync'
 import { defaultLogCategories, initialLists } from './storeDefaults'
-import { migrateTaskState } from './migrate'
+import { migratePersistedState, migrateTaskState } from './migrate'
 import { createUndoHistory } from './undo'
 import { createSectionsSlice } from './slices/sections'
 import { createTaskTreeSlice } from './slices/taskTree'
@@ -53,6 +60,9 @@ import { createEventTemplatesSlice } from './slices/eventTemplates'
 import { createDayMoodsSlice } from './slices/dayMoods'
 import { normalizeDayMoods, type DayMoods } from '../lib/dayMood'
 import { DEFAULT_TIMETABLE, normalizeTimetable, type Timetable } from '../lib/timetable'
+import { DEFAULT_ADDONS, normalizeAddons, withAddonOn, type Addons } from '../lib/addons'
+import { normalizeDues } from '../lib/dues'
+import { withGoogleSkip } from '../lib/googleSkip'
 import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 
@@ -64,10 +74,12 @@ import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 export { MAX_EXTRA_TIME_ZONES, LEGACY_DATA_OWNER, INBOX_LIST_ID } from './storeConstants'
 export type { ActiveTimer, CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode } from './storeTypes'
 export { recurrenceNextId } from './taskRecurrence'
+export { selectLiveHabits } from './liveHabits'
 import { withTaskDefaults } from '../lib/taskDefaults'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { pendingAddsAfterImport } from '../lib/labelSync'
 import { normalizeStoredRows } from '../lib/backupFormat'
+import { clearBaseline } from '../lib/syncMerge'
 import { readViewState } from './viewState'
 import { DEFAULT_CANDIDATE_VIEW } from '../lib/plannerCandidates'
 import { NO_COMPLETED_FILTER, NO_TODO_FILTER } from '../lib/taskFilter'
@@ -102,14 +114,23 @@ function preserveUnreadableStorage(stage: string, error: unknown) {
   }
 }
 
-/** 他のタブの変更を取り込んだとき、手元の ⌘Z の履歴（取り込む前の状態）を捨てる */
-let clearUndoHistory = () => {}
+/**
+ * 読めない行を外したら、その人の前回同期の控え（baseline）も捨てる（#484）。控えが残ると、外した行を次の同期で
+ * 「この端末で消した」と読み、サーバーの正しい行を全端末から消していた。控えが無ければ次の同期は両方を残す合わせ方になり、
+ * 外した行はサーバーから戻る。持ち主の分からない古いデータ（*legacy*）は、誰の控えか分からないので触らない
+ */
+function forgetBaselineOf(owner: unknown) {
+  if (typeof owner === 'string' && owner !== LEGACY_DATA_OWNER) clearBaseline(owner)
+}
+
+/** 他のタブの変更を取り込む前に、手元の ⌘Z の一番上を差分にしておく（取り込んだ行をその操作に数えない） */
+let settleUndoHistory = () => {}
 
 export const useTaskStore = create<TaskState>()(
   persist(
     (set, get) => {
       const undo = createUndoHistory(set, get)
-      clearUndoHistory = undo.clear
+      settleUndoHistory = undo.settle
       const ctx = { set, get, undo }
 
       return {
@@ -131,11 +152,12 @@ export const useTaskStore = create<TaskState>()(
         completedFilter: NO_COMPLETED_FILTER,
         recentDeletes: [],
         moveBannerText: null as string | null,
-        undoBanner: null as { text: string; at: number } | null,
+        undoBanner: null as TaskState['undoBanner'],
         googleUndo: null as { id: string; text: string; at: number } | null,
         taskDragHoverListId: null as string | null,
         syncState: 'idle' as SyncState,
         lastSyncedAt: null as string | null,
+        cloudPulledAt: null as string | null,
         syncRejected: [],
         dataOwner: null as string | null,
         quickAddRequested: false,
@@ -158,7 +180,9 @@ export const useTaskStore = create<TaskState>()(
         googleConnected: false,
         googleAccessToken: null,
         googleConnectionError: null,
+        googleReconnectNeeded: false,
         googleCanWrite: false,
+        googlePushFailed: 0,
         activeTimer: null,
         activeTimerUpdatedAt: null as string | null,
         completePromptTaskId: null as string | null,
@@ -184,6 +208,8 @@ export const useTaskStore = create<TaskState>()(
         dayMoods: {} as DayMoods,
         timetable: DEFAULT_TIMETABLE as Timetable,
         timetableUpdatedAt: null as string | null,
+        addons: DEFAULT_ADDONS as Addons,
+        addonsUpdatedAt: null as string | null,
         seriesEditScope: null,
 
         habits: [],
@@ -208,6 +234,32 @@ export const useTaskStore = create<TaskState>()(
           if (sameValue(next, get().courseLinks)) return
           set({ courseLinks: next })
         },
+        setAddonOn: (id, on) => {
+          const next = withAddonOn(get().addons, id, on)
+          if (sameValue(next, get().addons)) return
+          set({ addons: next })
+        },
+        saveDue: (item) => {
+          const cur = get().addons
+          const has = cur.dues.some((d) => d.id === item.id)
+          const dues = normalizeDues(has ? cur.dues.map((d) => (d.id === item.id ? item : d)) : [...cur.dues, item])
+          if (sameValue(dues, cur.dues)) return
+          undo.pushUndo()
+          set({ addons: { ...cur, dues } })
+        },
+        deleteDue: (id) => {
+          const cur = get().addons
+          const due = cur.dues.find((d) => d.id === id)
+          if (!due) return
+          undo.pushUndo({ key: 'undo.dueDeleted', params: { name: due.title } })
+          set({ addons: { ...cur, dues: cur.dues.filter((d) => d.id !== id) } })
+        },
+        setGoogleSkip: (title, skip) => {
+          const cur = get().addons
+          const googleSkip = withGoogleSkip(cur.googleSkip, title, skip)
+          if (sameValue(googleSkip, cur.googleSkip)) return
+          set({ addons: { ...cur, googleSkip } })
+        },
         ...createDayMoodsSlice(ctx),
         ...createEventSeriesSlice(ctx),
         ...undo.actions,
@@ -218,10 +270,11 @@ export const useTaskStore = create<TaskState>()(
       version: STORE_VERSION,
       storage: createPersistStorage<TaskState>(),
       // 読み込み（migrate）に失敗すると初期状態のまま動き、次の保存で元のデータを上書きしていた。
-      // 上書きされる前に、保存されていた中身を別のキーへ写しておく（設定 → データ の書き出しとは別に残る）
+      // 保存を止め（#485）、保存されていた中身を別のキーへ写しておく（バナーから書き出せる。`StorageFullBanner`）
       onRehydrateStorage: () => (_state, error) => {
         if (!error) return
         console.error('[storage] could not load saved data', error)
+        blockPersisting('unreadable')
         preserveUnreadableStorage('load', error)
       },
       // 一覧が配列でない・中身が壊れた行は、画面を描く前（読み込んだ直後の処理）で落ちて真っ白になる。
@@ -244,16 +297,20 @@ export const useTaskStore = create<TaskState>()(
         merged.courseLinks = normalizeCourseLinks(merged.courseLinks)
         merged.dayMoods = normalizeDayMoods(merged.dayMoods)
         merged.timetable = normalizeTimetable(merged.timetable)
+        merged.addons = normalizeAddons(merged.addons)
         merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
         merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
         merged.logLabelIds = normalizeLabelIds(merged.logLabelIds)
         merged.logLabelPendingAdds = Array.isArray(merged.logLabelPendingAdds)
           ? merged.logLabelPendingAdds.filter((n): n is string => typeof n === 'string')
           : []
-        if (broken) preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
+        if (broken) {
+          preserveUnreadableStorage('load-rows', 'unreadable rows were dropped')
+          forgetBaselineOf(merged.dataOwner)
+        }
         return merged
       },
-      migrate: migrateTaskState,
+      migrate: migratePersistedState,
       // 保存するのはデータと設定だけ（一覧は persistKeys.ts）。画面の状態は別の保存先、通知・同期の状態は保存しない
       partialize: (state) => pickKeys(state as unknown as Record<string, unknown>, DATA_KEYS) as unknown as TaskState,
     },
@@ -411,6 +468,12 @@ useTaskStore.subscribe((s, prev) => {
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ timetableUpdatedAt: new Date().toISOString() })
 })
+// 追加機能のオン・オフ（#453）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.addons === prev.addons) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ addonsUpdatedAt: new Date().toISOString() })
+})
 // 動いているタイマーを始めた・止めたときも同じ（別の端末とどちらに合わせるかを比べる）
 useTaskStore.subscribe((s, prev) => {
   if (s.activeTimer === prev.activeTimer) return
@@ -481,16 +544,20 @@ export function adoptOtherTabChanges(): void {
     if (rows) incoming[key] = rows
     else delete incoming[key]
   }
-  if (broken) preserveUnreadableStorage('other-tab-rows', 'unreadable rows were dropped')
+  if (broken) {
+    preserveUnreadableStorage('other-tab-rows', 'unreadable rows were dropped')
+    forgetBaselineOf(typeof incoming.dataOwner === 'string' ? incoming.dataOwner : useTaskStore.getState().dataOwner)
+  }
   const lists = Array.isArray(incoming.lists) ? (incoming.lists as TaskList[]) : null
   const sel = useTaskStore.getState().selectedListId
   if (lists && sel && !lists.some((l) => l.id === sel)) incoming.selectedListId = INBOX_LIST_ID
   // 打っている途中のメモ・場所（`pendingEdits.ts`）はここでは入れない。止まったときに取り込んだ後のタスクへ 1 項目だけ当たる
   adoptingFromOtherTab = true
   try {
+    // ⌘Z の履歴は残す（行ごとに戻すので、取り込んだ他のタブの行は消さない）
+    settleUndoHistory()
     // 保存し直さない（同じ内容を書くだけで、表示の状態だけが違う書き込みがタブ間を往復する）
     withoutPersisting(() => useTaskStore.setState(incoming as Partial<TaskState>))
-    clearUndoHistory()
   } finally {
     adoptingFromOtherTab = false
   }

@@ -1,11 +1,18 @@
-import { parseHabitSlotId } from '../lib/habitSlots'
+import { isPlacedPointHabitOn, parseHabitSlotId } from '../lib/habitSlots'
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { timeToMinutes } from '../lib/timeGrid'
 import { durationMinutesForTaskId } from '../lib/taskTimeRange'
-import { applyBlockMove, applyBlockResize, logLimitAt, nudgeBlockByKey } from '../lib/timelineBlockEdit'
+import {
+  applyBlockMove,
+  applyBlockResize,
+  logLimitAt,
+  nudgeBlockByKey,
+  setHabitDayTimeFromSlot,
+  unplaceHabitSlot,
+} from '../lib/timelineBlockEdit'
 import { canCopyOnDrop, isCopyModifierHeld, placeCopies, useCopyModifier } from '../lib/dragCopy'
 import { useHotkey } from '../hooks/useHotkey'
 import { SHORTCUTS } from '../lib/shortcuts'
@@ -40,6 +47,7 @@ import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { WeekDayHeader } from './calendar/WeekDayHeader'
 import { WeekAllDayRow } from './calendar/WeekAllDayRow'
 import { WeekDayColumn } from './calendar/WeekDayColumn'
+import { WeekHabitRow } from './calendar/WeekHabitRow'
 import { useWeekBuckets } from '../hooks/useWeekBuckets'
 import { dayPlanTally } from '../lib/movedPlans'
 import { unplannedListIds } from '../lib/listKind'
@@ -296,13 +304,16 @@ export function WeekCalendarView({
   usePinchHourHeight(scrollRef, timelineDrag.handlePointerCancel)
 
   // 落とすときにだけ読む。tasks に依存させると、変更のたびに列（memo）に渡す落とす処理が変わる
-  const getTaskDuration = useCallback(
-    (taskId: string): number | null => durationMinutesForTaskId(useTaskStore.getState().tasks, taskId),
-    [],
-  )
+  const getTaskDuration = useCallback((taskId: string): number | null => {
+    // 習慣の段のチップは既定の予定の長さ（目標のある習慣ははじめから枠なのでチップにならない）
+    if (parseHabitSlotId(taskId)) return null
+    return durationMinutesForTaskId(useTaskStore.getState().tasks, taskId)
+  }, [])
 
   /** 時刻つきの予定を時間グリッドより上（終日の行）へ持っていったときの落とし先の日 */
   const [allDayMoveKey, setAllDayMoveKey] = useState<string | null>(null)
+  /** 格子に置いた時刻ひとつの習慣の枠を、習慣の段（格子より上）へ持っていったときの日。離すとチップに戻す */
+  const [habitRowMoveKey, setHabitRowMoveKey] = useState<string | null>(null)
   const { activeEdge, setEdgeDir, edgeDirAt } = useWeekEdgeFlip({
     onNavigateWeek,
     gridDays,
@@ -322,6 +333,7 @@ export function WeekCalendarView({
 
   const endMoveExtras = () => {
     setAllDayMoveKey(null)
+    setHabitRowMoveKey(null)
     setEdgeDir(null)
     setCalendarItemDragActive(false)
   }
@@ -330,6 +342,16 @@ export function WeekCalendarView({
     const d = timelineDrag.drag
     if (!d || d.kind !== 'move' || !timelineDrag.didMove.current) return
     setEdgeDir(edgeDirAt(e.clientX, e.clientY))
+    const habitSlot = parseHabitSlotId(d.taskId)
+    if (habitSlot) {
+      // 習慣の枠は、格子に置いた時刻ひとつの習慣だけ習慣の段へ戻せる（どの日の上でもその枠の日のチップに戻す）。
+      // スマホは空の段を出さないので、戻すのは長押しメニューだけ
+      const habit = useTaskStore.getState().habits.find((h) => h.id === habitSlot.habitId)
+      const gridTop = scrollRef.current?.getBoundingClientRect().top ?? 0
+      const back = isDesktop && !singleDay && !!habit && isPlacedPointHabitOn(habit, habitSlot.dateKey) && e.clientY < gridTop
+      setHabitRowMoveKey(back ? habitSlot.dateKey : null)
+      return
+    }
     // 記録は「やったこと」なので終日・ToDo には戻さない
     const task = tasks.find((x) => x.id === d.taskId)
     if (!task || isLogTask(task)) return
@@ -349,7 +371,10 @@ export function WeekCalendarView({
   const handleGridPointerUp = () => {
     const d = timelineDrag.drag
     const toUnschedule = getCalendarItemDrag().overUnschedule
-    if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
+    if (d?.kind === 'move' && timelineDrag.didMove.current && habitRowMoveKey) {
+      unplaceHabitSlot(d.taskId)
+      timelineDrag.handlePointerCancel()
+    } else if (d?.kind === 'move' && timelineDrag.didMove.current && (allDayMoveKey || toUnschedule)) {
       const task = useTaskStore.getState().tasks.find((x) => x.id === d.taskId)
       if (task && !isLogTask(task) && allDayMoveKey && isCopyModifierHeld()) {
         // ⌥ を押して終日の行へ = その日の終日に複製を置く（元はそのまま）
@@ -377,6 +402,12 @@ export function WeekCalendarView({
   // 列（memo）に渡す落とす処理が描くたびに変わらないよう、作り直さない（読むのはストアと ref だけ）
   const onDrop = useCallback(
     (taskId: string, dateKey: string, startTime: string, endTime: string) => {
+      // 習慣の段のチップ: その日の格子に置くと、その日だけその時間の枠になる（ほかの日には置かない）
+      const habitSlot = parseHabitSlotId(taskId)
+      if (habitSlot) {
+        if (habitSlot.dateKey === dateKey) setHabitDayTimeFromSlot(habitSlot, startTime, endTime)
+        return
+      }
       if (dropLaneRef.current === 'log') {
         // 記録の列に落とした = その時間にやった（今より先は不可）。記録だけ作り、To-Do は途中までのこともあるので完了にするか聞く
         const task = useTaskStore.getState().tasks.find((x) => x.id === taskId)
@@ -479,7 +510,8 @@ export function WeekCalendarView({
     setDropBlocked,
     dropLaneRef,
     googleDragRef,
-    allDayMoveKey,
+    // 習慣の段へ持っていっている間も、格子の行き先の影は出さない
+    allDayMoveKey: allDayMoveKey ?? habitRowMoveKey,
     unscheduleHover,
     openCard,
     openGoogleCard,
@@ -531,6 +563,20 @@ export function WeekCalendarView({
               setAllDayAddDate={setAllDayAddDate}
               openGoogleCard={openGoogleCard}
               openCard={openCard}
+            />
+          )}
+          {/* 今日の計画の 1 日表示では習慣は左の一覧に出るので出さない */}
+          {!singleDay && (
+            <WeekHabitRow
+              gridDays={gridDays}
+              gutterWidth={gutterWidth}
+              gridColsClass={gridColsClass}
+              habitIndex={habitIndex}
+              logLimitMin={logLimitMin}
+              openHabitCard={openHabitCard}
+              openHabitMenu={openHabitMenu}
+              dropKey={habitRowMoveKey}
+              keepEmpty={isDesktop}
             />
           )}
 
@@ -595,7 +641,14 @@ export function WeekCalendarView({
         </div>
       </div>
 
-      <OverlaySuspense>
+      {/* 読めなかったら、遅れて読むカード（予定・Google の予定・作成）を閉じる */}
+      <OverlaySuspense
+        onLoadFailed={() => {
+          cards.closeCard()
+          cards.closeGoogleCard()
+          timelineDrag.dismissPopup()
+        }}
+      >
         <CalendarCards cards={cards} />
         {timelineDrag.popup && createAnchor && (
           <QuickCreatePopover

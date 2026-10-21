@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
  * - lg: 画面（To-Do・ゴミ箱・検索・いつか・習慣）
  * - sm: パネルの中（日パネル・時間未定のタスク）
  * アイコンは線のアイコンを `strokeWidth={1}` で渡す（大きさと色はここで決める）。
+ * `children` は下に置く操作（例のボタンなど）。
  */
 export function EmptyState({
   icon,
@@ -12,12 +13,14 @@ export function EmptyState({
   hint,
   size = 'lg',
   className = '',
+  children,
 }: {
   icon: ReactNode
   title: ReactNode
   hint?: ReactNode
   size?: 'lg' | 'sm'
   className?: string
+  children?: ReactNode
 }) {
   const lg = size === 'lg'
   return (
@@ -30,6 +33,7 @@ export function EmptyState({
       </span>
       <p className={`mx-auto max-w-xs leading-relaxed text-zinc-400 dark:text-zinc-500 ${lg ? 'text-sm' : 'text-xs'}`}>{title}</p>
       {hint && <p className={`mx-auto mt-1 max-w-xs text-zinc-300 dark:text-zinc-600 ${lg ? 'text-xs' : 'text-[11px]'}`}>{hint}</p>}
+      {children}
     </div>
   )
 }

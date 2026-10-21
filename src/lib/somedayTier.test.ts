@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { TASK_DEFAULTS } from './taskDefaults'
-import { dreamSteps, parseTierDropId, readSomedayTier, somedayTierOf, withDreamsFromSteps, withSomedayTier } from './somedayTier'
+import {
+  dreamOfStep,
+  dreamSteps,
+  somedaySectionColor,
+  splitSomeday,
+  readSomedayTier,
+  somedayTierOf,
+  withDreamsFromSteps,
+  withSomedayTier,
+} from './somedayTier'
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
   ...TASK_DEFAULTS,
@@ -35,8 +44,6 @@ describe('somedayTier', () => {
     expect(withSomedayTier(plain, null)).toBe(plain)
     expect(readSomedayTier('dream')).toBe('dream')
     expect(readSomedayTier('wish')).toBeNull()
-    expect(parseTierDropId('tier::dream')).toBe('dream')
-    expect(parseTierDropId('tier::x')).toBeNull()
   })
 
   it('夢の次の一歩は並び順で最初の済んでいない子。進み具合は済んだ子 / 全部（消した子は数えない）', () => {
@@ -63,5 +70,30 @@ describe('somedayTier', () => {
     expect(out.map((t) => t.somedayTier ?? null)).toEqual(['dream', null, null, null, null])
     // 直すものが無ければ同じ配列
     expect(withDreamsFromSteps(out, new Set(['wish']))).toBe(out)
+  })
+
+  it('予定にした一歩（dreamId）も数え、次の一歩は予定にした済んでいない一歩（日付の早い順）を先に（#430）', () => {
+    const tasks = [
+      task('d', { somedayTier: 'dream' }),
+      task('c1', { parentId: 'd', order: 0 }),
+      task('s2', { listId: '__inbox__', dreamId: 'd', scheduledDate: '2026-10-25' }),
+      task('s1', { listId: '__inbox__', dreamId: 'd', scheduledDate: '2026-10-20' }),
+      task('s0', { listId: '__inbox__', dreamId: 'd', completed: true, archivedAt: '2026-10-01T00:00:00Z' }),
+      task('gone', { listId: '__inbox__', dreamId: 'd', deletedAt: '2026-10-01T00:00:00Z' }),
+    ]
+    expect(dreamSteps(tasks, 'd')).toMatchObject({ next: { id: 's1' }, done: 1, total: 4 })
+    const someday = new Set(['wish'])
+    expect(dreamOfStep(tasks, tasks[2]!, someday)?.id).toBe('d')
+    // 夢でなくなったら（やりたいへ移した）名前を出さない
+    expect(dreamOfStep([{ ...tasks[0]!, somedayTier: undefined }, ...tasks.slice(1)], tasks[2]!, someday)).toBeNull()
+  })
+
+  it('夢とやりたいに分け、セクションで絞り込める。色はセクションの並び順で、外はグレー（#439）', () => {
+    const rows = [task('a', { somedayTier: 'dream', sectionId: 's1' }), task('b', { sectionId: 's1' }), task('c', { somedayTier: 'dream' })]
+    expect(splitSomeday(rows, null)).toMatchObject({ dreams: [{ id: 'a' }, { id: 'c' }], wishes: [{ id: 'b' }] })
+    expect(splitSomeday(rows, 's1')).toMatchObject({ dreams: [{ id: 'a' }], wishes: [{ id: 'b' }] })
+    expect(somedaySectionColor(0)).toBe('#039BE5')
+    expect(somedaySectionColor(8)).toBe('#039BE5')
+    expect(somedaySectionColor(-1)).toBe('#616161')
   })
 })

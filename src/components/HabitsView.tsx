@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
-import { useTaskStore } from '../store/taskStore'
+import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { useNavShortcut } from '../lib/shortcuts'
 import { isHabitActive } from '../types/habit'
 import { HABIT_WEEK_STARTS_ON, habitWeekDates } from '../lib/habitSchedule'
@@ -9,6 +9,7 @@ import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { buttonClass } from './ui/buttonClass'
 import { EmptyState } from './ui/EmptyState'
+import { ExampleChips } from './ui/ExampleChips'
 import { DayNav } from './ui/DayNav'
 import { RepeatIcon } from './icons'
 import { HabitContextMenu } from './HabitContextMenu'
@@ -22,7 +23,7 @@ import { HabitTrend } from './habits/HabitTrend'
 import { HabitDetailSheet } from './habits/HabitDetailSheet'
 import { ArchivedHabits } from './habits/ArchivedHabits'
 import { useHabitMenu } from './habits/useHabitMenu'
-import { EMPTY_HABIT_FORM, useHabitForm } from './habits/habitFormState'
+import { EMPTY_HABIT_FORM, useHabitFormDraft } from './habits/habitFormState'
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { usePresence } from '../hooks/usePresence'
@@ -36,7 +37,7 @@ export function HabitsView() {
   const scrollRef = useRef<HTMLDivElement>(null)
   useRememberScroll(scrollRef, 'habits')
   const df = useDateFormat()
-  const allHabits = useTaskStore((s) => s.habits)
+  const allHabits = useTaskStore(selectLiveHabits)
   // アーカイブした習慣は表に入れず、下の「アーカイブ」にだけ出す
   const habits = useMemo(() => allHabits.filter(isHabitActive), [allHabits])
   const archivedHabits = useMemo(() => allHabits.filter((h) => !isHabitActive(h)), [allHabits])
@@ -46,8 +47,8 @@ export function HabitsView() {
   const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
   const todayKey = useAppTodayKey()
 
-  // 追加フォームの中身は閉じても残す（閉じたときは名前だけ消す）
-  const [newForm, patchNewForm] = useHabitForm(EMPTY_HABIT_FORM)
+  // 追加フォームの中身は閉じても・画面を離れても残す（`useDialogDraft`）。足したら書きかけを捨て、名前だけ消して続けて足せるようにする
+  const [newForm, patchNewForm, discardNewForm] = useHabitFormDraft('habit-new', EMPTY_HABIT_FORM)
   const [showComposer, setShowComposer] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const { habitMenu, closeHabitMenu, menuProps } = useHabitMenu()
@@ -65,10 +66,7 @@ export function HabitsView() {
   const sheetValue = useMemo(() => (detail && detailHabit ? { ...detail, habit: detailHabit } : null), [detail, detailHabit])
   const sheet = usePresence(sheetValue)
 
-  const closeComposer = useCallback(() => {
-    patchNewForm({ title: '' })
-    setShowComposer(false)
-  }, [patchNewForm])
+  const closeComposer = useCallback(() => setShowComposer(false), [])
 
   /** いま足した習慣。足したらカードを閉じ、今週の表のその行までスクロールしてふわっと出す */
   const [addedId, setAddedId] = useState<string | null>(null)
@@ -88,11 +86,12 @@ export function HabitsView() {
   }, [setSelectedCalendarDateKey, todayKey])
   const onAdded = useCallback(
     (habitId: string) => {
+      discardNewForm({ ...newForm, title: '' })
       closeComposer()
       goToday()
       setAddedId(habitId)
     },
-    [closeComposer, goToday],
+    [closeComposer, discardNewForm, goToday, newForm],
   )
   useEffect(() => {
     if (!addedId) return
@@ -126,9 +125,18 @@ export function HabitsView() {
         {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} onAdded={onAdded} /> : null}
 
         {habits.length === 0 ? (
-          // フォームを開いている間は「右上の＋習慣を追加」の案内を出さない（ボタンは「閉じる」になっている）
+          // 例を押すとその名前で追加のカードが開く（中身を確かめて足す）。カードを開いている間は出さない
           showComposer ? null : (
-            <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty', { add: t('habits.addHabitCta') })} />
+            <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty')}>
+              <ExampleChips
+                examples={t('habits.examples', { returnObjects: true }) as string[]}
+                onPick={(title) => {
+                  patchNewForm({ title })
+                  setShowComposer(true)
+                }}
+                className="mt-4 justify-center"
+              />
+            </EmptyState>
           )
         ) : (
           <section className="space-y-2">

@@ -18,10 +18,12 @@ import { downloadTextFile } from '../../lib/downloadFile'
 import { TASK_DEFAULTS, withTaskDefaults } from '../../lib/taskDefaults'
 import { hasExistingData } from '../../lib/onboarding'
 import { DEFAULT_TIMETABLE } from '../../lib/timetable'
+import { DEFAULT_ADDONS } from '../../lib/addons'
 
 type DataActions = Pick<
   TaskState,
   | 'setSyncState'
+  | 'setCloudPulledAt'
   | 'setSyncRejected'
   | 'setDataOwner'
   | 'resetLocalData'
@@ -36,18 +38,25 @@ type DataActions = Pick<
 /**
  * 取り込んだバックアップのタスクとラベル表。前の版のバックアップ（ラベルの id が無い）は、行の名前・色から id を付ける（#365）
  */
-function importedLabels(parsed: BackupImportResult): Pick<TaskState, 'tasks' | 'timeLogTagPresets' | 'logCategoryColors' | 'logLabelIds'> {
+function importedLabels(
+  parsed: BackupImportResult,
+): Pick<TaskState, 'tasks' | 'timeLogTagPresets' | 'logCategoryColors' | 'logLabelIds'> & Partial<Pick<TaskState, 'logLabelTargets'>> {
   const table = {
     timeLogTagPresets: parsed.timeLogTagPresets ?? [],
     logCategoryColors: parsed.logCategoryColors ?? assignColorsInOrder(parsed.timeLogTagPresets ?? []),
     logLabelIds: parsed.logLabelIds,
   }
-  return { ...table, tasks: fillLabelIds(parsed.tasks.map(withTaskDefaults), labelIndex(table)) }
+  return {
+    ...table,
+    // 週の目安はファイルにあるときだけ（前の版のバックアップには無い）
+    ...(parsed.logLabelTargets ? { logLabelTargets: parsed.logLabelTargets } : {}),
+    tasks: fillLabelIds(parsed.tasks.map(withTaskDefaults), labelIndex(table)),
+  }
 }
 
 /** その時点の状態の控え（エクスポートと同じ形の JSON）。状態はあとで変わっても、渡したときのもの */
 export function backupJsonOf(s: TaskState): string {
-  const { tasks, lists, habits, sections, timeLogTagPresets, logCategoryColors, logLabelIds } = s
+  const { tasks, lists, habits, sections, timeLogTagPresets, logCategoryColors, logLabelIds, logLabelTargets } = s
   return JSON.stringify(
     buildBackupPayload({
       tasks,
@@ -57,6 +66,7 @@ export function backupJsonOf(s: TaskState): string {
       timeLogTagPresets,
       logCategoryColors,
       logLabelIds,
+      logLabelTargets,
     }),
   )
 }
@@ -65,6 +75,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
   const { pushUndo } = undo
   return {
     setSyncState: (state, lastSyncedAt) => set(lastSyncedAt ? { syncState: state, lastSyncedAt } : { syncState: state }),
+    setCloudPulledAt: (at) => set({ cloudPulledAt: at }),
 
     setSyncRejected: (rows) => set({ syncRejected: rows }),
 
@@ -92,6 +103,8 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
           courseLinksUpdatedAt: null,
           timetable: DEFAULT_TIMETABLE,
           timetableUpdatedAt: null,
+          addons: DEFAULT_ADDONS,
+          addonsUpdatedAt: null,
           dayMoods: {},
           googleEventColors: {},
           activeTimer: null,
@@ -112,6 +125,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         moveBannerText: null,
         syncState: 'idle',
         lastSyncedAt: null,
+        cloudPulledAt: null,
         dataOwner: null,
       })
     },
@@ -154,6 +168,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
             timeLogTagPresets: before.timeLogTagPresets,
             logCategoryColors: before.logCategoryColors,
             logLabelIds: before.logLabelIds,
+            logLabelTargets: before.logLabelTargets,
           }),
         ),
         savedAt: new Date().toISOString(),

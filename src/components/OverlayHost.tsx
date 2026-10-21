@@ -15,17 +15,17 @@ export function OverlayHost() {
   const detail = usePresence(detailTask)
   // 詳細・メニューは別ファイル。最初に開くときも待たないよう、手すきのときに読んでおく
   useEffect(() => preloadOverlays(), [])
-  // 詳細・メニューで落ちても、その部品だけ閉じる（メイン画面と書きかけは残す）
+  // 詳細・メニューで落ちても・読めなくても、その部品だけ閉じる（メイン画面と書きかけは残す）
   const menuKey = menu ? `${menu.kind}:${menu.x},${menu.y}` : ''
   return (
     <>
       <PartBoundary name="detail" resetKey={detailTaskId ?? ''} onCrash={closeTaskDetail}>
-        <OverlaySuspense>
+        <OverlaySuspense onLoadFailed={closeTaskDetail}>
           {detail.shown && <TaskDetail task={detail.shown} closing={detail.closing} onClose={closeTaskDetail} />}
         </OverlaySuspense>
       </PartBoundary>
       <PartBoundary name="menu" resetKey={menuKey} onCrash={closeTaskMenu}>
-        <OverlaySuspense>
+        <OverlaySuspense onLoadFailed={closeTaskMenu}>
           {menu?.kind === 'task' && (
             <TaskContextMenu
               x={menu.x}
@@ -39,7 +39,14 @@ export function OverlayHost() {
             />
           )}
           {menu?.kind === 'event' && (
-            <TaskEventMenu x={menu.x} y={menu.y} taskId={menu.taskId} onClose={closeTaskMenu} onOpenDetail={openTaskDetail} />
+            <TaskEventMenu
+              x={menu.x}
+              y={menu.y}
+              alignRight={menu.alignRight}
+              taskId={menu.taskId}
+              onClose={closeTaskMenu}
+              onOpenDetail={openTaskDetail}
+            />
           )}
           {menu?.kind === 'timeSlot' && (
             <TimeSlotMenu key={menu.taskId} x={menu.x} y={menu.y} taskId={menu.taskId} dateKey={menu.dateKey} onClose={closeTaskMenu} />
@@ -47,7 +54,9 @@ export function OverlayHost() {
           {menu?.kind === 'dueDateTime' && (
             <DueDateTimeMenu x={menu.x} y={menu.y} taskIds={menu.taskIds} onClose={closeTaskMenu} onDone={menu.onDone} />
           )}
-          {menu?.kind === 'google' && <GoogleEventMenu x={menu.x} y={menu.y} eventId={menu.eventId} onClose={closeTaskMenu} />}
+          {menu?.kind === 'google' && (
+            <GoogleEventMenu x={menu.x} y={menu.y} alignRight={menu.alignRight} eventId={menu.eventId} onClose={closeTaskMenu} />
+          )}
         </OverlaySuspense>
       </PartBoundary>
     </>

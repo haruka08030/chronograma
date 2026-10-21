@@ -34,6 +34,8 @@ export interface QuickAddOptions {
   parentId?: string
   /** 色（ラベル）を開いて追加したとき、その色を付ける（そのラベルの一覧に残るように） */
   color?: string
+  /** いつかの夢ボードを開いて追加したとき、夢にする（#439） */
+  somedayTier?: 'dream'
   /** 予定（完了の丸の無いもの）として作る（予定作成カードで「予定」を選んだとき）。締切・繰り返しは付けない */
   kind?: 'event'
   /** 追加欄の下のチップで選んだ値（書いた文より勝つ） */
@@ -393,6 +395,7 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     // 予定にすると「まで」で読んだ締切・繰り返しは外れる（`applyTaskPatch`）。やる日・時間帯はそのまま
     if (opts.kind === 'event' && kind === 'tasks' && !isSubtask) patch.kind = 'event'
     if (Object.keys(patch).length > 0) state.updateTask(id, patch)
+    if (opts.somedayTier === 'dream' && kind === 'someday' && !isSubtask) state.setSomedayTier([id], 'dream')
     if (opts.last) {
       const tasks = useTaskStore.getState().tasks
       const self = tasks.find((t) => t.id === id)

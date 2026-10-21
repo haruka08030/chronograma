@@ -1,6 +1,6 @@
 import type { Habit } from '../types/habit'
 import { isHabitDueOnDate } from './habitSchedule'
-import { plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
+import { habitDayStatus, habitTimesOn, habitUsualTimesOn, plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
 import type { PlannedItem } from '../types/plannedItem'
 import { fromDateKey } from './dateKey'
 
@@ -34,4 +34,44 @@ export function habitToPlannedItem(habit: Habit, dateKey: string, records?: Habi
     endTime: times.endTime,
     source: 'habit',
   }
+}
+
+/**
+ * その日の時間が始まりの時刻だけで、長さの決まらない習慣か。タイムラインでは格子に置かず、終日の行の下の習慣の段に出す。
+ * 「1 回の目標」があれば長さが決まるので、最初から格子の枠（開始〜開始＋目標）にする
+ */
+export function isPointHabitOn(habit: Habit, dateKey: string): boolean {
+  return !habit.goalMinutes && habitTimesOn(habit, dateKey)?.endTime === null
+}
+
+/** 習慣の段に出す、その日の時刻ひとつの習慣（時刻順） */
+export function pointHabitsOn(
+  habits: Habit[],
+  dateKey: string,
+  records: HabitRecordIndex,
+): { habit: Habit; slot: PlannedItem; done: boolean }[] {
+  return habits
+    .flatMap((habit) => {
+      if (!isPointHabitOn(habit, dateKey)) return []
+      const slot = habitToPlannedItem(habit, dateKey, records)
+      return slot ? [{ habit, slot, done: habitDayStatus(habit, dateKey, records) !== 'missed' }] : []
+    })
+    .sort((a, b) => a.slot.startTime.localeCompare(b.slot.startTime))
+}
+
+/** 時刻ひとつの習慣（目標なし）を、その日だけ格子に置いた（終わりのある枠にした）か。習慣の段のチップに戻せる */
+export function isPlacedPointHabitOn(habit: Habit, dateKey: string): boolean {
+  return !habit.goalMinutes && habitUsualTimesOn(habit, dateKey)?.endTime === null && habitTimesOn(habit, dateKey)?.endTime != null
+}
+
+/** 習慣の段に出す、その日にやる時間を決めていない習慣（並びは習慣の順。週に◯回・休み・アーカイブは今日の計画と同じ） */
+export function untimedHabitsOn(
+  habits: Habit[],
+  dateKey: string,
+  records: HabitRecordIndex,
+): { habit: Habit; id: string; done: boolean }[] {
+  return habits.flatMap((habit) => {
+    if (habit.timeMode !== 'none' || !isHabitDueOnDate(habit, fromDateKey(dateKey), records)) return []
+    return [{ habit, id: habitSlotId(habit.id, dateKey), done: habitDayStatus(habit, dateKey, records) !== 'missed' }]
+  })
 }

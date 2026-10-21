@@ -15,7 +15,7 @@ import {
 import { INBOX_LIST_ID } from '../store/taskStore'
 import type { SyncDeletes } from './syncMerge'
 import { reanchorTask } from './taskTimeZone'
-import { appTimeZone } from './timeZone'
+import { appTimeZone, readTimeZone } from './timeZone'
 import { withLogCategory } from './taskDefaults'
 import type { LogLabelRow, RemoteLabels } from './labelSync'
 import { validTargetMinutes } from './labelTargets'
@@ -25,9 +25,10 @@ import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZ
 import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
 import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
 import { normalizeTimetable, type RemoteTimetable } from './timetable'
+import { normalizeAddons, type RemoteAddons } from './addons'
 import { readEventSeries, withSeries } from './eventSeries'
 import { readMovedPlans, withMovedPlans } from './movedPlans'
-import { readSomedayTier, withSomedayTier } from './somedayTier'
+import { readDreamId, readSomedayTier, withDreamId, withSomedayTier } from './somedayTier'
 import { DAY_MOOD_NOTE_MAX, isMood, type DayMoodPush, type DayMoodPushResult, type RemoteDayMood } from './dayMood'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
@@ -69,6 +70,8 @@ interface HabitRow {
   weekday_times?: unknown
   /** 時間の目標（分、`031`）。古い DB には無い。無い・null は無し */
   goal_minutes?: number | null
+  /** ゴミ箱に入れた時刻（`042`）。古い DB には無い。無い・null はゴミ箱に無い */
+  deleted_at?: string | null
 }
 
 interface TaskRow {
@@ -102,6 +105,8 @@ interface TaskRow {
   moved_plans?: unknown
   /** いつかの段（`034`、'dream' か null）。古い DB には無い */
   someday_tier?: string | null
+  /** 夢の一歩だった To-Do の元の夢（`040`）。古い DB には無い */
+  dream_id?: string | null
   /** 古い DB には無い */
   color?: string | null
   /** 古い DB には無い */
@@ -197,6 +202,7 @@ function rowToHabit(row: HabitRow): Habit {
     ...withRestDates(row.rest_dates),
     ...withWeekdayTimes(row.weekday_times),
     ...withGoalMinutes(row.goal_minutes),
+    ...(typeof row.deleted_at === 'string' ? { deletedAt: row.deleted_at } : {}),
   }
 }
 
@@ -241,6 +247,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     rest_dates: h.restDates ?? null,
     weekday_times: h.weekdayTimes ?? null,
     goal_minutes: h.goalMinutes ?? null,
+    deleted_at: h.deletedAt ?? null,
   }
 }
 
@@ -262,7 +269,10 @@ function rowToTask(row: TaskRow): Task {
   // 毎週の印は予定の行だけ、移した予定の控えは To-Do の行だけ。値のある行だけ項目を持つ
   if (task.kind === 'event') return withSeries(task, readEventSeries(row.event_series))
   return task.kind === 'todo'
-    ? withSomedayTier(withMovedPlans(task, readMovedPlans(row.moved_plans)), readSomedayTier(row.someday_tier))
+    ? withDreamId(
+        withSomedayTier(withMovedPlans(task, readMovedPlans(row.moved_plans)), readSomedayTier(row.someday_tier)),
+        readDreamId(row.dream_id),
+      )
     : task
 }
 
@@ -310,8 +320,9 @@ function rowToTaskFields(row: TaskRow): Task {
     kind: taskKindFromFlags(row.is_time_log === true, row.is_sleep === true, row.is_event === true),
     habitId: typeof row.habit_id === 'string' ? row.habit_id : null,
     sourceTaskId: typeof row.source_task_id === 'string' ? row.source_task_id : null,
-    timeZone: typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null,
-    timeZoneAnchor: typeof row.time_zone_anchor === 'string' && row.time_zone_anchor ? row.time_zone_anchor : null,
+    // 知らないタイムゾーン名は無いものとして読む（いまのタイムゾーンで書いたとみなす）
+    timeZone: readTimeZone(row.time_zone),
+    timeZoneAnchor: readTimeZone(row.time_zone_anchor),
     reminders: parseReminders(row.reminders),
     archivedAt: typeof row.archived_at === 'string' ? row.archived_at : null,
     deletedAt: typeof row.deleted_at === 'string' ? row.deleted_at : null,
@@ -367,6 +378,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     event_series: isEventTask(task) ? (task.series ?? null) : null,
     moved_plans: isTodoTask(task) ? (task.movedPlans ?? null) : null,
     someday_tier: isTodoTask(task) ? (task.somedayTier ?? null) : null,
+    dream_id: isTodoTask(task) ? (task.dreamId ?? null) : null,
     is_sleep: isSleepTask(task),
     is_event: isEventTask(task),
     time_zone: task.timeZone,
@@ -412,13 +424,17 @@ export async function fetchListsTasksHabits(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<{ lists: TaskList[]; tasks: Task[]; habits: Habit[]; sections: ListSection[] } | { error: string }> {
-  const listRows = await fetchAllRows<ListRow>(supabase, 'lists', userId)
+  // 4 つの表は互いに関係しないので同時に読む（順に読むと、表ごとの往復がそのまま足し算になる）。
+  // 読み始める前のサーバーの時刻から次の差分を取るので、読んでいる間に変わった行は次の同期で届く（`syncPull.ts`）
+  const [listRows, sectionRows, taskRows, habitRows] = await Promise.all([
+    fetchAllRows<ListRow>(supabase, 'lists', userId),
+    fetchAllRows<SectionRow>(supabase, 'list_sections', userId),
+    fetchAllRows<TaskRow>(supabase, 'tasks', userId),
+    fetchAllRows<HabitRow>(supabase, 'habits', userId),
+  ])
   if ('error' in listRows) return listRows
-  const sectionRows = await fetchAllRows<SectionRow>(supabase, 'list_sections', userId)
   if ('error' in sectionRows) return sectionRows
-  const taskRows = await fetchAllRows<TaskRow>(supabase, 'tasks', userId)
   if ('error' in taskRows) return taskRows
-  const habitRows = await fetchAllRows<HabitRow>(supabase, 'habits', userId)
   if ('error' in habitRows) return habitRows
 
   return {
@@ -500,9 +516,11 @@ export async function fetchServerNow(supabase: SupabaseClient): Promise<{ at: st
  * ほかの端末で消した行が次の全部の取得まで手元に残る）
  */
 export async function fetchChangesSince(supabase: SupabaseClient, userId: string, since: string): Promise<SyncChanges | { error: string }> {
+  // 行の表どうしは同時に読む（印は行を読み終えてから）
+  const results = await Promise.all(SYNC_TABLES.map((table) => fetchRowsSince(supabase, table, userId, since, ['updated_at', 'id'])))
   const got: Partial<Record<SyncTable, Record<string, unknown>[]>> = {}
-  for (const table of SYNC_TABLES) {
-    const res = await fetchRowsSince(supabase, table, userId, since, ['updated_at', 'id'])
+  for (const [i, table] of SYNC_TABLES.entries()) {
+    const res = results[i]!
     if ('error' in res) return { error: `${table}: ${res.error}` }
     got[table] = res.rows
   }
@@ -542,7 +560,13 @@ function changesFromRows(
 
 /** 利用者ごとに 1 行の設定の表 */
 export type SettingTable =
-  'user_settings' | 'user_extra_time_zones' | 'user_active_timer' | 'user_event_templates' | 'user_course_links' | 'user_timetable'
+  | 'user_settings'
+  | 'user_extra_time_zones'
+  | 'user_active_timer'
+  | 'user_event_templates'
+  | 'user_course_links'
+  | 'user_timetable'
+  | 'user_addons'
 const SETTING_TABLES: readonly SettingTable[] = [
   'user_settings',
   'user_extra_time_zones',
@@ -550,6 +574,7 @@ const SETTING_TABLES: readonly SettingTable[] = [
   'user_event_templates',
   'user_course_links',
   'user_timetable',
+  'user_addons',
 ]
 
 /** `sync_changes_since`（`035`）の 1 回の答え */
@@ -965,7 +990,7 @@ export async function fetchLogLabels(supabase: SupabaseClient, userId: string): 
  */
 export async function pushSettingRow(
   supabase: SupabaseClient,
-  table: 'user_settings' | 'user_extra_time_zones' | 'user_active_timer' | 'user_event_templates' | 'user_course_links' | 'user_timetable',
+  table: SettingTable,
   row: Record<string, unknown> & { user_id: string; updated_at: string },
   base: string | null,
 ): Promise<SettingPushResult> {
@@ -1070,6 +1095,18 @@ export function pushTimetable(
   base: string | null,
 ): Promise<SettingPushResult> {
   return pushSettingRow(supabase, 'user_timetable', { user_id: userId, timetable: value.timetable, updated_at: value.updatedAt }, base)
+}
+
+/** 追加機能のオン・オフ（`user_addons.addons`、`041`）。行が無ければ null */
+export async function fetchAddons(supabase: SupabaseClient, userId: string): Promise<RemoteAddons | null | { error: string }> {
+  const { data, error } = await supabase.from('user_addons').select('addons, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { addons: normalizeAddons(data.addons), updatedAt: String(data.updated_at) }
+}
+
+export function pushAddons(supabase: SupabaseClient, userId: string, value: RemoteAddons, base: string | null): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_addons', { user_id: userId, addons: value.addons, updated_at: value.updatedAt }, base)
 }
 
 /**
