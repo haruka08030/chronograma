@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { isEventTask, type Priority, type Task } from '../../types/task'
 import { PillToggle } from '../ui/PillToggle'
-import { addClockMinutes } from '../../lib/clockTime'
+import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
 import { PRIORITY_TEXT_CLASS } from '../../lib/priorityColor'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { DueDatePopover } from '../DueDatePopover'
@@ -74,7 +74,10 @@ export function TaskPlanFields({ task }: { task: Task }) {
           <div className="mt-2 flex items-center gap-2">
             <TimeInput
               value={tv.startTime ?? ''}
-              onChange={(v) => updateTimes({ startTime: v || null })}
+              // 開始を動かしたら長さを保って終わりもずらす（タイムラインのカード・Google と同じ）
+              onChange={(v) =>
+                updateTimes(v ? { startTime: v, endTime: endAfterStartEdit(tv.startTime, tv.endTime, v) || null } : { startTime: null })
+              }
               className={fieldClass({}, 'w-[7rem]')}
             />
             <span className="text-zinc-400 text-sm">{t('common.timeRangeSeparator')}</span>
