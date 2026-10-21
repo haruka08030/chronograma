@@ -784,12 +784,7 @@ export default {
     nextMonthAria: 'Next month',
   },
   stats: {
-    tasksTitle: 'Tasks',
-    activeLabel: 'Open',
-    overdueLabel: 'Overdue',
-    streakLabel: 'Days in a row',
     title: 'Stats',
-    daySuffix: 'd',
     active: 'Open',
     done: 'Completed',
     byTagTitle: 'By tag',

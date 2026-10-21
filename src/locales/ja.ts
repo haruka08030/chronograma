@@ -765,12 +765,7 @@ export default {
     nextMonthAria: '次の月',
   },
   stats: {
-    tasksTitle: 'タスク',
-    activeLabel: '未完了',
-    overdueLabel: '締切切れ',
-    streakLabel: '連続で完了した日',
     title: '統計',
-    daySuffix: '日',
     active: '未完了',
     done: '完了',
     byTagTitle: 'タグ別',

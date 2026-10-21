@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { computeTaskStats } from './taskStats'
-import { setAppTimeZoneSetting } from './timeZone'
+import { computeTagStats } from './taskStats'
 import { TASK_DEFAULTS } from './taskDefaults'
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
@@ -28,24 +27,18 @@ const task = (id: string, over: Partial<Task> = {}): Task => ({
 
 const done = (id: string, completedAt: string) => task(id, { completed: true, completedAt })
 
-describe('computeTaskStats', () => {
-  afterEach(() => setAppTimeZoneSetting(null))
-
-  it('夜中の完了はその日（0 時区切り）として連続日数に入る', () => {
-    setAppTimeZoneSetting('Asia/Tokyo')
+describe('computeTagStats', () => {
+  it('タグごとに未完了・完了を数え、タグ無しは最後に 1 行', () => {
     const tasks = [
-      done('a', '2026-10-01T17:00:00Z'), // 10/2 2:00 JST
-      done('b', '2026-10-02T17:00:00Z'), // 10/3 2:00 JST
+      task('a', { tags: ['ゼミ'] }),
+      task('b', { tags: ['ゼミ', '就活'] }),
+      done('c', '2026-10-01T03:00:00Z'),
+      task('d', { tags: ['就活'], completed: true, completedAt: '2026-10-01T03:00:00Z' }),
     ]
-    expect(computeTaskStats(tasks, [], '2026-10-03').streak).toBe(2)
-  })
-
-  it('締切が今日より前の未完了だけを期限切れに数える', () => {
-    const tasks = [
-      task('a', { dueDate: '2026-10-02' }),
-      task('b', { dueDate: '2026-10-03' }),
-      task('c', { dueDate: '2026-10-01', completed: true, completedAt: '2026-10-01T03:00:00Z' }),
-    ]
-    expect(computeTaskStats(tasks, [], '2026-10-03').overdue).toBe(1)
+    expect(computeTagStats(tasks, []).byTag).toEqual([
+      { tag: 'ゼミ', active: 2, completed: 0 },
+      { tag: '就活', active: 1, completed: 1 },
+      { tag: '', active: 0, completed: 1 },
+    ])
   })
 })

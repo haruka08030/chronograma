@@ -3,7 +3,7 @@ import { planKindOf, taskKindFlags, taskKindFromFlags, type Task } from '../type
 import { getDayPlan, getMoreSuggestions } from './dayPlan'
 import { plannedTodoMinutes } from './dayLoad'
 import { getFilteredRootTasks } from './mainListTasks'
-import { computeTaskStats } from './taskStats'
+import { computeTagStats } from './taskStats'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { busySpans } from './freeSlots'
 import { onboardingSteps } from './onboarding'
@@ -84,7 +84,7 @@ describe('予定は To-Do として数えない', () => {
   })
 
   it('統計の件数・色ラベルの件数に入れない', () => {
-    expect(computeTaskStats(tasks, [], DAY).totalActive).toBe(1)
+    expect(computeTagStats(tasks, []).byTag.reduce((n, x) => n + x.active, 0)).toBe(1)
     expect(todoColorLabels(tasks, new Set(), [], {})).toEqual([])
     expect(unlabeledTodoCount(tasks, new Set())).toBe(1)
   })
