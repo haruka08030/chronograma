@@ -235,6 +235,8 @@ export default {
     carryOverHeading: 'やり残し {{count}} 件',
     moveAllToToday: 'すべて今日へ',
     habitsHeading: '習慣',
+    habitsDoneHeading: '達成 {{count}} 件',
+    habitWeekProgress: '今週 {{done}}/{{count}}',
     habitOffTime: '時間外',
     doneHeading: '完了 {{count}} 件',
     wrapUpRemaining: '残り {{count}} 件。',
