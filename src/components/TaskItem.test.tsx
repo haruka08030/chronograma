@@ -26,7 +26,9 @@ describe('TaskItem', () => {
     await user.click(check)
 
     // 押した直後から完了の見た目にし、少し置いてからストアを完了にする
-    await waitFor(() => expect(useTaskStore.getState().tasks.find((t) => t.id === task.id)?.completed).toBe(true))
+    await waitFor(() => expect(useTaskStore.getState().tasks.find((t) => t.id === task.id)?.completed).toBe(true), {
+      timeout: 3000,
+    })
     expect(screen.getByRole('checkbox', { name: 'Complete “Write report”' })).toHaveAttribute('aria-checked', 'true')
   })
 

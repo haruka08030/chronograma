@@ -15,6 +15,7 @@ export function GestureRow({
   liftId,
   enabled = true,
   className = '',
+  outerClassName = '',
   rowProps,
   itemRole,
   children,
@@ -26,6 +27,8 @@ export function GestureRow({
   /** 横に払う操作を効かせるか */
   enabled?: boolean
   className?: string
+  /** 外の `li` に足す class（完了にした行を縮めて消す `animate-row-collapse` など） */
+  outerClassName?: string
   rowProps?: HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, string>
   /** 外の `li` の役割。中の行が listbox の option のときは 'none'（list の項目にしない） */
   itemRole?: 'none'
@@ -36,7 +39,7 @@ export function GestureRow({
   // 浮かせるのは選択中も効かせる（`enabled` は払う操作だけ）
   const longPress = useRowLift(liftId ?? '', !!liftId)
   return (
-    <li role={itemRole} className="relative rounded-lg">
+    <li role={itemRole} className={`relative rounded-lg ${outerClassName}`}>
       {swipe.backdrop}
       <div
         ref={rowRef}
