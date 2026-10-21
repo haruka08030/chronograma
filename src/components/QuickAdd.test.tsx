@@ -46,6 +46,18 @@ describe('QuickAdd', () => {
     closeTaskDetail()
   })
 
+  it('優先度のチップで選んだ優先度が足した To-Do に付く', async () => {
+    const user = userEvent.setup()
+    render(<QuickAdd />)
+    const input = screen.getByPlaceholderText('Add a to-do')
+    await user.type(input, 'Essay')
+    await user.click(screen.getByRole('button', { name: 'Priority' }))
+    await user.click(screen.getByRole('button', { name: 'High' }))
+    expect(screen.getByRole('button', { name: 'Priority: High' })).toBeInTheDocument()
+    await user.type(input, '{Enter}')
+    expect(tasks()[0]).toMatchObject({ title: 'Essay', priority: 'high' })
+  })
+
   it('空のまま Enter では増えない', async () => {
     const user = userEvent.setup()
     render(<QuickAdd />)

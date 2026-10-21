@@ -13,18 +13,23 @@ import { NEUTRAL_HEX } from '../lib/googleColors'
 import { DatePickerBody } from './DatePickerBody'
 import { TimeInput } from './TimeInput'
 import { ColorPalette } from './labels/ColorPalette'
-import { ArrowRightIcon, CalendarIcon, ClockIcon, DueIcon, HourglassIcon, StarIcon } from './icons'
+import { ArrowRightIcon, CalendarIcon, ClockIcon, DueIcon, FlagIcon, HourglassIcon, StarIcon } from './icons'
+import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
+import type { Priority } from '../types/task'
 import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
 import { buttonClass } from './ui/buttonClass'
 import { compareByOrder } from '../lib/orderCompare'
 
-type Panel = 'date' | 'time' | 'estimate' | 'due' | 'list' | 'label'
+type Panel = 'date' | 'time' | 'estimate' | 'due' | 'priority' | 'list' | 'label'
+
+/** 優先度を選ぶ順（詳細の優先度の欄と同じ） */
+const PRIORITY_OPTIONS: Priority[] = ['none', 'low', 'medium', 'high']
 
 const ICON = 'h-3 w-3 shrink-0'
 
 /**
- * 追加欄の下の詳細のチップ（やる日・時間・見積もり・締切・リスト・ラベル）。入力中だけ出す。
+ * 追加欄の下の詳細のチップ（やる日・時間・見積もり・締切・優先度・リスト・ラベル）。旗は優先度だけ（締切は的）。入力中だけ出す。
  * チップには足したら付く値（書いた文・選んだ値・欄の既定を重ねた結果、`quickAddDraft`）を出し、押すと下に選ぶ面が開く。
  * 選んだ値（`picks`）は書いた文より勝つ。いつか・チェックリストに入るなら日付のチップは出さない。
  * やりたいことのリストに入るなら「☆ 夢」の切り替え（押すたびに夢にする / しない。夢ボードを開いていれば最初から夢）
@@ -108,6 +113,13 @@ export function QuickAddDetails({
         t('quickAdd.chip.estimate'),
       ),
       chip('due', <DueIcon className={ICON} />, dueText, t('quickAdd.chip.due'), t('quickAdd.chip.due')),
+      chip(
+        'priority',
+        <FlagIcon className={`${ICON} ${draft.priority !== 'none' ? PRIORITY_TEXT_CLASS[draft.priority] : ''}`} />,
+        draft.priority !== 'none' ? t(`common.${draft.priority}`) : null,
+        t('common.priority'),
+        t('common.priority'),
+      ),
     )
   }
   chips.push(
@@ -239,6 +251,22 @@ export function QuickAddDetails({
         {optionChip('none', t('taskDetail.estimateNone'), draft.estimateMinutes == null, () => pick({ estimateMinutes: null }))}
         {ESTIMATE_OPTIONS.map((m) =>
           optionChip(String(m), formatDuration(m), draft.estimateMinutes === m, () => pick({ estimateMinutes: m })),
+        )}
+      </div>
+    )
+  } else if (panel === 'priority') {
+    body = (
+      <div className="flex flex-wrap gap-1.5">
+        {PRIORITY_OPTIONS.map((p) =>
+          optionChip(
+            p,
+            <>
+              <FlagIcon className={`${ICON} ${PRIORITY_TEXT_CLASS[p]}`} />
+              {t(`common.${p}`)}
+            </>,
+            draft.priority === p,
+            () => pick({ priority: p }),
+          ),
         )}
       </div>
     )
