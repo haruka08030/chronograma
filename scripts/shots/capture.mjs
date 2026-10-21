@@ -180,16 +180,16 @@ const SCREENS = [
     click: '[data-floating-timer] button:has-text("レポート")',
     steps: [{ fill: { selector: '[data-floating-timer] input', text: '授' } }],
   },
-  // 「1 日を締める」のラベルなしの記録を開いて行のチップで付ける所（#390）と、設定のラベルの「直近 30 日でラベルなし」から開いた所
+  // 記録の帯の凡例の「ラベルなし」を押して、ラベルなしの記録を行のチップで付ける所（#390・#501）
   {
     name: 'planner-untagged',
     view: 'planner',
     at: '19:30',
-    click: 'button:has-text("ラベルなしの記録") >> visible=true',
-    scrollTo: '[data-wrap-up]',
+    mobileClick: 'button[aria-label="分類ごとの時間"] >> visible=true',
+    click: 'button[aria-expanded]:has-text("ラベルなし") >> visible=true',
   },
-  // 「1 日を締める」の記録の無い時間（最近の記録のチップ・ほかを記録・何もしていない、#418）
-  { name: 'planner-wrap-up-gaps', view: 'planner', at: '21:00', scrollTo: '[data-wrap-up-gaps]' },
+  // タイムラインの記録の列の「＋ 記録なし」を押したところ（書く前は、よく記録するもののチップで 1 タップで埋める、#501）
+  { name: 'planner-gap-card', view: 'planner', at: '21:00', desktopOnly: true, click: '[data-unrecorded-gap] >> visible=true >> nth=0' },
   {
     name: 'settings-untagged',
     view: 'settings',
@@ -290,7 +290,7 @@ const SCREENS = [
       '[role=menu] >> text=中以上 >> visible=true',
     ],
   },
-  // 夕方以降だけ出る「1 日を締める」行（残り・ラベルなしの記録・ふりかえる）
+  // 夕方以降だけ出る締め（気分の記号だけ）
   { name: 'planner-evening', view: 'planner', at: '19:30', scrollToBottom: true },
   // 全部終わった日の締め（おつかれさまでした）
   { name: 'planner-evening-clear', view: 'planner', at: '19:30', scrollToBottom: true, allDone: true },

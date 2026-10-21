@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { shortcutTip, tip } from '../lib/tooltip'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { frequentLogs } from '../lib/logCategory'
+import { frequentLogs, isUnlabeledLog } from '../lib/logCategory'
 import { categoryHex, colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
 import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { isActiveTask } from '../lib/taskLifecycle'
@@ -25,6 +25,7 @@ import { isLogTask, isSleepTask } from '../types/task'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
 import { LogTitleInput } from './LogTitleInput'
+import { UntaggedLogList } from './UntaggedLogList'
 import { useLogDraft } from '../hooks/useLogDraft'
 
 /** 「L」キーで今日画面の「記録する」を開くためのイベント */
@@ -91,6 +92,18 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     }
     return { totalMinutes: total, byCategory: [...m.entries()].sort((a, b) => b[1] - a[1]) }
   }, [dayLogs, dateKey, labelPresets, logCategoryColors])
+
+  // 凡例の「ラベルなし」を押して開いたラベルなしの記録（付けても行は残し、押し間違いを直せる）。閉じていれば null
+  const [untaggedOpen, setUntaggedOpen] = useState<string[] | null>(null)
+  const toggleUntagged = () =>
+    setUntaggedOpen((v) =>
+      v
+        ? null
+        : dayLogs
+            .filter(isUnlabeledLog)
+            .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? ''))
+            .map((x) => x.id),
+    )
 
   // 記録中でも始められる（前の記録を保存して切り替える）
   const canStartTimer = viewingToday
@@ -211,14 +224,34 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
               style={colorVars(recordLabelKeyHex(cat, logCategoryColors))}
               aria-hidden
             />
-            <span className="min-w-0 max-w-[8rem] truncate">{labelOf(cat)}</span>
-            <span className="shrink-0 tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(min)}</span>
+            {cat === '' ? (
+              // ラベルなしは押すとその日のラベルなしの記録を開き、その場でラベルを付ける（見出しの「記録なし」と同じ点線の下線）
+              <button
+                type="button"
+                aria-expanded={untaggedOpen !== null}
+                onClick={toggleUntagged}
+                className="-mx-1 inline-flex min-w-0 items-center gap-1.5 rounded px-1 underline decoration-dotted underline-offset-2 transition-colors hover:text-zinc-700 dark:hover:text-zinc-200"
+              >
+                <span className="min-w-0 max-w-[8rem] truncate">{labelOf(cat)}</span>
+                <span className="shrink-0 tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(min)}</span>
+              </button>
+            ) : (
+              <>
+                <span className="min-w-0 max-w-[8rem] truncate">{labelOf(cat)}</span>
+                <span className="shrink-0 tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(min)}</span>
+              </>
+            )}
           </li>
         ))}
         {!showBreakdown && byCategory.length > MOBILE_BREAKDOWN_ROWS && (
           <li className="shrink-0 whitespace-nowrap md:hidden">{t('records.breakdownMore')}</li>
         )}
       </ul>
+      {untaggedOpen && (
+        <div className="mt-1">
+          <UntaggedLogList ids={untaggedOpen} />
+        </div>
+      )}
     </div>
   )
 
