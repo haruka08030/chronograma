@@ -1230,6 +1230,13 @@ export default {
     failed: 'Continuing will remove the data on this device. Export it first?',
     exportAndContinue: 'Export and continue',
   },
+  signedOut: {
+    expired: "Your sign-in expired, so you were signed out. Changes that hadn't been sent are kept on this device.",
+    deleted: 'This account was deleted on another device, so you were signed out.',
+    signIn: 'Sign in',
+    restoreAsk: "Bring back changes from before you were signed out that aren't in the cloud?",
+    restore: 'Bring back',
+  },
   account: {
     emailRequired: 'Enter your email address.',
     genericError: 'Something went wrong. Please try again.',
