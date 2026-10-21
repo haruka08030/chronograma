@@ -94,7 +94,8 @@ export function clearSettingSyncedAt(userId: string): void {
  * 手元の値のもとになったサーバーの版の中身の控え（ラベル表はラベルの id の一覧、#357）。版（`at`）と一緒に持ち、
  * `syncedAt` と同じ版の控えだけを使う。両方の端末で変えたときに、片方で消したものを消したと分かるようにする
  */
-const baseKey = (userId: string) => `chronograma-settings-base-v1:${userId}`
+export const SETTING_BASE_KEY_PREFIX = 'chronograma-settings-base-v1:'
+const baseKey = (userId: string) => `${SETTING_BASE_KEY_PREFIX}${userId}`
 
 function readBases(userId: string): Partial<Record<SettingKey, { at: string; value: unknown }>> {
   try {
@@ -135,7 +136,16 @@ export interface SettingSyncDeps<
   key: SettingKey
   fetch: () => Promise<R | null | { error: string }>
   /** `base` は `syncedAt` の版の中身の控え（`baseOf` で作ったもの。無ければ null） */
-  plan: (remote: R | null, syncedAt: string | null, clockOffsetMs: number, base: unknown) => { apply?: A; push?: P; adopt?: string }
+  /**
+   * `conflicts` は中身ごとに合わせたとき、両方が別の値に変えて新しいほうにした数（`settingMerge.ts`）。
+   * 返さない設定は、両方の端末で変えて新しいほうに丸ごと任せたら 1 回と数える
+   */
+  plan: (
+    remote: R | null,
+    syncedAt: string | null,
+    clockOffsetMs: number,
+    base: unknown,
+  ) => { apply?: A; push?: P; adopt?: string; conflicts?: number }
   /** 合わせた版の中身の控えを作る（サーバーの値か送った値から）。無ければ控えを持たない */
   baseOf?: (synced: R | P) => unknown
   /** 手元の変えた時刻（`logLabelsUpdatedAt` など） */
@@ -171,6 +181,11 @@ export async function runSettingSync<
      * 手元のもとにした版と同じで、手元でも変えていなければ取りに行かない（#258。何も変わらない同期で設定ごとに 1 往復していた）
      */
     remoteVersion?: string | null
+    /**
+     * 片方の編集を捨てた回数を記録に送る（`noteMergeConflicts`。キーは `settings.<設定の名前>`）。
+     * 記録の部分を設定の同期から読み込まない（読み込み順が回り、テストの差し替えが効かなくなる）ので、呼ぶ側から渡す
+     */
+    onConflicts?: (counts: Record<string, number>) => void
   } = {},
 ): Promise<void> {
   const cancelled = opts.isCancelled ?? (() => false)
@@ -191,6 +206,18 @@ export async function runSettingSync<
     const plannedAt = s.localUpdatedAt()
     const syncedAt = loadSettingSyncedAt(userId, s.key)
     const plan = s.plan(remote, syncedAt, opts.clockOffsetMs ?? 0, s.baseOf ? loadSettingBase(userId, s.key, syncedAt) : null)
+    // 片方の編集を捨てた回数を記録に（行の項目と同じ記録。表の名前だけで数え、中身は送らない）
+    const conflicts =
+      plan.conflicts ??
+      (remote &&
+      plannedAt !== null &&
+      syncedAt !== null &&
+      plannedAt !== syncedAt &&
+      remote.updatedAt !== syncedAt &&
+      (plan.apply || plan.push)
+        ? 1
+        : 0)
+    if (conflicts > 0) opts.onConflicts?.({ [`settings.${s.key}`]: conflicts })
     /** この版に合わせた。版と中身の控えを覚える */
     const synced = (at: string, value: R | P) => {
       saveSettingSyncedAt(userId, s.key, at)

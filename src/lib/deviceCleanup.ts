@@ -9,12 +9,15 @@
  * - 前回同期の控えは、ログアウトした人の分の中身を消して印だけ残す（`hasOtherUsersBaseline` が見るのはキーがあるかだけ。
  *   データを空にした後は控えを使わない）
  * - 前回取得したサーバーの内容（`syncPull.ts` の `savePullState`）は、ログアウトでは誰の分も消す。容量が足りないときも手放す（次は全部を取るだけ）
+ * - 設定の前回合わせた版の中身の控え（`settingSync.ts`。授業の名前・支払いの名前が入る）は、ログアウトでは誰の分も消す
+ *   （次は控えの無いとき＝両方にあるものを残す合わせ方になるだけ）
  */
 import { BASELINE_KEY_PREFIX, PULL_STATE_KEY_PREFIX, readStored, storedKeys, writeStored } from './dataStore'
 import { CANVAS_PULLED_PREFIX, NOTION_PULLED_PREFIX } from './externalFields'
 import { CANVAS_SUBMITTED_PREFIX } from './canvasSubmitted'
 import { INTEGRATION_HINT_PREFIX } from './integrationHint'
 import { WRITE_BACK_PREFIX } from './writeBackQueue'
+import { SETTING_BASE_KEY_PREFIX } from './settingSync'
 import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
 
 export const UNREADABLE_COPY_PREFIX = `${PERSIST_STORAGE_KEY}-unreadable-`
@@ -132,7 +135,7 @@ export function clearStorageCopies(): boolean {
   return removed
 }
 
-/** 連携（Canvas・Notion）から前回取り込んだ値・Canvas の提出済みの控え・送り直し待ちの書き戻しを、誰の分も消す */
+/** 連携（Canvas・Notion）から前回取り込んだ値・Canvas の提出済みの控え・送り直し待ちの書き戻し・設定の前回合わせた版の中身の控えを、誰の分も消す */
 export function clearIntegrationMemos(): void {
   for (const key of localKeys()) {
     if (
@@ -140,7 +143,8 @@ export function clearIntegrationMemos(): void {
       key.startsWith(NOTION_PULLED_PREFIX) ||
       key.startsWith(CANVAS_SUBMITTED_PREFIX) ||
       key.startsWith(INTEGRATION_HINT_PREFIX) ||
-      key.startsWith(WRITE_BACK_PREFIX)
+      key.startsWith(WRITE_BACK_PREFIX) ||
+      key.startsWith(SETTING_BASE_KEY_PREFIX)
     )
       removeLocal(key)
   }

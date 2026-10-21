@@ -314,6 +314,7 @@ export function useSupabaseSync() {
         maxStaleRetries: MAX_STALE_RETRIES,
         // 版が手元のもとにした版と同じで、手元でも変えていなければ取りに行かない
         remoteVersion: round ? round.settingVersions[SETTING_TABLE[s.key]] : undefined,
+        onConflicts: noteMergeConflicts,
       })
 
     /** ラベル表（名前・並び・色・週の目安） */
@@ -395,15 +396,18 @@ export function useSupabaseSync() {
       syncSetting({
         key: 'templates',
         fetch: () => fetchEventTemplates(supabase, userId),
-        plan: (remote, syncedAt, offset) => {
+        plan: (remote, syncedAt, offset, base) => {
           const st = useTaskStore.getState()
           return planEventTemplateSync(
             { templates: st.eventTemplates, updatedAt: st.eventTemplatesUpdatedAt, syncedAt },
             remote,
             undefined,
             offset,
+            base,
           )
         },
+        // 合わせた版の中身を控える（両方で変えたとき id ごとに合わせる）
+        baseOf: (synced) => synced.templates,
         localUpdatedAt: () => useTaskStore.getState().eventTemplatesUpdatedAt,
         applyLocal: ({ templates, updatedAt }) =>
           asIncomingChange(() => useTaskStore.setState({ eventTemplates: templates, eventTemplatesUpdatedAt: updatedAt })),
@@ -416,10 +420,17 @@ export function useSupabaseSync() {
       syncSetting({
         key: 'courses',
         fetch: () => fetchCourseLinks(supabase, userId),
-        plan: (remote, syncedAt, offset) => {
+        plan: (remote, syncedAt, offset, base) => {
           const st = useTaskStore.getState()
-          return planCourseLinkSync({ links: st.courseLinks, updatedAt: st.courseLinksUpdatedAt, syncedAt }, remote, undefined, offset)
+          return planCourseLinkSync(
+            { links: st.courseLinks, updatedAt: st.courseLinksUpdatedAt, syncedAt },
+            remote,
+            undefined,
+            offset,
+            base,
+          )
         },
+        baseOf: (synced) => synced.links,
         localUpdatedAt: () => useTaskStore.getState().courseLinksUpdatedAt,
         applyLocal: ({ links, updatedAt }) =>
           asIncomingChange(() => useTaskStore.setState({ courseLinks: links, courseLinksUpdatedAt: updatedAt })),
@@ -431,10 +442,12 @@ export function useSupabaseSync() {
       syncSetting({
         key: 'timetable',
         fetch: () => fetchTimetable(supabase, userId),
-        plan: (remote, syncedAt, offset) => {
+        plan: (remote, syncedAt, offset, base) => {
           const st = useTaskStore.getState()
-          return planTimetableSync({ timetable: st.timetable, updatedAt: st.timetableUpdatedAt, syncedAt }, remote, undefined, offset)
+          return planTimetableSync({ timetable: st.timetable, updatedAt: st.timetableUpdatedAt, syncedAt }, remote, undefined, offset, base)
         },
+        // 合わせた版の中身を控える（両方で変えたとき、欠席は授業ごと・日ごとに合わせる）
+        baseOf: (synced) => synced.timetable,
         localUpdatedAt: () => useTaskStore.getState().timetableUpdatedAt,
         applyLocal: ({ timetable, updatedAt }) =>
           asIncomingChange(() => useTaskStore.setState({ timetable, timetableUpdatedAt: updatedAt })),
@@ -448,10 +461,12 @@ export function useSupabaseSync() {
       syncSetting({
         key: 'addons',
         fetch: () => fetchAddons(supabase, userId),
-        plan: (remote, syncedAt, offset) => {
+        plan: (remote, syncedAt, offset, base) => {
           const st = useTaskStore.getState()
-          return planAddonsSync({ addons: st.addons, updatedAt: st.addonsUpdatedAt, syncedAt }, remote, undefined, offset)
+          return planAddonsSync({ addons: st.addons, updatedAt: st.addonsUpdatedAt, syncedAt }, remote, undefined, offset, base)
         },
+        // 合わせた版の中身を控える（両方で変えたとき、機能・支払い・名前ごとに合わせる）
+        baseOf: (synced) => synced.addons,
         localUpdatedAt: () => useTaskStore.getState().addonsUpdatedAt,
         applyLocal: ({ addons, updatedAt }) => asIncomingChange(() => useTaskStore.setState({ addons, addonsUpdatedAt: updatedAt })),
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ addonsUpdatedAt: at })),
