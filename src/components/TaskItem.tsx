@@ -1,3 +1,4 @@
+import { RowColorLine } from './ui/RowColorLine'
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { DraggableSyntheticListeners } from '@dnd-kit/core'
 import { dreamOfStep, dreamSteps } from '../lib/somedayTier'
@@ -33,7 +34,6 @@ import { isLiftActive, TOUCH_LIFT_ATTR } from '../lib/touchLift'
 import { useRowSwipe } from '../hooks/useRowSwipe'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
-import { colorVars } from '../lib/logCategoryColors'
 import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS, ROW_LIFTED_CLASS } from './ui/rowStateClass'
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { TITLE_MAX_LENGTH } from '../lib/textLimits'
@@ -390,10 +390,7 @@ export const TaskItem = memo(function TaskItem({
         }}
         onClick={pressRow}
       >
-        {rowHex && (
-          // 丸の中と同じ薄い色。ベタ塗りだとここだけポップに浮く
-          <span aria-hidden className="gc-line absolute left-0.5 top-2 bottom-2 w-[3px] rounded-full" style={colorVars(rowHex)} />
-        )}
+        {rowHex && <RowColorLine hex={rowHex} />}
         {dragHandle ? (
           <span className="touch-none flex-shrink-0">{dragHandle}</span>
         ) : keepHandleSpace && !isCoarse ? (
