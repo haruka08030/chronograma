@@ -85,7 +85,7 @@ describe('timerEndPayload（「あと何分」の時間、#290）', () => {
   })
 })
 
-describe('夜の締め（wrapUpPayload）', () => {
+describe('夜のまとめ（wrapUpPayload）', () => {
   const d = (p: Partial<{ planned: number; followed: number; unplannedMinutes: number; loggedMinutes: number }>) => ({
     planned: 0,
     followed: 0,
@@ -97,7 +97,7 @@ describe('夜の締め（wrapUpPayload）', () => {
   it('今日の計画の見出しと同じ「予定 N 件中 M 件・予定外」と記録を並べる（残りは出さない）', () => {
     const p = wrapUpPayload(MESSAGES.ja, d({ planned: 4, followed: 3, unplannedMinutes: 60, loggedMinutes: 300 }))
     expect(p).toEqual({
-      title: '1 日を締める',
+      title: '夜のまとめ',
       body: '今日: 予定 4 件中 3 件・予定外 1時間 ・ 記録 5時間',
       tag: 'chronograma-wrap-up',
       url: '/?view=planner&wrap-up=1',

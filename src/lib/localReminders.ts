@@ -1,6 +1,6 @@
 /**
  * タブを開いている間の通知（Web Push が使えないとき）。何をいつ出すかはサーバーと同じ
- * `schedule.ts` で決める: 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜の締め・タイマーの止め忘れ。
+ * `schedule.ts` で決める: 朝のまとめ・予定の前・締切の前・予定のあとの記録の確認・夜のまとめ・タイマーの止め忘れ。
  * 夜のまとめ・朝のまとめの「昨日」の数字は今日の計画の見出し・週のふりかえりと同じ `getDayReviews` で数える
  * （中身はサーバーと同じ `_shared/dayResult.ts`）。
  */
@@ -40,7 +40,7 @@ interface LocalState {
   keys?: string[]
   /** 朝のまとめを出した日 */
   morning?: string
-  /** 夜の締めを出した日 */
+  /** 夜のまとめを出した日 */
   wrapUp?: string
   /** 止め忘れを知らせたタイマーの開始時刻 */
   timer?: string
@@ -265,7 +265,7 @@ export function checkLocalReminders(ctx: {
   onRecord: (taskId: string) => void
   /** 開始前・締切 1 件（Service Worker の無い通知を押したとき） */
   onOpenTask: (taskId: string, date: string) => void
-  /** 夜の締め（Service Worker の無い通知を押したとき） */
+  /** 夜のまとめ（Service Worker の無い通知を押したとき） */
   onWrapUp: () => void
 }) {
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return

@@ -28,7 +28,7 @@ export const MESSAGES = {
     startTimer: '記録を始める',
     timerEndTitle: (title: string) => `「${title}」の時間です`,
     timerEndBody: '記録は止めずに続けています',
-    wrapUpTitle: '1 日を締める',
+    wrapUpTitle: '夜のまとめ',
     wrapUpToday: (parts: string) => `今日: ${parts}`,
     dayResult: (followed: number, planned: number) => `予定 ${planned} 件中 ${followed} 件`,
     dayResultUnplanned: (followed: number, planned: number, time: string) => `予定 ${planned} 件中 ${followed} 件・予定外 ${time}`,
@@ -63,7 +63,7 @@ export const MESSAGES = {
     startTimer: 'Start recording',
     timerEndTitle: (title: string) => `Time's up: "${title}"`,
     timerEndBody: 'The timer keeps running until you stop it.',
-    wrapUpTitle: 'Wrap up the day',
+    wrapUpTitle: 'Evening summary',
     wrapUpToday: (parts: string) => `Today: ${parts}`,
     dayResult: (followed: number, planned: number) => `${followed} of ${planned} plans`,
     dayResultUnplanned: (followed: number, planned: number, time: string) => `${followed} of ${planned} plans · ${time} unplanned`,
@@ -216,11 +216,11 @@ export function timerEndPayload(msg: Msg, title: string, startedAt: string): Pay
   }
 }
 
-/** 夜の締めの通知を押したときに開く URL。今日の計画の「1 日を締める」へ */
+/** 夜のまとめの通知を押したときに開く URL。今日の計画（スマホはタイムラインの面）。気分の記号を出す */
 export const WRAP_UP_URL = '/?view=planner&wrap-up=1'
 
 /**
- * 夜の締め（#299）。数字だけを並べる（責める言葉は入れない）: 「今日: 予定 4 件中 3 件・予定外 1時間 ・ 記録 5時間」。
+ * 夜のまとめ（#299）。その日のずれを数字だけで見せる（責める言葉・残りの件数は入れない）: 「今日: 予定 4 件中 3 件・予定外 1時間 ・ 記録 5時間」。
  * 数えた予定が無い日は予定の部分を出さない。記録が 0 の日は送らない（呼び出し側で `wrapUpDue`）
  */
 export function wrapUpPayload(msg: Msg, d: WrapUpDigest): Payload {

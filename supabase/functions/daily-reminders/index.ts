@@ -62,7 +62,7 @@ type Sub = {
   lang: string
   plan_time: string | null
   last_plan_sent: string | null
-  /** 夜の締め（'HH:mm'、null = オフ）と、最後に送った日（1 日 1 回） */
+  /** 夜のまとめ（'HH:mm'、null = オフ）と、最後に送った日（1 日 1 回） */
   wrap_up_time?: string | null
   last_wrap_up_sent?: string | null
   event_reminder_minutes?: number | null
@@ -333,7 +333,7 @@ Deno.serve(async (req) => {
 
   const needsTasks = (sub: Sub) => Boolean(sub.plan_time || sub.event_reminder_minutes != null || sub.due_reminders || sub.record_prompts)
 
-  /** 夜の締めの時刻に入っているか（記録の数は見ない。数字を読むかどうかを決める） */
+  /** 夜のまとめの時刻に入っているか（記録の数は見ない。数字を読むかどうかを決める） */
   const wrapUpWindow = (sub: Sub) => {
     const local = localNow(sub.timezone, now)
     return dailyDue(sub.wrap_up_time, sub.last_wrap_up_sent, local.date, local.minutes)
@@ -396,7 +396,7 @@ Deno.serve(async (req) => {
     }
 
     if (wrapUpWindow(sub)) {
-      // 読めなかったら夜の締めだけを送らない（印を残さないので次の回にやり直す）
+      // 読めなかったら夜のまとめだけを送らない（印を残さないので次の回にやり直す）
       const d = await digestOf(sub, local.date)
       if (d && wrapUpDue(sub.wrap_up_time, sub.last_wrap_up_sent, local.date, local.minutes, d.loggedMinutes)) {
         jobs.push({ payload: wrapUpPayload(msg, d), patch: { last_wrap_up_sent: local.date } })
@@ -501,7 +501,7 @@ Deno.serve(async (req) => {
     if ((valid.some(needsTasks) || wantsDigest) && !excludedByUser) throw new Error('lists not loaded')
     const excluded = excludedByUser?.get(userId) ?? new Set<string>()
     const tasks = valid.some(needsTasks) ? await openTasks(userId, excluded) : []
-    // その日の数字（夜の締めは今日、朝のまとめは昨日）は、日とタイムゾーン（端末）の組ごとに 1 回だけ読む。
+    // その日の数字（夜のまとめは今日、朝のまとめは昨日）は、日とタイムゾーン（端末）の組ごとに 1 回だけ読む。
     // 読めなかったら null（その数字を使う部分だけを出さない。ほかの通知は送る）
     const digests = new Map<string, Promise<WrapUpDigest | null>>()
     const digestOf = (sub: Sub, date: string): Promise<WrapUpDigest | null> => {
@@ -527,7 +527,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  // いつか / チェックリストのリストは、予定・締切・夜の締めの数字を使う人の分だけ、回の初めにまとめて読む。
+  // いつか / チェックリストのリストは、予定・締切・夜のまとめの数字を使う人の分だけ、回の初めにまとめて読む。
   // 読めなければその人たちの分は送らずに失敗に数える（last_ok_at を進めないので、次の回にやり直す）
   let excludedByUser: Map<string, Set<string>> | null = null
   try {

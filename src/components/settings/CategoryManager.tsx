@@ -127,7 +127,7 @@ export function CategoryManager() {
           )}
           {(unlabeledMinutes > 0 || unlabeledOpen) && (
             <div>
-              {/* 押すとラベルなしの記録を並べ、行のチップで付ける（「1 日を締める」と同じ行） */}
+              {/* 押すとラベルなしの記録を並べ、行のチップで付ける（記録の帯の凡例と同じ行） */}
               <button
                 type="button"
                 aria-expanded={unlabeledOpen !== null}

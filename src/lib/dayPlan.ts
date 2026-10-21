@@ -87,7 +87,6 @@ function isDecidedLater(task: Pick<Task, 'scheduledDate' | 'dueDate'>): boolean 
 /**
  * 今日の計画（やる・やり残し・期限切れ・締切間近・候補・完了の数）に 1 件の To-Do として入れるか。
  * ルートは全部、サブタスクは実行日か締切のあるものだけ（企業の下の ES 締切・面接など。日付の無い子は親の中の手順のまま）。
- * 夜の締め・朝のまとめのサーバー側（`wrapUp.ts`）も同じ決まり
  */
 export function isDayPlanTask(task: Pick<Task, 'parentId' | 'scheduledDate' | 'dueDate'>): boolean {
   return !task.parentId || task.scheduledDate !== null || task.dueDate !== null
@@ -229,7 +228,7 @@ export function nowOrNextPlan(
 
 /**
  * 今日の計画の見出しに、その日の結果（時間に置いた予定のうちできた数・予定外の時間）を出すか。
- * 過ぎた日はいつも、今日は「1 日を締める」と同じ時刻（`wrapUpFromMinutes`）から。これからの日・今日の昼は出さない
+ * 過ぎた日はいつも、今日は夜のまとめの時刻（`wrapUpFromMinutes`）から。これからの日・今日の昼は出さない
  */
 export function showsDayResult(dateKey: string, todayKey: string, nowMinutes: number, wrapUpFromMinutes: number): boolean {
   return dateKey < todayKey || (dateKey === todayKey && nowMinutes >= wrapUpFromMinutes)

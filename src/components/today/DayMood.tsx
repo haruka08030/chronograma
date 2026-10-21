@@ -36,7 +36,7 @@ function useMoodLabels(): Record<Mood, string> {
 }
 
 /**
- * 「1 日を締める」の 1 行: 5 つの記号から 1 つ押す（もう一度押すと外す）と、押すと開く一言の欄（1 行・任意）。
+ * 今日の計画の下の気分の 1 行: 5 つの記号から 1 つ押す（もう一度押すと外す）と、押すと開く一言の欄（1 行・任意）。
  * ラベル・説明文は付けない。選んだ記号は地と縁でも分かる（色だけに頼らない）
  */
 export function DayMoodPicker({ dateKey }: { dateKey: string }) {

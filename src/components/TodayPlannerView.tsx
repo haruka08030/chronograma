@@ -43,7 +43,7 @@ import { useRememberScroll } from '../hooks/useRememberScroll'
 import { CalendarCards } from './calendar/CalendarCards'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 
-/** 「1 日を締める」を出し始める時刻（朝から締めの話をしない）。設定の夜の締めの時刻があればその時刻から */
+/** 気分の記号と見出しのその日の結果を出し始める時刻（朝から出さない）。設定の夜のまとめの時刻があればその時刻から */
 const WRAP_UP_FROM_HOUR = 17
 
 /** スマホ幅で最初から出す締切切れの行の数 */
@@ -90,12 +90,12 @@ export function TodayPlannerView() {
   const [mobilePane, setMobilePane] = useState<PlannerPane>('list')
   const listScrollRef = useRef<HTMLElement>(null)
   useRememberScroll(listScrollRef, 'planner')
-  /** 夜の締めの通知から開いた回数。1 以上なら時刻・件数に関係なく締めを出し、そこまでスクロールする */
+  /** 夜のまとめの通知から開いた回数。1 以上なら時刻に関係なく気分の記号を出す（PC はそこまでスクロールする）。スマホはその日のタイムラインの面を出す */
   const [wrapUpFocus, setWrapUpFocus] = useState(0)
   useEffect(
     () =>
       onWrapUpRequest(() => {
-        setMobilePane('list')
+        setMobilePane('timeline')
         setWrapUpFocus((n) => n + 1)
       }),
     [],

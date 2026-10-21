@@ -86,8 +86,8 @@ describe('consumeLaunch: 止め忘れの「止める」', () => {
   })
 })
 
-describe('consumeLaunch: 夜の締め', () => {
-  it('?wrap-up=1 は「1 日を締める」を見せ、URL から消す（画面の指定は残す）', () => {
+describe('consumeLaunch: 夜のまとめ', () => {
+  it('?wrap-up=1 は夜のまとめを見せ、URL から消す（画面の指定は残す）', () => {
     launchAt('/?view=planner&wrap-up=1')
     const h = handlers()
     consumeLaunch(h)

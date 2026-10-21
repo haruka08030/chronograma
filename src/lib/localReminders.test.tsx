@@ -98,14 +98,14 @@ const dayTasks = () => [
   task('log', { kind: 'log', dueDate: DAY, startTime: '19:00', endTime: '20:30' }),
 ]
 
-describe('タブの通知: 夜の締め（Web Push が使えないとき）', () => {
+describe('タブの通知: 夜のまとめ（Web Push が使えないとき）', () => {
   it('アプリのタイムゾーンで決めた時刻に、今日の計画と同じ数字で 1 回だけ出す。押すと締めを開く', () => {
     // 13:00 UTC = 東京の 22:00
     vi.setSystemTime(new Date('2026-10-08T13:00:00Z'))
     const onWrapUp = check(dayTasks())
     expect(FakeNotification.shown).toHaveLength(1)
     const n = FakeNotification.shown[0]!
-    expect(n.title).toBe('Wrap up the day')
+    expect(n.title).toBe('Evening summary')
     expect(n.options.body).toBe('Today: 1 of 2 plans · 1h 30m unplanned · 1h 30m logged')
     expect(n.options.tag).toBe('chronograma-wrap-up')
     n.onclick?.()
