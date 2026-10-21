@@ -156,6 +156,9 @@ const SCREENS = [
   // ログインの欄（一文・説明・ボタン）。Supabase の設定（.env）があるビルドでだけ出る
   { name: 'first-run-signin', fresh: true, view: 'settings', click: 'button:has-text("ログイン") >> visible=true' },
   { name: 'planner', view: 'planner' },
+  // 睡眠のタイマー（#519）: 夜は睡眠の行に「寝る」、押すと「23:40 から寝ています」と「起きた」
+  { name: 'sleep-bedtime', view: 'planner', at: '22:30' },
+  { name: 'sleep-sleeping', view: 'planner', at: '23:40', click: 'button:has-text("寝る") >> visible=true' },
   // 浮いているタイマーの「あと何分」（#290）: 残り時間・長さを選ぶ並び・時間を過ぎた（`timer` は撮る瞬間からの分で動いているタイマーを置く）
   { name: 'timer-remaining', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 12.4, endsIn: 12.6 } },
   {

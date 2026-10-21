@@ -567,6 +567,7 @@ export type SettingTable =
   | 'user_course_links'
   | 'user_timetable'
   | 'user_addons'
+  | 'user_sleep_timer'
 const SETTING_TABLES: readonly SettingTable[] = [
   'user_settings',
   'user_extra_time_zones',
@@ -575,6 +576,7 @@ const SETTING_TABLES: readonly SettingTable[] = [
   'user_course_links',
   'user_timetable',
   'user_addons',
+  'user_sleep_timer',
 ]
 
 /** `sync_changes_since`（`035`）の 1 回の答え */

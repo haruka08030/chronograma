@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** 睡眠は睡眠の入力からだけ作る（#519）。題名・ラベルが「睡眠」の記録は記録のまま */
 beforeAll(() => {
@@ -30,5 +30,60 @@ describe('睡眠は題名で判別しない', () => {
   it('睡眠の入力（logSleep）からは睡眠になる', () => {
     useTaskStore.getState().logSleep('2026-10-08', '23:30', '07:00')
     expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['sleep'])
+  })
+})
+
+describe('睡眠のタイマー（寝る・起きた）', () => {
+  const at = (d: number, h: number, m = 0) => vi.setSystemTime(new Date(2026, 9, d, h, m))
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    useTaskStore.setState({ sleepTimer: null, undoBanner: null })
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('寝ると押してから起きたと押すと、その朝の睡眠になってタイマーは消える', () => {
+    at(7, 23, 30)
+    useTaskStore.getState().goToBed()
+    expect(useTaskStore.getState().sleepTimer).not.toBeNull()
+    at(8, 7, 5)
+    expect(useTaskStore.getState().wakeUp()).toBe('saved')
+    const s = useTaskStore.getState()
+    expect(s.sleepTimer).toBeNull()
+    expect(s.tasks).toHaveLength(1)
+    expect(s.tasks[0]).toMatchObject({ kind: 'sleep', dueDate: '2026-10-07', endDate: '2026-10-08', startTime: '23:30', endTime: '07:05' })
+  })
+
+  it('記録のタイマーが動いていたら、記録にして止めてから寝る', () => {
+    at(7, 22, 0)
+    useTaskStore.getState().startTimer('読書')
+    at(7, 23, 0)
+    useTaskStore.getState().goToBed()
+    const s = useTaskStore.getState()
+    expect(s.activeTimer).toBeNull()
+    expect(s.tasks.map((t) => [t.kind, t.title, t.startTime, t.endTime])).toEqual([['log', '読書', '22:00', '23:00']])
+  })
+
+  it('1 分未満は睡眠にせず止め、16 時間より長いと何もしない（起きた時刻を聞く）', () => {
+    at(7, 23, 0)
+    useTaskStore.getState().goToBed()
+    expect(useTaskStore.getState().wakeUp()).toBe('short')
+    expect(useTaskStore.getState().sleepTimer).toBeNull()
+
+    useTaskStore.getState().goToBed()
+    at(8, 16, 0)
+    expect(useTaskStore.getState().wakeUp()).toBe('long')
+    expect(useTaskStore.getState().sleepTimer).not.toBeNull()
+    expect(useTaskStore.getState().tasks).toHaveLength(0)
+  })
+
+  it('取り消すと消え、トーストの「元に戻す」で戻る', () => {
+    at(7, 23, 0)
+    useTaskStore.getState().goToBed()
+    const timer = useTaskStore.getState().sleepTimer
+    useTaskStore.getState().cancelSleep(true)
+    expect(useTaskStore.getState().sleepTimer).toBeNull()
+    expect(useTaskStore.getState().undoBanner).toMatchObject({ restoreSleepTimer: true })
+    expect(useTaskStore.getState().restoreCancelledSleep()).toBe(true)
+    expect(useTaskStore.getState().sleepTimer).toEqual(timer)
   })
 })

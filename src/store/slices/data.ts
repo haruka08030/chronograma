@@ -109,6 +109,8 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
           googleEventColors: {},
           activeTimer: null,
           activeTimerUpdatedAt: null,
+          sleepTimer: null,
+          sleepTimerUpdatedAt: null,
         }),
       )
       set({

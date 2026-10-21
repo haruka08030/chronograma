@@ -66,6 +66,7 @@ import { planExtraTimeZoneSync } from '../lib/extraTimeZones'
 import { planEventTemplateSync } from '../lib/eventTemplates'
 import { planCourseLinkSync } from '../lib/courseLinks'
 import { planAddonsSync } from '../lib/addons'
+import { fetchSleepTimer, planSleepTimerSync, pushSleepTimer } from '../lib/sleepTimer'
 import { planTimetableSync } from '../lib/timetable'
 import { createDayMoodPullState, dayMoodSince, runDayMoodSync } from '../lib/dayMood'
 import { hasExistingData } from '../lib/onboarding'
@@ -96,6 +97,7 @@ const SETTING_TABLE: Record<SettingKey, SettingTable> = {
   courses: 'user_course_links',
   timetable: 'user_timetable',
   addons: 'user_addons',
+  sleepTimer: 'user_sleep_timer',
 }
 const SETTING_KEY_OF = Object.fromEntries(Object.entries(SETTING_TABLE).map(([k, t]) => [t, k])) as Record<SettingTable, SettingKey>
 
@@ -169,6 +171,7 @@ function settingsSent(userId: string): boolean {
     ['courses', s.courseLinksUpdatedAt],
     ['timetable', s.timetableUpdatedAt],
     ['addons', s.addonsUpdatedAt],
+    ['sleepTimer', s.sleepTimerUpdatedAt],
   ]
   return (
     local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key)) &&
@@ -459,6 +462,23 @@ export function useSupabaseSync() {
         // 一度も変えていなければ送らない（`planAddonsSync`）。サーバーにも行が無ければ取りに行かない
         emptyWhenUnset: true,
       })
+    /** 睡眠のタイマー（#519）。寝ると押した端末と、起きたと押す端末が違ってもよい */
+    const syncSleepTimer = () =>
+      syncSetting({
+        key: 'sleepTimer',
+        fetch: () => fetchSleepTimer(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planSleepTimerSync({ timer: st.sleepTimer, updatedAt: st.sleepTimerUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().sleepTimerUpdatedAt,
+        applyLocal: ({ timer, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ sleepTimer: timer, sleepTimerUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ sleepTimerUpdatedAt: at })),
+        push: (p) => pushSleepTimer(supabase, userId, p, p.base),
+        // 一度も押していなければ送らない（`planSleepTimerSync`）。サーバーにも行が無ければ取りに行かない
+        emptyWhenUnset: true,
+      })
     /** 1 日の気分とひとこと（日ごとに 1 行、#324） */
     const syncDayMoods = () =>
       runDayMoodSync(
@@ -494,6 +514,7 @@ export function useSupabaseSync() {
         syncCourseLinks(),
         syncTimetable(),
         syncAddons(),
+        syncSleepTimer(),
         syncDayMoods(),
       ])
       const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
@@ -863,6 +884,7 @@ export function useSupabaseSync() {
         state.courseLinks === prev.courseLinks &&
         state.timetable === prev.timetable &&
         state.addons === prev.addons &&
+        state.sleepTimer === prev.sleepTimer &&
         state.dayMoods === prev.dayMoods
       )
         return

@@ -24,6 +24,7 @@ const STAMPED: Record<string, readonly string[]> = {
   courseLinksUpdatedAt: ['courseLinks'],
   timetableUpdatedAt: ['timetable'],
   addonsUpdatedAt: ['addons'],
+  sleepTimerUpdatedAt: ['sleepTimer'],
 }
 const KEEP_STORED = ['activeTimer', 'activeTimerUpdatedAt', 'dataOwner']
 

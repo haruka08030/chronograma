@@ -61,6 +61,7 @@ import { createDayMoodsSlice } from './slices/dayMoods'
 import { normalizeDayMoods, type DayMoods } from '../lib/dayMood'
 import { DEFAULT_TIMETABLE, normalizeTimetable, renameAttendance, withAbsence, withAbsenceLimit, type Timetable } from '../lib/timetable'
 import { DEFAULT_ADDONS, normalizeAddons, withAddonOn, type Addons } from '../lib/addons'
+import { normalizeSleepTimer, type SleepTimer } from '../lib/sleepTimer'
 import { normalizeDues } from '../lib/dues'
 import { withGoogleSkip } from '../lib/googleSkip'
 import { hasAbsenceCourse, renamedAbsenceCourse, withAbsenceCourse, withoutAbsenceCourse } from '../lib/absenceCourses'
@@ -186,6 +187,8 @@ export const useTaskStore = create<TaskState>()(
         googlePushFailed: 0,
         activeTimer: null,
         activeTimerUpdatedAt: null as string | null,
+        sleepTimer: null as SleepTimer | null,
+        sleepTimerUpdatedAt: null as string | null,
         completePromptTaskId: null as string | null,
         labelPromptLogId: null as string | null,
         dailyReminders: { planTime: null, wrapUpTime: null } as DailyReminders,
@@ -328,6 +331,7 @@ export const useTaskStore = create<TaskState>()(
         merged.dayMoods = normalizeDayMoods(merged.dayMoods)
         merged.timetable = normalizeTimetable(merged.timetable)
         merged.addons = normalizeAddons(merged.addons)
+        merged.sleepTimer = normalizeSleepTimer(merged.sleepTimer)
         merged.weekStartsOn = normalizeWeekStart(merged.weekStartsOn)
         merged.logLabelTargets = normalizeLabelTargets(merged.logLabelTargets)
         merged.logLabelIds = normalizeLabelIds(merged.logLabelIds)
@@ -503,6 +507,12 @@ useTaskStore.subscribe((s, prev) => {
   if (s.addons === prev.addons) return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ addonsUpdatedAt: new Date().toISOString() })
+})
+// 睡眠のタイマー（#519）で寝た・起きたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.sleepTimer === prev.sleepTimer) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ sleepTimerUpdatedAt: new Date().toISOString() })
 })
 // 動いているタイマーを始めた・止めたときも同じ（別の端末とどちらに合わせるかを比べる）
 useTaskStore.subscribe((s, prev) => {
