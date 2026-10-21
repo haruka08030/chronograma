@@ -17,7 +17,7 @@ import { fromDateKey, toDateKey } from './dateKey'
 import { clockOf } from './clockTime'
 import { formatDuration, timeToMinutes } from './timeGrid'
 import { monthHabitWeekStarts, reviewPeriodDays, reviewPeriodStart, shiftReviewPeriod, type ReviewPeriod } from './reviewPeriod'
-import { unrecordedMinutesOnDay } from './unrecordedGaps'
+import { unrecordedMinutesOnDay, type AbsentOn } from './unrecordedGaps'
 
 /** 予定の長さ（分）。0:00 終わりはその日の終わりまで（23:00–0:00） */
 function plannedItemMinutes(p: PlannedItem): number {
@@ -137,8 +137,9 @@ export function getWeekReview(
   excludedListIds: ReadonlySet<string> = new Set(),
   now = zonedNow(),
   labelOf?: (log: LabelSource) => string,
+  absentOn?: AbsentOn,
 ): WeekReview {
-  return getReview(tasks, habits, 'week', anchor, excludedListIds, now, labelOf)
+  return getReview(tasks, habits, 'week', anchor, excludedListIds, now, labelOf, absentOn)
 }
 
 /**
@@ -157,6 +158,8 @@ export function getReview(
    * 予定のラベルは、その予定から ✓ / ▶ で作る記録と同じ（To-Do・習慣の色 → その色のラベル → 名前の無い色）
    */
   labelOf: (log: LabelSource) => string = (log) => log.category ?? '',
+  /** 予定（授業・バイト）のその回を欠席にしたか。欠席の回は記録の無い時間を埋めない */
+  absentOn?: AbsentOn,
 ): WeekReview {
   const {
     days,
@@ -165,7 +168,7 @@ export function getReview(
     unplanned,
     habitDue: dailyDue,
     habitDone: dailyDone,
-  } = collectReviewDays(tasks, habits, reviewPeriodDays(period, anchor), excludedListIds, now, labelOf)
+  } = collectReviewDays(tasks, habits, reviewPeriodDays(period, anchor), excludedListIds, now, labelOf, absentOn)
   const todayKey = toDateKey(now)
   let habitDue = dailyDue
   let habitDone = dailyDone
@@ -252,6 +255,7 @@ function collectReviewDays(
   excludedListIds: ReadonlySet<string>,
   now: Date,
   labelOf: (log: LabelSource) => string,
+  absentOn?: AbsentOn,
   /** 「計画どおり実行」に数えた予定の組ごとに呼ぶ（ずれやすい曜日・時間帯、`getPlanDriftCells`） */
   onCountedPair?: (date: Date, pair: MatchedPair) => void,
 ): {
@@ -282,7 +286,7 @@ function collectReviewDays(
       dateKey: key,
       plannedMinutes: 0,
       loggedMinutes: plan.loggedMinutes,
-      unrecordedMinutes: unrecordedMinutesOnDay(tasks, key, logLimit, null, excludedListIds),
+      unrecordedMinutes: unrecordedMinutesOnDay(tasks, key, logLimit, null, excludedListIds, absentOn),
       done: plan.done.length,
       total: plan.done.length + plan.open.length,
       tagMinutes: [],
@@ -367,8 +371,9 @@ export function getDayReviews(
   excludedListIds: ReadonlySet<string> = new Set(),
   now = zonedNow(),
   labelOf: (log: LabelSource) => string = (log) => log.category ?? '',
+  absentOn?: AbsentOn,
 ): WeekReviewDay[] {
-  return collectReviewDays(tasks, habits, dates, excludedListIds, now, labelOf).days
+  return collectReviewDays(tasks, habits, dates, excludedListIds, now, labelOf, absentOn).days
 }
 
 /**
@@ -384,6 +389,7 @@ export function getPrevReview(
   excludedListIds: ReadonlySet<string> = new Set(),
   now = zonedNow(),
   labelOf?: (log: LabelSource) => string,
+  absentOn?: AbsentOn,
 ): WeekReview {
   // 「今」を 1 期間前にずらすと、前の期間は同じ日で打ち切られる
   return getReview(
@@ -394,6 +400,7 @@ export function getPrevReview(
     excludedListIds,
     shiftReviewPeriod(period, now, -1),
     labelOf,
+    absentOn,
   )
 }
 
@@ -488,6 +495,7 @@ export function getPlanDriftCells(
     excludedListIds,
     now,
     (log) => log.category ?? '',
+    undefined,
     (date, pair) => {
       const p = pair.planned!
       const weekday = (date.getDay() + 6) % 7

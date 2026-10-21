@@ -23,7 +23,8 @@ import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
 import { OnboardingPlaceSlot } from './OnboardingPlaceSlot'
 import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
 import { googleEventCrossesDay, googleEventSegmentOnDay } from '../../lib/googleEventSpan'
-import { unrecordedGapsForDay } from '../../lib/unrecordedGaps'
+import { eventSpansOnDay, unrecordedGapsForDay } from '../../lib/unrecordedGaps'
+import { useAbsentOn } from '../../hooks/useAbsentOn'
 import { matchPlanAndActualForDate } from '../../lib/matchEvents'
 import type { PlannedItem } from '../../types/plannedItem'
 
@@ -138,6 +139,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const activeTimer = useTaskStore((s) => s.activeTimer)
+  const absentOn = useAbsentOn()
   const key = toDateKey(day)
   // 日をまたぐ予定は、この日にかかる区間だけ描く（始まった日は 24:00 まで、次の日は 0:00 から）
   const dayTimedEvents = timedEvents.map((e) => ({
@@ -160,7 +162,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   /** 始まった（記録にできる）時間か */
   const hasStarted = (start: string) => limitMin === null || timeToMinutes(start) < limitMin
   // 過ぎた時間の「記録の無い時間」（起きてから寝るまで・今日は今まで、30 分以上）。記録の列に点線の枠で出し、押すとその時間で記録を作る
-  const gaps = splitLanes ? unrecordedGapsForDay(dayLogs, key, limitMin, activeTimer) : []
+  // 過ぎた予定（授業・バイト）は出たものとして抜けを埋める（欠席にした回は埋めない。見出し・ふりかえりの「記録なし」と同じ）
+  const gaps = splitLanes ? unrecordedGapsForDay(dayLogs, key, limitMin, activeTimer, eventSpansOnDay(dayTimed, key, absentOn)) : []
   const gapId = (g: { start: number }) => `gap-${g.start}`
   // 時間が重なるところだけ 予定=左 / ログ=右 に分け、同じ種類の重なりは列（週表示はずらし重ね）にする
   const mode = gridDays.length > 1 ? 'cascade' : 'columns'

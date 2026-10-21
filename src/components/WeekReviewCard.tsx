@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { differenceInCalendarDays, format } from 'date-fns'
+import { useAbsentOn } from '../hooks/useAbsentOn'
 import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import {
   compareReviews,
@@ -119,18 +120,19 @@ export function WeekReviewCard() {
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const labelTargets = useTaskStore((s) => s.logLabelTargets)
   const excluded = useMemo(() => unplannedListIds(lists), [lists])
+  const absentOn = useAbsentOn()
   const labelOf = useMemo(
     () => (log: LabelSource) => recordLabelKey(log, labelPresets, logCategoryColors),
     [labelPresets, logCategoryColors],
   )
   const review = useMemo(
-    () => getReview(tasks, habits, period, anchor, excluded, undefined, labelOf),
-    [tasks, habits, period, anchor, excluded, labelOf],
+    () => getReview(tasks, habits, period, anchor, excluded, undefined, labelOf, absentOn),
+    [tasks, habits, period, anchor, excluded, labelOf, absentOn],
   )
   // 前の期間との差（記録した時間・ラベル別）。前の期間も同じ日までで比べる
   const comparison = useMemo(
-    () => compareReviews(review, getPrevReview(tasks, habits, period, anchor, excluded, undefined, labelOf)),
-    [review, tasks, habits, period, anchor, excluded, labelOf],
+    () => compareReviews(review, getPrevReview(tasks, habits, period, anchor, excluded, undefined, labelOf, absentOn)),
+    [review, tasks, habits, period, anchor, excluded, labelOf, absentOn],
   )
   const loggedDiff = comparison.loggedDiff
   // 見積もりと記録（#297）: この期間に終えた To-Do だけ（決めた後に見る）。大きく超えたものが先頭
