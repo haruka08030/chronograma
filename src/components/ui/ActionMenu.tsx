@@ -84,7 +84,8 @@ function LeafRow({
  * 右クリックで出すメニュー（タスク・予定・Google の予定・リスト・セクションで共通。Notion のブロックメニューのように）。
  * - 開くと検索欄に入るので、そのまま打って絞り込める（中のメニューの項目も出る）
  * - ↑↓ で選ぶ、→ / Enter で中のメニュー、← で戻る、Esc で閉じる。項目を実行すると閉じる
- * - 押した所に出し、画面からはみ出すなら内側へ寄せる。`above` なら (x, y) の上に出す（スマホの下のボタンから開くとき）
+ * - 押した所に出し、画面からはみ出すなら内側へ寄せる。`above` なら (x, y) の上に出す（スマホの下のボタンから開くとき）。
+ *   `alignRight` なら x をメニューの右端にする（カードの ⋮ から開くとき）
  * - タッチの狭い画面（スマホ）では下から出すシート: 行は 44px 以上、中のメニューは同じシートの中で切り替え（‹ で戻る）、
  *   削除など危ない項目は区切って離す。検索欄は出さない（項目は見て押す）
  */
@@ -92,6 +93,7 @@ export function ActionMenu({
   x,
   y,
   above = false,
+  alignRight = false,
   header,
   note,
   entries,
@@ -101,6 +103,8 @@ export function ActionMenu({
   x: number
   y: number
   above?: boolean
+  /** x をメニューの右端にする（ボタンの右端にそろえて、左へ開く） */
+  alignRight?: boolean
   /** 何についてのメニューか（タスク名・「3 件のタスク」など） */
   header?: string
   /** 見出しの下に添えるもの（指で行を押したときのシートのメモ） */
@@ -171,10 +175,11 @@ export function ActionMenu({
   useLayoutEffect(() => {
     const el = menuRef.current
     if (!el || sheet) return
-    el.style.left = `${Math.max(EDGE, Math.min(x, window.innerWidth - el.offsetWidth - EDGE))}px`
+    const left = alignRight ? x - el.offsetWidth : x
+    el.style.left = `${Math.max(EDGE, Math.min(left, window.innerWidth - el.offsetWidth - EDGE))}px`
     const top = above ? y - el.offsetHeight - EDGE : y
     el.style.top = `${Math.max(EDGE, Math.min(top, window.innerHeight - el.offsetHeight - EDGE))}px`
-  }, [x, y, q, above, sheet])
+  }, [x, y, q, above, alignRight, sheet])
 
   // 閉じたら開いた元（行・… のボタン）へフォーカスを戻す。Esc で閉じても次の Tab がサイドバーからやり直しにならない。
   // 閉じる間に別の所（開いたダイアログなど）へ移っていたら奪わない（useFocusTrap と同じ戻し方）
@@ -303,7 +308,7 @@ export function ActionMenu({
         role="menu"
         tabIndex={-1}
         data-popover-keep
-        className={`fixed z-[70] w-64 p-1 outline-none origin-top-left ${POPOVER_PANEL}`}
+        className={`fixed z-[70] w-64 p-1 outline-none ${alignRight ? 'origin-top-right' : 'origin-top-left'} ${POPOVER_PANEL}`}
         style={{ left: x, top: y }}
         onContextMenu={(e) => e.preventDefault()}
         onKeyDown={showSearch ? undefined : onKeyDown}
