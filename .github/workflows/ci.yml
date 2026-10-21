@@ -70,6 +70,27 @@ jobs:
       - name: Test (${{ matrix.shard }}/2)
         run: npx vitest run --shard=${{ matrix.shard }}/2
 
+  # 端末のタイムゾーンと今日を決めて走る回（Los Angeles の夏時間が終わる 25 時間の日）。上の test は UTC の今日で走るので、
+  # 端末の Date で壁時計を数える・ファイルの頭で今日を決めるなどの、日とタイムゾーンで落ちるテストをここで見つける。
+  # 時刻は src/test/fakeNow.ts（テストが自分で時計を決めていないときだけ）。ほかの日とタイムゾーンは npm run test:tz
+  test-tz:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/Los_Angeles
+      FAKE_NOW: 2026-11-01T08:30:00Z
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test (America/Los_Angeles, 2026-11-01)
+        run: npx vitest run
+
   # 画面を通しで動かすテスト（dev サーバーを起こし、Supabase なしの端末保存で動かす）
   e2e:
     runs-on: ubuntu-latest
@@ -105,15 +126,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # 前の 1 つのジョブと同じ名前で、上の 3 つが全部通ったかをまとめる（必須のチェックを check のままにしておける）。
+  # 前の 1 つのジョブと同じ名前で、上の 4 つが全部通ったかをまとめる（必須のチェックを check のままにしておける）。
   # 前のジョブが落ちたときに「スキップ」で通ってしまわないよう、always() で必ず動かして結果を見る
   check:
     if: always()
-    needs: [static, test, e2e]
+    needs: [static, test, test-tz, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: All checks passed
-        run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success && test "${{ needs.e2e.result }}" = success
+        run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success && test "${{ needs.test-tz.result }}" = success && test "${{ needs.e2e.result }}" = success
 
   # Edge Function の型チェック（Supabase の実行環境と同じ Deno で、npm: / https: の import も解決する）
   functions:
