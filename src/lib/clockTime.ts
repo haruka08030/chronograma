@@ -40,6 +40,17 @@ export function endKeepingLength(startTime: string, endTime: string, nextStart: 
 }
 
 /**
+ * 時間帯の欄で開始を打ち直したときの終わり。開始・終わり・新しい開始がそろっていれば長さを保ってずらし
+ * （`endKeepingLength`）、どれかが欠けている・開始が同じならそのまま
+ */
+export function endAfterStartEdit(startTime: string | null | undefined, endTime: string | null | undefined, nextStart: string): string {
+  const end = endTime ?? ''
+  if (!startTime || !end || nextStart === startTime) return end
+  if (toMinutes(startTime) === null || toMinutes(end) === null || toMinutes(nextStart) === null) return end
+  return endKeepingLength(startTime, end, nextStart)
+}
+
+/**
  * 開始から長さぶん後の終わり（予定は日をまたげないので、越える分は 23:59 で止める）。
  * 開始が 23:59 なら翌 0:00（予定は 0:00 終わりだけ翌日まで続く）。不正なら空文字
  */

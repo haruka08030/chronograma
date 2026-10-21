@@ -24,7 +24,7 @@ import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { colorVars } from '../../lib/logCategoryColors'
 import { planHex } from '../../lib/planVisual'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { addClockMinutes } from '../../lib/clockTime'
+import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { askConfirm } from '../../lib/confirmDialog'
 import { tip } from '../../lib/tooltip'
@@ -261,7 +261,9 @@ function TimetableSettings({ timetable }: { timetable: Timetable }) {
               <span className="w-10 shrink-0 text-xs text-zinc-500 dark:text-zinc-400">{t('timetable.periodName', { n: i + 1 })}</span>
               <TimeInput
                 value={p.start}
-                onChange={(v) => commitPeriods(periods.map((x, j) => (j === i ? { ...x, start: v } : x)))}
+                onChange={(v) =>
+                  commitPeriods(periods.map((x, j) => (j === i ? { ...x, start: v, end: endAfterStartEdit(x.start, x.end, v) } : x)))
+                }
                 ariaLabel={t('timetable.periodStartAria', { n: i + 1 })}
                 className={timeClass}
               />
