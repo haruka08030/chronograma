@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
@@ -14,7 +14,7 @@ import { useHotkey } from '../../hooks/useHotkey'
 import { anchoredCardClass } from '../ui/surface'
 import { startTimerForTask } from '../../lib/timerDrop'
 import { CloseIcon, EllipsisVerticalIcon, PencilIcon, TrashIcon } from '../icons'
-import { openTaskMenu } from '../../lib/overlays'
+import { openTaskMenu, useOverlays } from '../../lib/overlays'
 import { CardActions } from './CardActions'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { shortcutTip, tip } from '../../lib/tooltip'
@@ -77,6 +77,13 @@ export function EventPopover({
   useEffect(() => {
     ref.current?.focus()
   }, [])
+
+  // ⋮ のメニューから詳細を開いた（「詳細を開く」「複製」）ら、カードは閉じる。開く前から出ていた詳細では閉じない
+  const detailTaskId = useOverlays((s) => s.detailTaskId)
+  const [detailAtOpen] = useState(detailTaskId)
+  useEffect(() => {
+    if (detailTaskId !== null && detailTaskId !== detailAtOpen) onClose()
+  }, [detailTaskId, detailAtOpen, onClose])
 
   if (!task) return null
   return <EventPopoverBody task={task} anchor={anchor} onClose={onClose} onOpenDetail={onOpenDetail} cardRef={ref} />
@@ -174,13 +181,12 @@ function EventPopoverBody({
         >
           <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
-        {/* ⋮: 右クリックと同じメニュー（複製など）。Google カレンダーのカードと同じ位置で、メニューは右端を ⋮ にそろえて真下に。メニューを出したらカードは閉じる */}
+        {/* ⋮: 右クリックと同じメニュー（複製など）。Google カレンダーのカードと同じ位置で、メニューは右端を ⋮ にそろえて真下に。カードは残し、上にメニューを重ねる */}
         <button
           type="button"
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect()
             openTaskMenu({ kind: 'event', x: r.right, y: r.bottom, alignRight: true, taskId: task.id })
-            onClose()
           }}
           className={iconButtonClass()}
           aria-label={t('eventCard.more')}
