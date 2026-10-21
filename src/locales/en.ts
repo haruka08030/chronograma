@@ -1252,6 +1252,11 @@ export default {
     signOut: 'Sign out',
     signOutUnsynced:
       'Some changes have not reached the cloud yet. Signing out removes them from this device (you can bring them back from Settings → Data → automatic backups, "Before sign-out"). Sign out anyway?',
+    signOutIntegrationsUnsent: "{{count}} changes haven't reached {{targets}} yet. If you sign out, they won't be sent.",
+    signOutIntegrationsUnsent_one: "{{count}} change hasn't reached {{targets}} yet. If you sign out, it won't be sent.",
+    signOutAsk: ' Sign out anyway?',
+    integrationName: { google: 'Google Calendar', notion: 'Notion', canvas: 'Canvas' },
+    integrationNameSeparator: ', ',
     signIn: 'Sign in',
     checking: 'Checking sign-in status…',
     signedIn: 'Signed in',

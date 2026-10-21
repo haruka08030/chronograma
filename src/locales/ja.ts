@@ -1204,6 +1204,10 @@ export default {
     signOut: 'ログアウト',
     signOutUnsynced:
       'まだクラウドに送れていない変更があります。ログアウトするとこの端末からは消えます（設定 → データ の自動バックアップ「ログアウトの直前」から戻せます）。ログアウトしますか？',
+    signOutIntegrationsUnsent: '{{targets}} に {{count}} 件を送れていません。ログアウトすると、この分は送られません。',
+    signOutAsk: 'ログアウトしますか？',
+    integrationName: { google: 'Google カレンダー', notion: 'Notion', canvas: 'Canvas' },
+    integrationNameSeparator: '・',
     signIn: 'ログイン',
     checking: 'ログイン状態を確認中…',
     signedIn: 'ログイン中',

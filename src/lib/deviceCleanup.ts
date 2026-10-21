@@ -4,7 +4,7 @@
  *
  * - 保存データの写し（読めなかった本体 `-unreadable-`・別の人のデータを取り込む前の本体 `-before-recovery-`・版を上げて移す前の本体 `-before-migration-`）は
  *   種類ごとに新しい 1 つだけ。読めなかった本体は保存を止めたときのバナーから書き出す（`latestStorageCopy`）。ほかは開発者ツールで見るだけ。ログアウトでは消す
- * - 連携（Canvas・Notion）から前回取り込んだ値（題名・締切）は人ごとのキー。ログアウトでは誰の分も消す
+ * - 連携（Canvas・Notion）から前回取り込んだ値（題名・締切）と、連携への送り待ち（Notion・Canvas・Google）は人ごとのキー。ログアウトでは誰の分も消す
  *   （ログインし直した人は、前回の値が分からない＝手元の値を上書きしない扱いから始まるだけ）
  * - 前回同期の控えは、ログアウトした人の分の中身を消して印だけ残す（`hasOtherUsersBaseline` が見るのはキーがあるかだけ。
  *   データを空にした後は控えを使わない）
@@ -14,7 +14,7 @@ import { BASELINE_KEY_PREFIX, PULL_STATE_KEY_PREFIX, readStored, storedKeys, wri
 import { CANVAS_PULLED_PREFIX, NOTION_PULLED_PREFIX } from './externalFields'
 import { CANVAS_SUBMITTED_PREFIX } from './canvasSubmitted'
 import { INTEGRATION_HINT_PREFIX } from './integrationHint'
-import { WRITE_BACK_PREFIX } from './writeBackQueue'
+import { GOOGLE_PUSH_PREFIX, WRITE_BACK_PREFIX } from './writeBackQueue'
 import { PERSIST_STORAGE_KEY } from '../store/storeConstants'
 
 export const UNREADABLE_COPY_PREFIX = `${PERSIST_STORAGE_KEY}-unreadable-`
@@ -132,7 +132,10 @@ export function clearStorageCopies(): boolean {
   return removed
 }
 
-/** 連携（Canvas・Notion）から前回取り込んだ値・Canvas の提出済みの控え・送り直し待ちの書き戻しを、誰の分も消す */
+/**
+ * 連携（Canvas・Notion）から前回取り込んだ値・Canvas の提出済みの控え・送り待ち（Notion・Canvas への書き戻し、Google カレンダーに送る予定）を、
+ * 誰の分も消す（ログアウト・アカウントの削除）。送れていない分はログアウトの前に送ってみて、残れば確かめる（`AccountMenu`）
+ */
 export function clearIntegrationMemos(): void {
   for (const key of localKeys()) {
     if (
@@ -140,7 +143,8 @@ export function clearIntegrationMemos(): void {
       key.startsWith(NOTION_PULLED_PREFIX) ||
       key.startsWith(CANVAS_SUBMITTED_PREFIX) ||
       key.startsWith(INTEGRATION_HINT_PREFIX) ||
-      key.startsWith(WRITE_BACK_PREFIX)
+      key.startsWith(WRITE_BACK_PREFIX) ||
+      key.startsWith(GOOGLE_PUSH_PREFIX)
     )
       removeLocal(key)
   }
