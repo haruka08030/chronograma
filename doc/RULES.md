@@ -11,6 +11,13 @@
 
 スキーマを変えたら `supabase db push --linked --dry-run` で流れるファイルを確かめ、`supabase db push --linked` で本番に流す（適用履歴に記録される）。Edge Function は `supabase functions deploy <名前>`。
 
+main に出すとき（DB と Edge Function は main へのマージでは出ないので手で出す。順番は migration → Edge Function → main へのマージ。新しいアプリが新しい列・関数を読む前にそろえる）:
+
+1. 流れていない migration を出す: `supabase db push --linked --dry-run` で流れるファイルを確かめ、あれば `supabase db push --linked`。流したあと `--dry-run` で 0 件になったのを確かめる
+2. 前回 deploy した後に変わった Edge Function を全部出す: 関数ごとに最後に deploy した時刻を `supabase functions list` の `UPDATED_AT` で見て、`git log --since='<その時刻>' --format='%h %ad %s' --date=iso dev -- supabase/functions/<名前> supabase/functions/_shared supabase/functions/deno.json supabase/functions/deno.lock` に 1 件でも出れば `supabase functions deploy <名前>`（`_shared` が変わればそれを読む関数は全部）
+3. 秘密や環境変数を足した・替えたら、先に入れる（Supabase の secrets・Vercel の環境変数。一覧は `doc/PUBLISHING.md` の 2）
+4. dev を main にマージする
+
 スキーマは `supabase/migrations/` の番号順のファイル、一覧は `supabase/migrations/README.md`。ルート `README.md` と `doc/CURSOR_CONTEXT.md` もこれに合わせる。
 
 起動時に読まないもの: `@supabase/supabase-js` はログインのセッションが保存されている・ログインから戻ってきた（`#access_token`）・アカウント欄でログインの欄を出した・ログインを始めた・ほかのタブでログインしたときに `loadSupabase()` で読む（`getSupabase()` は読み込み済みのときだけ返す。型以外で静的に読まない）。言語の文言は表示する言語の分だけ `i18n/config.ts` が読み（chunk は `locale-ja` / `locale-en`、日本語は date-fns の日本語も一緒）、画面は読み終えてから描く。最初から作る名前（「いつか」「買い物」・初期のラベル）は `locales/builtinNames.ts`。
@@ -191,7 +198,7 @@
 
 ## 同期・保存
 
-- 他タブの保存は storage イベントで取り込み（表示中の画面はタブごと）、同期は Web Locks でタブ間 1 本ずつ
+- 他タブの保存は BroadcastChannel（localStorage のときは storage イベント）で知って IndexedDB から読み直して取り込み（表示中の画面はタブごと）、同期は Web Locks でタブ間 1 本ずつ
 - 端末への保存はストアが変わったとき。保存するデータがどれも前と同じ参照なら文字列にしない（`createPersistStorage`）。タスク詳細のメモ・場所は手元の書きかけで持ち、打つのが 0.6 秒止まったとき・欄を離れたとき・詳細を閉じたとき・タブを閉じる / 裏に回る / 読み込み直すときにストアへ入れる（`useDraftField`・`lib/pendingEdits.ts`）。書きかけの間に他のタブの保存を取り込んでも、書きかけはその項目だけ当たる
 - 送るのは取得した内容と違う行だけ（`updated_at` は比べない）。削除 100 件（版つきは 25 件）・保存 500 件ずつ
 - 同期する行（リスト・セクション・タスク・習慣）の `updated_at` はサーバーが付ける。送る行には取得した版（`base_updated_at`、取得に無い行は `-infinity`）を付け、サーバーの行がその版のままのときだけ書く・消す（`004` の `sync_write_guard`）。断られた行は控えを取得した版にして、すぐ取り直して合わせ直す（続けて 3 回まで）
