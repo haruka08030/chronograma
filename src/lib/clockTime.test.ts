@@ -43,5 +43,7 @@ describe('clockTime', () => {
     expect(endAfterStartEdit(null, '11:00', '09:00')).toBe('11:00')
     expect(endAfterStartEdit('10:00', null, '09:00')).toBe('')
     expect(endAfterStartEdit('10:00', '', '09:00')).toBe('')
+    expect(endAfterStartEdit('10:00', '', '09:00', 45)).toBe('09:45')
+    expect(endAfterStartEdit(null, null, '23:30', 60)).toBe('23:59')
   })
 })

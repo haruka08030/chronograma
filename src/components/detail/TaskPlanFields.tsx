@@ -74,9 +74,16 @@ export function TaskPlanFields({ task }: { task: Task }) {
           <div className="mt-2 flex items-center gap-2">
             <TimeInput
               value={tv.startTime ?? ''}
-              // 開始を動かしたら長さを保って終わりもずらす（タイムラインのカード・Google と同じ）
+              // 開始を動かしたら長さを保って終わりもずらす（タイムラインのカード・Google と同じ）。終わりが空なら見積もり（無ければ既定の長さ）で埋める
               onChange={(v) =>
-                updateTimes(v ? { startTime: v, endTime: endAfterStartEdit(tv.startTime, tv.endTime, v) || null } : { startTime: null })
+                updateTimes(
+                  v
+                    ? {
+                        startTime: v,
+                        endTime: endAfterStartEdit(tv.startTime, tv.endTime, v, task.estimateMinutes ?? defaultBlockMinutes) || null,
+                      }
+                    : { startTime: null },
+                )
               }
               className={fieldClass({}, 'w-[7rem]')}
             />
@@ -84,6 +91,7 @@ export function TaskPlanFields({ task }: { task: Task }) {
             <TimeInput
               value={tv.endTime ?? ''}
               onChange={(v) => updateTimes({ endTime: v || null })}
+              durationFrom={tv.startTime ?? undefined}
               pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, task.estimateMinutes ?? defaultBlockMinutes) : undefined}
               className={fieldClass({}, 'w-[7rem]')}
             />

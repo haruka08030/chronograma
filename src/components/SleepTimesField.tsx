@@ -89,7 +89,7 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel }: S
         <TimeInput value={bed} onChange={setBed} className={inputClass} />
         <span aria-hidden>–</span>
         <span className="sr-only">{t('sleep.wakeAria')}</span>
-        <TimeInput value={wake} onChange={setWake} className={inputClass} />
+        <TimeInput value={wake} onChange={setWake} durationFrom={bed || undefined} overnight className={inputClass} />
       </span>
       {inFuture ? (
         <span className={ERROR_TEXT}>{t('sleep.noFuture')}</span>

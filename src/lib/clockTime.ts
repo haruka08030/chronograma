@@ -41,10 +41,17 @@ export function endKeepingLength(startTime: string, endTime: string, nextStart: 
 
 /**
  * 時間帯の欄で開始を打ち直したときの終わり。開始・終わり・新しい開始がそろっていれば長さを保ってずらし
- * （`endKeepingLength`）、どれかが欠けている・開始が同じならそのまま
+ * （`endKeepingLength`）、どれかが欠けている・開始が同じならそのまま。
+ * `fillMinutes` を渡すと、終わりが空のときは新しい開始からその長さで埋める（`endWithinDay`）
  */
-export function endAfterStartEdit(startTime: string | null | undefined, endTime: string | null | undefined, nextStart: string): string {
+export function endAfterStartEdit(
+  startTime: string | null | undefined,
+  endTime: string | null | undefined,
+  nextStart: string,
+  fillMinutes?: number,
+): string {
   const end = endTime ?? ''
+  if (!end && fillMinutes != null && toMinutes(nextStart) !== null) return endWithinDay(nextStart, fillMinutes)
   if (!startTime || !end || nextStart === startTime) return end
   if (toMinutes(startTime) === null || toMinutes(end) === null || toMinutes(nextStart) === null) return end
   return endKeepingLength(startTime, end, nextStart)

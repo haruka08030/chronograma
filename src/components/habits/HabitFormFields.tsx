@@ -144,7 +144,9 @@ function TimeRangeInputs({
       <TimeInput
         value={startTime}
         onChange={(v) =>
-          onTimesChange(mode === 'range' ? { startTime: v, endTime: endAfterStartEdit(startTime, endTime, v) } : { startTime: v })
+          onTimesChange(
+            mode === 'range' ? { startTime: v, endTime: endAfterStartEdit(startTime, endTime, v, defaultBlockMinutes) } : { startTime: v },
+          )
         }
         className={TIME_FIELD}
       />
@@ -155,6 +157,7 @@ function TimeRangeInputs({
             value={endTime}
             onChange={(v) => onTimesChange({ endTime: v })}
             pickerDefault={startTime ? addClockMinutes(startTime, defaultBlockMinutes) : undefined}
+            durationFrom={startTime || undefined}
             className={TIME_FIELD}
           />
         </>

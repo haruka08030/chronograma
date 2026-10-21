@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { pad2, toMinutes } from '../lib/clockTime'
+import { minutesToTime, pad2, toMinutes } from '../lib/clockTime'
+import { formatDuration } from '../lib/timeGrid'
 import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { zonedNow } from '../lib/timeZone'
 import { FLOATING_SURFACE, MENU_ROW_ACTIVE, MENU_ROW_HOVER, MENU_ROW_PRESS } from './ui/surface'
@@ -18,15 +19,27 @@ interface TimeInputProps {
    * 未指定なら現在時刻周辺を初期表示する。
    */
   pickerDefault?: string
+  /**
+   * 終わりの欄の開始（HH:MM）。候補を開始の 15 分後から並べ、それぞれに長さを添える（Google カレンダーと同じ）。
+   * 予定は日をまたげないので 23:59 まで、`overnight` の欄（記録・睡眠）は翌日の開始の手前まで 1 周
+   */
+  durationFrom?: string
+  overnight?: boolean
 }
 
-function nearestOptionIndex(options: string[], target: string): number {
+interface TimeOption {
+  time: string
+  /** 開始からの長さ（分）。`durationFrom` の無い欄は null */
+  minutes: number | null
+}
+
+function nearestOptionIndex(options: TimeOption[], target: string): number {
   const t = toMinutes(target)
   if (t === null) return -1
   let best = -1
   let bestDiff = Infinity
   options.forEach((opt, i) => {
-    const m = toMinutes(opt)
+    const m = toMinutes(opt.time)
     if (m === null) return
     const diff = Math.abs(m - t)
     if (diff < bestDiff) {
@@ -75,19 +88,21 @@ const GAP = 4
 const EDGE = 8
 /** 下にこれだけ入らなければ、上の方が広いとき上に開く */
 const LIST_MIN_HEIGHT = 160
+/** 長さを添えた候補の幅（「23:45 23時間45分」が 1 行に入る） */
+const LIST_WIDTH_WITH_DURATIONS = 176
 
 /**
  * 候補を置く所（画面に対して）。欄の下に入らなければ、上の方が広いとき上に開く。高さは入る分だけ。
  * スマホでキーボードが出ているときは見えている範囲（visualViewport）で測る
  */
-function listPlacement(input: DOMRect): CSSProperties {
+function listPlacement(input: DOMRect, minWidth = 96): CSSProperties {
   const vv = window.visualViewport
   const top = vv?.offsetTop ?? 0
   const bottom = top + (vv?.height ?? window.innerHeight)
   const below = bottom - input.bottom - GAP - EDGE
   const above = input.top - top - GAP - EDGE
   const up = below < Math.min(LIST_MIN_HEIGHT, LIST_MAX_HEIGHT) && above > below
-  const width = Math.max(input.width, 96)
+  const width = Math.max(input.width, minWidth)
   return {
     position: 'fixed',
     left: Math.max(EDGE, Math.min(input.left, window.innerWidth - width - EDGE)),
@@ -97,11 +112,19 @@ function listPlacement(input: DOMRect): CSSProperties {
   }
 }
 
-function buildTimeOptions(stepMinutes: number): string[] {
-  const out: string[] = []
+function buildTimeOptions(stepMinutes: number, durationFrom?: string, overnight = false): TimeOption[] {
+  const from = durationFrom ? toMinutes(durationFrom) : null
+  if (from !== null) {
+    const out: TimeOption[] = []
+    const last = overnight ? 24 * 60 - stepMinutes : 24 * 60 - 1 - from
+    for (let d = stepMinutes; d <= last; d += stepMinutes) out.push({ time: minutesToTime((from + d) % (24 * 60)), minutes: d })
+    // 開始が日の終わり近くで並べる時刻が無ければ、ふつうの候補
+    if (out.length > 0) return out
+  }
+  const out: TimeOption[] = []
   for (let hour = 0; hour < 24; hour += 1) {
     for (let min = 0; min < 60; min += stepMinutes) {
-      out.push(`${pad2(hour)}:${pad2(min)}`)
+      out.push({ time: `${pad2(hour)}:${pad2(min)}`, minutes: null })
     }
   }
   return out
@@ -116,6 +139,8 @@ export function TimeInput({
   placeholder = '--:--',
   pickerDefault,
   ariaLabel,
+  durationFrom,
+  overnight = false,
 }: TimeInputProps) {
   const [draft, setDraft] = useState('')
   const [open, setOpen] = useState(false)
@@ -129,7 +154,8 @@ export function TimeInput({
   const listRef = useRef<HTMLDivElement>(null)
   const listId = useId()
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const options = useMemo(() => buildTimeOptions(15), [])
+  const options = useMemo(() => buildTimeOptions(15, durationFrom, overnight), [durationFrom, overnight])
+  const withDurations = options[0]?.minutes != null
 
   useEffect(() => {
     openRef.current = open
@@ -178,7 +204,7 @@ export function TimeInput({
     const place = (e?: Event) => {
       if (e?.target instanceof Node && listRef.current?.contains(e.target)) return
       const rect = inputRef.current?.getBoundingClientRect()
-      if (rect) setListStyle(listPlacement(rect))
+      if (rect) setListStyle(listPlacement(rect, withDurations ? LIST_WIDTH_WITH_DURATIONS : undefined))
     }
     window.addEventListener('scroll', place, true)
     window.addEventListener('resize', place)
@@ -188,7 +214,7 @@ export function TimeInput({
       window.removeEventListener('resize', place)
       window.visualViewport?.removeEventListener('resize', place)
     }
-  }, [open])
+  }, [open, withDurations])
 
   const commitDraft = useCallback(() => {
     const normalized = normalizeTime(draft)
@@ -216,7 +242,7 @@ export function TimeInput({
 
   const openList = () => {
     const rect = inputRef.current?.getBoundingClientRect()
-    if (rect) setListStyle(listPlacement(rect))
+    if (rect) setListStyle(listPlacement(rect, withDurations ? LIST_WIDTH_WITH_DURATIONS : undefined))
     centerOnOpen.current = true
     setOpen(true)
   }
@@ -253,7 +279,7 @@ export function TimeInput({
     if (isSubmitEnter(e)) {
       e.preventDefault()
       const normalizedDraft = normalizeTime(draft)
-      const highlightedOption = options[highlightIndex]
+      const highlightedOption = options[highlightIndex]?.time
       const shouldPreferTypedValue = normalizedDraft !== null && normalizedDraft !== '' && normalizedDraft !== highlightedOption
 
       if (shouldPreferTypedValue) {
@@ -302,7 +328,8 @@ export function TimeInput({
           const nextDraft = e.target.value
           setDraft(nextDraft)
           if (!open) return
-          const idx = options.indexOf(normalizeTime(nextDraft) ?? '')
+          const typed = normalizeTime(nextDraft) ?? ''
+          const idx = options.findIndex((o) => o.time === typed)
           if (idx >= 0) setHighlightIndex(idx)
         }}
         onFocus={handleFocus}
@@ -335,7 +362,7 @@ export function TimeInput({
             className={`z-[95] animate-pop-in ${dropUp ? 'origin-bottom' : 'origin-top'} overflow-y-auto overscroll-contain rounded-md p-1 shadow-[0_8px_20px_rgba(0,0,0,0.16)] ${FLOATING_SURFACE}`}
             role="listbox"
           >
-            {options.map((option, idx) => {
+            {options.map(({ time: option, minutes }, idx) => {
               const active = idx === highlightIndex
               const selected = option === (value ?? '')
               return (
@@ -355,7 +382,10 @@ export function TimeInput({
                   role="option"
                   aria-selected={selected}
                 >
-                  <span className="tabular-nums">{option}</span>
+                  <span className="tabular-nums">
+                    {option}
+                    {minutes != null && <span className="ml-1.5 text-xs text-zinc-400 dark:text-zinc-500">{formatDuration(minutes)}</span>}
+                  </span>
                   <span className={`text-xs ${selected ? 'opacity-100' : 'opacity-0'}`}>✓</span>
                 </button>
               )

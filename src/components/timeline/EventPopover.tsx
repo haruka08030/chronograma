@@ -217,6 +217,7 @@ function EventPopoverBody({
                   endTime={tv.endTime!}
                   onStart={commitStart}
                   onEnd={(v) => v !== tv.endTime && updateTimes({ endTime: v })}
+                  overnight={isLog}
                   startLabel={t('common.start')}
                   endLabel={t('common.end')}
                 />

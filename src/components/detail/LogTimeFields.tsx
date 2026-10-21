@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import type { Task } from '../../types/task'
 import { addClockMinutes } from '../../lib/clockTime'
 import { formatDuration } from '../../lib/timeGrid'
-import { durationMinutesForTaskSlot, isOvernightTimeLog } from '../../lib/taskTimeRange'
+import { durationMinutesForTaskSlot, endDateAfterStartDateEdit, isOvernightTimeLog } from '../../lib/taskTimeRange'
 import { DateField } from '../DateField'
 import { TimeInput } from '../TimeInput'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from '../TaskTimeZoneField'
@@ -40,7 +40,10 @@ export function LogTimeFields({ task }: { task: Task }) {
             <label className={sectionLabelClass('field')}>{t('taskDetail.logDate')}</label>
             <DateField
               value={tv.dueDate ?? null}
-              onChange={(v) => updateTimes({ dueDate: v })}
+              // 日をまたぐ記録は終わりの日も同じ日数ずらす
+              onChange={(v) =>
+                updateTimes(v ? { dueDate: v, endDate: endDateAfterStartDateEdit(tv.dueDate, tv.endDate, v) } : { dueDate: v })
+              }
               ariaLabel={t('taskDetail.logDate')}
               className={fieldClass({}, 'w-full')}
             />

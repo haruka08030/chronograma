@@ -20,4 +20,22 @@ describe('TimeInput の候補', () => {
     expect(onChange).toHaveBeenCalledWith('15:30')
     expect(screen.queryByRole('listbox')).toBeNull()
   })
+
+  it('終わりの欄（durationFrom）は開始の 15 分後から長さを添えて並べ、予定は日の終わりまで', async () => {
+    render(<TimeInput value="" onChange={vi.fn()} ariaLabel="終了" durationFrom="22:30" />)
+    await userEvent.click(screen.getByRole('combobox', { name: '終了' }))
+    const options = screen.getAllByRole('option')
+    expect(options[0]).toHaveTextContent('22:45')
+    expect(options[0]).toHaveTextContent('15')
+    expect(options.at(-1)).toHaveTextContent('23:45')
+    expect(options).toHaveLength(5)
+  })
+
+  it('翌日まで続く欄（overnight）は開始から 1 周並べる', async () => {
+    render(<TimeInput value="" onChange={vi.fn()} ariaLabel="終了" durationFrom="22:30" overnight />)
+    await userEvent.click(screen.getByRole('combobox', { name: '終了' }))
+    const options = screen.getAllByRole('option')
+    expect(options).toHaveLength(95)
+    expect(options.at(-1)).toHaveTextContent('22:15')
+  })
 })
