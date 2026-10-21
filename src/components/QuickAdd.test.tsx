@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { INBOX_ID } from '../store/storeConstants'
-import { taskTimedInterval } from '../lib/taskTimeRange'
+import { taskWallInterval } from '../lib/taskTimeRange'
 import { QuickAdd } from './QuickAdd'
 import { closeTaskDetail, useOverlays } from '../lib/overlays'
 
@@ -109,7 +109,7 @@ describe('QuickAdd', () => {
 
     const [task] = tasks()
     expect(task).toMatchObject({ title: 'ES', startTime: '23:00', endTime: '23:59' })
-    expect(taskTimedInterval(task)).not.toBeNull()
+    expect(taskWallInterval(task)).not.toBeNull()
   })
 
   it('共有（share_target）から開くと中身が欄に入るだけで、確かめて Enter するまで足さない', async () => {

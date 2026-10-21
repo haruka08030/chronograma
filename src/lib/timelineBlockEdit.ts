@@ -1,4 +1,3 @@
-import { addMinutes } from 'date-fns'
 import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
@@ -20,8 +19,9 @@ import {
   patchAfterLogResize,
   patchAfterTimelineMove,
   taskPlacementDate,
-  taskTimedInterval,
+  taskWallInterval,
 } from './taskTimeRange'
+import { wallMinutesOf } from './wallTime'
 import { announce } from './announce'
 
 /**
@@ -118,8 +118,8 @@ export function applyBlockResize(taskId: string, startTime: string, endTime: str
     const patch = patchAfterLogResize(prev, dateKey, startTime, endTime)
     if (!patch) return false
     // 今より先の記録にはしない
-    const next = taskTimedInterval({ ...prev, ...patch } as Task)
-    if (!next || next.end > zonedNow()) return false
+    const next = taskWallInterval({ ...prev, ...patch } as Task)
+    if (!next || next.end > wallMinutesOf(zonedNow())) return false
     updateTask(taskId, patch, {
       key: 'undo.blockResized',
       params: { title: prev.title, time: `${patch.startTime}–${patch.endTime}` },
@@ -216,19 +216,18 @@ export function nudgeTimelineBlock(id: string, mode: NudgeMode, dir: -1 | 1, now
 
   if (isLogTask(task)) {
     // 記録は実際の時刻なので、日をまたいでも暦の上でそのままずらす（0:00 の前へ動かせば前の日の記録になる）
-    const iv = taskTimedInterval(task)
+    const iv = taskWallInterval(task)
     if (!iv) return null
     const d = dir * NUDGE_MINUTES
-    const start = mode === 'move' ? addMinutes(iv.start, d) : iv.start
-    let end = addMinutes(iv.end, d)
-    if (end > now) {
-      // 今より先にはしない。伸ばすときは今で止める（ドラッグで端を引いたときと同じ）
-      const nowMin = new Date(now)
-      nowMin.setSeconds(0, 0)
+    const start = mode === 'move' ? iv.start + d : iv.start
+    let end = iv.end + d
+    // 今（秒は切り捨てた分）より先にはしない。伸ばすときは今で止める（ドラッグで端を引いたときと同じ）
+    const nowMin = wallMinutesOf(now)
+    if (end > nowMin) {
       if (mode !== 'resize' || dir < 0 || nowMin <= iv.end) return null
       end = nowMin
     }
-    if (mode === 'resize' && end.getTime() - start.getTime() < NUDGE_MINUTES * 60_000 && dir < 0) return null
+    if (mode === 'resize' && end - start < NUDGE_MINUTES && dir < 0) return null
     if (end <= start) return null
     const patch = logPatchForInterval(start, end)
     const time = `${patch.startTime}–${patch.endTime}`
