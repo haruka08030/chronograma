@@ -841,6 +841,7 @@ export default {
     title: '設定',
     appearance: '外観',
     data: 'データ',
+    dataOpen: 'バックアップ・取り込み・書き出し',
     account: 'アカウント',
     syncOffTitle: 'クラウド同期',
     supabaseOff: 'このバージョンでは使えません。データはこの端末に保存されます。',
@@ -1323,7 +1324,6 @@ export default {
     title: '追加機能',
     intro: 'オンにした機能だけが、カレンダーや今日の計画に出ます。',
     open: '開く',
-    openView: '追加機能の画面を開く',
     switchAria: '{{name}}を使う',
     dues: {
       name: '引き落とし・期限',

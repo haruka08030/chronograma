@@ -861,6 +861,7 @@ export default {
     title: 'Settings',
     appearance: 'Appearance',
     data: 'Data',
+    dataOpen: 'Backup, import and export',
     account: 'Account',
     syncOffTitle: 'Cloud sync',
     supabaseOff: 'Not available in this version. Your data is saved on this device.',
@@ -1373,7 +1374,6 @@ export default {
     title: 'Add-ons',
     intro: 'Only the add-ons you turn on appear in the calendar and the day plan.',
     open: 'Open',
-    openView: 'Open the add-ons page',
     switchAria: 'Use {{name}}',
     dues: {
       name: 'Payments & expiry dates',

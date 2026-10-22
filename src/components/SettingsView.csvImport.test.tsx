@@ -10,11 +10,12 @@ function csvInput(): HTMLInputElement {
   return document.querySelector<HTMLInputElement>('input[type="file"][accept=".csv,text/csv"]')!
 }
 
-describe('設定「ほかのアプリから取り込む」', () => {
+describe('設定 › データ「ほかのアプリから取り込む」', () => {
   it('ラベルの無いリスト名があれば、件数を見せてラベルを作るかを先に聞く', async () => {
     st().setTimeLogTagPresets(['勉強'])
     const user = userEvent.setup()
     render(<SettingsView />)
+    await user.click(screen.getByRole('button', { name: 'Backup, import and export' }))
     expect(screen.getByText('Import from other apps (TickTick, Todoist, CSV)')).toBeInTheDocument()
 
     const file = new File(['title,list\nA,勉強\nB,趣味\nC,趣味\nD,Inbox\n'], 'tasks.csv', { type: 'text/csv' })
@@ -31,6 +32,7 @@ describe('設定「ほかのアプリから取り込む」', () => {
     st().setTimeLogTagPresets([])
     const user = userEvent.setup()
     render(<SettingsView />)
+    await user.click(screen.getByRole('button', { name: 'Backup, import and export' }))
     const before = st().tasks.length
 
     await user.upload(csvInput(), new File(['title,list\nX,趣味\n'], 'a.csv', { type: 'text/csv' }))

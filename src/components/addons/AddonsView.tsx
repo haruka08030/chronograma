@@ -11,7 +11,7 @@ import { PAGE_SCROLL_CLASS } from '../ui/layoutClass'
 import { HINT_TEXT } from '../ui/textClass'
 
 /**
- * 追加機能の画面（#453）。生活まわりの機能をカードで並べ、使うものだけオンにする（設定の「追加機能」と同じオン・オフ）。
+ * 追加機能の画面（#453）。生活まわりの機能をカードで並べ、使うものだけオンにする（オン・オフはこの画面だけ）。
  * オンのカードは「開く」でその機能の画面（時間割など）を開く
  */
 export function AddonsView() {

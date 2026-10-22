@@ -21,6 +21,9 @@ import { addInsightHistory, buildSeedState, PERSIST_KEY } from './seed.mjs'
 /** ここから順に空いているポートを探す（5173 は普段の dev サーバー用に空けておく） */
 const FIRST_PORT = 5180
 
+/** 設定のトップから「データ」のページを開く（#541） */
+const OPEN_DATA_PAGE = 'button:has-text("バックアップ・取り込み・書き出し") >> visible=true'
+
 /**
  * 撮影するブラウザのタイムゾーン。種データの日付もこれで組み立てる
  * （ホストの時刻で作ると、日付が 1 日ずれて予定・記録がタイムラインから消える）
@@ -482,7 +485,6 @@ const SCREENS = [
   },
   { name: 'addons', view: 'addons' },
   { name: 'addons-on', view: 'addons', state: TIMETABLE_ON },
-  { name: 'settings-addons', view: 'settings', state: TIMETABLE_ON },
   // 欠席の数（#452）: 休んだ授業のマスに数・使い切った授業は赤、マスの授業の休める回数、授業の予定のカード（今日の 4 限に入れて押す）
   {
     name: 'calendar-timetable-absence',
@@ -713,13 +715,15 @@ const SCREENS = [
   },
   // 設定の下の方（データ・アプリ・規約）
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
-  // 「データ」の記録の書き出し（期間・予定も入れるスイッチ・件数と CSV / ICS、#281）
-  { name: 'settings-data', view: 'settings', scrollTo: '#settings-data' },
+  // 設定のトップの「データ」は 1 行（#541）
+  { name: 'settings-data-row', view: 'settings', scrollTo: '#settings-data' },
+  // 「データ」のページ（バックアップ・取り込み・記録の書き出し（期間・予定も入れるスイッチ・件数と CSV / ICS、#281））
+  { name: 'settings-data', view: 'settings', click: OPEN_DATA_PAGE },
   {
     // TickTick の CSV を選んで、ラベルの無いリスト名をどうするかを聞くところ（#306）
     name: 'settings-csv-import',
     view: 'settings',
-    scrollTo: '#settings-data',
+    click: OPEN_DATA_PAGE,
     steps: [
       {
         upload: {
