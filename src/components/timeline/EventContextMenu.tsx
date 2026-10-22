@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
+import { skippedEventById } from '../../hooks/useShownCalendarEvents'
 import { isEventTask, isLogTask, type Task } from '../../types/task'
 import { NEUTRAL_HEX, DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { recordHex, colorVars } from '../../lib/logCategoryColors'
@@ -213,7 +214,8 @@ function TaskEventMenuBody({
 
 /**
  * Google の予定を右クリックしたときのメニュー（Google カレンダーの右クリックと同じく、色と削除）。
- * 書き込めない予定は「Google カレンダーで開く」だけ。繰り返しの色はカードの既定と同じく「すべての予定」に付ける
+ * 書き込めない予定は「Google カレンダーで開く」だけ。繰り返しの色はカードの既定と同じく「すべての予定」に付ける。
+ * やらなかった予定（#528）は削除だけ（予定していなかったものを消す）
  */
 export function GoogleEventMenu({
   x,
@@ -229,10 +231,24 @@ export function GoogleEventMenu({
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const event = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
+  const liveEvent = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
+  const skipped = useTaskStore((s) => !liveEvent && s.skippedEvents.some((e) => e.id === eventId && !e.removed))
+  const event = liveEvent ?? (skipped ? skippedEventById(eventId) : null)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const setGoogleEventColor = useTaskStore((s) => s.setGoogleEventColor)
+  const removeSkippedEvent = useTaskStore((s) => s.removeSkippedEvent)
   if (!event) return null
+  if (skipped) {
+    const remove: ActionEntry = {
+      kind: 'leaf',
+      id: 'delete',
+      label: t('common.delete'),
+      icon: <TrashIcon className={ICON} />,
+      danger: true,
+      run: () => removeSkippedEvent(event.id),
+    }
+    return <ActionMenu x={x} y={y} alignRight={alignRight} header={event.summary} entries={[remove]} onClose={onClose} searchable={false} />
+  }
   const editable = canEditGoogleEvent(event, googleCanWrite)
   const scope = event.recurringEventId ? 'series' : 'event'
   const entries: ActionEntry[] = [

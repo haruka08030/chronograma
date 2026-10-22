@@ -44,6 +44,8 @@ export const DATA_KEYS = [
   'eventTemplatesUpdatedAt',
   'courseLinks',
   'courseLinksUpdatedAt',
+  'skippedEvents',
+  'skippedEventsUpdatedAt',
   'dayMoods',
   'timetable',
   'timetableUpdatedAt',

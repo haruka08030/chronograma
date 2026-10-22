@@ -11,6 +11,7 @@ import {
   type GoogleEventTiming,
 } from './googleCalendar'
 import { UNDO_WINDOW_MS } from './undoWindow'
+import { isSkippedDeletion, toSkippedEvent } from './skippedEvents'
 
 /**
  * Google の予定をアプリから書き換える操作。画面は先に変え（楽観的）、Google に送って返ってきた形で置き換える。
@@ -98,8 +99,12 @@ export function withoutPendingDeletes(events: CalendarEvent[]): CalendarEvent[] 
   return pendingDeletes.size === 0 ? events : events.filter((e) => !pendingDeletes.has(e.id))
 }
 
+/**
+ * 消す。始まった予定（行かなかった gym・休んだ授業など）は、やらなかった予定としてその日に薄く残す（#528、`lib/skippedEvents.ts`）
+ */
 export function removeGoogleEvent(event: CalendarEvent) {
   remove(event.id)
+  if (isSkippedDeletion(event)) useTaskStore.getState().addSkippedEvents([toSkippedEvent(event, new Date().toISOString())])
   const timer = setTimeout(() => void sendDelete(event.id), UNDO_WINDOW_MS)
   pendingDeletes.set(event.id, { event, timer })
   useTaskStore.getState().setGoogleUndo({
@@ -119,6 +124,7 @@ export function undoGoogleDelete(): boolean {
   clearTimeout(pending.timer)
   pendingDeletes.delete(id)
   upsert(pending.event)
+  s.dropRestoredSkipped(new Set([id]))
   return true
 }
 
@@ -133,6 +139,7 @@ async function sendDelete(id: string) {
     await deleteGoogleEvent(id)
   } catch (e) {
     upsert(pending.event)
+    useTaskStore.getState().dropRestoredSkipped(new Set([id]))
     report(e)
   }
 }

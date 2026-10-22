@@ -22,6 +22,7 @@ const STAMPED: Record<string, readonly string[]> = {
   extraTimeZonesUpdatedAt: ['extraTimeZones'],
   eventTemplatesUpdatedAt: ['eventTemplates'],
   courseLinksUpdatedAt: ['courseLinks'],
+  skippedEventsUpdatedAt: ['skippedEvents'],
   timetableUpdatedAt: ['timetable'],
   addonsUpdatedAt: ['addons'],
   sleepTimerUpdatedAt: ['sleepTimer'],

@@ -29,6 +29,8 @@ import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
 import { CourseAssignments } from './CourseAssignments'
 import { ClassAttendance } from './ClassAttendance'
 import { useExitGhost } from '../../hooks/useExitGhost'
+import { skippedEventById } from '../../hooks/useShownCalendarEvents'
+import { SKIPPED_EVENT_CLASS } from '../ui/rowStateClass'
 
 const WIDTH = 320
 
@@ -36,11 +38,15 @@ const WIDTH = 320
  * Google の予定を押したときのカード。書き込みを許可していれば、タイトル・日付・時刻の変更と削除が Google に反映される
  * （繰り返し予定はこの回だけ）。色はアプリで付け直せる（API に出ない新しい色の代わり）。
  * 繰り返し予定は Google と同じく「この予定 / すべての繰り返し」を選べる。付けた色は似たタイトルの色なし予定にも広がる。
+ * やらなかった予定（#528、時間が過ぎてから消した予定）は、そう書いて削除だけできる（予定していなかったものを消す）。
  */
 export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: string; anchor: AnchorRect; onClose: () => void }) {
   const { t } = useTranslation()
   const df = useDateFormat()
-  const event = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
+  const liveEvent = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
+  const skippedEntry = useTaskStore((s) => s.skippedEvents.find((e) => e.id === eventId && !e.removed) ?? null)
+  const event = liveEvent ?? (skippedEntry ? skippedEventById(eventId) : null)
+  const removeSkippedEvent = useTaskStore((s) => s.removeSkippedEvent)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const now = useNow()
@@ -70,8 +76,9 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
     SHORTCUTS.delete.hotkeys,
     () => {
       const ev = useTaskStore.getState().calendarEvents.find((x) => x.id === eventId)
-      if (!ev || !canEditGoogleEvent(ev, useTaskStore.getState().googleCanWrite)) return false
-      removeGoogleEvent(ev)
+      if (!ev && skippedEventById(eventId)) useTaskStore.getState().removeSkippedEvent(eventId)
+      else if (!ev || !canEditGoogleEvent(ev, useTaskStore.getState().googleCanWrite)) return false
+      else removeGoogleEvent(ev)
       onClose()
     },
     { scope: layer },
@@ -88,6 +95,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
 
   if (!event) return null
   const recurring = !!event.recurringEventId
+  const skipped = event.skipped === true
   const hex = event.color ?? DEFAULT_GOOGLE_EVENT_HEX
   const dateText = df.monthDayWeekdayLong(event.date)
   const editable = canEditGoogleEvent(event, googleCanWrite)
@@ -155,11 +163,12 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             <OpenPanelIcon className="h-4 w-4" strokeWidth={1.75} />
           </a>
         )}
-        {editable && (
+        {(editable || skipped) && (
           <button
             type="button"
             onClick={() => {
-              removeGoogleEvent(event)
+              if (skipped) removeSkippedEvent(event.id)
+              else removeGoogleEvent(event)
               onClose()
             }}
             className={iconButtonClass()}
@@ -214,7 +223,9 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
               className="-mx-1 w-full rounded-md border border-transparent bg-transparent px-1 text-lg leading-snug text-zinc-900 outline-none transition-colors hover:border-zinc-200 focus:border-accent-400 dark:text-zinc-100 dark:hover:border-zinc-600"
             />
           ) : (
-            <p className="break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100">{event.summary}</p>
+            <p className={`break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100 ${skipped ? SKIPPED_EVENT_CLASS : ''}`}>
+              {event.summary}
+            </p>
           )}
           {editable ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -244,16 +255,19 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             </p>
           )}
           {/* 操作は題名・時刻のすぐ下（アプリの予定のカードと同じ行）。始まった予定は記録にし、終わるまでは ▶ で記録を始められる */}
-          <CardActions
-            record={started && !event.isAllDay ? { label: t('eventCard.toRecord'), onClick: recordEvent } : undefined}
-            onStart={ended ? undefined : startEvent}
-            startDisabled={!!activeTimer && !activeTimer.taskId && activeTimer.taskTitle === event.summary}
-          />
+          {!skipped && (
+            <CardActions
+              record={started && !event.isAllDay ? { label: t('eventCard.toRecord'), onClick: recordEvent } : undefined}
+              onStart={ended ? undefined : startEvent}
+              startDisabled={!!activeTimer && !activeTimer.taskId && activeTimer.taskTitle === event.summary}
+            />
+          )}
           <p className={`mt-1 ${META_TEXT}`}>
-            {t('eventCard.google')}
+            {skipped ? `${t('googleEdit.skipped')} · ${t('eventCard.google')}` : t('eventCard.google')}
             {editable && recurring && ` · ${t('googleEdit.thisEventOnly')}`}
           </p>
-          {!googleCanWrite && (
+          {skipped && <p className={`mt-1 ${HINT_TEXT}`}>{t('googleEdit.skippedHint')}</p>}
+          {!googleCanWrite && !skipped && (
             <p className={`mt-1 ${HINT_TEXT}`}>
               {t('googleEdit.reconnectHint')}
               <button
@@ -265,7 +279,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
               </button>
             </p>
           )}
-          {googleCanWrite && !editable && !event.id.startsWith('pending-') && (
+          {googleCanWrite && !editable && !skipped && !event.id.startsWith('pending-') && (
             <p className={`mt-1 ${HINT_TEXT}`}>{t('googleEdit.notEditable')}</p>
           )}
         </div>

@@ -3,6 +3,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
+import { skippedEventById, useShownCalendarEvents } from '../hooks/useShownCalendarEvents'
 import { timeToMinutes } from '../lib/timeGrid'
 import { durationMinutesForTaskId } from '../lib/taskTimeRange'
 import {
@@ -91,7 +92,8 @@ export function WeekCalendarView({
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
-  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  // やらなかった予定（#528）も薄く出す
+  const calendarEvents = useShownCalendarEvents()
   /** つかんでいる Google の予定（週をめくって一覧から消えても動かせるよう、つかんだ時点のものを持つ） */
   const googleDragRef = useRef<CalendarEvent | null>(null)
   const updateTask = useTaskStore((s) => s.updateTask)
@@ -223,7 +225,7 @@ export function WeekCalendarView({
       if (openHabitMenu(id, x, y)) return true
       const { tasks, calendarEvents } = useTaskStore.getState()
       const known = id.startsWith('event-')
-        ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length))
+        ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length)) || !!skippedEventById(id.slice('event-'.length))
         : tasks.some((t) => t.id === id)
       if (!known) return false
       setEventCard(null)

@@ -10,6 +10,7 @@ import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
 import type { CourseLink } from '../lib/courseLinks'
+import type { SkippedEvent } from '../lib/skippedEvents'
 import type { Timetable } from '../lib/timetable'
 import type { AddonId, Addons } from '../lib/addons'
 import type { SleepTimer } from '../lib/sleepTimer'
@@ -208,6 +209,10 @@ export interface TaskState {
   courseLinks: CourseLink[]
   /** つながりをこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
   courseLinksUpdatedAt: string | null
+  /** やらなかった予定（#528、開始を過ぎてから消した Google の予定）。その日の予定の列に薄く・取り消し線で出す（`lib/skippedEvents.ts`） */
+  skippedEvents: SkippedEvent[]
+  /** やらなかった予定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  skippedEventsUpdatedAt: string | null
   /** 1 日の気分とひとこと（#324、日付 → 気分）。日ごとに変えた時刻ともとにしたサーバーの版を持ち、日ごとに同期する（`lib/dayMood.ts`） */
   dayMoods: DayMoods
   /** 授業の時間割の設定（#279、時限・学期・祝日を除くか）。マスの中身は予定の行（毎週の印）から出す（`lib/timetable.ts`） */
@@ -444,6 +449,12 @@ export interface TaskState {
   ) => { kind: 'added' | 'removed'; taskId: string } | null
   /** 予定の名前と科目をつなぐ（同じ名前の予定はみな同じ科目）。`course` が '' なら「つながない」 */
   setCourseLink: (eventTitle: string, course: string) => void
+  /** やらなかった予定を足す（もう持っている予定はそのまま） */
+  addSkippedEvents: (events: SkippedEvent[]) => void
+  /** 予定に戻った（Google にまたある・消すのを取り消した）予定を、やらなかった予定から外す */
+  dropRestoredSkipped: (liveIds: ReadonlySet<string>) => void
+  /** 「消す」: やらなかった予定からも消す */
+  removeSkippedEvent: (id: string) => void
   /**
    * 予定に毎週の繰り返しを付ける・変える・やめる（`rule` が null）。その回から後に当てはまる（`changeSeriesRule`）。
    * 変わったら true

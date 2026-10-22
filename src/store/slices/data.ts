@@ -101,6 +101,8 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
           eventTemplatesUpdatedAt: null,
           courseLinks: [],
           courseLinksUpdatedAt: null,
+          skippedEvents: [],
+          skippedEventsUpdatedAt: null,
           timetable: DEFAULT_TIMETABLE,
           timetableUpdatedAt: null,
           addons: DEFAULT_ADDONS,

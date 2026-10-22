@@ -381,6 +381,16 @@ const SCREENS = [
     click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
   },
   { name: 'calendar', view: 'calendar' },
+  // やらなかった予定（#528）: 時間が過ぎてから消した Google の予定を、薄く・取り消し線で残す。押すとカードで「やらなかった予定」と削除
+  { name: 'calendar-skipped', view: 'calendar', skipped: true },
+  {
+    name: 'calendar-skipped-card',
+    view: 'calendar',
+    skipped: true,
+    desktopOnly: true,
+    click: '[data-block-id="event-sk-class"] >> visible=true',
+  },
+  { name: 'calendar-skipped-month', view: 'calendar', calendarMode: 'month', skipped: true, desktopOnly: true },
   // 過ぎた日（昨日）: 移した予定の点線の枠と、予定の見出しの「予定 n・できた n・持ち越し n」（#158。1 日だけ描くのはスマホ）
   {
     name: 'calendar-yesterday',
@@ -1041,6 +1051,27 @@ async function main() {
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
           if (screen.weekStartsOn !== undefined) seed.state.weekStartsOn = screen.weekStartsOn
           if (screen.state) Object.assign(seed.state, screen.state)
+          if (screen.skipped) {
+            // やらなかった予定（#528）: 昨日の gym（時刻あり）と今日の 1 限（もう過ぎた時刻）。どちらも時間が過ぎてから消した Google の予定
+            const tKey = dayKeyOf(seedNow)
+            const iso = (key, hm) => `${key}T${hm}:00+09:00`
+            const skipped = (id, summary, key, start, end) => ({
+              id,
+              summary,
+              start: iso(key, start),
+              end: iso(key, end),
+              startTime: start,
+              endTime: end,
+              date: key,
+              isAllDay: false,
+              baseColor: '#039BE5',
+              skippedAt: seedInstant.toISOString(),
+            })
+            seed.state.skippedEvents = [
+              skipped('sk-gym', 'gym', yesterdayKey, '18:00', '19:30'),
+              skipped('sk-class', '英語コミュニケーション', tKey, '09:00', '10:30'),
+            ]
+          }
           if (screen.timer) {
             const ms = instant.getTime()
             const { title, tags = [], startedAgo, endsIn } = screen.timer

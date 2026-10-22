@@ -12,6 +12,7 @@ import { normalizeEventTemplates, type EventTemplate } from '../lib/eventTemplat
 import { normalizeLabelTargets } from '../lib/labelTargets'
 import { normalizeLabelIds } from '../lib/labelIds'
 import { courseKey, normalizeCourseLinks, withCourseLink, type CourseLink } from '../lib/courseLinks'
+import { normalizeSkippedEvents, withRemoved, withSkipped, withoutRestored, type SkippedEvent } from '../lib/skippedEvents'
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, normalizeWeekStart, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import {
@@ -209,6 +210,8 @@ export const useTaskStore = create<TaskState>()(
         eventTemplatesUpdatedAt: null as string | null,
         courseLinks: [] as CourseLink[],
         courseLinksUpdatedAt: null as string | null,
+        skippedEvents: [] as SkippedEvent[],
+        skippedEventsUpdatedAt: null as string | null,
         dayMoods: {} as DayMoods,
         timetable: DEFAULT_TIMETABLE as Timetable,
         timetableUpdatedAt: null as string | null,
@@ -238,6 +241,15 @@ export const useTaskStore = create<TaskState>()(
           if (sameValue(next, get().courseLinks)) return
           set({ courseLinks: next })
         },
+        addSkippedEvents: (events) => {
+          const next = withSkipped(get().skippedEvents, events)
+          if (next !== get().skippedEvents) set({ skippedEvents: next })
+        },
+        dropRestoredSkipped: (liveIds) => {
+          const next = withoutRestored(get().skippedEvents, liveIds)
+          if (next !== get().skippedEvents) set({ skippedEvents: next })
+        },
+        removeSkippedEvent: (id) => set({ skippedEvents: withRemoved(get().skippedEvents, id) }),
         setAddonOn: (id, on) => {
           const next = withAddonOn(get().addons, id, on)
           if (sameValue(next, get().addons)) return
@@ -328,6 +340,7 @@ export const useTaskStore = create<TaskState>()(
         merged.extraTimeZones = normalizeExtraTimeZones(merged.extraTimeZones)
         merged.eventTemplates = normalizeEventTemplates(merged.eventTemplates)
         merged.courseLinks = normalizeCourseLinks(merged.courseLinks)
+        merged.skippedEvents = normalizeSkippedEvents(merged.skippedEvents)
         merged.dayMoods = normalizeDayMoods(merged.dayMoods)
         merged.timetable = normalizeTimetable(merged.timetable)
         merged.addons = normalizeAddons(merged.addons)
@@ -495,6 +508,12 @@ useTaskStore.subscribe((s, prev) => {
   if (s.courseLinks === prev.courseLinks) return
   if (isIncomingChange() || isAdoptingFromOtherTab()) return
   useTaskStore.setState({ courseLinksUpdatedAt: new Date().toISOString() })
+})
+// やらなかった予定（#528）を変えたときも同じ
+useTaskStore.subscribe((s, prev) => {
+  if (s.skippedEvents === prev.skippedEvents) return
+  if (isIncomingChange() || isAdoptingFromOtherTab()) return
+  useTaskStore.setState({ skippedEventsUpdatedAt: new Date().toISOString() })
 })
 // 時間割の設定（時限・学期、#279）を変えたときも同じ
 useTaskStore.subscribe((s, prev) => {

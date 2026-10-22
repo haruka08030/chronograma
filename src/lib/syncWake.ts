@@ -24,6 +24,7 @@ const SETTING_TABLES = [
   'user_timetable',
   'user_addons',
   'user_sleep_timer',
+  'user_skipped_events',
 ] as const satisfies readonly SettingTable[]
 
 export const WAKE_TABLES = [

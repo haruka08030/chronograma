@@ -52,8 +52,8 @@ export function settingSyncStep(
   return { kind: 'apply' }
 }
 
-/** ラベル表・他のタイムゾーン・動いているタイマー（`timerSync.ts`）・よく入れる予定（`eventTemplates.ts`）・授業と科目のつながり（`courseLinks.ts`）・時間割（`timetable.ts`）・追加機能（`addons.ts`）・睡眠のタイマー（`sleepTimer.ts`） */
-export type SettingKey = 'labels' | 'zones' | 'timer' | 'templates' | 'courses' | 'timetable' | 'addons' | 'sleepTimer'
+/** ラベル表・他のタイムゾーン・動いているタイマー（`timerSync.ts`）・よく入れる予定（`eventTemplates.ts`）・授業と科目のつながり（`courseLinks.ts`）・時間割（`timetable.ts`）・追加機能（`addons.ts`）・睡眠のタイマー（`sleepTimer.ts`）・やらなかった予定（`skippedEvents.ts`） */
+export type SettingKey = 'labels' | 'zones' | 'timer' | 'templates' | 'courses' | 'timetable' | 'addons' | 'sleepTimer' | 'skipped'
 
 const syncedKey = (userId: string) => `chronograma-settings-sync-v1:${userId}`
 

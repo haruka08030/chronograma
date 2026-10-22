@@ -624,6 +624,8 @@ export default {
     reconnect: 'Reconnect',
     notEditable: "You're not the organizer, so you can't change it here",
     thisEventOnly: 'For a repeating event, only this one changes',
+    skipped: 'Skipped',
+    skippedHint: "You deleted this after it started, so it's kept as a skipped plan. Delete it if it was never planned",
     openInGoogle: 'Open in Google Calendar',
     title: 'Title',
     date: 'Date',

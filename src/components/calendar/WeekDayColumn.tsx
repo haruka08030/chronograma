@@ -460,8 +460,9 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         </div>
       ))}
       {shownTimedEvents.map(({ e, seg }) => {
-        // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー
+        // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー。やらなかった予定（#528）は薄く・取り消し線で、✓ は出さない
         const recorded = dayLogs.some((l) => l.title === e.summary)
+        const canCheck = hasStarted(seg.startTime) && !recorded && !e.skipped
         // 日をまたぐ予定は列ごとに区間しか描いていないので、ドラッグでは動かさない（押すとカードで直せる）
         const editable = canEditGoogleEvent(e, googleCanWrite) && !googleEventCrossesDay(e)
         return (
@@ -490,9 +491,10 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               }}
               onTap={editable ? undefined : () => openGoogleCard(e.id)}
               onOpenDetail={() => openGoogleCard(e.id)}
-              withCheck={hasStarted(seg.startTime) && !recorded}
+              withCheck={canCheck}
+              skipped={e.skipped}
             />
-            {hasStarted(seg.startTime) && !recorded && (
+            {canCheck && (
               <SlotCheck
                 {...blockGeometry(
                   { id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false },

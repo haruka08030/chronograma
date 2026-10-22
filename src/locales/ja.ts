@@ -609,6 +609,8 @@ export default {
     reconnect: 'つなぎ直す',
     notEditable: '主催者ではないため、ここでは変更できません',
     thisEventOnly: '繰り返しの予定は、この回だけ変わります',
+    skipped: 'やらなかった予定',
+    skippedHint: '時間が過ぎてから消した予定なので、やらなかった予定として残しています。予定していなかったものなら削除してください',
     openInGoogle: 'Google カレンダーで開く',
     title: 'タイトル',
     date: '日付',
