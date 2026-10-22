@@ -4,6 +4,7 @@ import type { CalendarEvent } from '../types/calendarEvent'
 import {
   calendarDayKey,
   dueMarkDayKey,
+  getDayLeftBehind,
   getDayPlan,
   getMoreSuggestions,
   groupCandidatesByDue,
@@ -324,5 +325,36 @@ describe('nowOrNextPlan', () => {
     expect(pick('09:15', { events })).toMatchObject({ source: 'google', event: { id: 'seminar' }, kind: 'now' })
     // 0 時をまたぐものはその日のうちは終わらない
     expect(pick('23:30', { timed: [], events: [google('night', '22:00', '01:00')] })).toMatchObject({ kind: 'now' })
+  })
+})
+
+describe('getDayLeftBehind (#522)', () => {
+  const moved = (date: string, to: string) => [{ date, startTime: null, endTime: null, to }]
+  const tasks = [
+    task('doneThatDay', { scheduledDate: DAY, completed: true, completedAt: '2026-09-30T03:00:00Z' }),
+    task('doneLater', { scheduledDate: DAY, completed: true, completedAt: '2026-10-02T03:00:00Z' }),
+    task('movedDone', {
+      scheduledDate: '2026-10-01',
+      movedPlans: moved(DAY, '2026-10-01'),
+      completed: true,
+      completedAt: '2026-10-01T03:00:00Z',
+    }),
+    task('movedOpen', { scheduledDate: '2026-10-05', movedPlans: moved(DAY, '2026-10-05') }),
+    task('stillOpen', { scheduledDate: DAY }),
+    task('dueOnly', { dueDate: DAY, completed: true, completedAt: '2026-10-02T03:00:00Z' }),
+    task('otherDay', { scheduledDate: '2026-09-29', completed: true, completedAt: '2026-10-01T03:00:00Z' }),
+    task('someday', { scheduledDate: DAY, listId: 'someday', completed: true, completedAt: '2026-10-02T03:00:00Z' }),
+  ]
+
+  afterEach(() => setAppTimeZoneSetting(null))
+
+  it('lists what was planned that day but finished later or moved away, finished first', () => {
+    setAppTimeZoneSetting('UTC')
+    const got = getDayLeftBehind(tasks, DAY, new Set(['someday']))
+    expect(got.map((x) => [x.task.id, x.doneOn, x.movedTo])).toEqual([
+      ['movedDone', '2026-10-01', null],
+      ['doneLater', '2026-10-02', null],
+      ['movedOpen', null, '2026-10-05'],
+    ])
   })
 })

@@ -454,6 +454,63 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(screen.getAllByText('Stretch')).toHaveLength(3)
   })
 
+  it('今日の画面で習慣を予定の列に落とすとその日だけの枠、記録の列ならその時間の記録（今より先は不可）', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const id = useTaskStore.getState().addHabit({
+      title: 'Wash puff',
+      color: '#0B8043',
+      timeMode: 'none',
+      startTime: null,
+      endTime: null,
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: undefined,
+    })
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
+    const slotId = `habit-slot::${id}::2026-10-07`
+    const transfer = {
+      types: ['application/x-task-id'],
+      getData: (t: string) => (t === 'application/x-task-id' ? slotId : ''),
+      dropEffect: 'none',
+      effectAllowed: 'copyMove',
+    }
+    const column = view.container.querySelector<HTMLElement>('[data-datekey="2026-10-07"]')!
+    // jsdom の列は幅 0（左端が 0）なので、clientX が負なら予定の列、0 以上なら記録の列
+    const drop = (clientX: number, clientY: number) => {
+      const ev = createEvent.drop(column, { dataTransfer: transfer })
+      Object.defineProperty(ev, 'clientX', { value: clientX })
+      Object.defineProperty(ev, 'clientY', { value: clientY })
+      fireEvent(column, ev)
+    }
+    // 列に高さを持たせる（jsdom は高さ 0）
+    const hour = HOUR_HEIGHT
+    column.getBoundingClientRect = () => ({
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: hour * 24,
+      width: 0,
+      height: hour * 24,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+    drop(-1, 0)
+    expect(useTaskStore.getState().habits[0]!.timeOverrides?.['2026-10-07']).toEqual({ startTime: '00:00', endTime: '01:00' })
+    expect(column.querySelector(`[data-block-id="${slotId}"]`)).not.toBeNull()
+    // 今（16:00）より先の記録は作らない
+    drop(0, hour * 20)
+    expect(useTaskStore.getState().tasks.filter((t) => t.kind === 'log')).toHaveLength(0)
+    // 終わりは今で切る
+    drop(0, hour * 15.5)
+    const logs = useTaskStore.getState().tasks.filter((t) => t.kind === 'log')
+    expect(logs).toHaveLength(1)
+    expect(logs[0]).toMatchObject({ habitId: id, dueDate: '2026-10-07', startTime: '15:30', endTime: '16:00' })
+    expect(useTaskStore.getState().habits[0]!.completedDates).toEqual(['2026-10-07'])
+  })
+
   it('格子に置いた時刻ひとつの習慣は、メニューの「習慣の段に戻す」でチップに戻る', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
@@ -578,7 +635,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     const cell = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-07"]`)!.parentElement!
     expect([...cell.children].map((c) => c.textContent)).toEqual(['22:00 Stretch', 'Wash puff'])
     const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-07"]`)!
-    expect(chip.getAttribute('draggable')).toBe('false')
+    expect(chip.getAttribute('draggable')).toBe('true')
     fireEvent.click(within(chip).getByRole('button', { name: 'Mark done' }))
     expect(useTaskStore.getState().habits.find((h) => h.id === puff)!.completedDates).toContain('2026-10-07')
     // 先の日はまだ ✓ を出さない

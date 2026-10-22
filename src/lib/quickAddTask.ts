@@ -1,7 +1,7 @@
 import { addDays } from 'date-fns'
 import i18n from '../i18n/config'
 import { INBOX_LIST_ID, useTaskStore } from '../store/taskStore'
-import type { Recurrence, Task } from '../types/task'
+import type { Priority, Recurrence, Task } from '../types/task'
 import { parseQuickAddTitle, type ParsedQuickAdd, type QuickAddRepeat } from './parseQuickAdd'
 import { fromDateKey, toDateKey } from './dateKey'
 import { findListByName } from './listKind'
@@ -73,6 +73,9 @@ export type QuickAddPicks = {
   listId?: string
   /** 色（ラベル） */
   color?: string | null
+  priority?: Priority
+  /** やりたいことのリストに入るとき、夢にするか（無ければ欄の既定 `somedayTier`） */
+  dream?: boolean
 }
 
 /** チップで選んだ値を日時に重ねる。いつか・チェックリストには呼ばない */
@@ -263,12 +266,15 @@ export type QuickAddDraft = {
   dueTime: string | null
   estimateMinutes: number | null
   color: string | null
+  priority: Priority
+  /** やりたいことのリストに入るなら、夢にするか。ほかのリストなら null */
+  dream: boolean | null
 }
 
 /** 入力中の 1 行とチップから、足したら付く値を出す（`addTaskFromQuickText` と同じ決め方） */
 export function quickAddDraft(
   raw: string,
-  opts: Pick<QuickAddOptions, 'defaultDate' | 'defaultListId' | 'color' | 'picks'> = {},
+  opts: Pick<QuickAddOptions, 'defaultDate' | 'defaultListId' | 'color' | 'picks' | 'somedayTier'> = {},
 ): QuickAddDraft {
   const state = useTaskStore.getState()
   const parsed = parseQuickAddTitle(quickAddParts(raw).text, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
@@ -277,7 +283,8 @@ export function quickAddDraft(
   const picks = opts.picks ?? {}
   const target = parsed.listName ? findListByName(state.lists, parsed.listName, (l) => displayListName(l.id, l.name)) : null
   const listId = picks.listId ?? target?.id ?? opts.defaultListId ?? state.selectedListId ?? INBOX_LIST_ID
-  const dated = (state.lists.find((l) => l.id === listId)?.kind ?? 'tasks') === 'tasks'
+  const kind = state.lists.find((l) => l.id === listId)?.kind ?? 'tasks'
+  const dated = kind === 'tasks'
   const patch: SchedulePatch & Partial<Pick<Task, 'estimateMinutes'>> = {}
   if (dated) {
     const today = appTodayKey()
@@ -295,6 +302,8 @@ export function quickAddDraft(
     dueTime: patch.dueTime ?? null,
     estimateMinutes: patch.estimateMinutes ?? null,
     color: picks.color !== undefined ? picks.color : (opts.color ?? null),
+    priority: picks.priority ?? 'none',
+    dream: kind === 'someday' ? (picks.dream ?? opts.somedayTier === 'dream') : null,
   }
 }
 
@@ -378,7 +387,7 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     const after = useTaskStore.getState()
     const addedListId = after.tasks.find((t) => t.id === id)?.listId
     const kind = after.lists.find((l) => l.id === addedListId)?.kind ?? 'tasks'
-    const patch: SchedulePatch & Partial<Pick<Task, 'tags' | 'color' | 'kind' | 'estimateMinutes' | 'description'>> = {}
+    const patch: SchedulePatch & Partial<Pick<Task, 'tags' | 'color' | 'kind' | 'estimateMinutes' | 'description' | 'priority'>> = {}
     if (parsed.tags.length) patch.tags = parsed.tags
     // メモが URL 1 つだけなら、行にリンクのアイコンが出る（`sourceLinkOf`）
     if (description) patch.description = description
@@ -391,11 +400,12 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
       // 時刻なしで書いた長さは見積もり（置くときの長さ）
       if (parsed.estimateMinutes != null) patch.estimateMinutes = parsed.estimateMinutes
       applyQuickAddPicks(patch, picks, opts, today)
+      if (picks.priority && picks.priority !== 'none') patch.priority = picks.priority
     }
     // 予定にすると「まで」で読んだ締切・繰り返しは外れる（`applyTaskPatch`）。やる日・時間帯はそのまま
     if (opts.kind === 'event' && kind === 'tasks' && !isSubtask) patch.kind = 'event'
     if (Object.keys(patch).length > 0) state.updateTask(id, patch)
-    if (opts.somedayTier === 'dream' && kind === 'someday' && !isSubtask) state.setSomedayTier([id], 'dream')
+    if ((picks.dream ?? opts.somedayTier === 'dream') && kind === 'someday' && !isSubtask) state.setSomedayTier([id], 'dream')
     if (opts.last) {
       const tasks = useTaskStore.getState().tasks
       const self = tasks.find((t) => t.id === id)

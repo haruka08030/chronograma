@@ -49,6 +49,8 @@ export const DATA_KEYS = [
   'timetableUpdatedAt',
   'addons',
   'addonsUpdatedAt',
+  'sleepTimer',
+  'sleepTimerUpdatedAt',
 ] as const satisfies readonly (keyof TaskState)[]
 
 export const VIEW_KEYS = [

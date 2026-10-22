@@ -69,6 +69,8 @@ export const CaretDownIcon = filledIcon(ICON_PATHS.caretDown)
 export const ArchiveIcon = strokeIcon(ICON_PATHS.archive)
 export const RestoreIcon = strokeIcon(ICON_PATHS.restore)
 export const FlagIcon = strokeIcon(ICON_PATHS.flag)
+/** 締切。どこでもこの形（旗は優先度） */
+export const DueIcon = strokeIcon(ICON_PATHS.target)
 export const ArrowRightIcon = strokeIcon(ICON_PATHS.arrowRight)
 export const SearchIcon = strokeIcon(ICON_PATHS.search)
 export const OpenPanelIcon = strokeIcon(ICON_PATHS.openPanel)

@@ -9,7 +9,6 @@ import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
 import { appDayKeyOf, appTimeZone } from '../lib/timeZone'
 import { carriedDaysAfter } from '../lib/carryDays'
 import { movedPlansAfter, withMovedPlans } from '../lib/movedPlans'
-import { looksLikeSleep } from '../lib/sleep'
 import { INBOX_ID } from './storeConstants'
 import type { TaskState } from './storeTypes'
 import { withLogCategory } from '../lib/taskDefaults'
@@ -200,8 +199,8 @@ export function makeTask(
     // 列を書いたタイムゾーン。アプリのタイムゾーンを変えたら同じ瞬間のまま書き直す（`taskTimeZone.ts`）
     timeZoneAnchor: appTimeZone(),
   }
-  // 「睡眠」と付けた記録（後から記録・タイマー）も睡眠として扱う
-  return withLogCategory(looksLikeSleep(task) ? { ...task, kind: 'sleep' } : task)
+  // 睡眠は睡眠の入力（`logSleep`）からだけ作る。題名・ラベルが「睡眠」の記録も記録のまま（#519）
+  return withLogCategory(task)
 }
 
 /**

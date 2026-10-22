@@ -34,6 +34,10 @@ interface SleepTimesFieldProps {
   onSaved: () => void
   /** やめる（×・Esc）。渡さなければ × を出さない */
   onCancel?: () => void
+  /** 寝た時刻の下書き（睡眠のタイマーで寝た時刻が分かっているとき）。記録・前回の時刻より先に使う */
+  bedTime?: string
+  /** やめるの × の名前（既定は「キャンセル」） */
+  cancelLabel?: string
 }
 
 /**
@@ -41,7 +45,7 @@ interface SleepTimesFieldProps {
  * 開いた瞬間の値（記録があればその時刻、無ければ前回の睡眠の時刻）を下書きにする。
  * 開き直すたびに下書きを作り直したいので、呼ぶ側は `key` を夜と記録ごとに変えて出し入れする。
  */
-export function SleepTimesField({ dateKey, record, label, onSaved, onCancel }: SleepTimesFieldProps) {
+export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bedTime, cancelLabel }: SleepTimesFieldProps) {
   const { t } = useTranslation()
   const logSleep = useTaskStore((s) => s.logSleep)
   const now = useNow()
@@ -56,7 +60,7 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel }: S
         : defaultSleepTimes(useTaskStore.getState().tasks)
     // いつもの起床時刻より早く開いたら、今を起きた時刻の候補にする（未来の時刻で叱らない）
     const wake = !record && isToday && timeToMinutes(init.wake) > nowMin ? floorTo5(nowMin) : init.wake
-    return { bed: init.bed, wake }
+    return { bed: bedTime ?? init.bed, wake }
   })
   const [bed, setBed] = useState(draft.bed)
   const [wake, setWake] = useState(draft.wake)
@@ -103,7 +107,7 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel }: S
           <button
             type="button"
             onClick={onCancel}
-            {...tip(t('common.cancel'), { name: true })}
+            {...tip(cancelLabel ?? t('common.cancel'), { name: true })}
             className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           >
             <CloseIcon className="h-3 w-3" strokeWidth={2.5} />

@@ -101,12 +101,13 @@ function isoWeekdayOf(dateKey: string): HabitWeekday {
 /**
  * その日の時間（時間を決めた習慣だけ）。その日だけの時間があればそれ、無ければその曜日のいつもの時間（`habitUsualTimesOn`）。
  * 範囲の習慣で、その日の時間に終わりが無い（時刻ひとつのときに動かした）なら、いつもの長さのまま開始をずらす。
- * 時刻ひとつの習慣も、習慣の段から格子に置いた日は終わりを持つ
+ * 時刻ひとつの習慣も、習慣の段から格子に置いた日は終わりを持つ。
+ * 時間を決めていない習慣も、格子に置いた日はその枠（判定は時刻を見ないまま。`isTimedHabit`）
  */
 export function habitTimesOn(habit: Habit, dateKey: string): { startTime: string; endTime: string | null } | null {
   const usual = habitUsualTimesOn(habit, dateKey)
-  if (!usual) return null
   const o = habit.timeOverrides?.[dateKey]
+  if (!usual) return o?.endTime ? { startTime: o.startTime, endTime: o.endTime } : null
   if (!o) return usual
   const startTime = o.startTime
   if (o.endTime) return { startTime, endTime: o.endTime }
@@ -156,15 +157,43 @@ export function habitRecordFor(index: HabitRecordIndex, habit: Habit, dateKey: s
 
 /**
  * その日の習慣の記録を、目標に近い順に全部（チェックを外すときにまとめて消す）。
- * 時間を決めていない習慣は、時間の目標があるときだけ、その日に始めた記録
+ * 時間を決めていない習慣は、時間の目標があればその日に始めた記録、無ければその日に始めた習慣につながった記録
+ * （記録の列に落とした・格子に置いた日に ✓ した記録）
  */
 export function habitRecordsFor(index: HabitRecordIndex, habit: Habit, dateKey: string): Task[] {
-  if (!isTimedHabit(habit)) return habit.goalMinutes ? goalSpans(index, habit, dateKey).map((s) => s.record) : []
+  if (!isTimedHabit(habit)) {
+    const spans = habit.goalMinutes
+      ? goalSpans(index, habit, dateKey)
+      : (index.active.get(`${linkKey(habit.id)}|${dayNumber(dateKey)}`) ?? [])
+    return spans.map((s) => s.record)
+  }
   const byDrift = (list: Span[]) => list.sort((a, b) => drift(habit, dateKey, a) - drift(habit, dateKey, b)).map((s) => s.record)
+  const linked = candidates(index.active, linkKey(habit.id), habit, dateKey)
   return [
-    ...byDrift(candidates(index.active, linkKey(habit.id), habit, dateKey)),
+    ...byDrift(linked),
     ...byDrift(candidates(index.active, titleKey(habit.title), habit, dateKey)),
+    ...byDrift(farLinkedSpans(index, habit, dateKey, linked)),
   ]
+}
+
+/**
+ * その日に始めた習慣につながった記録のうち、目標の前後 3 時間から外れたもの（記録の列に習慣を落とした時間が離れていた）。
+ * 前後の日の目標の時間帯に入る記録はその日の分なので除く（前日の夜更かしの睡眠など）
+ */
+function farLinkedSpans(index: HabitRecordIndex, habit: Habit, dateKey: string, near: Span[]): Span[] {
+  const day = dayNumber(dateKey)
+  const sameDay = index.active.get(`${linkKey(habit.id)}|${day}`) ?? []
+  if (sameDay.length === 0) return []
+  const taken = new Set(near.map((s) => s.record.id))
+  for (const offset of [-1, 1]) {
+    const other = dateKeyOfDay(day + offset)
+    if (habitTimesOn(habit, other)) for (const s of candidates(index.active, linkKey(habit.id), habit, other)) taken.add(s.record.id)
+  }
+  return sameDay.filter((s) => !taken.has(s.record.id))
+}
+
+function dateKeyOfDay(day: number): string {
+  return new Date(day * 86_400_000).toISOString().slice(0, 10)
 }
 
 /**

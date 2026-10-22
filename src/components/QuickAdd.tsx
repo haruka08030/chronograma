@@ -6,6 +6,7 @@ import { InlineAddInput } from './ui/InlineAddInput'
 import { QuickAddDetails } from './QuickAddDetails'
 import { useQuickAddTarget } from '../lib/quickAddFocus'
 import { NO_LABEL } from '../lib/todoColorLabels'
+import { openTaskDetail } from '../lib/overlays'
 
 /** 色ラベルで絞っているときに足すものに付ける色 */
 function viewColor(): string | undefined {
@@ -49,10 +50,18 @@ export function QuickAdd({ placeholder, somedayTier }: { placeholder?: string; s
     })
   }, [quickAddRequested, clearQuickAddRequest])
 
-  const submit = () => {
+  /** 足す。`details` なら続けて詳細を開く */
+  const submit = (details = false) => {
     if (!value.trim()) return
-    addTaskFromQuickText(value, { currentListId: useTaskStore.getState().selectedListId, color: viewColor(), picks, note, somedayTier })
+    const id = addTaskFromQuickText(value, {
+      currentListId: useTaskStore.getState().selectedListId,
+      color: viewColor(),
+      picks,
+      note,
+      somedayTier,
+    })
     change('')
+    if (details && id) openTaskDetail(id)
   }
 
   return (
@@ -62,7 +71,8 @@ export function QuickAdd({ placeholder, somedayTier }: { placeholder?: string; s
         data-quickadd
         value={value}
         onValueChange={change}
-        onSubmit={submit}
+        onSubmit={() => submit()}
+        onExpand={() => submit(true)}
         placeholder={placeholder ?? t('quickAdd.placeholder')}
       />
       {note && value.trim() && <p className="mt-1 px-1 text-xs text-zinc-500 dark:text-zinc-400">{t('quickAdd.sharedNote')}</p>}
@@ -70,6 +80,7 @@ export function QuickAdd({ placeholder, somedayTier }: { placeholder?: string; s
       <QuickAddDetails
         text={value}
         color={viewColor()}
+        somedayTier={somedayTier}
         picks={picks}
         onPicksChange={setPicks}
         onPicked={() => inputRef.current?.focus()}

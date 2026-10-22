@@ -25,7 +25,7 @@ import { openTaskMenu } from '../../lib/overlays'
 import { movedToDateLabel } from '../../lib/moveToast'
 import { isCopyDrop, placeCopies } from '../../lib/dragCopy'
 import { tip } from '../../lib/tooltip'
-import { ChevronDownIcon, ChevronUpIcon, FlagIcon } from '../icons'
+import { ChevronDownIcon, ChevronUpIcon, DueIcon } from '../icons'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { dueToneOf } from '../../lib/dueTone'
 import { HolidayLabel } from './HolidayLabel'
@@ -195,7 +195,7 @@ export function WeekAllDayRow({
                 {...tip(label)}
                 className={`flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] leading-tight hover:bg-zinc-100 dark:hover:bg-zinc-800 ${DUE_TONE_CLASS[dueToneOf(t.dueDate!, t.dueTime, key)]}`}
               >
-                <FlagIcon className="h-2.5 w-2.5 shrink-0" />
+                <DueIcon className="h-2.5 w-2.5 shrink-0" />
                 <span className="truncate">{t.dueTime ? `${t.dueTime} ${t.title}` : t.title}</span>
               </button>
             )

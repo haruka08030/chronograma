@@ -22,6 +22,8 @@ export type ActionLeaf = {
   /** 検索結果で前に付ける「期限」「移動」など */
   group?: string
   icon?: ReactNode
+  /** 名前の下に小さく添える説明 */
+  detail?: string
   /** 右端に出す日付など */
   hint?: string
   /** 右端に出すショートカット（キーボードのある PC だけ） */
@@ -66,6 +68,7 @@ function LeafRow({
   return (
     <MenuItem
       icon={leaf.icon}
+      detail={leaf.detail}
       hint={leaf.hint}
       keys={leaf.keys}
       checked={leaf.checked}

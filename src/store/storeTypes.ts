@@ -12,6 +12,7 @@ import type { EventTemplate } from '../lib/eventTemplates'
 import type { CourseLink } from '../lib/courseLinks'
 import type { Timetable } from '../lib/timetable'
 import type { AddonId, Addons } from '../lib/addons'
+import type { SleepTimer } from '../lib/sleepTimer'
 import type { DueItem } from '../lib/dues'
 import type { SeriesRule, SeriesScope } from '../lib/eventSeries'
 import type { DayMoods, Mood } from '../lib/dayMood'
@@ -158,6 +159,10 @@ export interface TaskState {
   activeTimer: ActiveTimer | null
   /** 手元でタイマーを始めた・止めた時刻（端末間でどちらに合わせるかを比べる、`timerSync.ts`）。同期で届いた変更では付けない */
   activeTimerUpdatedAt: string | null
+  /** 睡眠のタイマー（#519、`lib/sleepTimer.ts`）。「寝る」を押してから「起きた」までの間だけある */
+  sleepTimer: SleepTimer | null
+  /** 手元で寝た・起きたと押した時刻（端末間でどちらに合わせるかを比べる）。同期で届いた変更では付けない */
+  sleepTimerUpdatedAt: string | null
   /** タイマー停止後に「完了にしますか？」を出すタスク（永続化しない） */
   completePromptTaskId: string | null
   /** タイマー停止後に「ラベルは？」を出す記録（ラベルなしで止めたとき。永続化しない） */
@@ -345,6 +350,8 @@ export interface TaskState {
   toggleHabitDate: (habitId: string, dateKey: string) => void
   /** 未達成なら達成にして、記録が無ければ予定どおりの時刻で作る（タイムラインの習慣の枠のチェック） */
   completeHabitAsPlanned: (habitId: string, dateKey: string) => void
+  /** その時間にやった記録を作る（記録の列に習慣を落とした）。時間なしの習慣はその日を達成に、時間を決めた習慣は記録の時刻で判定。「元に戻す」付きのトースト */
+  recordHabitAt: (habitId: string, dateKey: string, startTime: string, endTime: string) => void
 
   addList: (name: string, kind?: Exclude<ListKind, 'tasks'>) => void
   setListKind: (id: string, kind: ListKind) => void
@@ -372,9 +379,20 @@ export interface TaskState {
     color?: string | null,
     /** 元の To-Do（記録の候補から To-Do を選んだとき）。統計の「見積もりと記録」に入る */
     sourceTaskId?: string | null,
-  ) => void
+  ) => string
   /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
   logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void
+  /** 「寝る」: 睡眠のタイマーを始める。記録のタイマーが動いていれば、先に記録にして止める */
+  goToBed: () => void
+  /**
+   * 「起きた」: 寝た時刻から今までを睡眠にして、睡眠のタイマーを止める。1 分未満は記録せずに止める（`short`）。
+   * 長すぎる（`SLEEP_TIMER_MAX_MS`）ときは何もしない（`long`。起きた時刻を聞いてから `logSleep` と `cancelSleep`）
+   */
+  wakeUp: () => 'saved' | 'short' | 'long' | null
+  /** 睡眠のタイマーを、記録にせずに止める。`notify` なら「元に戻す」付きで知らせる */
+  cancelSleep: (notify?: boolean) => void
+  /** 止めたばかりの睡眠のタイマーを戻す（トーストの「元に戻す」）。ほかで寝ると押していれば戻さない */
+  restoreCancelledSleep: () => boolean
   /** 記録を開始。既に走っていれば先にそれを記録として閉じる（黙って捨てない） */
   startTimer: (title: string, tags?: string[], taskId?: string | null, color?: string | null, options?: { minutes?: number | null }) => void
   /** 動いているタイマーの「あと何分」の終わり（ISO）を付ける・選び直す。null で外す（数え上げに戻す）。#290 */
@@ -580,7 +598,7 @@ export interface TaskState {
    * （一括アーカイブ・セクション削除・リスト移動など）でどれが戻せるのかを示す。
    * `at` は同じ文言が続いたときにトーストを出し直すための時刻。
    */
-  undoBanner: { text: ToastText; at: number; undoId?: number; restoreTimer?: boolean } | null
+  undoBanner: { text: ToastText; at: number; undoId?: number; restoreTimer?: boolean; restoreSleepTimer?: boolean } | null
   clearUndoBanner: () => void
   /** 消したばかりで、まだ Google に送っていない予定（トーストの「元に戻す」で取り消せる） */
   googleUndo: { id: string; text: string; at: number } | null

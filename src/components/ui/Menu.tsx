@@ -4,13 +4,14 @@ import { MENU_ROW_ACTIVE, MENU_ROW_HOVER, MENU_ROW_PRESS } from './surface'
 
 /**
  * メニューの行（タスクの右クリックメニュー・並べ替えなど、浮く面に縦に並べる項目）。どのメニューも同じ見た目にする。
- * - 左にアイコン（なくても字の位置はそろう）、右端に日付などの補足・ショートカット・チェック・中のメニューの ›
+ * - 左にアイコン（なくても字の位置はそろう）、名前の下に説明（`detail`）、右端に日付などの補足・ショートカット・チェック・中のメニューの ›
  * - `active` は ↑↓ やマウスで選んでいる行（ホバーの色を自分で持つのは、キー操作と同じ見た目にするため）
  * - 取り消せない・重い操作は `danger`（赤）
  */
 export function MenuItem({
   icon,
   children,
+  detail,
   hint,
   keys,
   checked,
@@ -24,6 +25,8 @@ export function MenuItem({
 }: {
   icon?: ReactNode
   children: ReactNode
+  /** 名前の下に小さく添える説明（「夢にする」の「人生で一度はやりたい大きなこと」など） */
+  detail?: string
   /** 右端の補足（日付など） */
   hint?: string
   /** 右端のショートカット。キーボードのある PC だけ出す */
@@ -53,7 +56,15 @@ export function MenuItem({
       {...rest}
     >
       <span className={`flex w-4 flex-shrink-0 justify-center ${danger ? '' : 'text-zinc-500 dark:text-zinc-400'}`}>{icon}</span>
-      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {detail ? (
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate">{children}</span>
+          {/* 説明は省略せず折り返す */}
+          <span className={`text-xs leading-snug ${danger ? '' : 'text-zinc-400 dark:text-zinc-500'}`}>{detail}</span>
+        </span>
+      ) : (
+        <span className="min-w-0 flex-1 truncate">{children}</span>
+      )}
       {hint && <span className="flex-shrink-0 text-xs text-zinc-400 dark:text-zinc-500">{hint}</span>}
       {keys && <span className="hidden flex-shrink-0 text-xs text-zinc-400 dark:text-zinc-500 [@media(hover:hover)]:inline">{keys}</span>}
       {checked && <CheckIcon className="h-3.5 w-3.5 flex-shrink-0 text-zinc-500 dark:text-zinc-300" strokeWidth={2.5} />}

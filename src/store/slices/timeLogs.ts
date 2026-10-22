@@ -4,6 +4,7 @@ import { logLabelFromTask } from '../../lib/logCategoryColors'
 import { timerRecordTimes } from '../../lib/timerRecord'
 import { taskPlacementDate } from '../../lib/taskTimeRange'
 import { sleepEndingOn, sleepSpan } from '../../lib/sleep'
+import { sleepFromTimer, type SleepTimer } from '../../lib/sleepTimer'
 import { zonedNow } from '../../lib/timeZone'
 import { INBOX_ID } from '../storeConstants'
 import { logColorNames, withInferredCategory } from '../storeDefaults'
@@ -20,6 +21,10 @@ type TimeLogsActions = Pick<
   | 'addCompletedTaskWithTime'
   | 'addTimeLog'
   | 'logSleep'
+  | 'goToBed'
+  | 'wakeUp'
+  | 'cancelSleep'
+  | 'restoreCancelledSleep'
   | 'startTimer'
   | 'setTimerEnd'
   | 'editActiveTimer'
@@ -61,6 +66,8 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
   const { pushUndo } = undo
   /** 破棄した記録（1 つだけ。メモリ上だけ） */
   let discardedTimer: ActiveTimer | null = null
+  /** 止めた睡眠のタイマー（1 つだけ。メモリ上だけ） */
+  let cancelledSleep: SleepTimer | null = null
   return {
     addCompletedTaskWithTime: (title, dueDate, startTime, endTime, color) => {
       pushUndo()
@@ -90,6 +97,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       }
       pushUndo()
       set((s) => ({ tasks: [...s.tasks, log] }))
+      return log.id
     },
     logSleep: (wakeDateKey, bedTime, wakeTime) => {
       if (bedTime === wakeTime) return
@@ -120,6 +128,47 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         maxOrder + 1,
       )
       set((s) => ({ tasks: [...s.tasks, log] }))
+    },
+    goToBed: () => {
+      if (get().sleepTimer) return
+      const previous = get().activeTimer
+      if (previous) {
+        // 寝るときに記録のタイマーを止め忘れない。記録にして閉じてから寝る（startTimer の切り替えと同じ知らせ）
+        const saved = timerRecordTimes(previous.startedAt, new Date().toISOString()) !== null
+        get().stopTimer()
+        get().showMoveBanner({ key: saved ? 'sleep.timerStopped' : 'quickLog.switchedUnsaved', params: { title: previous.taskTitle } })
+      }
+      set({ sleepTimer: { startedAt: new Date().toISOString() } })
+    },
+    wakeUp: () => {
+      const timer = get().sleepTimer
+      if (!timer) return null
+      const nowIso = new Date().toISOString()
+      const sleep = sleepFromTimer(timer, nowIso)
+      if (!sleep) {
+        if (Date.parse(nowIso) - Date.parse(timer.startedAt) > 60_000) return 'long'
+        set({ sleepTimer: null })
+        return 'short'
+      }
+      get().logSleep(sleep.wakeDateKey, sleep.bedTime, sleep.wakeTime)
+      set({ sleepTimer: null })
+      return 'saved'
+    },
+    cancelSleep: (notify) => {
+      const timer = get().sleepTimer
+      if (!timer) return
+      cancelledSleep = notify ? timer : null
+      set({
+        sleepTimer: null,
+        ...(notify ? { undoBanner: { text: { key: 'sleep.timerCancelled' }, at: Date.now(), restoreSleepTimer: true } } : {}),
+      })
+    },
+    restoreCancelledSleep: () => {
+      const timer = cancelledSleep
+      cancelledSleep = null
+      if (!timer || get().sleepTimer) return false
+      set({ sleepTimer: timer })
+      return true
     },
     startTimer: (title, tags, taskId, color, options) => {
       // 走っているものを黙って捨てると記録が消える。先に記録にして閉じてから始め、切り替えたことを知らせる

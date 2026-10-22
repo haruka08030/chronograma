@@ -3,7 +3,7 @@ import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { Habit } from '../types/habit'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
-import { BUILTIN_NAMES } from '../locales/builtinNames'
+import { BUILTIN_NAMES, LEGACY_BUILTIN_LIST_NAMES } from '../locales/builtinNames'
 import { reanchorTask } from './taskTimeZone'
 import { appTimeZone } from './timeZone'
 import { BASELINE_KEY_PREFIX, readStored, storedKeys, writeStored } from './dataStore'
@@ -554,7 +554,10 @@ export const DEFAULT_LIST_IDS = { someday: 'default-someday', checklist: 'defaul
  * 前の版の初期リストの名前（どの言語で作られたか分からないので、全部の言語の名前）。
  * 前の版は初期リストを言語ごとの名前・ばらばらの id で作っていた
  */
-const LEGACY_DEFAULT_NAMES = new Set<string>(Object.values(BUILTIN_NAMES).flatMap((n) => [n.someday, n.shopping]))
+const LEGACY_DEFAULT_NAMES = new Set<string>([
+  ...Object.values(BUILTIN_NAMES).flatMap((n) => [n.someday, n.shopping]),
+  ...LEGACY_BUILTIN_LIST_NAMES,
+])
 
 /**
  * ログインせずに使っていた端末の初回同期で、最初から作られる「いつか」「買い物」が

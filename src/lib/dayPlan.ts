@@ -139,6 +139,33 @@ export function getDayPlan(
   return { overdue, carryOver, dueSoon, open, done, loggedMinutes }
 }
 
+/** 過ぎた日に置いて、その日には終えなかった To-Do 1 件。`doneOn` は後日に終えた日、`movedTo` はまだ終わっておらず今置いている日 */
+export type LeftBehind = { task: Task; doneOn: string | null; movedTo: string | null }
+
+/**
+ * その日（過ぎた日）に置いたのに、その日には終えなかった To-Do のうち、もうその日の一覧に出ないもの（#522）。
+ * 後日に完了したもの（実行日・移した控えの日がその日。締切だけのものはその日にやると決めていないので入れない）と、
+ * 別の日へ移してまだ終わっていないもの。
+ * その日に置いたまま終わっていない行は `getDayPlan` の open に出ている
+ */
+export function getDayLeftBehind(tasks: readonly Task[], dateKey: string, excludedListIds: ReadonlySet<string> = new Set()): LeftBehind[] {
+  const out: LeftBehind[] = []
+  for (const task of tasks) {
+    if (!isActiveTask(task) || !isTodoTask(task) || !isDayPlanTask(task) || excludedListIds.has(task.listId)) continue
+    const placed = taskPlacementDate(task)
+    const movedFrom = task.movedPlans?.some((p) => p.date === dateKey) ?? false
+    if (task.completed) {
+      const doneOn = completionDayKey(task)
+      if (doneOn > dateKey && (task.scheduledDate === dateKey || movedFrom)) out.push({ task, doneOn, movedTo: null })
+    } else if (movedFrom && placed !== dateKey) {
+      out.push({ task, doneOn: null, movedTo: placed })
+    }
+  }
+  // 終えたものを終えた順に先、まだのものは今置いている日の順（日の無いものは最後）
+  const key = (x: LeftBehind) => (x.doneOn ? `0${x.doneOn}` : `1${x.movedTo ?? '~'}`)
+  return out.sort((a, b) => key(a).localeCompare(key(b)))
+}
+
 /**
  * 「今日やる候補」をスクロールで足していく分。やり残し・締切間近（getDayPlan）より後ろに並べる。
  * 締切がもっと先のもの（締切順）→ 日付なし（並び順）。実行日を決めたものは出さない（#480）

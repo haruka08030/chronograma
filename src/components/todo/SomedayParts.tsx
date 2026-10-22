@@ -15,11 +15,12 @@ import { chipClass } from '../ui/chipClass'
 
 /**
  * いつかの上の切り替え（夢 n | やりたい n）と、セクションの絞り込み（# 海外 …、#439）。
- * 絞り込み中は夢とやりたいを上下に並べるので、切り替えは出さない
+ * 絞り込み中は夢とやりたいを上下に並べるので、切り替えは出さない。夢が 1 件も無いあいだも出さない（`showTabs`、#517）
  */
 export function SomedayBar({
   tab,
   onTab,
+  showTabs,
   dreamCount,
   wishCount,
   sections,
@@ -29,6 +30,7 @@ export function SomedayBar({
 }: {
   tab: SomedayTier
   onTab: (tab: SomedayTier) => void
+  showTabs: boolean
   dreamCount: number
   wishCount: number
   sections: ListSection[]
@@ -37,9 +39,10 @@ export function SomedayBar({
   onFilter: (sectionId: string | null) => void
 }) {
   const { t } = useTranslation()
+  if (!(showTabs && !filterSectionId) && sections.length === 0) return null
   return (
     <div className="mb-3 flex flex-col gap-2.5">
-      {!filterSectionId && (
+      {showTabs && !filterSectionId && (
         <Segmented
           value={tab}
           onChange={onTab}

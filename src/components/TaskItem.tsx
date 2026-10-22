@@ -12,7 +12,18 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
 import { RowSelectCheckbox } from './ui/RowSelectCheckbox'
-import { ArchiveIcon, CalendarArrowIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, RepeatIcon, StarIcon, TrashIcon } from './icons'
+import {
+  ArchiveIcon,
+  CalendarArrowIcon,
+  CalendarIcon,
+  CheckIcon,
+  ClockIcon,
+  DueIcon,
+  EllipsisIcon,
+  RepeatIcon,
+  StarIcon,
+  TrashIcon,
+} from './icons'
 import { CompletionCircle, EventMark } from './ui/CompletionCircle'
 import { planHex } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
@@ -485,7 +496,7 @@ export const TaskItem = memo(function TaskItem({
             <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
               {dueTone && dueText && (!task.completed || timeLog) && (
                 <span className={`inline-flex items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
-                  <CalendarIcon className="w-3 h-3" />
+                  <DueIcon className="w-3 h-3" />
                   {dueText}
                 </span>
               )}
@@ -547,7 +558,7 @@ export const TaskItem = memo(function TaskItem({
 
         {compact && dueTone && dueText && !task.completed && (
           <span className={`inline-flex shrink-0 items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
-            <CalendarIcon className="w-3 h-3" />
+            <DueIcon className="w-3 h-3" />
             {dueText}
           </span>
         )}
@@ -600,7 +611,7 @@ export const TaskItem = memo(function TaskItem({
                 className={`transition-colors cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
                 ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
               >
-                <CalendarIcon className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
+                <DueIcon className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
               </button>
             )}
           />
