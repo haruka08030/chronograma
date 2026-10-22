@@ -199,7 +199,7 @@ export function makeTask(
     // 列を書いたタイムゾーン。アプリのタイムゾーンを変えたら同じ瞬間のまま書き直す（`taskTimeZone.ts`）
     timeZoneAnchor: appTimeZone(),
   }
-  // 睡眠は睡眠の入力（`logSleep`）からだけ作る。題名・ラベルが「睡眠」の記録も記録のまま（#519）
+  // 題名・ラベルで睡眠にするのは後から記録だけ（`addTimeLog` の `sleepByName`、#519）
   return withLogCategory(task)
 }
 

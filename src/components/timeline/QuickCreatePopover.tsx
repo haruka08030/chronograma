@@ -143,6 +143,7 @@ export function QuickCreatePopover({
         undefined,
         color,
         taskId,
+        true,
       )
       onCreated(id, openDetail)
       return

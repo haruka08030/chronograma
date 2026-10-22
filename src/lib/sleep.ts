@@ -10,10 +10,10 @@ export const DEFAULT_WAKE_TIME = '07:00'
 
 const norm = (s: string) => s.normalize('NFKC').trim().toLowerCase()
 
-/** 印が付く前に「睡眠」として付けていた記録のタイトル・ラベル（前の版のデータの変換だけに使う） */
+/** 睡眠とみなす記録のタイトル・ラベル（後から記録・前の版のデータの変換） */
 const SLEEP_WORDS = new Set(['睡眠', 'すいみん', '就寝', '寝る', 'ねる', 'sleep', 'sleeping'])
 
-/** 睡眠の印の無い記録のうち、タイトルかラベルが「睡眠」のもの（前の版のデータの変換用。新しい記録は題名で睡眠にしない） */
+/** 睡眠の印の無い記録のうち、タイトルかラベルが「睡眠」のもの（後から記録・前の版のデータの変換。▶ の記録・習慣のチェックには使わない） */
 export function looksLikeSleep(t: Task): boolean {
   if (t.kind !== 'log') return false
   return SLEEP_WORDS.has(norm(t.title)) || (Boolean(t.category ?? t.tags[0]) && SLEEP_WORDS.has(norm((t.category ?? t.tags[0])!)))

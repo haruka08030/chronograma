@@ -3,7 +3,7 @@ import i18n from '../../i18n/config'
 import { logLabelFromTask } from '../../lib/logCategoryColors'
 import { timerRecordTimes } from '../../lib/timerRecord'
 import { taskPlacementDate } from '../../lib/taskTimeRange'
-import { sleepEndingOn, sleepSpan } from '../../lib/sleep'
+import { looksLikeSleep, sleepEndingOn, sleepSpan } from '../../lib/sleep'
 import { sleepFromTimer, type SleepTimer } from '../../lib/sleepTimer'
 import { zonedNow } from '../../lib/timeZone'
 import { INBOX_ID } from '../storeConstants'
@@ -73,10 +73,10 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       pushUndo()
       set((s) => completedRecordPatch(s, { title, dueDate, startTime, endTime, color }, logColorNames()))
     },
-    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color, sourceTaskId) => {
+    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color, sourceTaskId, sleepByName) => {
       const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
       const endDate = endDateArg !== undefined && endDateArg !== null && endDateArg !== date ? endDateArg : null
-      const log = makeTask(
+      const made = makeTask(
         {
           title,
           listId: INBOX_ID,
@@ -92,6 +92,8 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         },
         maxOrder + 1,
       )
+      // 後から記録で題名かラベルを「睡眠」にしたものは睡眠（#519）。▶ の記録・習慣のチェックでは題名で睡眠にしない
+      const log: Task = sleepByName && looksLikeSleep(made) ? { ...made, kind: 'sleep' } : made
       if (description !== undefined) {
         log.description = description
       }

@@ -379,6 +379,8 @@ export interface TaskState {
     color?: string | null,
     /** 元の To-Do（記録の候補から To-Do を選んだとき）。統計の「見積もりと記録」に入る */
     sourceTaskId?: string | null,
+    /** 後から記録（記録パネル・タイムラインの記録の列）: 題名かラベルが「睡眠」「sleep」などなら睡眠にする（`looksLikeSleep`） */
+    sleepByName?: boolean,
   ) => string
   /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
   logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void
