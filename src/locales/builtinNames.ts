@@ -15,8 +15,17 @@ export const BUILTIN_NAMES = {
   },
 } as const
 
-/** 前の版で最初に作っていたリストの名前（同期で初期リストを見分けるのに使う） */
-export const LEGACY_BUILTIN_LIST_NAMES = ['いつか', 'Someday'] as const
+/** 前の版で最初に作っていたいつかのリストの名前（同期で初期リストを見分ける・保存データの版 43 で今の名前に直すのに使う） */
+export const LEGACY_SOMEDAY_NAMES = { ja: 'いつか', en: 'Someday' } as const
+export const LEGACY_BUILTIN_LIST_NAMES = Object.values(LEGACY_SOMEDAY_NAMES)
+
+/** 名前が前の版の初期の名前そのままのいつかのリストを、同じ言語の今の名前に。自分で付けた名前は変えない */
+export function renamedLegacySomeday(name: string): string | null {
+  for (const lang of Object.keys(LEGACY_SOMEDAY_NAMES) as AppLanguage[]) {
+    if (name === LEGACY_SOMEDAY_NAMES[lang]) return BUILTIN_NAMES[lang].someday
+  }
+  return null
+}
 
 export type AppLanguage = keyof typeof BUILTIN_NAMES
 

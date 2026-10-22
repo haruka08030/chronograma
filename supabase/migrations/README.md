@@ -46,6 +46,7 @@
 | [`041_user_addons.sql`](041_user_addons.sql) | 追加機能のオン・オフ `user_addons`（利用者ごとに 1 行、`addons` は `{ enabled: { 機能: true/false } }` の object、256KB まで `user_addons_size_check`、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
 | [`042_habit_deleted_at.sql`](042_habit_deleted_at.sql) | 習慣のゴミ箱 `habits.deleted_at`（null はゴミ箱に無い）。ゴミ箱の習慣はどの画面・統計にも出さず、達成日は残る。30 日たつとアプリが行ごと消す |
 | [`043_user_sleep_timer.sql`](043_user_sleep_timer.sql) | 睡眠のタイマー `user_sleep_timer`（利用者ごとに 1 行。`started_at` は「寝る」を押した時刻、null は寝ていない。起きた・取り消したら行は消さずに null、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
+| [`044_rename_someday_list.sql`](044_rename_someday_list.sql) | いつかのリスト（`kind = 'someday'`）で名前が前の初期の名前そのまま（いつか / Someday）のものを、同じ言語の今の名前（やりたいこと / Bucket list）にする。`updated_at` を進める。アプリも保存データの版 43 で同じ規則で直す |
 
 テーブル（最新の形）:
 
