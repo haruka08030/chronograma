@@ -28,3 +28,9 @@ export function useOnboardingStep(): 'add' | 'place' | 'record' | null {
     return !steps.added ? 'add' : !steps.placed ? 'place' : !steps.recorded ? 'record' : null
   })
 }
+
+/** はじめの案内を終えた日の間か（睡眠の行・案内のあとの誘いは次の日から） */
+export function useOnboardingFinishedToday(): boolean {
+  const todayKey = useAppTodayKey()
+  return useTaskStore((s) => s.onboardingFinishedOn === todayKey)
+}

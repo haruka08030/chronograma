@@ -197,6 +197,7 @@ export const useTaskStore = create<TaskState>()(
         googleConnectLineDismissed: false,
         onboardingDone: false,
         onboardingCompleted: false,
+        onboardingFinishedOn: null,
         installNudgeDismissed: false,
         signInNudgeDismissed: false,
         dailyCapacityMinutes: 480,

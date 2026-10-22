@@ -75,7 +75,7 @@ function completed() {
 }
 
 describe('案内のあとのホーム画面への追加の誘い', () => {
-  it('3 ステップをやり終えると、iPhone の Safari（未追加）でだけ出る', () => {
+  it('3 ステップをやり終えると、iPhone の Safari（未追加）でだけ出る。終えた日は出さず次の日から', () => {
     vi.useFakeTimers()
     try {
       const id = useTaskStore.getState().addTask('Essay')!
@@ -87,6 +87,11 @@ describe('案内のあとのホーム画面への追加の誘い', () => {
       // 「できました」の間はまだ出さない
       expect(installCard()).toBeNull()
       act(() => void vi.advanceTimersByTime(ONBOARDING_DONE_MS))
+      // 終えた日は出さない（最初の成功の場面に重ねない）
+      expect(installCard()).toBeNull()
+      act(() => {
+        useTaskStore.setState({ onboardingFinishedOn: '2000-01-01' })
+      })
       expect(installCard()).toBeInTheDocument()
       expect(screen.getByText('Share button → “Add to Home Screen”')).toBeInTheDocument()
     } finally {

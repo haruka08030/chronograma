@@ -31,6 +31,7 @@ export const DATA_KEYS = [
   'googleConnectLineDismissed',
   'onboardingDone',
   'onboardingCompleted',
+  'onboardingFinishedOn',
   'installNudgeDismissed',
   'signInNudgeDismissed',
   'dailyCapacityMinutes',
