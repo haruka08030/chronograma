@@ -410,7 +410,7 @@ export interface TaskState {
   /** 動いているタイマーの「あと何分」の終わり（ISO）を付ける・選び直す。null で外す（数え上げに戻す）。#290 */
   setTimerEnd: (endsAt: string | null) => void
   /** 動いているタイマーの題名・ラベルを直す（止めた記録にそのまま入る）。空の題名は無視。ラベルを選び直したら元の To-Do の色は外す */
-  editActiveTimer: (patch: { taskTitle?: string; tags?: string[] }) => void
+  editActiveTimer: (patch: { taskTitle?: string; tags?: string[]; color?: string | null }) => void
   stopTimer: () => void
   /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
   resolveStaleTimer: (endedAt: string) => void

@@ -179,6 +179,12 @@ const SCREENS = [
     timer: { title: 'レポート', tags: ['課題'], startedAgo: 3 },
     click: ['[data-floating-timer] button:has-text("課題")', '[data-floating-timer] button:has-text("レポート")'],
   },
+  // 後から記録のラベルを色の一覧で選ぶ所（#539）
+  {
+    name: 'record-label-palette',
+    view: 'planner',
+    click: ['button:has-text("後から記録") >> visible=true', 'button[aria-label="色とラベル"] >> visible=true'],
+  },
   // 記録の名前を打つと過去の記録が候補に出る（#415）。後から記録と、記録中に題名を直すところ
   {
     name: 'record-suggest',

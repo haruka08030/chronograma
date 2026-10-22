@@ -83,7 +83,7 @@ export function CompleteWithLogModal({
             )
           )}
         </LogTimeRow>
-        <TimeLogTagField value={draft.tags[0] ?? ''} onChange={(v) => onChange({ tags: v ? [v] : [], color: null })} compact />
+        <TimeLogTagField value={draft.tags[0] ?? ''} color={draft.color} onChange={onChange} compact />
         <textarea
           value={draft.memo}
           onChange={(e) => onChange({ memo: e.target.value })}

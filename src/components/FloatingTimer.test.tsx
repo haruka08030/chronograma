@@ -87,7 +87,7 @@ describe('浮いているタイマーの「あと何分」', () => {
 })
 
 describe('記録中に題名・ラベルを直す（#391）', () => {
-  it('題名を押すと欄になり、Enter で直す。ラベルを押すとチップで選び直し、止めた記録に入る', () => {
+  it('題名を押すと欄になり、Enter で直す。ラベルを押すと色の一覧で選び直し、止めた記録に入る', () => {
     useTaskStore.setState({ timeLogTagPresets: ['勉強', 'バイト'], tasks: [] })
     useTaskStore.getState().startTimer('レポート', ['勉強'], null, '#ff0000')
     render(<FloatingTimer />)
@@ -100,7 +100,7 @@ describe('記録中に題名・ラベルを直す（#391）', () => {
     expect(screen.getByRole('button', { name: '統計のレポート' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '勉強' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'バイト' }))
+    fireEvent.click(screen.getByRole('radio', { name: /^バイト（/ }))
     expect(useTaskStore.getState().activeTimer).toMatchObject({ tags: ['バイト'], color: null })
 
     tick(5 * 60_000)

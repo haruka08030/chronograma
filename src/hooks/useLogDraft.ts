@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useTaskStore } from '../store/taskStore'
 import { withInferredCategory } from '../store/storeDefaults'
 import type { LogSuggestion } from '../lib/logSuggestions'
+import type { LogLabel } from '../lib/logCategoryColors'
 
 /** 打った名前から推定したラベル（保存のときの推定と同じ `withInferredCategory`）。無ければ '' */
 function inferLabel(title: string): string {
@@ -16,6 +17,8 @@ function inferLabel(title: string): string {
 export function useLogDraft({ infer = true }: { infer?: boolean } = {}) {
   const [title, setTitleValue] = useState('')
   const [category, setCategoryValue] = useState('')
+  /** ラベルの欄で選んだ名前の無い色（null は外した、undefined はまだ選んでいない） */
+  const [pickedColor, setPickedColor] = useState<string | null | undefined>(undefined)
   /** 自分でラベルを選んだ（外した）か */
   const chosen = useRef(false)
   /** 選んだ予定・To-Do（紐づける To-Do と、ラベル名の無い予定の色）。名前を変えたら外す */
@@ -26,15 +29,17 @@ export function useLogDraft({ infer = true }: { infer?: boolean } = {}) {
     category,
     /** 選んだ予定・To-Do に紐づける To-Do */
     taskId: linked?.taskId ?? null,
-    /** ラベルが無いときに記録に付ける色（選んだ予定の色） */
-    color: category ? null : (linked?.color ?? null),
+    /** ラベルが無いときに記録に付ける色（自分で選んだ色 → 選んだ予定の色） */
+    color: category ? null : pickedColor !== undefined ? pickedColor : (linked?.color ?? null),
     setTitle: (v: string) => {
       setTitleValue(v)
       if (infer && !chosen.current) setCategoryValue(inferLabel(v))
     },
-    setCategory: (v: string) => {
+    /** ラベルの欄で選んだ（分類か、名前の無い色か、ラベルなし） */
+    setLabel: (v: LogLabel) => {
       chosen.current = true
-      setCategoryValue(v)
+      setCategoryValue(v.tags[0] ?? '')
+      setPickedColor(v.color)
     },
     pick: (s: LogSuggestion) => {
       setTitleValue(s.title)
@@ -45,6 +50,7 @@ export function useLogDraft({ infer = true }: { infer?: boolean } = {}) {
     reset: () => {
       chosen.current = false
       setLink(null)
+      setPickedColor(undefined)
       setTitleValue('')
       setCategoryValue('')
     },

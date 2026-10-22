@@ -112,7 +112,7 @@ describe('夜の締めの通知から開いたとき', () => {
 })
 
 describe('ラベルなしの記録（#390・#501）', () => {
-  it('記録の帯の凡例の「ラベルなし」を押すとラベルなしの記録を行で並べ、行のチップでその場で付ける（付けた行は残る）', async () => {
+  it('記録の帯の凡例の「ラベルなし」を押すとラベルなしの記録を行で並べ、行の色の一覧でその場で付ける（付けた行は残る）', async () => {
     vi.useRealTimers()
     vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })
     at(18)
@@ -134,10 +134,15 @@ describe('ラベルなしの記録（#390・#501）', () => {
     const list = document.querySelector('[data-untagged-logs]') as HTMLElement
     const rows = within(list).getAllByRole('listitem')
     expect(rows.map((r) => within(r).getAllByRole('button')[0]!.textContent)).toEqual(['読書09:00–10:00', '数学11:00–12:00'])
-    act(() => within(rows[0]!).getByRole('radio', { name: 'バイト' }).click())
+    act(() => within(rows[0]!).getByRole('button', { name: 'Color and label' }).click())
+    act(() =>
+      within(rows[0]!)
+        .getByRole('radio', { name: /^バイト（/ })
+        .click(),
+    )
     expect(useTaskStore.getState().tasks.find((x) => x.id === '読書')).toMatchObject({ category: 'バイト' })
-    // 付けた行も残り、選んだチップが見える
+    // 付けた行も残り、選んだラベルが見える
     expect(within(list).getAllByRole('listitem')).toHaveLength(2)
-    expect(within(list).getByRole('radio', { name: 'バイト', checked: true })).toBeInTheDocument()
+    expect(within(rows[0]!).getByRole('button', { name: 'Color and label' })).toHaveTextContent('バイト')
   })
 })
