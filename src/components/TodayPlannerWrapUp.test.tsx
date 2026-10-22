@@ -138,7 +138,7 @@ describe('ラベルなしの記録（#390・#501）', () => {
     act(() => within(rows[0]!).getByRole('button', { name: 'Color and label' }).click())
     act(() =>
       within(rows[0]!)
-        .getByRole('radio', { name: /^バイト（/ })
+        .getByRole('radio', { name: /^バイト \(/ })
         .click(),
     )
     expect(useTaskStore.getState().tasks.find((x) => x.id === '読書')).toMatchObject({ category: 'バイト' })
