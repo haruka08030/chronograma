@@ -628,6 +628,8 @@ export default {
     reconnect: 'Reconnect',
     notEditable: "You're not the organizer, so you can't change it here",
     thisEventOnly: 'For a repeating event, only this one changes',
+    skipped: 'Skipped',
+    skippedHint: "You deleted this after it started, so it's kept as a skipped plan. Delete it if it was never planned",
     openInGoogle: 'Open in Google Calendar',
     title: 'Title',
     date: 'Date',
@@ -1016,7 +1018,7 @@ export default {
     moveTo: 'Move to list',
     moveToSection: 'Move to section',
     label: 'Label',
-    open: 'Open details',
+    open: 'Edit',
     duplicate: 'Duplicate',
     googleSkip: "Don't send this name to Google",
     doToday: 'Do today',
@@ -1075,8 +1077,8 @@ export default {
   palette: {
     label: 'Search palette',
     placeholder: 'Find a to-do',
-    hint: 'Searches titles, notes and tags. ↑↓ to choose, Enter for details',
-    open: 'Details',
+    hint: 'Searches titles, notes and tags. ↑↓ to choose, Enter to edit',
+    open: 'Edit',
     startTimer: 'Start logging',
   },
   quickAdd: {
@@ -1167,6 +1169,7 @@ export default {
     unreadable: 'Could not read this backup',
   },
   undo: {
+    guideClosed: 'Guide closed',
     timeSet: 'Placed “{{title}}” at {{time}}',
     imported: 'Imported a backup ({{count}} tasks)',
     imported_one: 'Imported a backup ({{count}} task)',

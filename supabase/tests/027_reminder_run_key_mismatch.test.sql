@@ -1,4 +1,4 @@
--- 044 の reminder_runs.last_key_mismatch: 鍵が合わずに消した購読の数（読めない・書けないのは 006_server_only）
+-- 046 の reminder_runs.last_key_mismatch: 鍵が合わずに消した購読の数（読めない・書けないのは 006_server_only）
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(2);

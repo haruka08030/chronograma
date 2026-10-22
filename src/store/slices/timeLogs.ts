@@ -3,7 +3,7 @@ import i18n from '../../i18n/config'
 import { logLabelFromTask } from '../../lib/logCategoryColors'
 import { timerRecordTimes } from '../../lib/timerRecord'
 import { taskPlacementDate } from '../../lib/taskTimeRange'
-import { sleepEndingOn, sleepSpan } from '../../lib/sleep'
+import { looksLikeSleep, sleepEndingOn, sleepSpan } from '../../lib/sleep'
 import { sleepFromTimer, type SleepTimer } from '../../lib/sleepTimer'
 import { zonedNow } from '../../lib/timeZone'
 import { INBOX_ID } from '../storeConstants'
@@ -73,10 +73,10 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       pushUndo()
       set((s) => completedRecordPatch(s, { title, dueDate, startTime, endTime, color }, logColorNames()))
     },
-    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color, sourceTaskId) => {
+    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color, sourceTaskId, sleepByName) => {
       const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
       const endDate = endDateArg !== undefined && endDateArg !== null && endDateArg !== date ? endDateArg : null
-      const log = makeTask(
+      const made = makeTask(
         {
           title,
           listId: INBOX_ID,
@@ -92,6 +92,8 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         },
         maxOrder + 1,
       )
+      // 後から記録で題名かラベルを「睡眠」にしたものは睡眠（#519）。▶ の記録・習慣のチェックでは題名で睡眠にしない
+      const log: Task = sleepByName && looksLikeSleep(made) ? { ...made, kind: 'sleep' } : made
       if (description !== undefined) {
         log.description = description
       }
@@ -207,15 +209,16 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       void _drop
       set({ activeTimer: next ? { ...rest, endsAt: next } : rest })
     },
-    editActiveTimer: ({ taskTitle, tags }) => {
+    editActiveTimer: ({ taskTitle, tags, color }) => {
       const timer = get().activeTimer
       if (!timer) return
       const next = { ...timer }
       const title = taskTitle?.trim()
       if (title && title !== timer.taskTitle) next.taskTitle = title
-      if (tags && tags.join('\n') !== timer.tags.join('\n')) {
+      // ラベルを選び直したら色も選んだもの（名前の無い色）に。ラベルだけなら色は外す
+      if (tags && (tags.join('\n') !== timer.tags.join('\n') || (color ?? null) !== (timer.color ?? null))) {
         next.tags = tags
-        next.color = null
+        next.color = color ?? null
       }
       if (next.taskTitle === timer.taskTitle && next.tags === timer.tags) return
       set({ activeTimer: next })

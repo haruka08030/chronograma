@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next'
+import { useOnboardingStep } from '../../hooks/useShowsOnboarding'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { openTimeSlotUnderRow } from '../../lib/timeSlotTarget'
 import { startTimerForTask } from '../../lib/timerDrop'
-import { ArrowRightIcon, CalendarArrowIcon, ClockIcon, PlayIcon } from '../icons'
+import { CalendarArrowIcon, ClockIcon, PlayIcon } from '../icons'
 import { RowActionButton } from '../ui/RowActionButton'
 
 /** 時間未定の行の「時間を決める」（空き時間の候補を出す。マウスで乗せたときだけ。スマホは押したときのシートから） */
@@ -27,7 +28,8 @@ export function TomorrowButton({ task, tomorrowKey, viewingToday }: { task: Task
       collapse
       mouseOnly
     >
-      <ArrowRightIcon className="h-3.5 w-3.5" />
+      {/* メニュー・シートの「明日へ回す」と同じ印（→ だけでは何をするか分からない） */}
+      <CalendarArrowIcon className="h-3.5 w-3.5" />
     </RowActionButton>
   )
 }
@@ -39,9 +41,11 @@ export function TomorrowButton({ task, tomorrowKey, viewingToday }: { task: Task
 export function TimerButton({ task }: { task: Task }) {
   const { t } = useTranslation()
   const timing = useTaskStore((s) => s.activeTimer?.taskId === task.id)
+  // はじめの案内の ③（行の ▶ で記録する）の間は、乗せなくても出しておく
+  const guided = useOnboardingStep() === 'record'
   if (timing) return null
   return (
-    <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} collapse mouseOnly>
+    <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} collapse pinned={guided} mouseOnly>
       <PlayIcon className="h-3 w-3" />
     </RowActionButton>
   )

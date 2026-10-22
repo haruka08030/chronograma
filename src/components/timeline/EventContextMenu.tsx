@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
+import { skippedEventById } from '../../hooks/useShownCalendarEvents'
 import { isEventTask, isLogTask, type Task } from '../../types/task'
 import { NEUTRAL_HEX, DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { recordHex, colorVars } from '../../lib/logCategoryColors'
@@ -9,7 +10,7 @@ import { canEditGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit
 import { useTaskColor } from '../../hooks/useTaskColor'
 import { ColorPalette } from '../labels/ColorPalette'
 import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
-import { CalendarIcon, CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
+import { CalendarIcon, CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
 import { useScheduleEntry } from '../../hooks/useScheduleEntry'
 import { deleteTaskAsking } from '../../lib/seriesScope'
 import { isGoogleSkipped } from '../../lib/googleSkip'
@@ -23,40 +24,40 @@ function Dot({ hex }: { hex: string }) {
 
 /**
  * タイムラインの予定・記録を右クリックしたときのメニュー（押して出るカードと同じ操作を、カードを開かずに）。
- * 予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・複製・（Google に送っているとき）この名前は Google に送らない・削除。
- * 記録: 色（＝ラベル）・詳細・削除
+ * 予定: 色・完了/未完了・予定どおり記録・記録を始める・編集・コピー・（Google に送っているとき）この名前は Google に送らない・削除。
+ * 記録: 色（＝ラベル）・編集・削除
  */
 export function TaskEventMenu({
   x,
   y,
-  alignRight,
+  fromCard,
   taskId,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
-  alignRight?: boolean
+  fromCard?: boolean
   taskId: string
   onClose: () => void
   onOpenDetail: (taskId: string) => void
 }) {
   const task = useTaskStore((s) => s.tasks.find((t) => t.id === taskId) ?? null)
   if (!task) return null
-  return <TaskEventMenuBody x={x} y={y} alignRight={alignRight} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
+  return <TaskEventMenuBody x={x} y={y} fromCard={fromCard} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
 }
 
 function TaskEventMenuBody({
   x,
   y,
-  alignRight,
+  fromCard,
   task,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
-  alignRight?: boolean
+  fromCard?: boolean
   task: Task
   onClose: () => void
   onOpenDetail: (taskId: string) => void
@@ -152,14 +153,19 @@ function TaskEventMenuBody({
               ]
             : []),
         ] satisfies ActionEntry[])),
-    {
-      kind: 'leaf',
-      id: 'open',
-      divider: isLog,
-      label: t('taskMenu.open'),
-      icon: <OpenPanelIcon className={ICON} />,
-      run: () => onOpenDetail(task.id),
-    },
+    // カードの ⋮ からは出さない（すぐ隣に ✎ がある）
+    ...(fromCard
+      ? []
+      : [
+          {
+            kind: 'leaf' as const,
+            id: 'open',
+            divider: isLog,
+            label: t('taskMenu.open'),
+            icon: <PencilIcon className={ICON} />,
+            run: () => onOpenDetail(task.id),
+          },
+        ]),
     // 同じ日・同じ時間に写し、写したものの詳細を開く（行のメニューの「複製」と同じ）
     ...(isLog
       ? []
@@ -188,21 +194,26 @@ function TaskEventMenuBody({
           },
         ]
       : []),
-    {
-      kind: 'leaf',
-      id: 'delete',
-      label: t('common.delete'),
-      icon: <TrashIcon className={ICON} />,
-      danger: true,
-      // 毎週の予定は範囲を聞いてから
-      run: () => void deleteTaskAsking(task.id),
-    },
+    // カードの ⋮ からは出さない（すぐ隣に 🗑 がある）
+    ...(fromCard
+      ? []
+      : [
+          {
+            kind: 'leaf' as const,
+            id: 'delete',
+            label: t('common.delete'),
+            icon: <TrashIcon className={ICON} />,
+            danger: true,
+            // 毎週の予定は範囲を聞いてから
+            run: () => void deleteTaskAsking(task.id),
+          },
+        ]),
   ]
   return (
     <ActionMenu
       x={x}
       y={y}
-      alignRight={alignRight}
+      alignRight={fromCard}
       header={task.title || t('taskMenu.one')}
       entries={entries}
       onClose={onClose}
@@ -213,26 +224,41 @@ function TaskEventMenuBody({
 
 /**
  * Google の予定を右クリックしたときのメニュー（Google カレンダーの右クリックと同じく、色と削除）。
- * 書き込めない予定は「Google カレンダーで開く」だけ。繰り返しの色はカードの既定と同じく「すべての予定」に付ける
+ * 書き込めない予定は「Google カレンダーで開く」だけ。繰り返しの色はカードの既定と同じく「すべての予定」に付ける。
+ * やらなかった予定（#528）は削除だけ（予定していなかったものを消す）
  */
 export function GoogleEventMenu({
   x,
   y,
-  alignRight,
+  fromCard,
   eventId,
   onClose,
 }: {
   x: number
   y: number
-  alignRight?: boolean
+  fromCard?: boolean
   eventId: string
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const event = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
+  const liveEvent = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
+  const skipped = useTaskStore((s) => !liveEvent && s.skippedEvents.some((e) => e.id === eventId && !e.removed))
+  const event = liveEvent ?? (skipped ? skippedEventById(eventId) : null)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const setGoogleEventColor = useTaskStore((s) => s.setGoogleEventColor)
+  const removeSkippedEvent = useTaskStore((s) => s.removeSkippedEvent)
   if (!event) return null
+  if (skipped) {
+    const remove: ActionEntry = {
+      kind: 'leaf',
+      id: 'delete',
+      label: t('common.delete'),
+      icon: <TrashIcon className={ICON} />,
+      danger: true,
+      run: () => removeSkippedEvent(event.id),
+    }
+    return <ActionMenu x={x} y={y} alignRight={fromCard} header={event.summary} entries={[remove]} onClose={onClose} searchable={false} />
+  }
   const editable = canEditGoogleEvent(event, googleCanWrite)
   const scope = event.recurringEventId ? 'series' : 'event'
   const entries: ActionEntry[] = [
@@ -265,7 +291,8 @@ export function GoogleEventMenu({
           },
         ]
       : []),
-    ...(event.htmlLink
+    // カードの ⋮ からは「Google カレンダーで開く」「削除」を出さない（すぐ隣にボタンがある）
+    ...(event.htmlLink && !fromCard
       ? [
           {
             kind: 'leaf' as const,
@@ -276,7 +303,7 @@ export function GoogleEventMenu({
           },
         ]
       : []),
-    ...(editable
+    ...(editable && !fromCard
       ? [
           {
             kind: 'leaf' as const,
@@ -290,5 +317,5 @@ export function GoogleEventMenu({
       : []),
   ]
   if (entries.length === 0) return null
-  return <ActionMenu x={x} y={y} alignRight={alignRight} header={event.summary} entries={entries} onClose={onClose} searchable={false} />
+  return <ActionMenu x={x} y={y} alignRight={fromCard} header={event.summary} entries={entries} onClose={onClose} searchable={false} />
 }

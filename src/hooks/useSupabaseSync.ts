@@ -6,6 +6,7 @@ import { getSupabase, signOutThisDevice } from '../lib/supabase'
 import {
   decideHydrate,
   fetchCourseLinks,
+  fetchSkippedEvents,
   fetchAddons,
   fetchDayMoods,
   fetchEventTemplates,
@@ -14,6 +15,7 @@ import {
   fetchMinSyncVersion,
   fetchTimetable,
   pushCourseLinks,
+  pushSkippedEvents,
   pushAddons,
   pushDayMoods,
   pushEventTemplates,
@@ -71,7 +73,14 @@ import { hasExistingData } from '../lib/onboarding'
 import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
 import { storeActiveTimerIo } from './activeTimerIo'
 import { isKnownChange, subscribeSyncWake, type WakeEvent } from '../lib/syncWake'
-import { planAddonsSync, planCourseLinkSync, planEventTemplateSync, planSleepTimerSync, planTimetableSync } from '../lib/settingPlans'
+import {
+  planAddonsSync,
+  planCourseLinkSync,
+  planEventTemplateSync,
+  planSkippedSync,
+  planSleepTimerSync,
+  planTimetableSync,
+} from '../lib/settingPlans'
 
 const DEBOUNCE_MS = 1800
 /** 他端末の変更を取り込む間隔（タブが見えている間だけ） */
@@ -97,6 +106,7 @@ const SETTING_TABLE: Record<SettingKey, SettingTable> = {
   timetable: 'user_timetable',
   addons: 'user_addons',
   sleepTimer: 'user_sleep_timer',
+  skipped: 'user_skipped_events',
 }
 const SETTING_KEY_OF = Object.fromEntries(Object.entries(SETTING_TABLE).map(([k, t]) => [t, k])) as Record<SettingTable, SettingKey>
 
@@ -182,6 +192,7 @@ function settingsSent(userId: string): boolean {
     ['timetable', s.timetableUpdatedAt],
     ['addons', s.addonsUpdatedAt],
     ['sleepTimer', s.sleepTimerUpdatedAt],
+    ['skipped', s.skippedEventsUpdatedAt],
   ]
   return (
     local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key)) &&
@@ -450,6 +461,23 @@ export function useSupabaseSync() {
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ courseLinksUpdatedAt: at })),
         push: (p) => pushCourseLinks(supabase, userId, p, p.base),
       })
+    /** やらなかった予定（#528） */
+    const syncSkippedEvents = () =>
+      syncSetting({
+        key: 'skipped',
+        fetch: () => fetchSkippedEvents(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planSkippedSync({ events: st.skippedEvents, updatedAt: st.skippedEventsUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().skippedEventsUpdatedAt,
+        applyLocal: ({ events, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ skippedEvents: events, skippedEventsUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ skippedEventsUpdatedAt: at })),
+        push: (p) => pushSkippedEvents(supabase, userId, p, p.base),
+        // まだ一度もやらなかった予定が無ければ送らない。サーバーにも行が無ければ取りに行かない
+        emptyWhenUnset: true,
+      })
     /** 時間割の設定（時限・学期、#279） */
     const syncTimetable = () =>
       syncSetting({
@@ -542,6 +570,7 @@ export function useSupabaseSync() {
         syncActiveTimer(),
         syncEventTemplates(),
         syncCourseLinks(),
+        syncSkippedEvents(),
         syncTimetable(),
         syncAddons(),
         syncSleepTimer(),
@@ -922,6 +951,7 @@ export function useSupabaseSync() {
         state.activeTimer === prev.activeTimer &&
         state.eventTemplates === prev.eventTemplates &&
         state.courseLinks === prev.courseLinks &&
+        state.skippedEvents === prev.skippedEvents &&
         state.timetable === prev.timetable &&
         state.addons === prev.addons &&
         state.sleepTimer === prev.sleepTimer &&

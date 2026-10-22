@@ -1,5 +1,6 @@
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 import { EventMark } from './CompletionCircle'
+import { SKIPPED_EVENT_CLASS } from './rowStateClass'
 
 /** 1 行の並び（カレンダーの日パネル）の左の時刻の列。To-Do の行（`TaskItem` の `compact`）と同じ幅にそろえる（To-Do は時刻のあるときだけ） */
 export const DAY_ROW_TIME_CLASS = 'w-10 shrink-0 text-xs tabular-nums text-zinc-500 dark:text-zinc-400'
@@ -18,8 +19,11 @@ export function DayRow({
   trailing,
   onClick,
   onContextMenu,
+  skipped,
 }: {
   time: string | null
+  /** やらなかった予定（#528）。薄く・取り消し線 */
+  skipped?: boolean
   dotStyle: CSSProperties
   title: string
   trailing?: ReactNode
@@ -35,7 +39,9 @@ export function DayRow({
     >
       <span className={DAY_ROW_TIME_CLASS}>{time}</span>
       <EventMark style={dotStyle} small />
-      <span className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-200">{title}</span>
+      <span className={`min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-200 ${skipped ? SKIPPED_EVENT_CLASS : ''}`}>
+        {title}
+      </span>
       {trailing}
     </button>
   )

@@ -1,6 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { toDateKey } from '../lib/dateKey'
 import { appToday } from '../lib/timeZone'
@@ -387,5 +387,45 @@ describe('TodayPlannerView: 完了の行もキーで（#377）', () => {
     expect(cursor?.getAttribute('data-task-row')).toBe(done)
     await user.keyboard(' ')
     expect(useTaskStore.getState().tasks.find((x) => x.id === done)!.completed).toBe(false)
+  })
+})
+
+describe('TodayPlannerView: 記録中の枠（#530）', () => {
+  it('記録中は記録の列に始めた時刻からの枠を出し、止めたら記録の枠に置き換わる', () => {
+    // 0 時すぎに流すと 1 時間前が前の日になる。昼に固定する
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(new Date().setHours(13, 0, 0, 0)))
+    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    useTaskStore.setState({ onboardingDone: true })
+    useTaskStore.getState().startTimer('Essay', [])
+    // 始めた時刻を 1 時間前にする（短い枠は 1 行で、終わりの「記録中」を出さない）
+    useTaskStore.setState((s) => ({
+      activeTimer: s.activeTimer && { ...s.activeTimer, startedAt: new Date(Date.now() - 60 * 60_000).toISOString() },
+    }))
+    const { container } = render(<TodayPlannerView />)
+    const running = container.querySelector('[data-running-log]')
+    expect(running).toHaveTextContent('Essay')
+    expect(running).toHaveTextContent('Logging…')
+
+    act(() => useTaskStore.getState().stopTimer())
+    expect(container.querySelector('[data-running-log]')).toBeNull()
+    const log = useTaskStore.getState().tasks.find((t) => t.kind === 'log' && t.title === 'Essay')!
+    expect(container.querySelector(`[data-block-id="${log.id}"]`)).not.toBeNull()
+    vi.useRealTimers()
+  })
+})
+
+describe('TodayPlannerView: 足したばかりの行の締切（#533）', () => {
+  it('追加欄から足した行は先の締切も出し、画面を開き直すと今日やる行の決まり（先の締切は出さない）に戻る', async () => {
+    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    useTaskStore.setState({ onboardingDone: true })
+    const user = userEvent.setup()
+    const { unmount } = render(<TodayPlannerView />)
+    await user.type(screen.getByPlaceholderText(/^Add/), 'essay by tomorrow{Enter}')
+    const row = () => document.querySelector('[data-task-row]')!
+    expect(row()).toHaveTextContent(/Due /)
+    unmount()
+    render(<TodayPlannerView />)
+    expect(row()).not.toHaveTextContent(/Due /)
   })
 })

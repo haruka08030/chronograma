@@ -21,7 +21,7 @@ Use the **same** Google OAuth Client ID/Secret as Supabase Auth → Google provi
 | action | body |
 |--------|------|
 | `status` | `{}` → `{ "connected": true/false, "canWrite": true/false }`（canWrite はつながっているときだけ） |
-| `events` | `{ "timeMin": ISO, "timeMax": ISO }` → `{ events, deletedPushed: [{ id, updated }], … }`。消された予定も取り、アプリから作った予定（ID が `chronograma` で始まる）の分を `deletedPushed` で返す |
+| `events` | `{ "timeMin": ISO, "timeMax": ISO }` → `{ events, deletedPushed: [{ id, updated }], skipped: [{ …event, skippedAt }], … }`。消された予定も取り、アプリから作った予定（ID が `chronograma` で始まる）の分を `deletedPushed` で返す。ほかの予定で、開始を過ぎてから 7 日以内に消されたものを `skipped`（やらなかった予定）で返す。繰り返しの回は親を読んで題名・長さを補い、繰り返しをまるごと消したときは返さない |
 | `disconnect` | `{}` |
 | `create` | `{ "fields": { summary, description?, colorId?, start, end } }` |
 | `update` | `{ "eventId", "fields" }`（変えるものだけ）。消されていた予定は `google_deleted` |

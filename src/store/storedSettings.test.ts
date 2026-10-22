@@ -26,4 +26,13 @@ describe('保存する設定の表（storedSettings）', () => {
     expect('tasks' in state).toBe(false)
     expect('extraTimeZones' in state).toBe(false)
   })
+
+  it('同期する設定は変えた時刻を持つ（やらなかった予定・睡眠のタイマーも）。読めない値はそろえる', () => {
+    expect(SETTING_STAMPS.skippedEventsUpdatedAt).toEqual(['skippedEvents'])
+    expect(SETTING_STAMPS.sleepTimerUpdatedAt).toEqual(['sleepTimer'])
+    const state: Record<string, unknown> = { skippedEvents: [{ id: 1 }, 'x'], sleepTimer: { startedAt: 'nope' } }
+    normalizeStoredState(state)
+    expect(state.skippedEvents).toEqual([])
+    expect(state.sleepTimer).toBeNull()
+  })
 })

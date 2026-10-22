@@ -45,3 +45,16 @@ export function timerRecordTimes(startedAt: string, endedAt: string): TimerRecor
     endTime: clockOf(end),
   }
 }
+
+/** 記録中の枠の id（タイムラインの記録の列に、止めたときの記録と同じ形で描く） */
+export const RUNNING_LOG_ID = 'running-timer'
+
+/**
+ * 記録中のタイマーを、止めたら入る記録と同じ日付・時刻の形にする（終わりは今。1 分未満は 1 分ぶん）。
+ * 記録の列で始めた時刻から今まで伸びる枠にするため
+ */
+export function runningLogTimes(startedAt: string, nowMs: number): TimerRecordTimes | null {
+  const startMs = new Date(startedAt).getTime()
+  if (!Number.isFinite(startMs)) return null
+  return timerRecordTimes(startedAt, new Date(Math.max(nowMs, startMs + MIN_RECORD_MS)).toISOString())
+}

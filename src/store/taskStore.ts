@@ -10,6 +10,7 @@ import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
 import { courseKey, withCourseLink, type CourseLink } from '../lib/courseLinks'
+import { withRemoved, withSkipped, withoutRestored, type SkippedEvent } from '../lib/skippedEvents'
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import {
@@ -205,6 +206,7 @@ export const useTaskStore = create<TaskState>()(
         googleConnectLineDismissed: false,
         onboardingDone: false,
         onboardingCompleted: false,
+        onboardingFinishedOn: null,
         installNudgeDismissed: false,
         signInNudgeDismissed: false,
         dailyCapacityMinutes: 480,
@@ -218,6 +220,8 @@ export const useTaskStore = create<TaskState>()(
         eventTemplatesUpdatedAt: null as string | null,
         courseLinks: [] as CourseLink[],
         courseLinksUpdatedAt: null as string | null,
+        skippedEvents: [] as SkippedEvent[],
+        skippedEventsUpdatedAt: null as string | null,
         dayMoods: {} as DayMoods,
         timetable: DEFAULT_TIMETABLE as Timetable,
         timetableUpdatedAt: null as string | null,
@@ -247,6 +251,15 @@ export const useTaskStore = create<TaskState>()(
           if (sameValue(next, get().courseLinks)) return
           set({ courseLinks: next })
         },
+        addSkippedEvents: (events) => {
+          const next = withSkipped(get().skippedEvents, events)
+          if (next !== get().skippedEvents) set({ skippedEvents: next })
+        },
+        dropRestoredSkipped: (liveIds) => {
+          const next = withoutRestored(get().skippedEvents, liveIds)
+          if (next !== get().skippedEvents) set({ skippedEvents: next })
+        },
+        removeSkippedEvent: (id) => set({ skippedEvents: withRemoved(get().skippedEvents, id) }),
         setAddonOn: (id, on) => {
           const next = withAddonOn(get().addons, id, on)
           if (sameValue(next, get().addons)) return
@@ -462,7 +475,7 @@ export function dropPendingLabelAdds(names: readonly string[]): void {
   if (next.length !== s.logLabelPendingAdds.length) useTaskStore.setState({ logLabelPendingAdds: next })
 }
 
-// 設定（ラベル表・他のタイムゾーン・よく入れる予定・科目のつながり・時間割・追加機能・睡眠のタイマー・動いているタイマー）を変えたら時刻を付ける
+// 設定（ラベル表・他のタイムゾーン・よく入れる予定・科目のつながり・やらなかった予定・時間割・追加機能・睡眠のタイマー・動いているタイマー）を変えたら時刻を付ける
 // （ほかの端末とどちらが新しいかを比べる）。同期・他のタブ・連携で届いた変更では付けない。どの設定がどの時刻かは `STORED_SETTINGS`
 for (const [stamp, keys] of Object.entries(SETTING_STAMPS)) {
   useTaskStore.subscribe((s, prev) => {

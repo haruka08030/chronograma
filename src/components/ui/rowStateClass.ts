@@ -21,3 +21,9 @@ export const LIFT_CARD_CLASS = 'shadow-lg ring-1 ring-zinc-200/70 dark:ring-zinc
  */
 export const LIFT_SCALE_CLASS = 'scale-[1.02] motion-reduce:scale-100 animate-lift-in'
 export const ROW_LIFTED_CLASS = `relative z-10 bg-white dark:bg-zinc-900 ${LIFT_SCALE_CLASS} ${LIFT_CARD_CLASS}`
+
+/**
+ * やらなかった予定（#528、開始を過ぎてから消した Google の予定）。どの画面でも同じく、薄く・取り消し線で出す
+ * （タイムラインの枠・終日の行・月のマスのチップ・予定一覧の行・日のパネルの行）。過ぎた予定の灰色（`gc-missed`）に重ねる
+ */
+export const SKIPPED_EVENT_CLASS = 'opacity-60 line-through decoration-zinc-500/70'

@@ -6,6 +6,7 @@ import { fetchCalendarEvents, googleWriteGeneration, localizeGoogleError, should
 import { cacheGoogleEvents, cachedGoogleEvents, rangeKey } from '../lib/googleEventCache'
 import { withoutPendingDeletes } from '../lib/googleEventEdit'
 import { taskIdForGoogleEventId, withoutPushedEvents } from '../lib/googlePush'
+import { toSkippedEvent } from '../lib/skippedEvents'
 import { appTimeZone } from '../lib/timeZone'
 import { markGoogleConnectionLost, rememberGoogleCanWrite } from '../lib/googleConnectedHint'
 import { notify } from '../lib/notify'
@@ -75,7 +76,7 @@ export function useGoogleCalendarEvents(timeMin: Date, timeMax: Date) {
     const doFetch = async () => {
       const generation = googleWriteGeneration()
       try {
-        const { events, canWrite, deletedPushed } = await fetchCalendarEvents(new Date(minMs), new Date(maxMs))
+        const { events, canWrite, deletedPushed, skipped } = await fetchCalendarEvents(new Date(minMs), new Date(maxMs))
         if (cancelled) return
         setGoogleCanWrite(canWrite)
         if (owner) rememberGoogleCanWrite(owner, canWrite)
@@ -83,8 +84,20 @@ export function useGoogleCalendarEvents(timeMin: Date, timeMax: Date) {
         // 取得中にアプリから書き換えたなら、その結果を古い取得で巻き戻さない
         if (!unchangedSince(generation)) return
         if (owner) cacheGoogleEvents(owner, rangeKey(new Date(minMs), new Date(maxMs), timeZone), events)
+        // 消された予定の題名が来なかったときに補う、前に出ていた予定
+        const known = new Map(useTaskStore.getState().calendarEvents.map((e) => [e.id, e]))
         // アプリの予定から作った Google の予定は、アプリの予定として出ている
         show(events)
+        // 開始を過ぎてから消された予定は、やらなかった予定として残す。題名が来なければ前に取った予定の題名で補う（#528）
+        const { addSkippedEvents, dropRestoredSkipped } = useTaskStore.getState()
+        // 消して送る前の予定（「元に戻す」を待っている）はまだ Google にあるが、予定に戻ったのではない
+        dropRestoredSkipped(new Set(withoutPendingDeletes(events).map((e) => e.id)))
+        addSkippedEvents(
+          skipped.flatMap((s) => {
+            const summary = s.summary || known.get(s.id)?.summary
+            return summary ? [toSkippedEvent({ ...s, summary }, s.skippedAt)] : []
+          }),
+        )
         // Google で消されたアプリの予定は、アプリでもゴミ箱に入れる（まだ送っていない変更のある予定は除く）
         if (owner && deletedPushed.length > 0) {
           const ids: string[] = []

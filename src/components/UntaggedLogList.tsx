@@ -46,7 +46,12 @@ export function UntaggedLogList({ ids, showDate = false }: { ids: readonly strin
                   .join(' · ')}
               </span>
             </button>
-            <TimeLogTagField value={log.category ?? ''} onChange={(v) => updateTask(log.id, { category: v || null })} compact />
+            <TimeLogTagField
+              value={log.category ?? ''}
+              color={log.color}
+              onChange={(v) => updateTask(log.id, { category: v.tags[0] ?? null, color: v.color })}
+              compact
+            />
           </li>
         ))}
       </ul>

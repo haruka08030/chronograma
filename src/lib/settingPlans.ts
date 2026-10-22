@@ -1,5 +1,5 @@
 /**
- * 設定ごとの同期の計画（送る・合わせる・版だけ進める）。追加機能・時間割・よく入れる予定・授業と科目のつながり・睡眠のタイマー。
+ * 設定ごとの同期の計画（送る・合わせる・版だけ進める）。追加機能・時間割・よく入れる予定・授業と科目のつながり・睡眠のタイマー・やらなかった予定。
  * 同期（`useSupabaseSync`）からだけ読む。起動時に読む値の形・そろえ方（`normalize*`）と中身ごとの合わせ方（`merge*`）は各設定のファイル
  */
 import { settingSyncStep } from './settingSync'
@@ -29,6 +29,14 @@ import {
   type LocalCourseLinks,
   type RemoteCourseLinks,
 } from './courseLinks'
+import {
+  mergeSkipped,
+  normalizeSkippedEvents,
+  sameSkipped,
+  type LocalSkipped,
+  type RemoteSkipped,
+  type SkippedSyncPlan,
+} from './skippedEvents'
 import { normalizeSleepTimer, type LocalSleepTimer, type RemoteSleepTimer, type SleepTimerSyncPlan } from './sleepTimer'
 
 export function planAddonsSync(
@@ -263,6 +271,38 @@ export function planSleepTimerSync(
       return { apply: { timer: theirs, updatedAt: remote.updatedAt } }
     case 'push':
       return { push: { timer: mine, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
+    case 'adopt':
+      return { adopt: remote.updatedAt }
+    default:
+      return {}
+  }
+}
+
+export function planSkippedSync(
+  local: LocalSkipped,
+  remote: RemoteSkipped | null,
+  nowIso: string = new Date().toISOString(),
+  clockOffsetMs = 0,
+): SkippedSyncPlan {
+  // まだ一度もやらなかった予定が無ければ送らない
+  if (!remote) return local.updatedAt === null ? {} : { push: { events: local.events, updatedAt: local.updatedAt, base: null } }
+  const theirs = normalizeSkippedEvents(remote.events)
+  const syncedAt = local.syncedAt ?? null
+  const step = settingSyncStep({ updatedAt: local.updatedAt, syncedAt }, remote, sameSkipped(local.events, theirs), clockOffsetMs)
+  const dirty = local.updatedAt !== syncedAt
+  const remoteChanged = remote.updatedAt !== syncedAt
+  // まだ一度も合わせていない・両方で変えた: 両方を合わせる
+  if (step.kind === 'initial' || ((step.kind === 'push' || step.kind === 'apply') && dirty && remoteChanged)) {
+    const events = mergeSkipped(theirs, local.events)
+    // 消したものは `removed` の印で両方に残るので、合わせても片方の変更を捨てない（捨てた数は 0）
+    if (sameSkipped(events, theirs)) return { apply: { events, updatedAt: remote.updatedAt }, conflicts: 0 }
+    return { apply: { events, updatedAt: nowIso }, push: { events, updatedAt: nowIso, base: remote.updatedAt }, conflicts: 0 }
+  }
+  switch (step.kind) {
+    case 'apply':
+      return { apply: { events: theirs, updatedAt: remote.updatedAt } }
+    case 'push':
+      return { push: { events: local.events, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
     case 'adopt':
       return { adopt: remote.updatedAt }
     default:

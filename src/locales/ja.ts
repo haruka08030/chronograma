@@ -613,6 +613,8 @@ export default {
     reconnect: 'つなぎ直す',
     notEditable: '主催者ではないため、ここでは変更できません',
     thisEventOnly: '繰り返しの予定は、この回だけ変わります',
+    skipped: 'やらなかった予定',
+    skippedHint: '時間が過ぎてから消した予定なので、やらなかった予定として残しています。予定していなかったものなら削除してください',
     openInGoogle: 'Google カレンダーで開く',
     title: 'タイトル',
     date: '日付',
@@ -988,8 +990,8 @@ export default {
     moveTo: 'リストへ移動',
     moveToSection: 'セクションへ移動',
     label: 'ラベル',
-    open: '詳細を開く',
-    duplicate: '複製',
+    open: '編集',
+    duplicate: 'コピー',
     googleSkip: 'この名前は Google に送らない',
     doToday: '今日やる',
     toTomorrow: '明日へ回す',
@@ -1043,8 +1045,8 @@ export default {
   palette: {
     label: '検索パレット',
     placeholder: 'To-Do を探す',
-    hint: '題名・メモ・タグで探せます。↑↓ で選び、Enter で詳細',
-    open: '詳細',
+    hint: '題名・メモ・タグで探せます。↑↓ で選び、Enter で編集',
+    open: '編集',
     startTimer: '記録を始める',
   },
   quickAdd: {
@@ -1131,6 +1133,7 @@ export default {
     unreadable: 'このバックアップを開けませんでした',
   },
   undo: {
+    guideClosed: '案内を閉じました',
     timeSet: '「{{title}}」を {{time}} に置きました',
     imported: 'バックアップを取り込みました（タスク {{count}} 件）',
     restoredFromBackup: '自動バックアップからタスク {{count}} 件を戻しました',

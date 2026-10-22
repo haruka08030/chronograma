@@ -22,6 +22,7 @@ import { unplannedListIds } from '../../lib/listKind'
 import { unrecordedMinutesOnDay } from '../../lib/unrecordedGaps'
 import { DayMoodBadge } from './DayMood'
 import { useAbsentOn } from '../../hooks/useAbsentOn'
+import { useOnboardingFinishedToday } from '../../hooks/useShowsOnboarding'
 
 /** 今日の計画の上: 題名と日付・日の移動・睡眠・記録と予定の合計・記録のパネル */
 export function PlannerHeader({
@@ -45,7 +46,10 @@ export function PlannerHeader({
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
+  // 案内を終えた日の間も出さない（最初の成功の場面に新しいものを重ねない）
   const onboardingDone = useTaskStore((s) => s.onboardingDone)
+  const finishedToday = useOnboardingFinishedToday()
+  const showSleep = onboardingDone && !finishedToday
   const { plannedMinutes, freeMinutes } = load
   // 空きは週の見出しと同じく今日から先の日だけ（過ぎた日の空きは計画に使わない）
   const showFree = dateKey >= toDateKey(appToday())
@@ -90,11 +94,11 @@ export function PlannerHeader({
       </div>
       {viewingToday && <p className={`mt-1 hidden md:block ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>}
       {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない。
-          はじめの案内が出ている間は出さない（最初に目に入るのが睡眠だと、何をするアプリか分からない） */}
+          はじめの案内が出ている間と、案内を終えた日は出さない（最初に目に入るのが睡眠だと、何をするアプリか分からない） */}
       {/* 過ぎた日は、締めで付けた気分の記号を睡眠の横に小さく（今日の昼・これからの日には出さない） */}
-      {(onboardingDone || !showFree) && (
+      {(showSleep || !showFree) && (
         <div className="mt-2 flex flex-wrap items-start gap-x-2 md:mt-3">
-          {onboardingDone && <SleepRow key={dateKey} dateKey={dateKey} />}
+          {showSleep && <SleepRow key={dateKey} dateKey={dateKey} />}
           {!showFree && <DayMoodBadge key={dateKey} dateKey={dateKey} />}
         </div>
       )}

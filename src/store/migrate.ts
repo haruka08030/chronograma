@@ -21,6 +21,7 @@ import type { TaskState } from './storeTypes'
 import { appTodayKey } from '../lib/timeZone'
 import { withDreamsFromSteps } from '../lib/somedayTier'
 import { fillLabelIds, labelIndex, normalizeLabelIds } from '../lib/labelIds'
+import { renamedLegacySomeday } from '../locales/builtinNames'
 
 /** v38 より前のタスク。種類を「記録か」「睡眠か」の 2 つの印で持つ */
 type LegacyTask = Omit<Task, 'kind'> & { isTimeLog?: boolean; isSleep?: boolean }
@@ -358,6 +359,15 @@ export function migrateTaskState(persisted: unknown, version: number): TaskState
       tasks,
       labelIndex({ timeLogTagPresets: presets, logCategoryColors: colors, logLabelIds: state.logLabelIds as Record<string, string> }),
     )
+  }
+  if (version < 43) {
+    // 最初から作るいつかのリストの名前を「やりたいこと」/ Bucket list にした（#517・#526）。前の初期の名前のままのものだけ直す。
+    // updatedAt は変えない（サーバーの行も 044 で同じ規則で直す）
+    const lists = (state.lists as TaskList[] | undefined) ?? []
+    state.lists = lists.map((l) => {
+      const name = l.kind === 'someday' ? renamedLegacySomeday(l.name) : null
+      return name ? { ...l, name } : l
+    })
   }
   return state as unknown as TaskState
 }

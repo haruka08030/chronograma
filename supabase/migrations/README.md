@@ -47,7 +47,9 @@
 | [`041_user_addons.sql`](041_user_addons.sql) | 追加機能のオン・オフ `user_addons`（利用者ごとに 1 行、`addons` は `{ enabled: { 機能: true/false } }` の object、256KB まで `user_addons_size_check`、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
 | [`042_habit_deleted_at.sql`](042_habit_deleted_at.sql) | 習慣のゴミ箱 `habits.deleted_at`（null はゴミ箱に無い）。ゴミ箱の習慣はどの画面・統計にも出さず、達成日は残る。30 日たつとアプリが行ごと消す |
 | [`043_user_sleep_timer.sql`](043_user_sleep_timer.sql) | 睡眠のタイマー `user_sleep_timer`（利用者ごとに 1 行。`started_at` は「寝る」を押した時刻、null は寝ていない。起きた・取り消したら行は消さずに null、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
-| [`044_reminder_run_key_mismatch.sql`](044_reminder_run_key_mismatch.sql) | 通知の送信の実行の記録に、最後の回で鍵が合わずに消した購読の数 `reminder_runs.last_key_mismatch`（プッシュサービスの 403。`last_removed` に含まれる）。VAPID の鍵を替えたあと・secret の入れ間違いで増える |
+| [`044_rename_someday_list.sql`](044_rename_someday_list.sql) | いつかのリスト（`kind = 'someday'`）で名前が前の初期の名前そのまま（いつか / Someday）のものを、同じ言語の今の名前（やりたいこと / Bucket list）にする。`updated_at` を進める。アプリも保存データの版 43 で同じ規則で直す |
+| [`045_user_skipped_events.sql`](045_user_skipped_events.sql) | やらなかった予定 `user_skipped_events`（利用者ごとに 1 行。`events` は開始を過ぎてから消した Google の予定の並び。「削除」で本当に消したものは `removed` の印だけ残す、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
+| [`046_reminder_run_key_mismatch.sql`](046_reminder_run_key_mismatch.sql) | 通知の送信の実行の記録に、最後の回で鍵が合わずに消した購読の数 `reminder_runs.last_key_mismatch`（プッシュサービスの 403。`last_removed` に含まれる）。VAPID の鍵を替えたあと・secret の入れ間違いで増える |
 
 テーブル（最新の形）:
 
@@ -75,7 +77,7 @@
 | `sync_tombstone_purges` | 上限で消した印の一番新しい `deleted_at`（利用者ごとに 1 行、`last_deleted_at`）。書くのはトリガーだけ、端末は本人の行を読むだけ。差分の目印がこれより前なら端末は全部を取り直す |
 | `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗・端末の保存・連携・通知の購読の失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（[`../metrics/health.sql`](../metrics/health.sql)・`doc/CURSOR_CONTEXT.md` の「端末のエラー」） |
 | `feedback` | 設定の「お問い合わせ・フィードバック」から送られた文面（`src/lib/feedback.ts`）。送れるのはログイン中の人。端末からは insert だけ。見るのは SQL Editor から（`doc/CURSOR_CONTEXT.md` の「お問い合わせ・フィードバック」） |
-| `reminder_runs` | 通知の送信の実行の記録（1 行）。最後に全部うまくいった回の時刻 `last_ok_at` と、走っている回の目印 `running_since`、最後の回の時刻・数と最後の失敗の時刻（`021`）・鍵が合わずに消した購読の数（`044`）。読み書きは Edge Function `daily-reminders`（service_role）だけ |
+| `reminder_runs` | 通知の送信の実行の記録（1 行）。最後に全部うまくいった回の時刻 `last_ok_at` と、走っている回の目印 `running_since`、最後の回の時刻・数と最後の失敗の時刻（`021`）・鍵が合わずに消した購読の数（`046`）。読み書きは Edge Function `daily-reminders`（service_role）だけ |
 | `app_versions_seen` | どの版のアプリがまだ同期しているか（1 人 × アプリの版 × 同期の取り決めの版で 1 行、`last_seen`）。端末は同期の最初に 1 日 1 回 `note_app_version` を呼ぶ（`src/lib/versionSeen.ts`）。表は端末から読めず書けない。版の下限（`app_config.min_sync_version`）を上げる前に [`../metrics/versions.sql`](../metrics/versions.sql) で版ごとの直近 7 日の人数を見る |
 
 **メモ**

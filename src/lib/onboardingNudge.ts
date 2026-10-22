@@ -13,6 +13,8 @@ export type OnboardingNudge = 'install' | 'recordPrompts' | 'signIn'
 export interface OnboardingNudgeState {
   onboardingDone: boolean
   onboardingCompleted: boolean
+  /** 案内を終えた日の間（誘いは次の日から） */
+  finishedToday: boolean
   installNudgeDismissed: boolean
   recordPrompts: boolean
   /** 通知の誘い（今日の画面の下の 1 行と、案内のあとのカード）を閉じた・使った */
@@ -34,7 +36,7 @@ export function canAskNotifications(): boolean {
 }
 
 export function pickOnboardingNudge(state: OnboardingNudgeState): OnboardingNudge | null {
-  if (!state.onboardingDone) return null
+  if (!state.onboardingDone || state.finishedToday) return null
   if (isIosBrowserNotInstalled()) {
     // 先にホーム画面への追加（通知は追加したあとでないと届かない）
     return state.onboardingCompleted && !state.installNudgeDismissed ? 'install' : null

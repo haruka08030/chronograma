@@ -69,7 +69,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
   const laterButtonRef = useRef<HTMLButtonElement>(null)
   useFocusBackOnClose(mode === 'timer', timerButtonRef)
   useFocusBackOnClose(mode === 'manual', laterButtonRef)
-  const { title, category, taskId, color, setTitle, setCategory, pick, reset } = useLogDraft()
+  const { title, category, taskId, color, setTitle, setLabel, pick, reset } = useLogDraft()
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const recent = useMemo(() => frequentLogs(tasks, 2), [tasks])
@@ -164,7 +164,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
       if (!canSaveManual) return
       // 終わりが始まりより前なら日をまたいだ記録（夜〜翌朝の睡眠など）
       const endDate = overnight ? toDateKey(addDays(fromDateKey(dateKey), 1)) : null
-      const id = addTimeLog(name, dateKey, start, end, tags, undefined, endDate, color, taskId)
+      const id = addTimeLog(name, dateKey, start, end, tags, undefined, endDate, color, taskId, true)
       if (details) openTaskDetail(id)
     }
     close()
@@ -306,7 +306,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
               ))}
             </div>
           )}
-          <TimeLogTagField value={category} onChange={setCategory} compact />
+          <TimeLogTagField value={category} color={color} onChange={setLabel} compact />
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={close} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
               {t('common.cancel')}

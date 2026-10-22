@@ -181,12 +181,12 @@ function EventPopoverBody({
         >
           <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
         </button>
-        {/* ⋮: 右クリックと同じメニュー（複製など）。Google カレンダーのカードと同じ位置で、メニューは右端を ⋮ にそろえて真下に。カードは残し、上にメニューを重ねる */}
+        {/* ⋮: 右クリックのメニューから、隣のボタンと同じ項目（編集・削除）を除いたもの。Google カレンダーのカードと同じ位置で、メニューは右端を ⋮ にそろえて真下に。カードは残し、上にメニューを重ねる */}
         <button
           type="button"
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect()
-            openTaskMenu({ kind: 'event', x: r.right, y: r.bottom, alignRight: true, taskId: task.id })
+            openTaskMenu({ kind: 'event', x: r.right, y: r.bottom, fromCard: true, taskId: task.id })
           }}
           className={iconButtonClass()}
           aria-label={t('eventCard.more')}

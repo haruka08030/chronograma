@@ -187,7 +187,7 @@ export function runStatsPatch(stats: RunStats, nowIso: string): Record<string, s
   return patch
 }
 
-/** 鍵が合わずに消した購読の数（`044`）。列が無い DB（`044` の前）でもほかの数を残せるよう、`runStatsPatch` とは別の update で書く */
+/** 鍵が合わずに消した購読の数（`046`）。列が無い DB（`046` の前）でもほかの数を残せるよう、`runStatsPatch` とは別の update で書く */
 export function runKeyMismatchPatch(stats: RunStats): { last_key_mismatch: number } {
   return { last_key_mismatch: stats.keyMismatch }
 }

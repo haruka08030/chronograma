@@ -1,4 +1,4 @@
-import { useId, type HTMLAttributes, type Ref } from 'react'
+import { useId, useState, type HTMLAttributes, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { useShowsOnboarding } from '../../hooks/useShowsOnboarding'
@@ -71,6 +71,9 @@ export function PlannerTodoSection({
   const { day, viewingToday } = env
   const { dateKey, tomorrowKey } = day
   const showOnboarding = useShowsOnboarding(viewingToday)
+  // この画面で足したばかりの行は締切も出す（「明日まで」と書いたのが伝わったと分かる）。ほかの画面へ移ると今日やる行の決まりに戻る
+  const [justAdded, setJustAdded] = useState<ReadonlySet<string>>(() => new Set())
+  const dueModeOf = (task: Task) => (justAdded.has(task.id) ? 'all' : 'urgent')
   const emptyDay = totalCount === 0 && overdue.length === 0 && leftOver.length === 0 && leftBehind.length === 0
   const timedAction = (task: Task) => (
     <>
@@ -173,7 +176,7 @@ export function PlannerTodoSection({
                   env={env}
                   lead={t(nowNext.kind === 'now' ? 'planner.nowRow' : 'planner.nextRow')}
                   action={timedAction(nowNext.task)}
-                  dueMode="urgent"
+                  dueMode={dueModeOf(nowNext.task)}
                   hoverActions
                 />
               ) : (
@@ -204,7 +207,7 @@ export function PlannerTodoSection({
                     <TimerButton task={task} />
                   </>
                 }
-                dueMode="urgent"
+                dueMode={dueModeOf(task)}
                 hoverActions
               />
             ))}
@@ -213,13 +216,19 @@ export function PlannerTodoSection({
               右の時刻で分かるので見出しは出さず、間を空けるだけ */}
           <ul role="group" aria-label={t('planner.timedHeading')} className={timedOpen.length > 0 && untimedOpen.length > 0 ? 'mt-3' : ''}>
             {timedOpen.map((task) => (
-              <PlannerTaskRow key={task.id} task={task} env={env} action={timedAction(task)} dueMode="urgent" hoverActions />
+              <PlannerTaskRow key={task.id} task={task} env={env} action={timedAction(task)} dueMode={dueModeOf(task)} hoverActions />
             ))}
           </ul>
         </div>
       </div>
 
-      <PlannerAddInput dateKey={dateKey} showExample={emptyDay} guide={showOnboarding && emptyDay} onboarding={showOnboarding} />
+      <PlannerAddInput
+        dateKey={dateKey}
+        showExample={emptyDay}
+        guide={showOnboarding && emptyDay}
+        onboarding={showOnboarding}
+        onAdded={(id) => setJustAdded((prev) => new Set(prev).add(id))}
+      />
 
       <PlannerListStatus totalCount={totalCount} openCount={open.length} overdueCount={overdue.length} leftBehind={leftBehind} />
 

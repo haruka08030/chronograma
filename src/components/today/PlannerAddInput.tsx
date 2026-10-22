@@ -27,11 +27,14 @@ export function PlannerAddInput({
   showExample,
   guide = false,
   onboarding = false,
+  onAdded,
 }: {
   dateKey: string
   showExample: boolean
   guide?: boolean
   onboarding?: boolean
+  /** 足した To-Do（今日の行で、書いた締切が伝わったと分かるように出す） */
+  onAdded?: (id: string) => void
 }) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -51,6 +54,7 @@ export function PlannerAddInput({
     if (!draft.trim()) return
     const id = addTaskFromQuickText(draft, { defaultListId: INBOX_LIST_ID, defaultDate: dateKey, picks, last: true })
     change('')
+    if (id) onAdded?.(id)
     if (details && id) {
       openTaskDetail(id)
       return

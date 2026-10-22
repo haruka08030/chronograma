@@ -14,6 +14,7 @@ import { normalizeDayMoods } from '../lib/dayMood'
 import { normalizeTimetable } from '../lib/timetable'
 import { normalizeAddons } from '../lib/addons'
 import { normalizeSleepTimer } from '../lib/sleepTimer'
+import { normalizeSkippedEvents } from '../lib/skippedEvents'
 import { normalizeStoredRows } from '../lib/backupFormat'
 import { withTaskDefaults } from '../lib/taskDefaults'
 import type { Task } from '../types/task'
@@ -52,6 +53,7 @@ export const STORED_SETTINGS: Record<SettingDataKey, StoredSetting> = {
   googleConnectLineDismissed: {},
   onboardingDone: {},
   onboardingCompleted: {},
+  onboardingFinishedOn: {},
   installNudgeDismissed: {},
   signInNudgeDismissed: {},
   dailyCapacityMinutes: {},
@@ -65,6 +67,8 @@ export const STORED_SETTINGS: Record<SettingDataKey, StoredSetting> = {
   eventTemplatesUpdatedAt: {},
   courseLinks: { normalize: normalizeCourseLinks, stamp: 'courseLinksUpdatedAt' },
   courseLinksUpdatedAt: {},
+  skippedEvents: { normalize: normalizeSkippedEvents, stamp: 'skippedEventsUpdatedAt' },
+  skippedEventsUpdatedAt: {},
   dayMoods: { normalize: normalizeDayMoods },
   timetable: { normalize: normalizeTimetable, stamp: 'timetableUpdatedAt' },
   timetableUpdatedAt: {},

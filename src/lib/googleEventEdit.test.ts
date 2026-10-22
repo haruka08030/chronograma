@@ -14,6 +14,8 @@ const store = vi.hoisted(() => {
     },
     showMoveBanner: vi.fn(),
     setGoogleCanWrite: vi.fn(),
+    addSkippedEvents: vi.fn(),
+    dropRestoredSkipped: vi.fn(),
   }
   return s
 })
@@ -65,6 +67,21 @@ describe('Google の予定の削除（「元に戻す」の間は Google に送�
     await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS)
     expect(deleteGoogleEvent).toHaveBeenCalledWith('a')
     expect(store.googleUndo).toBeNull()
+  })
+
+  it('始まった予定を消したら、やらなかった予定として残す。元に戻したら外す（#528）', async () => {
+    vi.setSystemTime(new Date('2026-10-02T12:00:00Z'))
+    store.addSkippedEvents.mockClear()
+    store.dropRestoredSkipped.mockClear()
+    removeGoogleEvent(event('b'))
+    expect(store.addSkippedEvents).not.toHaveBeenCalled()
+    const started = { ...event('a'), start: '2026-10-02T10:00:00Z', end: '2026-10-02T11:00:00Z' }
+    removeGoogleEvent(started)
+    expect(store.addSkippedEvents).toHaveBeenCalledWith([expect.objectContaining({ id: 'a', skippedAt: '2026-10-02T12:00:00.000Z' })])
+    expect(undoGoogleDelete()).toBe(true)
+    expect(store.dropRestoredSkipped).toHaveBeenCalledWith(new Set(['a']))
+    // 始まる前の予定（b）の削除は送っておく（ほかのテストに残さない）
+    await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS)
   })
 
   it('元に戻すと予定が戻り、Google には送らない', async () => {
