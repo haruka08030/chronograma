@@ -1134,6 +1134,7 @@ export default {
     unreadable: 'このバックアップを開けませんでした',
   },
   undo: {
+    guideClosed: '案内を閉じました',
     timeSet: '「{{title}}」を {{time}} に置きました',
     imported: 'バックアップを取り込みました（タスク {{count}} 件）',
     restoredFromBackup: '自動バックアップからタスク {{count}} 件を戻しました',

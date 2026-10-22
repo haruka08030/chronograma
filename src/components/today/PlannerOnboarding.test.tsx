@@ -146,12 +146,17 @@ describe('はじめの 3 ステップ', () => {
     }
   })
 
-  it('× で閉じたら二度と出ない', async () => {
+  it('× で閉じたら二度と出ない。お知らせの「元に戻す」で戻せる', async () => {
     const user = userEvent.setup()
     openToday()
     await user.click(screen.getByRole('button', { name: 'Close the guide' }))
     expect(guide()).toBeNull()
     expect(useTaskStore.getState().onboardingDone).toBe(true)
+    const banner = useTaskStore.getState().undoBanner!
+    expect(banner.text).toEqual({ key: 'undo.guideClosed' })
+    act(() => void useTaskStore.getState().undoOperation(banner.undoId!))
+    expect(useTaskStore.getState().onboardingDone).toBe(false)
+    expect(guide()).toBeInTheDocument()
   })
 
   it('前から使っている人（データを引き継いだ人）には出さない', () => {

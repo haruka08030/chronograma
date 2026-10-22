@@ -4,7 +4,7 @@
  * 1 回の操作で「変わった行の、操作前の姿」だけを覚え、取り消しではその行だけを戻す（`updatedAt` は付け直す）。
  * - 全体の控えを丸ごと戻すと、操作のあとに同期で届いた他の端末の行まで消え、サーバーからも消してしまう
  * - 古い `updatedAt` のまま戻すと、次の同期でサーバー側が勝って取り消しが黙って元に戻る
- * - 戻すのはデータだけ。記録中のタイマーと見ている画面（絞り込み・日付など）は ⌘Z で変えない
+ * - 戻すのはデータ（と、はじめの案内を閉じたか）だけ。記録中のタイマーと見ている画面（絞り込み・日付など）は ⌘Z で変えない
  */
 import type { TaskState, ToastText } from './storeTypes'
 import type { StoreGet, StoreSet } from './slices/sliceTypes'
@@ -26,6 +26,9 @@ const SETTINGS = [
   'eventTemplates',
   'timetable',
   'addons',
+  // はじめの案内を × で閉じたのを戻す（自動で終わったときは積まない）
+  'onboardingDone',
+  'onboardingFinishedOn',
 ] as const
 type SettingKey = (typeof SETTINGS)[number]
 
@@ -79,6 +82,8 @@ function dataView(s: TaskState): DataView {
     eventTemplates: s.eventTemplates,
     timetable: s.timetable,
     addons: s.addons,
+    onboardingDone: s.onboardingDone,
+    onboardingFinishedOn: s.onboardingFinishedOn,
   }
 }
 
