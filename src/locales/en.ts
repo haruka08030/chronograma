@@ -1170,6 +1170,7 @@ export default {
     unreadable: 'Could not read this backup',
   },
   undo: {
+    guideClosed: 'Guide closed',
     timeSet: 'Placed “{{title}}” at {{time}}',
     imported: 'Imported a backup ({{count}} tasks)',
     imported_one: 'Imported a backup ({{count}} task)',

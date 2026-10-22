@@ -200,7 +200,11 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     setDailyReminders: (patch) => set((s) => ({ dailyReminders: { ...s.dailyReminders, ...patch } })),
     dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
     dismissGoogleConnectLine: () => set({ googleConnectLineDismissed: true }),
-    finishOnboarding: () => set({ onboardingDone: true, onboardingFinishedOn: appTodayKey() }),
+    finishOnboarding: () => {
+      // × で閉じたら二度と出ないので、元に戻せるようにする
+      pushUndo({ key: 'undo.guideClosed' })
+      set({ onboardingDone: true, onboardingFinishedOn: appTodayKey() })
+    },
     completeOnboarding: () => set({ onboardingDone: true, onboardingCompleted: true, onboardingFinishedOn: appTodayKey() }),
     dismissInstallNudge: () => set({ installNudgeDismissed: true }),
     dismissSignInNudge: () => set({ signInNudgeDismissed: true }),
