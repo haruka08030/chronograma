@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { useOnboardingStep } from '../../hooks/useShowsOnboarding'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { openTimeSlotUnderRow } from '../../lib/timeSlotTarget'
@@ -39,9 +40,11 @@ export function TomorrowButton({ task, tomorrowKey, viewingToday }: { task: Task
 export function TimerButton({ task }: { task: Task }) {
   const { t } = useTranslation()
   const timing = useTaskStore((s) => s.activeTimer?.taskId === task.id)
+  // はじめの案内の ③（行の ▶ で記録する）の間は、乗せなくても出しておく
+  const guided = useOnboardingStep() === 'record'
   if (timing) return null
   return (
-    <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} collapse mouseOnly>
+    <RowActionButton label={t('planner.startTimer')} onClick={() => startTimerForTask(task.id)} collapse pinned={guided} mouseOnly>
       <PlayIcon className="h-3 w-3" />
     </RowActionButton>
   )

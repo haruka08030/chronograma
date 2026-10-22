@@ -15,6 +15,7 @@ export function RowActionButton({
   revealOnHover = false,
   mouseOnly = false,
   collapse = false,
+  pinned = false,
   children,
 }: {
   label: string
@@ -23,6 +24,8 @@ export function RowActionButton({
   mouseOnly?: boolean
   /** 乗せていない間は場所も取らない（`SHOW_ON_ROW_HOVER`。行の時刻・締切と入れ替わる） */
   collapse?: boolean
+  /** `collapse` でも乗せなくても出しておく（はじめの案内が指している間の ▶） */
+  pinned?: boolean
   children: ReactNode
 }) {
   return (
@@ -33,7 +36,7 @@ export function RowActionButton({
       className={buttonClass(
         { variant: 'secondary', size: 'xs' },
         `h-7 w-7 shrink-0 px-0! py-0! text-zinc-500 pointer-coarse:h-9 pointer-coarse:w-9 dark:text-zinc-400 ${
-          collapse ? SHOW_ON_ROW_HOVER : revealOnHover ? REVEAL_ON_ROW_HOVER : ''
+          collapse && !pinned ? SHOW_ON_ROW_HOVER : revealOnHover ? REVEAL_ON_ROW_HOVER : ''
         } ${mouseOnly ? 'pointer-coarse:hidden' : ''}`,
       )}
     >
