@@ -141,7 +141,7 @@ function MainSettings({ onOpenIntegrations }: { onOpenIntegrations: () => void }
           )}
         </SettingsGroup>
 
-        {/* スマホは下のタブに追加機能が無いので、ここが入口（上のほうに置く） */}
+        {/* 追加機能の画面へ（スマホだけ。下のタブに無いので、ここが入口） */}
         <AddonsSettingsGroup />
 
         <SettingsGroup id="settings-categories" title={t('categories.title')}>

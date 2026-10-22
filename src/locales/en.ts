@@ -1366,7 +1366,6 @@ export default {
     title: 'Add-ons',
     intro: 'Only the add-ons you turn on appear in the calendar and the day plan.',
     open: 'Open',
-    openView: 'Open the add-ons page',
     switchAria: 'Use {{name}}',
     dues: {
       name: 'Payments & expiry dates',

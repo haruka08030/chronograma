@@ -1317,7 +1317,6 @@ export default {
     title: '追加機能',
     intro: 'オンにした機能だけが、カレンダーや今日の計画に出ます。',
     open: '開く',
-    openView: '追加機能の画面を開く',
     switchAria: '{{name}}を使う',
     dues: {
       name: '引き落とし・期限',
