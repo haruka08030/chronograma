@@ -1,5 +1,4 @@
 import type { CalendarEvent } from '../types/calendarEvent'
-import { settingSyncStep } from './settingSync'
 import { appTodayKey } from './timeZone'
 
 /**
@@ -73,11 +72,11 @@ export function normalizeSkippedEvents(raw: unknown): SkippedEvent[] {
       ...(x.removed === true ? { removed: true as const } : {}),
     })
   }
-  return clean(out)
+  return cleanSkipped(out)
 }
 
 /** 日付の新しい順・上限まで。undefined の項目は持たない（同期で比べたときに違って見えないように） */
-function clean(list: SkippedEvent[]): SkippedEvent[] {
+export function cleanSkipped(list: SkippedEvent[]): SkippedEvent[] {
   return [...list]
     .sort((a, b) => b.date.localeCompare(a.date) || b.start.localeCompare(a.start) || a.id.localeCompare(b.id))
     .slice(0, SKIPPED_MAX)
@@ -115,7 +114,7 @@ export function withSkipped(list: readonly SkippedEvent[], additions: readonly S
   const fresh = additions.filter((e) => !known.has(e.id))
   const kept = list.filter((e) => !e.removed || now - Date.parse(e.skippedAt) <= REMOVED_KEEP_MS)
   if (fresh.length === 0 && kept.length === list.length) return list as SkippedEvent[]
-  return clean([...kept, ...fresh])
+  return cleanSkipped([...kept, ...fresh])
 }
 
 /** 予定に戻った（Google でもとに戻した・アプリで消すのを取り消した）予定を外す。本当に消した印は残す。変わらなければ同じ並び */
@@ -149,21 +148,8 @@ export function withSkippedEvents(live: readonly CalendarEvent[], skipped: reado
   return extra.length === 0 ? (live as CalendarEvent[]) : [...live, ...extra]
 }
 
-/** 両方の端末で変えた並びを合わせる（どちらかで本当に消した予定は消したまま。ほかは先の並びのもの） */
-export function mergeSkipped(a: readonly SkippedEvent[], b: readonly SkippedEvent[]): SkippedEvent[] {
-  const byId = new Map<string, SkippedEvent>()
-  for (const e of [...a, ...b]) {
-    const prev = byId.get(e.id)
-    if (!prev || (e.removed && !prev.removed)) byId.set(e.id, e)
-  }
-  return clean([...byId.values()])
-}
-
-export const sameSkipped = (a: readonly SkippedEvent[], b: readonly SkippedEvent[]) =>
-  a.length === b.length && a.every((x, i) => JSON.stringify(x) === JSON.stringify(b[i]))
-
 /**
- * 同期。サーバーには利用者ごとに 1 行（`user_skipped_events`、`045`）。並び全体を 1 つの値として扱う。
+ * 同期。サーバーには利用者ごとに 1 行（`user_skipped_events`、`045`）。並び全体を 1 つの値として扱う（計画は `settingPlans.ts` の `planSkippedSync`）。
  * 予定はどの端末でも Google から見つかるので、両方で変えたとき（とこの端末でまだ一度も合わせていないとき）は両方を合わせる
  */
 export type LocalSkipped = { events: SkippedEvent[]; updatedAt: string | null; syncedAt?: string | null }
@@ -172,35 +158,6 @@ export type SkippedSyncPlan = {
   apply?: { events: SkippedEvent[]; updatedAt: string }
   push?: RemoteSkipped & { base: string | null }
   adopt?: string
-}
-
-export function planSkippedSync(
-  local: LocalSkipped,
-  remote: RemoteSkipped | null,
-  nowIso: string = new Date().toISOString(),
-  clockOffsetMs = 0,
-): SkippedSyncPlan {
-  // まだ一度もやらなかった予定が無ければ送らない
-  if (!remote) return local.updatedAt === null ? {} : { push: { events: local.events, updatedAt: local.updatedAt, base: null } }
-  const theirs = normalizeSkippedEvents(remote.events)
-  const syncedAt = local.syncedAt ?? null
-  const step = settingSyncStep({ updatedAt: local.updatedAt, syncedAt }, remote, sameSkipped(local.events, theirs), clockOffsetMs)
-  const dirty = local.updatedAt !== syncedAt
-  const remoteChanged = remote.updatedAt !== syncedAt
-  // まだ一度も合わせていない・両方で変えた: 両方を合わせる
-  if (step.kind === 'initial' || ((step.kind === 'push' || step.kind === 'apply') && dirty && remoteChanged)) {
-    const events = mergeSkipped(theirs, local.events)
-    if (sameSkipped(events, theirs)) return { apply: { events, updatedAt: remote.updatedAt } }
-    return { apply: { events, updatedAt: nowIso }, push: { events, updatedAt: nowIso, base: remote.updatedAt } }
-  }
-  switch (step.kind) {
-    case 'apply':
-      return { apply: { events: theirs, updatedAt: remote.updatedAt } }
-    case 'push':
-      return { push: { events: local.events, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
-    case 'adopt':
-      return { adopt: remote.updatedAt }
-    default:
-      return {}
-  }
+  /** 両方で変えて片方を捨てた数（並びは合わせるので 0） */
+  conflicts?: number
 }

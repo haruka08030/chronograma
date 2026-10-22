@@ -1,6 +1,5 @@
 import type { Task } from '../types/task'
 import { parseCanvasTaskId } from './canvasIds'
-import { settingSyncStep } from './settingSync'
 
 /**
  * 授業の予定と、LMS（Canvas・Moodle）の科目のつながり（#309）。授業の予定を押したカードに、その科目の未完了の課題を締切順に出す。
@@ -113,7 +112,7 @@ export function courseAssignments(tasks: readonly Task[], course: string): Task[
 }
 
 /**
- * つながりの同期。サーバーには利用者ごとに 1 行（`user_course_links`、`024`）。並び全体を 1 つの値として扱う（よく入れる予定と同じ合わせ方）。
+ * つながりの同期。サーバーには利用者ごとに 1 行（`user_course_links`、`024`）。よく入れる予定と同じ合わせ方（両方で変えたら予定の名前ごと）。
  * この端末でまだ一度も同期していなければ両方を合わせる（同じ名前はサーバーのつながり）
  */
 export type LocalCourseLinks = {
@@ -130,39 +129,9 @@ export type CourseLinkSyncPlan = {
   push?: RemoteCourseLinks & { base: string | null }
   /** 中身は同じ。手元の時刻ともとにした版をこのサーバーの版にそろえる */
   adopt?: string
+  /** 中身ごとに合わせたとき、両方が別の値に変えて新しいほうにした数 */
+  conflicts?: number
 }
 
 export const sameCourseLinks = (a: readonly CourseLink[], b: readonly CourseLink[]) =>
   a.length === b.length && a.every((x, i) => x.title === b[i]!.title && x.course === b[i]!.course)
-
-export function planCourseLinkSync(
-  local: LocalCourseLinks,
-  remote: RemoteCourseLinks | null,
-  nowIso: string = new Date().toISOString(),
-  clockOffsetMs = 0,
-): CourseLinkSyncPlan {
-  if (!remote) return { push: { links: local.links, updatedAt: local.updatedAt ?? nowIso, base: null } }
-  const remoteLinks = normalizeCourseLinks(remote.links)
-  const step = settingSyncStep(
-    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
-    remote,
-    sameCourseLinks(local.links, remoteLinks),
-    clockOffsetMs,
-  )
-  const neverSynced = (local.syncedAt ?? null) === null && (step.kind === 'push' || step.kind === 'apply')
-  switch (neverSynced ? 'initial' : step.kind) {
-    case 'initial': {
-      const links = normalizeCourseLinks([...remoteLinks, ...local.links])
-      if (sameCourseLinks(links, remoteLinks)) return { apply: { links, updatedAt: remote.updatedAt } }
-      return { apply: { links, updatedAt: nowIso }, push: { links, updatedAt: nowIso, base: remote.updatedAt } }
-    }
-    case 'apply':
-      return { apply: { links: remoteLinks, updatedAt: remote.updatedAt } }
-    case 'push':
-      return { push: { links: local.links, updatedAt: local.updatedAt ?? nowIso, base: step.kind === 'push' ? step.base : null } }
-    case 'adopt':
-      return { adopt: remote.updatedAt }
-    default:
-      return {}
-  }
-}

@@ -1,7 +1,10 @@
-import { taskKindFromFlags, type Task } from '../types/task'
+import { taskKindFromFlags, type MovedPlan, type Task } from '../types/task'
 import type { TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
-import type { Habit } from '../types/habit'
+import type { Habit, HabitTimeOverrides } from '../types/habit'
+import { sameValue } from './sameValue'
+import { merge3ById, merge3Record } from './settingMerge'
+import { MAX_MOVED_PLANS } from './movedPlans'
 import { CANVAS_LIST_ID, isCanvasListId } from './canvasIds'
 import { BUILTIN_NAMES, LEGACY_BUILTIN_LIST_NAMES } from '../locales/builtinNames'
 import { reanchorTask } from './taskTimeZone'
@@ -35,6 +38,13 @@ export interface SyncBaseline {
    * （片方で足し、片方で外したとき、どちらも残す）。古い控えには無い
    */
   taskTags?: Record<string, string[]>
+  /**
+   * 前回同期した時点の習慣ごとの日ごとの時間（あるものだけ）。日ごとに合わせる
+   * （スマホで月曜・PC で火曜の時間を動かしたとき、どちらも残す）。古い控えには無い
+   */
+  habitTimeOverrides?: Record<string, HabitTimeOverrides>
+  /** 前回同期した時点の To-Do ごとの移した予定（あるものだけ）。元の日ごとに合わせる。古い控えには無い */
+  taskMovedPlans?: Record<string, MovedPlan[]>
   /**
    * 前回同期した時点の、行ごと・項目ごとの値の短いハッシュ（値そのものは持たない。容量を食うため）。
    * 両方の端末で同じ行を変えたとき、変えた項目どうしなら両方を残すのに使う（スマホでタイトル・PC で完了）。古い控えには無い
@@ -385,6 +395,90 @@ function mergeHabitDateSets(
 }
 
 /**
+ * 両方にある行の、小さなものの集まりの項目（日ごとの時間・移した予定）を中身ごとに三方向で合わせる。
+ * 片方だけが変えた日はその側、両方が別の値に変えた日は行ごとの合わせ方で勝った側（`merged` の行の値）。
+ * 控え（`base`）が無ければ何もしない（古い控え。前の動きのまま）。合わせた結果が勝った側と違えば `updatedAt` を今にする
+ */
+function mergeRowParts<T extends { id: string; updatedAt?: string }, V>(
+  merged: T[],
+  local: readonly T[],
+  remote: readonly T[],
+  base: Record<string, V> | undefined,
+  get: (x: T) => V | undefined,
+  combine: (b: V | undefined, l: V | undefined, r: V | undefined, prefer: 'l' | 'r') => V | undefined,
+  put: (x: T, v: V | undefined) => T,
+  nowIso: string,
+): T[] {
+  if (!base) return merged
+  const localById = new Map(local.map((x) => [x.id, x]))
+  const remoteById = new Map(remote.map((x) => [x.id, x]))
+  return merged.map((m) => {
+    const l = localById.get(m.id)
+    const r = remoteById.get(m.id)
+    if (!l || !r) return m
+    const lv = get(l)
+    const rv = get(r)
+    if (sameValue(lv, rv)) return m
+    const next = combine(base[m.id], lv, rv, sameValue(get(m), lv) ? 'l' : 'r')
+    return sameValue(next, get(m)) ? m : { ...put(m, next), updatedAt: nowIso }
+  })
+}
+
+/** 習慣の日ごとの時間を日ごとに合わせる（`mergeRowParts`）。1 日も残らなければ項目ごと外す */
+export function mergeHabitTimeOverrides(
+  merged: Habit[],
+  local: readonly Habit[],
+  remote: readonly Habit[],
+  base: Record<string, HabitTimeOverrides> | undefined,
+  nowIso: string = new Date().toISOString(),
+): Habit[] {
+  return mergeRowParts(
+    merged,
+    local,
+    remote,
+    base,
+    (h) => h.timeOverrides,
+    (b, l, r, prefer) => {
+      const out = merge3Record(b ?? {}, l ?? {}, r ?? {}, prefer)
+      return Object.keys(out).length > 0 ? out : undefined
+    },
+    (h, timeOverrides) => {
+      const out: Habit = { ...h, timeOverrides }
+      if (!timeOverrides) delete out.timeOverrides
+      return out
+    },
+    nowIso,
+  )
+}
+
+/** To-Do の移した予定を元の日ごとに合わせる（`mergeRowParts`）。1 つも残らなければ項目ごと外す */
+export function mergeTaskMovedPlans(
+  merged: Task[],
+  local: readonly Task[],
+  remote: readonly Task[],
+  base: Record<string, MovedPlan[]> | undefined,
+  nowIso: string = new Date().toISOString(),
+): Task[] {
+  return mergeRowParts(
+    merged,
+    local,
+    remote,
+    base,
+    (t) => t.movedPlans,
+    (b, l, r, prefer) => {
+      const out = merge3ById(b ?? [], l ?? [], r ?? [], (p) => p.date, prefer).slice(-MAX_MOVED_PLANS)
+      return out.length > 0 ? out : undefined
+    },
+    (t, movedPlans) => {
+      const out: Task = { ...t, movedPlans }
+      if (!movedPlans) delete out.movedPlans
+      return out
+    },
+    nowIso,
+  )
+}
+
+/**
  * 両方の端末が同じ項目を別の値に変え、新しいほうに任せた（片方の編集を捨てた）回数。キーは `表.項目`（例 `tasks.title`）。
  * 値そのものは入れない。あとで集合として合わせ直す項目（控えのあるタスクのタグ・習慣の達成日）は捨てていないので数えない
  */
@@ -442,9 +536,10 @@ export function mergeSnapshots(
     off,
     (t) => reanchorTask(t, zone),
     nowIso,
-    count('tasks', baseline.taskTags ? 'tags' : undefined),
+    count('tasks', baseline.taskTags ? 'tags' : undefined, baseline.taskMovedPlans ? 'movedPlans' : undefined),
   )
   tasks.merged = mergeTaskTags(tasks.merged, local.tasks, remote.tasks, baseline.taskTags)
+  tasks.merged = mergeTaskMovedPlans(tasks.merged, local.tasks, remote.tasks, baseline.taskMovedPlans, nowIso)
   const habits = mergeKind(
     local.habits,
     remote.habits,
@@ -454,10 +549,11 @@ export function mergeSnapshots(
     off,
     asIs,
     nowIso,
-    count('habits', 'completedDates', 'restDates'),
+    count('habits', 'completedDates', 'restDates', baseline.habitTimeOverrides ? 'timeOverrides' : undefined),
   )
   habits.merged = mergeHabitDates(habits.merged, local.habits, remote.habits, baseline.habitDates)
   habits.merged = mergeHabitRestDates(habits.merged, local.habits, remote.habits, baseline.habitRestDates, nowIso)
+  habits.merged = mergeHabitTimeOverrides(habits.merged, local.habits, remote.habits, baseline.habitTimeOverrides, nowIso)
 
   // 片方で消えた親を参照していると外部キーで push が落ちるので付け替える
   const listIds = new Set(lists.merged.map((l) => l.id))
@@ -587,6 +683,8 @@ export function baselineFrom(s: SyncSnapshot): SyncBaseline {
     habitDates: Object.fromEntries(s.habits.map((h) => [h.id, [...h.completedDates]])),
     habitRestDates: Object.fromEntries(s.habits.filter((h) => h.restDates).map((h) => [h.id, [...h.restDates!]])),
     taskTags: Object.fromEntries(s.tasks.filter((t) => t.tags.length > 0).map((t) => [t.id, [...t.tags]])),
+    habitTimeOverrides: Object.fromEntries(s.habits.filter((h) => h.timeOverrides).map((h) => [h.id, { ...h.timeOverrides! }])),
+    taskMovedPlans: Object.fromEntries(s.tasks.filter((t) => t.movedPlans).map((t) => [t.id, [...t.movedPlans!]])),
     fields: {
       lists: fieldsBaseline(s.lists),
       sections: fieldsBaseline(s.sections),

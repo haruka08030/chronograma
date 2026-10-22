@@ -12,22 +12,13 @@
  */
 import { sameValue } from '../lib/sameValue'
 import { DATA_KEYS } from './persistKeys'
+import { ROW_KEYS, SETTING_STAMPS } from './storedSettings'
 
 type State = Record<string, unknown>
 
-const ROW_KEYS = ['tasks', 'lists', 'habits', 'sections'] as const
-/** 変えた時刻と、その時刻で比べる値 */
-const STAMPED: Record<string, readonly string[]> = {
-  logLabelsUpdatedAt: ['timeLogTagPresets', 'logCategoryColors', 'logLabelTargets', 'logLabelIds'],
-  extraTimeZonesUpdatedAt: ['extraTimeZones'],
-  eventTemplatesUpdatedAt: ['eventTemplates'],
-  courseLinksUpdatedAt: ['courseLinks'],
-  skippedEventsUpdatedAt: ['skippedEvents'],
-  timetableUpdatedAt: ['timetable'],
-  addonsUpdatedAt: ['addons'],
-  sleepTimerUpdatedAt: ['sleepTimer'],
-}
 const KEEP_STORED = ['activeTimer', 'activeTimerUpdatedAt', 'dataOwner']
+/** 変えた時刻と、その時刻で比べる値（`STORED_SETTINGS` の表から。動いているタイマーは IndexedDB の本体のまま） */
+const STAMPED = Object.fromEntries(Object.entries(SETTING_STAMPS).filter(([stamp]) => !KEEP_STORED.includes(stamp)))
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const idOf = (v: unknown) => (isPlainObject(v) ? v.id : undefined)
@@ -63,7 +54,7 @@ export function mergeRecoveredState(stored: State, local: State, defaults: State
   const state: State = { ...stored }
   for (const key of DATA_KEYS as readonly string[]) {
     if (!(key in local) || KEEP_STORED.includes(key) || (ROW_KEYS as readonly string[]).includes(key)) continue
-    if (key in STAMPED || Object.values(STAMPED).some((keys) => keys.includes(key))) continue
+    if (key in STAMPED || Object.values(STAMPED).some((keys) => (keys as string[]).includes(key))) continue
     if (sameValue(local[key], defaults[key])) continue
     state[key] = mergeChanged(stored[key], local[key], defaults[key])
   }
@@ -81,4 +72,28 @@ export function mergeRecoveredState(stored: State, local: State, defaults: State
   }
   state.dataOwner = ownerA === ownerB ? ownerA : null
   return { state, replaced: false }
+}
+
+type BaselineRows = Partial<Record<(typeof ROW_KEYS)[number], Record<string, unknown>>>
+
+/**
+ * その回で消した行を外す。その回は同期していれば（その回の控えがあれば）サーバーの行を全部持っていたので、
+ * IndexedDB の本体にだけある行のうち、前に同期した（置き換える前の控え `before` にある）のにその回の控え `after` に無い行は、
+ * その回で完全に消した・ほかの端末で消された行。残すと次の同期で「この端末で足した行」として送り直していた。
+ * 前の控えに無い行（IndexedDB の側で足してまだ送っていない行）は残す
+ */
+export function dropRowsDeletedInRecovered(state: State, local: State, before: BaselineRows, after: BaselineRows): State {
+  const out: State = { ...state }
+  for (const key of ROW_KEYS) {
+    const prev = before[key]
+    const now = after[key]
+    if (!prev || !now || !Array.isArray(out[key])) continue
+    const localIds = new Set<unknown>(Array.isArray(local[key]) ? (local[key] as unknown[]).map(idOf) : [])
+    out[key] = (out[key] as unknown[]).filter((row) => {
+      const id = idOf(row)
+      if (typeof id !== 'string' || localIds.has(id)) return true
+      return !(id in prev) || id in now
+    })
+  }
+  return out
 }

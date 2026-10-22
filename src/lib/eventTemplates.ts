@@ -1,6 +1,5 @@
 import { isEventTask, type Task } from '../types/task'
 import { toMinutes } from './clockTime'
-import { settingSyncStep } from './settingSync'
 
 /**
  * よく入れる予定（バイトのシフトの「早番 9:00–15:00」など、#311）。月表示で選んでから日を続けて押すと、その日に同じ予定が入る。
@@ -84,8 +83,8 @@ export function templateTimeLabel(template: Pick<EventTemplate, 'startTime' | 'e
 }
 
 /**
- * よく入れる予定の同期。サーバーには利用者ごとに 1 行（`user_event_templates`、`022`）。並び全体を 1 つの値として扱う。
- * - どちらに合わせるかは `settingSync.ts`（サーバーの時計の版と、手元で変えたか）
+ * よく入れる予定の同期。サーバーには利用者ごとに 1 行（`user_event_templates`、`022`）。
+ * - どちらに合わせるかは `settingSync.ts`（サーバーの時計の版と、手元で変えたか）。両方の端末で変えていたら id ごとに合わせる
  * - この端末でまだ一度も同期していない（変えた時刻・もとにした版が無い）ときは、両方を合わせる（サーバーの並びのあとに手元にしか無いもの。どちらの端末で登録したものも消さない）
  */
 export type LocalEventTemplates = {
@@ -102,42 +101,10 @@ export type EventTemplateSyncPlan = {
   push?: RemoteEventTemplates & { base: string | null }
   /** 中身は同じ。手元の時刻ともとにした版をこのサーバーの版にそろえる */
   adopt?: string
+  /** 中身ごとに合わせたとき、両方が別の値に変えて新しいほうにした数 */
+  conflicts?: number
 }
 
 const templateKey = (t: EventTemplate) => JSON.stringify([t.id, t.title, t.startTime, t.endTime, t.color])
 export const sameEventTemplates = (a: readonly EventTemplate[], b: readonly EventTemplate[]) =>
   a.length === b.length && a.every((x, i) => templateKey(x) === templateKey(b[i]!))
-
-export function planEventTemplateSync(
-  local: LocalEventTemplates,
-  remote: RemoteEventTemplates | null,
-  nowIso: string = new Date().toISOString(),
-  clockOffsetMs = 0,
-): EventTemplateSyncPlan {
-  if (!remote) return { push: { templates: local.templates, updatedAt: local.updatedAt ?? nowIso, base: null } }
-  const remoteTemplates = normalizeEventTemplates(remote.templates)
-  const step = settingSyncStep(
-    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
-    remote,
-    sameEventTemplates(local.templates, remoteTemplates),
-    clockOffsetMs,
-  )
-  // この端末でまだ一度も合わせていない（ログインする前に登録した・もとにした版が分からない）: 新しいほうに丸ごと合わせず両方を残す
-  const neverSynced = (local.syncedAt ?? null) === null && (step.kind === 'push' || step.kind === 'apply')
-  switch (neverSynced ? 'initial' : step.kind) {
-    case 'initial': {
-      // 初めて: サーバーの並びのあとに、手元にしか無いもの（同じ id はサーバーの中身）
-      const templates = normalizeEventTemplates([...remoteTemplates, ...local.templates])
-      if (sameEventTemplates(templates, remoteTemplates)) return { apply: { templates, updatedAt: remote.updatedAt } }
-      return { apply: { templates, updatedAt: nowIso }, push: { templates, updatedAt: nowIso, base: remote.updatedAt } }
-    }
-    case 'apply':
-      return { apply: { templates: remoteTemplates, updatedAt: remote.updatedAt } }
-    case 'push':
-      return { push: { templates: local.templates, updatedAt: local.updatedAt ?? nowIso, base: step.kind === 'push' ? step.base : null } }
-    case 'adopt':
-      return { adopt: remote.updatedAt }
-    default:
-      return {}
-  }
-}

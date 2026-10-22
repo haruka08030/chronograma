@@ -1,8 +1,8 @@
-import { isLogTask, isSleepTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, isSleepTask, type Task } from '../types/task'
 import type { ActiveTimer } from '../store/storeTypes'
 import { isActiveTask } from './taskLifecycle'
 import { logOverlapsDateKey, logSegmentClockOnDay } from './taskTimeRange'
-import { timeToMinutes } from './clockTime'
+import { minutesOfDay, timeToMinutes } from './clockTime'
 import { toAppWall } from './timeZone'
 import { toDateKey } from './dateKey'
 import type { LogLimit } from './timelineBlockEdit'
@@ -20,8 +20,8 @@ const MORNING_END = 12 * 60
 const NIGHT_START = 18 * 60
 
 /**
- * その日の「記録の無い時間」。起きてから寝るまで（今日は今まで）のうち、記録・睡眠・動いているタイマーの
- * どれにもかからない `minMinutes` 分以上の所。
+ * その日の「記録の無い時間」。起きてから寝るまで（今日は今まで）のうち、記録・睡眠・動いているタイマー・
+ * 過ぎた予定（授業・バイト。出たものとして扱う、`busy`）のどれにもかからない `minMinutes` 分以上の所。
  * - 起きた時刻: 朝（12 時より前に始まった）の睡眠のうち最初のものの終わり。無ければ記録の最初
  * - 寝た時刻: 夜（18 時以降に始まった・日の終わりまで続く）の睡眠のうち最初のものの始まり。無ければ記録の最後（今日は今）
  * - `limitMin` は記録に使える最後の分（今日は今、過ぎた日は null、先の日は 0）。今・これからの時間には出さない
@@ -32,12 +32,15 @@ export function unrecordedGaps(
     sleeps,
     limitMin,
     timer,
+    busy = [],
   }: {
     records: readonly MinuteSpan[]
     sleeps: readonly MinuteSpan[]
     limitMin: number | null
     /** 動いているタイマーの、その日にかかる区間（今まで記録している所） */
     timer?: MinuteSpan | null
+    /** 予定（授業・バイト）の区間。抜けを埋めるだけで、起きた・寝た時刻には使わない */
+    busy?: readonly MinuteSpan[]
   },
   minMinutes = MIN_UNRECORDED_GAP_MINUTES,
 ): MinuteSpan[] {
@@ -56,7 +59,9 @@ export function unrecordedGaps(
   if (limitMin !== null) until = Math.min(until, limitMin)
   if (until - from < minMinutes) return []
 
-  const covered = [...records, ...sleeps, ...(timer ? [timer] : [])].filter((s) => s.end > s.start).sort((a, b) => a.start - b.start)
+  const covered = [...records, ...sleeps, ...busy, ...(timer ? [timer] : [])]
+    .filter((s) => s.end > s.start)
+    .sort((a, b) => a.start - b.start)
   const gaps: MinuteSpan[] = []
   let cursor = from
   for (const c of covered) {
@@ -68,7 +73,7 @@ export function unrecordedGaps(
   return gaps.filter((g) => g.end - g.start >= minMinutes)
 }
 
-/** 記録のその日にかかる区間（分）。日の終わりまで続くものは 1440 */
+/** 記録・予定のその日にかかる区間（分）。日の終わりまで続くものは 1440 */
 function segmentOnDay(task: Task, dateKey: string): MinuteSpan | null {
   const seg = logSegmentClockOnDay(task, dateKey)
   if (!seg) return null
@@ -85,16 +90,43 @@ export function timerSpanOnDay(timer: ActiveTimer | null | undefined, dateKey: s
   const wall = toAppWall(ms)
   const startKey = toDateKey(wall)
   if (startKey > dateKey) return null
-  const start = startKey < dateKey ? 0 : wall.getHours() * 60 + wall.getMinutes()
+  const start = startKey < dateKey ? 0 : minutesOfDay(wall)
   return start < limitMin ? { start, end: limitMin } : null
 }
 
-/** その日のタイムラインの記録の列に出している記録（睡眠も）から、記録の無い時間を出す */
+/** 予定（授業・バイト）のその回を欠席にしたか（`isAbsent`。時間割の欠席の印） */
+export type AbsentOn = (title: string, dateKey: string) => boolean
+
+/**
+ * その日の予定（授業・バイト）のうち、出たものとして記録の抜けを埋める区間。時刻の無い（終日の）予定・欠席にした回・
+ * ゴミ箱やアーカイブ・いつか / チェックリストのリストのものは入れない
+ */
+export function eventSpansOnDay(
+  tasks: readonly Task[],
+  dateKey: string,
+  absentOn?: AbsentOn,
+  excludedListIds: ReadonlySet<string> = new Set(),
+): MinuteSpan[] {
+  const out: MinuteSpan[] = []
+  for (const t of tasks) {
+    if (!isEventTask(t) || t.parentId || !t.startTime || !t.endTime || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
+    const span = segmentOnDay(t, dateKey)
+    if (!span) continue
+    // 欠席は予定の日（始まった日）の回で見る
+    const placed = t.scheduledDate ?? t.dueDate
+    if (placed && absentOn?.(t.title, placed)) continue
+    out.push(span)
+  }
+  return out
+}
+
+/** その日のタイムラインの記録の列に出している記録（睡眠も）と、予定（`eventSpansOnDay`）から、記録の無い時間を出す */
 export function unrecordedGapsForDay(
   dayLogs: readonly Task[],
   dateKey: string,
   limitMin: number | null,
   timer?: ActiveTimer | null,
+  busy: readonly MinuteSpan[] = [],
 ): MinuteSpan[] {
   const records: MinuteSpan[] = []
   const sleeps: MinuteSpan[] = []
@@ -102,7 +134,7 @@ export function unrecordedGapsForDay(
     const span = segmentOnDay(t, dateKey)
     if (span) (isSleepTask(t) ? sleeps : records).push(span)
   }
-  return unrecordedGaps({ records, sleeps, limitMin, timer: timerSpanOnDay(timer, dateKey, limitMin) })
+  return unrecordedGaps({ records, sleeps, limitMin, timer: timerSpanOnDay(timer, dateKey, limitMin), busy })
 }
 
 /** その日にかかる記録（睡眠も。タイムラインの記録の列と同じ選び方） */
@@ -117,13 +149,22 @@ export function unrecordedMinutes(gaps: readonly MinuteSpan[]): number {
   return gaps.reduce((sum, g) => sum + (g.end - g.start), 0)
 }
 
-/** その日の記録の無い時間の合計（分）。1 日の見出しと週のふりかえりで使う */
+/** その日の記録の無い時間の合計（分）。1 日の見出しと週のふりかえりで使う（タイムラインの点線の枠と同じ抜け） */
 export function unrecordedMinutesOnDay(
   tasks: readonly Task[],
   dateKey: string,
   logLimit: LogLimit,
   timer?: ActiveTimer | null,
   excludedListIds?: ReadonlySet<string>,
+  absentOn?: AbsentOn,
 ): number {
-  return unrecordedMinutes(unrecordedGapsForDay(logsOnDay(tasks, dateKey, excludedListIds), dateKey, logLimit(dateKey), timer))
+  return unrecordedMinutes(
+    unrecordedGapsForDay(
+      logsOnDay(tasks, dateKey, excludedListIds),
+      dateKey,
+      logLimit(dateKey),
+      timer,
+      eventSpansOnDay(tasks, dateKey, absentOn, excludedListIds),
+    ),
+  )
 }

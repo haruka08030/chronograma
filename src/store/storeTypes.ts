@@ -82,7 +82,7 @@ export interface ActiveTimer {
 export interface DailyReminders {
   /** 朝のまとめ */
   planTime: string | null
-  /** 夜の締め（その日の数字つきで「1 日を締める」へ誘う、#299）。無い（前の版の保存）は null と同じ */
+  /** 夜のまとめ（その日の数字つき、#299）。無い（前の版の保存）は null と同じ */
   wrapUpTime?: string | null
 }
 
@@ -672,11 +672,11 @@ export interface TaskState {
   /** 自動バックアップにあって今は無いものだけを戻す。戻したタスク数（読めなければ null） */
   restoreMissingFromBackup: (json: string) => number | null
   /**
-   * CSV からタスクを追加（既存データは保持）。TickTick のバックアップ・Todoist のプロジェクトの CSV もそのまま読む。
+   * CSV からタスクを追加（既存データは保持）。読み取りの部品は呼んだときに読む（起動時に読まない）。TickTick のバックアップ・Todoist のプロジェクトの CSV もそのまま読む。
    * 一致するリスト・ラベルの無いリスト名は、`unknownLists: 'label'` ならその名前のラベルを作って付け、`'inbox'`（既定）ならラベルなし
    */
   importTasksFromCsv: (
     csv: string,
     options?: { fileName?: string; unknownLists?: 'label' | 'inbox' },
-  ) => { imported: number; skipped: number; errors: string[] }
+  ) => Promise<{ imported: number; skipped: number; errors: string[] }>
 }

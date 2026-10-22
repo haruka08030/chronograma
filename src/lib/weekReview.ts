@@ -2,10 +2,10 @@ import { isLogTask, isSleepTask, type Task } from '../types/task'
 import { isHabitActive, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
-import { habitToPlannedItem } from './habitSlots'
 import { buildHabitRecordIndex, habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { isHabitCountedOnDate, timesPerWeekTally } from './habitStats'
-import { matchPlanAndActualForDate, type MatchedPair } from './matchEvents'
+import type { MatchedPair } from './matchEvents'
+import { countDayResult, habitPlanSlot, planEnded } from '../../supabase/functions/_shared/dayResult.ts'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { movedPlanToPlannedItem, movedPlansOnDay } from './movedPlans'
 import { isActiveTask } from './taskLifecycle'
@@ -15,9 +15,9 @@ import { addDays } from 'date-fns'
 import type { TFunction } from 'i18next'
 import { fromDateKey, toDateKey } from './dateKey'
 import { clockOf } from './clockTime'
-import { timeToMinutes } from './timeGrid'
+import { formatDuration, timeToMinutes } from './timeGrid'
 import { monthHabitWeekStarts, reviewPeriodDays, reviewPeriodStart, shiftReviewPeriod, type ReviewPeriod } from './reviewPeriod'
-import { unrecordedMinutesOnDay } from './unrecordedGaps'
+import { unrecordedMinutesOnDay, type AbsentOn } from './unrecordedGaps'
 
 /** 予定の長さ（分）。0:00 終わりはその日の終わりまで（23:00–0:00） */
 function plannedItemMinutes(p: PlannedItem): number {
@@ -41,6 +41,20 @@ export interface WeekReviewDay {
   followed: number
   /** 予定に無かった記録（どの予定とも組にならなかった記録）の時間（#275） */
   unplannedMinutes: number
+}
+
+/**
+ * 日ごとの棒・月のマスのツールチップ「月: 記録 6時間 / 予定 4 件中 3 件（3時間）/ 完了 2/3」。
+ * 「予定 N 件中 M 件」は今日の計画の見出し・通知と同じ数え方（`countDayResult`）、（ ）の中は予定の枠の時間
+ */
+export function dayTooltipText(t: TFunction, label: string, day: WeekReviewDay): string {
+  const plan =
+    day.timedPlanned > 0
+      ? t('weekReview.dayTooltipPlan', { planned: day.timedPlanned, followed: day.followed, time: formatDuration(day.plannedMinutes) })
+      : day.plannedMinutes > 0
+        ? t('weekReview.dayTooltipPlanTime', { time: formatDuration(day.plannedMinutes) })
+        : ''
+  return t('weekReview.dayTooltip', { day: label, logged: formatDuration(day.loggedMinutes), plan, done: day.done, total: day.total })
 }
 
 /** 記録のラベル（`recordLabelKey`）を決めるのに使うもの。予定は「その予定から作る記録」の形（分類なし・色だけ）で渡す */
@@ -115,18 +129,6 @@ export function foldLabelMinutes<R extends { tag: string; minutes: number }>(
   return { shown: rows.filter((r) => !foldedSet.has(r)), others: folded.reduce((a, x) => a + x.minutes, 0) }
 }
 
-/** `anchor` を含む週（月曜始まり）の振り返り。未来の日は数えない */
-export function getWeekReview(
-  tasks: readonly Task[],
-  habits: readonly Habit[],
-  anchor: Date,
-  excludedListIds: ReadonlySet<string> = new Set(),
-  now = zonedNow(),
-  labelOf?: (log: LabelSource) => string,
-): WeekReview {
-  return getReview(tasks, habits, 'week', anchor, excludedListIds, now, labelOf)
-}
-
 /**
  * `anchor` を含む期間（週: 月曜始まり / 月: 暦の月, #304）の振り返り。未来の日は数えない。
  * 月の「週に◯回」の習慣は、4 日以上がその月にある週だけで数える（`monthHabitWeekStarts`）
@@ -143,6 +145,8 @@ export function getReview(
    * 予定のラベルは、その予定から ✓ / ▶ で作る記録と同じ（To-Do・習慣の色 → その色のラベル → 名前の無い色）
    */
   labelOf: (log: LabelSource) => string = (log) => log.category ?? '',
+  /** 予定（授業・バイト）のその回を欠席にしたか。欠席の回は記録の無い時間を埋めない */
+  absentOn?: AbsentOn,
 ): WeekReview {
   const {
     days,
@@ -151,7 +155,7 @@ export function getReview(
     unplanned,
     habitDue: dailyDue,
     habitDone: dailyDone,
-  } = collectReviewDays(tasks, habits, reviewPeriodDays(period, anchor), excludedListIds, now, labelOf)
+  } = collectReviewDays(tasks, habits, reviewPeriodDays(period, anchor), excludedListIds, now, labelOf, absentOn)
   const todayKey = toDateKey(now)
   let habitDue = dailyDue
   let habitDone = dailyDone
@@ -221,8 +225,7 @@ export function plannedItemsOnDay(
     if (item) out.push({ item, color: task.color })
   }
   for (const h of habits) {
-    if (h.frequency.type === 'timesPerWeek' && habitDayStatus(h, key, habitRecords) === 'missed') continue
-    const item = habitToPlannedItem(h, key)
+    const item = habitPlanSlot(h, key, habitRecords)
     if (item) out.push({ item, color: h.color })
   }
   return out
@@ -239,6 +242,7 @@ function collectReviewDays(
   excludedListIds: ReadonlySet<string>,
   now: Date,
   labelOf: (log: LabelSource) => string,
+  absentOn?: AbsentOn,
   /** 「計画どおり実行」に数えた予定の組ごとに呼ぶ（ずれやすい曜日・時間帯、`getPlanDriftCells`） */
   onCountedPair?: (date: Date, pair: MatchedPair) => void,
 ): {
@@ -269,7 +273,7 @@ function collectReviewDays(
       dateKey: key,
       plannedMinutes: 0,
       loggedMinutes: plan.loggedMinutes,
-      unrecordedMinutes: unrecordedMinutesOnDay(tasks, key, logLimit, null, excludedListIds),
+      unrecordedMinutes: unrecordedMinutesOnDay(tasks, key, logLimit, null, excludedListIds, absentOn),
       done: plan.done.length,
       total: plan.done.length + plan.open.length,
       tagMinutes: [],
@@ -318,38 +322,29 @@ function collectReviewDays(
       if (planEnded(key, todayKey, nowHm, p)) cur.endedMinutes += min
       labelPlans.set(tag, cur)
     }
-    for (const pair of matchPlanAndActualForDate(planned, logs)) {
-      // 予定に無かった記録（どの予定とも組にならなかった記録）。ラベルと題名でまとめる
-      if (pair.status === 'actual-only' && pair.actual) {
-        const min = minutesOfLogOnCalendarDay(pair.actual, key)
-        const tag = labelOf(pair.actual)
-        const title = pair.actual.title.trim()
-        const k = `${tag}\u0000${title}`
-        const cur = unplanned.get(k) ?? { tag, title, minutes: 0 }
-        cur.minutes += min
-        unplanned.set(k, cur)
-        day.unplannedMinutes += min
-        continue
-      }
-      if (!pair.planned) continue
-      // 予定（授業・バイト）は完了できないので分母に入れない（突き合わせには入れて、その時間の記録を「予定に無かった記録」にしない）
-      if (pair.planned.source === 'scheduled-event') continue
-      // ✓ で終えた時刻つきの To-Do は、記録が無くても予定どおり（RULES: ✓ は完了だけで記録は足さない。予定ブロックが時間を表す）
-      const followedPair =
-        pair.status === 'matched' || pair.status === 'time-drift' || (pair.status === 'planned-only' && pair.planned.completed === true)
-      // 今日の、まだ終わっていない予定（日をまたぐものも含む）は、先に記録できていなければ数えない
-      if (!planEnded(key, todayKey, nowHm, pair.planned) && !followedPair) continue
-      day.timedPlanned++
-      if (followedPair) day.followed++
-      onCountedPair?.(date, pair)
+    // 「予定 N 件中 M 件・予定外」は通知と同じ数え方（`countDayResult`）
+    const result = countDayResult(planned, logs, {
+      dateKey: key,
+      todayKey,
+      nowHm,
+      logMinutes: (log) => minutesOfLogOnCalendarDay(log, key),
+    })
+    day.timedPlanned = result.planned
+    day.followed = result.followed
+    day.unplannedMinutes = result.unplannedMinutes
+    for (const pair of result.counted) onCountedPair?.(date, pair)
+    // 予定に無かった記録（どの予定とも組にならなかった記録）。ラベルと題名でまとめる
+    for (const log of result.unplannedLogs) {
+      const min = minutesOfLogOnCalendarDay(log, key)
+      const tag = labelOf(log)
+      const title = log.title.trim()
+      const k = `${tag}\u0000${title}`
+      const cur = unplanned.get(k) ?? { tag, title, minutes: 0 }
+      cur.minutes += min
+      unplanned.set(k, cur)
     }
   }
   return { days, tagMinutes, labelPlans, unplanned, habitDue, habitDone }
-}
-
-/** 予定の時間が過ぎたか（過ぎた日はすべて。今日は終わりの時刻を過ぎたもの。日をまたぐ予定は今日のうちは過ぎていない） */
-function planEnded(key: string, todayKey: string, nowHm: string, p: PlannedItem): boolean {
-  return key < todayKey || (key === todayKey && p.endTime > p.startTime && p.endTime <= nowHm)
 }
 
 /**
@@ -363,8 +358,9 @@ export function getDayReviews(
   excludedListIds: ReadonlySet<string> = new Set(),
   now = zonedNow(),
   labelOf: (log: LabelSource) => string = (log) => log.category ?? '',
+  absentOn?: AbsentOn,
 ): WeekReviewDay[] {
-  return collectReviewDays(tasks, habits, dates, excludedListIds, now, labelOf).days
+  return collectReviewDays(tasks, habits, dates, excludedListIds, now, labelOf, absentOn).days
 }
 
 /**
@@ -380,6 +376,7 @@ export function getPrevReview(
   excludedListIds: ReadonlySet<string> = new Set(),
   now = zonedNow(),
   labelOf?: (log: LabelSource) => string,
+  absentOn?: AbsentOn,
 ): WeekReview {
   // 「今」を 1 期間前にずらすと、前の期間は同じ日で打ち切られる
   return getReview(
@@ -390,6 +387,7 @@ export function getPrevReview(
     excludedListIds,
     shiftReviewPeriod(period, now, -1),
     labelOf,
+    absentOn,
   )
 }
 
@@ -408,23 +406,6 @@ export function compareReviews(current: WeekReview, prev: WeekReview): ReviewCom
     loggedDiff: current.loggedMinutes - prev.loggedMinutes,
     labelDiff: new Map(current.labelMinutes.map((x) => [x.tag, x.minutes - (prevByLabel.get(x.tag) ?? 0)])),
   }
-}
-
-/**
- * 記録した時間の、前の週との差（分。今週 − 前の週）。前の週に記録が無ければ null（比べる相手が無いので出さない）。
- * 今週は今日までしか数えないので、前の週も同じ曜日までで比べる（週の頭に「先週より −10時間」と出さない）
- */
-export function loggedMinutesVsPrevWeek(
-  loggedMinutes: number,
-  tasks: readonly Task[],
-  habits: readonly Habit[],
-  anchor: Date,
-  excludedListIds: ReadonlySet<string> = new Set(),
-  now = zonedNow(),
-): number | null {
-  const prev = getPrevReview(tasks, habits, 'week', anchor, excludedListIds, now)
-  if (prev.loggedMinutes === 0) return null
-  return loggedMinutes - prev.loggedMinutes
 }
 
 function sortedTagMinutes(m: ReadonlyMap<string, number>): { tag: string; minutes: number }[] {
@@ -484,6 +465,7 @@ export function getPlanDriftCells(
     excludedListIds,
     now,
     (log) => log.category ?? '',
+    undefined,
     (date, pair) => {
       const p = pair.planned!
       const weekday = (date.getDay() + 6) % 7
@@ -504,7 +486,7 @@ export function getPlanDriftCells(
 }
 
 /**
- * 直近 2 週（昨日まで）の、記録のある日の 1 日あたりの記録時間（設定「1 日に計画する時間の目安」の横に出す、#275）。
+ * 直近 2 週（昨日まで）の、記録のある日の 1 日あたりの記録時間（設定「1 日に使える時間」の横に出す、#275）。
  * 記録のある日が無ければ null
  */
 export function recentDailyLoggedMinutes(

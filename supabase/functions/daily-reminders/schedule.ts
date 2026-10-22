@@ -262,7 +262,7 @@ export function timerEndDue(endsAt: string | null | undefined, nowMs: number, no
   return late >= 0 && late < TIMER_END_LATE_MS
 }
 
-/** 毎日 1 回の通知（朝のまとめ・夜の締め）を出すか。指定時刻から 60 分を過ぎたらその日は出さない */
+/** 毎日 1 回の通知（朝のまとめ・夜のまとめ）を出すか。指定時刻から 60 分を過ぎたらその日は出さない */
 export function dailyDue(time: string | null | undefined, lastSent: string | null | undefined, today: string, nowMinutes: number): boolean {
   const at = minutesOfClock(time)
   if (at == null || lastSent === today) return false
@@ -271,7 +271,7 @@ export function dailyDue(time: string | null | undefined, lastSent: string | nul
 }
 
 /**
- * 夜の締めの通知（#299）を出すか。時刻は朝のまとめと同じく指定時刻から 60 分まで、1 日 1 回。
+ * 夜のまとめの通知（#299）を出すか。時刻は朝のまとめと同じく指定時刻から 60 分まで、1 日 1 回。
  * その日の記録が 0 なら出さない（使っていない日に責めない。60 分の間に記録すれば出る）
  */
 export function wrapUpDue(

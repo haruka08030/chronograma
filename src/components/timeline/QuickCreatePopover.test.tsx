@@ -10,18 +10,19 @@ import i18n from '../../i18n/config'
 import { QuickCreatePopover } from './QuickCreatePopover'
 
 const anchor = { top: 100, left: 100, right: 200, bottom: 140 }
-const today = appTodayKey()
-const tomorrow = toDateKey(addDays(fromDateKey(today), 1))
+// 今日は各テストの中で読む（ファイルを読んだときに決めると、0 時をまたいで走ったときに明日がずれる）
+const today = () => appTodayKey()
+const tomorrow = () => toDateKey(addDays(fromDateKey(today()), 1))
 
 function open(estimateMinutes: number) {
   useTaskStore.setState({
-    tasks: [{ ...makeTask({ title: 'レポート', listId: INBOX_LIST_ID, dueDate: tomorrow, estimateMinutes }, 0), id: 'r' }],
+    tasks: [{ ...makeTask({ title: 'レポート', listId: INBOX_LIST_ID, dueDate: tomorrow(), estimateMinutes }, 0), id: 'r' }],
   })
   const onClose = vi.fn()
   const view = render(
     <QuickCreatePopover
       anchor={anchor}
-      dateKey={today}
+      dateKey={today()}
       startTime="10:40"
       endTime="11:40"
       onTimesChange={() => {}}
@@ -40,7 +41,7 @@ describe('QuickCreatePopover: 枠に入る To-Do を置く', () => {
     const row = view.getByRole('button', { name: /レポート.*45m.*due tomorrow/i })
     fireEvent.click(row)
     expect(useTaskStore.getState().tasks.find((x) => x.id === 'r')).toMatchObject({
-      scheduledDate: today,
+      scheduledDate: today(),
       startTime: '10:40',
       endTime: '11:25',
     })
@@ -64,7 +65,7 @@ describe('QuickCreatePopover: 記録の列の「＋ 記録なし」', () => {
 
   const openLog = () => {
     const log = (id: string, title: string, category: string | null) => ({
-      ...makeTask({ title, listId: INBOX_LIST_ID, dueDate: today, startTime: '08:00', endTime: '09:00' }, 0),
+      ...makeTask({ title, listId: INBOX_LIST_ID, dueDate: today(), startTime: '08:00', endTime: '09:00' }, 0),
       id,
       kind: 'log' as const,
       completed: true,
@@ -76,7 +77,7 @@ describe('QuickCreatePopover: 記録の列の「＋ 記録なし」', () => {
     const view = render(
       <QuickCreatePopover
         anchor={anchor}
-        dateKey={today}
+        dateKey={today()}
         startTime="07:00"
         endTime="10:00"
         asLog

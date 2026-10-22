@@ -78,7 +78,26 @@ export function fakeDb(opts: { maxRows?: number; realtime?: boolean } = {}) {
    */
   type RealtimeSub = { table: string; event: string; userId: string | null; cb: (p: { new: Row }) => void }
   const channels = new Set<{ subs: RealtimeSub[] }>()
-  const realtime = { up: true, sent: 0 }
+  /** 購読したチャンネルと、状態を知らせる関数（切れた・つながり直したを知らせる） */
+  const statusOf = new Map<{ subs: RealtimeSub[] }, (status: string) => void>()
+  const realtime = {
+    up: true,
+    sent: 0,
+    /** 回線が切れた（購読はそのまま、通知は届かない） */
+    drop: () => {
+      for (const [ch, cb] of statusOf) {
+        channels.delete(ch)
+        cb('CHANNEL_ERROR')
+      }
+    },
+    /** つながり直した */
+    reconnect: () => {
+      for (const [ch, cb] of statusOf) {
+        channels.add(ch)
+        cb('SUBSCRIBED')
+      }
+    },
+  }
   const emit = (table: string, event: 'INSERT' | 'UPDATE', row: Row) => {
     const copy = { ...row }
     for (const ch of channels)
@@ -405,6 +424,7 @@ export function fakeDb(opts: { maxRows?: number; realtime?: boolean } = {}) {
           },
           subscribe: (cb) => {
             if (realtime.up) channels.add(ch)
+            if (cb) statusOf.set(ch, cb)
             setTimeout(() => cb?.(realtime.up ? 'SUBSCRIBED' : 'CHANNEL_ERROR'), 0)
             return ch
           },
@@ -413,13 +433,14 @@ export function fakeDb(opts: { maxRows?: number; realtime?: boolean } = {}) {
       },
       removeChannel: async (ch: Channel) => {
         channels.delete(ch as never)
+        statusOf.delete(ch as never)
         return 'ok'
       },
     })
   }
   return {
     client: client as unknown as SupabaseClient,
-    /** Realtime の偽物（`opts.realtime`）。`up` を false にすると購読に失敗する。`sent` は届けた通知の数、`subscribed()` は購読している数 */
+    /** Realtime の偽物（`opts.realtime`）。`up` を false にすると購読に失敗する。`sent` は届けた通知の数、`subscribed()` は購読している数、`drop()`・`reconnect()` で切れる・つながり直す */
     realtime: Object.assign(realtime, { subscribed: () => channels.size }),
     tables,
     downloaded,

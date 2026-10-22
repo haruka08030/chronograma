@@ -7,6 +7,9 @@ const auth = vi.hoisted(() => ({
   signInWithGoogle: vi.fn(async () => ({})),
   googleAvailable: true,
   user: null as { id: string; email?: string } | null,
+  signOut: vi.fn(async () => {}),
+  askConfirm: vi.fn<(options: { message: string }) => Promise<boolean>>(async () => false),
+  flushPendingSync: vi.fn(async () => true),
 }))
 
 vi.mock('../lib/supabase', async (importOriginal) => ({
@@ -24,12 +27,22 @@ vi.mock('../contexts/AuthContext', () => ({
     signInWithOtp: auth.signInWithOtp,
     verifyEmailOtp: vi.fn(async () => ({})),
     signInWithGoogle: auth.signInWithGoogle,
-    signOut: vi.fn(),
+    signOut: auth.signOut,
     deleteAccount: vi.fn(),
   }),
 }))
 
+vi.mock('../lib/confirmDialog', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/confirmDialog')>()),
+  askConfirm: auth.askConfirm,
+}))
+vi.mock('../hooks/useSupabaseSync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/useSupabaseSync')>()),
+  flushPendingSync: auth.flushPendingSync,
+}))
+
 const { AccountMenu } = await import('./AccountMenu')
+const { registerIntegrationWrites } = await import('../lib/integrationWrites')
 const { clearPendingEmailCode, pendingEmailCode, savePendingEmailCode } = await import('../lib/pendingEmailCode')
 
 beforeEach(() => {
@@ -37,6 +50,9 @@ beforeEach(() => {
   auth.user = null
   auth.signInWithOtp.mockClear()
   auth.signInWithGoogle.mockClear()
+  auth.signOut.mockClear()
+  auth.askConfirm.mockReset().mockResolvedValue(false)
+  auth.flushPendingSync.mockReset().mockResolvedValue(true)
   clearPendingEmailCode('signIn')
   clearPendingEmailCode('reauth')
 })
@@ -147,5 +163,38 @@ describe('削除の前の本人確認', () => {
     render(<AccountMenu />)
     expect(screen.queryByPlaceholderText('Code from email')).toBeNull()
     expect(pendingEmailCode('reauth')).toBeNull()
+  })
+})
+
+describe('ログアウトの前', () => {
+  it('連携への送り待ちを送ってみて、残れば件数を出して確かめる。やめればログアウトしない', async () => {
+    auth.user = { id: 'u1', email: 'a@example.com' }
+    let left = 2
+    const flush = vi.fn(async () => {
+      left = 1
+    })
+    const stop = registerIntegrationWrites('notion', { flush, count: () => left })
+    const user = userEvent.setup()
+    render(<AccountMenu />)
+    await user.click(screen.getByRole('button', { name: 'Sign out' }))
+    await vi.waitFor(() => expect(auth.askConfirm).toHaveBeenCalledOnce())
+    expect(flush).toHaveBeenCalledOnce()
+    expect(auth.askConfirm.mock.calls[0][0].message).toBe(
+      "1 change hasn't reached Notion yet. If you sign out, it won't be sent. Sign out anyway?",
+    )
+    expect(auth.signOut).not.toHaveBeenCalled()
+    stop()
+  })
+
+  it('全部送れたら確かめずにログアウトする', async () => {
+    auth.user = { id: 'u1', email: 'a@example.com' }
+    let left = 3
+    const stop = registerIntegrationWrites('google', { flush: async () => void (left = 0), count: () => left })
+    const user = userEvent.setup()
+    render(<AccountMenu />)
+    await user.click(screen.getByRole('button', { name: 'Sign out' }))
+    await vi.waitFor(() => expect(auth.signOut).toHaveBeenCalledOnce())
+    expect(auth.askConfirm).not.toHaveBeenCalled()
+    stop()
   })
 })

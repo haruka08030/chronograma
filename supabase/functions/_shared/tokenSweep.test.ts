@@ -10,7 +10,7 @@ type Row = Record<string, string | null>
 
 /** 表ごとの行を持つだけの DB。`stale` は本物の問い合わせ（not like 'prefix%'、null は数えない）と同じ条件で絞る */
 function fakeDb(tables: Record<string, Row[]>) {
-  const updates: { table: string; match: Row; patch: Record<string, string> }[] = []
+  const updates: { table: string; match: Row; patch: Record<string, string | null> }[] = []
   const db: SweepDb = {
     async stale(table, key, columns, prefix, limit) {
       return (tables[table] ?? [])
@@ -70,6 +70,37 @@ describe('resealStaleTokens', () => {
     }
     const { db } = fakeDb(tables)
     expect(await resealStaleTokens(db, ring)).toEqual({ resealed: 1, unreadable: 1 })
+  })
+
+  it('Google のアクセストークンも閉じ直し、開けなければ期限ごと空にする（使うときに作り直す）', async () => {
+    const accessContext = secretContext.googleAccess('u1')
+    const tables: Record<string, Row[]> = {
+      google_oauth: [
+        {
+          user_id: 'u1',
+          refresh_token: await sealWith(NEW, 'r1', secretContext.google('u1')),
+          access_token: await sealWith(OLD, 'a1', accessContext),
+          access_token_expires_at: '2026-10-21T01:00:00Z',
+        },
+        {
+          user_id: 'u2',
+          refresh_token: await sealWith(OLD, 'r2', secretContext.google('u2')),
+          access_token: await sealWith('lost-key', 'a2', secretContext.googleAccess('u2')),
+          access_token_expires_at: '2026-10-21T01:00:00Z',
+        },
+      ],
+    }
+    const { db } = fakeDb(tables)
+    expect(await resealStaleTokens(db, ring)).toEqual({ resealed: 2, unreadable: 1 })
+    const onlyNew = { current: NEW, previous: [] }
+    const [u1, u2] = tables.google_oauth
+    expect(await openWith(onlyNew, u1.access_token!, accessContext)).toBe('a1')
+    expect(u1.access_token_expires_at).toBe('2026-10-21T01:00:00Z')
+    expect(await openWith(onlyNew, u2.refresh_token!, secretContext.google('u2'))).toBe('r2')
+    expect(u2.access_token).toBeNull()
+    expect(u2.access_token_expires_at).toBeNull()
+    // 前の鍵の値はもう残っていない（前の鍵を外してよい）
+    expect(await resealStaleTokens(db, ring)).toEqual({ resealed: 0, unreadable: 0 })
   })
 
   it('同時につなぎ直された行（読んだあとで値が変わった）は上書きしない', async () => {

@@ -56,6 +56,18 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return out
 }
 
+/**
+ * 購読がいまの公開鍵で作られたか。VAPID の鍵を替えると、前の鍵の購読にはプッシュサービスが 403 を返し、サーバーが行を消す。
+ * 鍵が違う購読は使い続けず作り直す。ブラウザが鍵を教えないとき（`null`）は比べられないのでそのまま使う
+ */
+export function subscribedWithKey(sub: PushSubscription, publicKey: string): boolean {
+  const key = sub.options?.applicationServerKey
+  if (!key) return true
+  const have = new Uint8Array(key)
+  const want = urlBase64ToUint8Array(publicKey)
+  return have.length === want.length && have.every((b, i) => b === want[i])
+}
+
 /** SW が登録済みならその registration（開発サーバーでは登録しないので null） */
 async function readyRegistration(): Promise<ServiceWorkerRegistration | null> {
   const reg = await navigator.serviceWorker.getRegistration()
@@ -125,6 +137,18 @@ async function syncSubscription(args: SyncWebPushArgs): Promise<WebPushStatus> {
       await sub.unsubscribe()
     }
     return 'off'
+  }
+
+  // 鍵を替えたあとの前の鍵の購読は外して作り直す（そのまま保存し直すと、送るたびに 403 で消される）
+  if (sub && !subscribedWithKey(sub, VAPID_PUBLIC_KEY!)) {
+    const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+    if (error) reportFailure('push', 'rekey:delete', error.message)
+    try {
+      await sub.unsubscribe()
+    } catch (err) {
+      reportFailure('push', 'rekey:unsubscribe', err)
+    }
+    sub = null
   }
 
   if (!sub) {

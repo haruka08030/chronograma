@@ -1,5 +1,6 @@
-import { addDays, getISODay, startOfWeek } from 'date-fns'
-import { isHabitActive, isHabitRestOn, type Habit, type HabitWeekday } from '../types/habit'
+import { addDays, startOfWeek } from 'date-fns'
+import { isHabitActive, isHabitRestOn, type Habit } from '../types/habit'
+import { isHabitScheduledOn } from '../../supabase/functions/_shared/dayResult.ts'
 import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { fromDateKey, toDateKey } from './dateKey'
 
@@ -9,11 +10,8 @@ import { fromDateKey, toDateKey } from './dateKey'
  * 休みの日（`restDates`）はどの頻度でも入らない（連続・達成率・ヒートマップ・週のふりかえりの数え方がここを通る）
  */
 export function isHabitScheduledOnDate(habit: Habit, date: Date): boolean {
-  if (!isHabitActive(habit)) return false
-  if (isHabitRestOn(habit, toDateKey(date))) return false
-  if (habit.frequency.type === 'daily' || habit.frequency.type === 'timesPerWeek') return true
-  const weekday = getISODay(date) as HabitWeekday
-  return habit.frequency.weekdays.includes(weekday)
+  // 通知の数え方（`dayResult.ts`）と同じもの
+  return isHabitScheduledOn(habit, toDateKey(date))
 }
 
 /** その日から続く休みの最後の日（「休みを外す」はその日から先の続きをまとめて外す。前の日の休みは残す） */

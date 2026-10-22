@@ -21,6 +21,7 @@ import { logLimitAt } from '../../lib/timelineBlockEdit'
 import { unplannedListIds } from '../../lib/listKind'
 import { unrecordedMinutesOnDay } from '../../lib/unrecordedGaps'
 import { DayMoodBadge } from './DayMood'
+import { useAbsentOn } from '../../hooks/useAbsentOn'
 import { useOnboardingFinishedToday } from '../../hooks/useShowsOnboarding'
 
 /** 今日の計画の上: 題名と日付・日の移動・睡眠・記録と予定の合計・記録のパネル */
@@ -63,12 +64,13 @@ export function PlannerHeader({
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const activeTimer = useTaskStore((s) => s.activeTimer)
+  const absentOn = useAbsentOn()
   const now = useNow()
   const nowMinute = Math.floor(now.getTime() / 60_000)
   // 記録の無い時間（タイムラインの点線の枠の合計）。今日は今まで、先の日は 0
   const unrecorded = useMemo(
-    () => unrecordedMinutesOnDay(tasks, dateKey, logLimitAt(new Date(nowMinute * 60_000)), activeTimer, unplannedListIds(lists)),
-    [tasks, lists, dateKey, activeTimer, nowMinute],
+    () => unrecordedMinutesOnDay(tasks, dateKey, logLimitAt(new Date(nowMinute * 60_000)), activeTimer, unplannedListIds(lists), absentOn),
+    [tasks, lists, dateKey, activeTimer, nowMinute, absentOn],
   )
   // その日の結果は、時間に置いた予定があった日だけ（予定 / 空きの代わりに同じ場所へ。記録の時間は左に出ているので重ねない）
   const result = dayResult && dayResult.timedPlanned > 0 ? dayResult : null

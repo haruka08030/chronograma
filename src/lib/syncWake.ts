@@ -96,13 +96,14 @@ export function isKnownChange(e: WakeEvent, ctx: EchoContext): boolean {
 }
 
 /**
- * 本人の行の変更の通知を購読する。`onStatus` は購読できている間 true（切れた・失敗したら false）。返した関数でやめる。
+ * 本人の行の変更の通知を購読する。`onStatus` は購読できている間 true（切れた・失敗したら false）で、`status` は Realtime の状態の名前
+ * （`SUBSCRIBED`・`CHANNEL_ERROR`・`TIMED_OUT`・`CLOSED`。やめたときは無し）。返した関数でやめる。
  * クライアントに Realtime が無ければ（テストの偽物など）何もしない
  */
 export function subscribeSyncWake(
   supabase: SupabaseClient,
   userId: string,
-  handlers: { onChange: (e: WakeEvent) => void; onStatus: (live: boolean) => void },
+  handlers: { onChange: (e: WakeEvent) => void; onStatus: (live: boolean, status?: string) => void },
 ): () => void {
   if (typeof supabase.channel !== 'function') return () => {}
   const channel = supabase.channel(`sync-wake:${userId}`)
@@ -114,7 +115,7 @@ export function subscribeSyncWake(
       )
     }
   }
-  channel.subscribe((status) => handlers.onStatus(status === 'SUBSCRIBED'))
+  channel.subscribe((status) => handlers.onStatus(status === 'SUBSCRIBED', status))
   return () => {
     handlers.onStatus(false)
     void supabase.removeChannel(channel)

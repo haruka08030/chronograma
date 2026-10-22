@@ -1,6 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { settingSyncStep, type SettingPushResult } from './settingSync'
-import { pushSettingRow } from './supabaseData'
 import { timerRecordTimes } from './timerRecord'
 
 /**
@@ -52,60 +49,4 @@ export type SleepTimerSyncPlan = {
   apply?: RemoteSleepTimer
   push?: RemoteSleepTimer & { base: string | null }
   adopt?: string
-}
-
-export function planSleepTimerSync(
-  local: LocalSleepTimer,
-  remote: RemoteSleepTimer | null,
-  nowIso: string = new Date().toISOString(),
-  clockOffsetMs = 0,
-): SleepTimerSyncPlan {
-  const mine = normalizeSleepTimer(local.timer)
-  if (!remote) {
-    // 一度も押していなければ送らない
-    if (local.updatedAt === null) return {}
-    return { push: { timer: mine, updatedAt: local.updatedAt, base: null } }
-  }
-  const theirs = normalizeSleepTimer(remote.timer)
-  const step = settingSyncStep(
-    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
-    remote,
-    (mine?.startedAt ?? null) === (theirs?.startedAt ?? null),
-    clockOffsetMs,
-  )
-  switch (step.kind) {
-    case 'initial':
-    case 'apply':
-      return { apply: { timer: theirs, updatedAt: remote.updatedAt } }
-    case 'push':
-      return { push: { timer: mine, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
-    case 'adopt':
-      return { adopt: remote.updatedAt }
-    default:
-      return {}
-  }
-}
-
-/** 睡眠のタイマー（`user_sleep_timer`）。行が無ければ null、行があって寝ていなければ `timer: null` */
-export async function fetchSleepTimer(supabase: SupabaseClient, userId: string): Promise<RemoteSleepTimer | null | { error: string }> {
-  const { data, error } = await supabase.from('user_sleep_timer').select('started_at, updated_at').eq('user_id', userId).maybeSingle()
-  if (error) return { error: error.message }
-  if (!data) return null
-  const row = data as { started_at: string | null; updated_at: string }
-  return { timer: row.started_at == null ? null : normalizeSleepTimer({ startedAt: row.started_at }), updatedAt: String(row.updated_at) }
-}
-
-export function pushSleepTimer(
-  supabase: SupabaseClient,
-  userId: string,
-  value: RemoteSleepTimer,
-  base: string | null,
-): Promise<SettingPushResult> {
-  const t = normalizeSleepTimer(value.timer)
-  return pushSettingRow(
-    supabase,
-    'user_sleep_timer',
-    { user_id: userId, started_at: t?.startedAt ?? null, updated_at: value.updatedAt },
-    base,
-  )
 }

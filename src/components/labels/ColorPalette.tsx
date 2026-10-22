@@ -3,10 +3,14 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { CALENDAR_COLORS } from '../../lib/googleColors'
 import { categoryHex, colorKeyForHex, labelForHex } from '../../lib/logCategoryColors'
-import { LabelsDialog } from './LabelsDialog'
+import { lazyNamed } from '../../lib/lazyComponent'
+import { OverlaySuspense } from '../ui/OverlaySuspense'
 import { PencilIcon } from '../icons'
 import { ColorSwatches } from '../ui/ColorSwatches'
 import { tip } from '../../lib/tooltip'
+
+/** ラベルの編集（✎ で開いたときだけ読む。色の一覧は起動時の画面にもある） */
+const LabelsDialog = lazyNamed(() => import('./LabelsDialog'), 'LabelsDialog')
 
 /**
  * Google カレンダーの色選択と同じパネル: ✎（ラベルを編集）・24 色＋自分で作った色・下の「既定」ボタン。
@@ -65,7 +69,7 @@ export function ColorPalette({
         fill={fill}
         swatches={swatches.map((sw) => {
           const name = labelForHex(sw.hex, presets, colors)
-          return { hex: sw.hex, name: name ? `${name}（${sw.colorName}）` : sw.colorName }
+          return { hex: sw.hex, name: name ? t('common.withNote', { title: name, note: sw.colorName }) : sw.colorName }
         })}
       />
       {onDefault && (
@@ -78,7 +82,9 @@ export function ColorPalette({
           {defaultLabel}
         </button>
       )}
-      {editingLabels && <LabelsDialog onClose={() => setEditingLabels(false)} />}
+      <OverlaySuspense onLoadFailed={() => setEditingLabels(false)}>
+        {editingLabels && <LabelsDialog onClose={() => setEditingLabels(false)} />}
+      </OverlaySuspense>
     </div>
   )
 }

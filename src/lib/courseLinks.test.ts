@@ -2,16 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { makeTask } from '../store/taskHelpers'
 import { INBOX_ID } from '../store/storeConstants'
 import type { Task } from '../types/task'
-import {
-  COURSE_LINK_MAX,
-  courseAssignments,
-  courseKey,
-  eventCourse,
-  lmsCourses,
-  normalizeCourseLinks,
-  planCourseLinkSync,
-  withCourseLink,
-} from './courseLinks'
+import { COURSE_LINK_MAX, courseAssignments, courseKey, eventCourse, lmsCourses, normalizeCourseLinks, withCourseLink } from './courseLinks'
+import { planCourseLinkSync } from './settingPlans'
 
 const assignment = (id: string, course: string, patch: Partial<Task> = {}): Task => ({
   ...makeTask({ title: `課題 ${id}`, listId: INBOX_ID, tags: [course] }, 0),

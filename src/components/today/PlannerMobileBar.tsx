@@ -5,7 +5,9 @@ import { StatsIcon } from '../icons'
 import { Segmented } from '../ui/Segmented'
 import { bounce, onTimelineTabNudge } from '../../lib/onboardingMotion'
 
-export type PlannerPane = 'list' | 'timeline'
+import type { PlannerPane } from '../../lib/plannerPane'
+
+export type { PlannerPane }
 
 /**
  * スマホだけ: やること / タイムラインの切り替えと、統計の入口（記録の延長。PC 幅は左のサイドバーにある）。

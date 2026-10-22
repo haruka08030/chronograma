@@ -4,7 +4,6 @@ import {
   EVENT_TEMPLATE_TITLE_MAX,
   isValidTemplateRange,
   normalizeEventTemplates,
-  planEventTemplateSync,
   templateDays,
   templateEventOnDay,
   templateTimeLabel,
@@ -12,6 +11,7 @@ import {
 } from './eventTemplates'
 import { TASK_DEFAULTS } from './taskDefaults'
 import type { Task } from '../types/task'
+import { planEventTemplateSync } from './settingPlans'
 
 const T1 = '2026-10-01T00:00:00.000Z'
 const T2 = '2026-10-02T00:00:00.000Z'

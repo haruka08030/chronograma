@@ -54,7 +54,7 @@ describe('WeekCalendarView: 移した予定の控え（#158）', () => {
     expect(ghost.textContent).toContain('レポート')
     expect(ghost.textContent).toContain('→Oct 9')
     expect(ghost.style.top).toBe(`${13 * HOUR_HEIGHT + 1}px`)
-    expect(screen.getByText('Planned 3 · done 1 · moved 1')).toBeInTheDocument()
+    expect(screen.getByText('Placed 3 · done 1 · moved 1')).toBeInTheDocument()
   })
 
   it('今日・これからの日には足さない', () => {

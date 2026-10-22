@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adoptOtherTabChanges, useTaskStore } from './taskStore'
 import { INBOX_LIST_ID, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
 import { loadImportRollback, saveImportRollback } from '../lib/importRollback'
+import { DEFAULT_TIMETABLE } from '../lib/timetable'
+import { DEFAULT_ADDONS } from '../lib/addons'
+import { DEFAULT_WEEK_STARTS_ON } from '../lib/weekStart'
 
 type Saved = { state: Record<string, unknown> & { tasks: { id: string; title: string }[] }; version: number }
 
@@ -117,6 +120,28 @@ describe('他のタブの変更の取り込み（adoptOtherTabChanges）', () =>
     localStorage.setItem(PERSIST_STORAGE_KEY, '{not json')
     expect(() => adoptOtherTabChanges()).not.toThrow()
     expect(titles()).toEqual(['A'])
+  })
+
+  it('型の違う設定・項目の欠けたタスクは、読み込みと同じく既定値・直した値にして取り込む（画面が落ちない）', () => {
+    useTaskStore.getState().addTask('A')
+    otherTabWrites((s) => {
+      s.state.timetable = 'x'
+      s.state.addons = null
+      s.state.extraTimeZones = { broken: true }
+      s.state.weekStartsOn = 3
+      s.state.logLabelPendingAdds = [1, 'Gym']
+      const withoutKind: Record<string, unknown> = { ...s.state.tasks[0], id: 'b', title: 'B' }
+      delete withoutKind.kind
+      s.state.tasks = [withoutKind as never]
+    })
+    adoptOtherTabChanges()
+    const s = useTaskStore.getState()
+    expect(s.timetable).toEqual(DEFAULT_TIMETABLE)
+    expect(s.addons).toEqual(DEFAULT_ADDONS)
+    expect(s.extraTimeZones).toEqual([])
+    expect(s.weekStartsOn).toBe(DEFAULT_WEEK_STARTS_ON)
+    expect(s.logLabelPendingAdds).toEqual(['Gym'])
+    expect(s.tasks.find((t) => t.id === 'b')?.kind).toBe('todo')
   })
 
   it('裏から戻ったとき・ページごと復元されたときも読み直す', () => {

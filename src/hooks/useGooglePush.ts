@@ -30,6 +30,7 @@ import {
 } from '../lib/googleConnectedHint'
 import { googleSkipKeys } from '../lib/googleSkip'
 import { isIncomingChange } from '../lib/changeOrigin'
+import { INTEGRATION_FLUSH_TIMEOUT_MS, registerIntegrationWrites } from '../lib/integrationWrites'
 import { notify } from '../lib/notify'
 import i18n from '../i18n/config'
 import { appTimeZone, appTodayKey } from '../lib/timeZone'
@@ -232,6 +233,17 @@ export function useGooglePush() {
       }
     }
 
+    // ログアウトの前に今すぐ送る（送っている最中ならそれを待ってから。残った数は確かめに出す）
+    const unregisterWrites = registerIntegrationWrites('google', {
+      flush: async () => {
+        clearTimeout(timer)
+        const until = Date.now() + INTEGRATION_FLUSH_TIMEOUT_MS
+        while (sending && !cancelled && Date.now() < until) await new Promise((r) => setTimeout(r, 100))
+        await flush()
+      },
+      count: () => Object.keys(loadPushQueue(userId)).length,
+    })
+
     // スマホではタブを閉じても pagehide が来ないことがあるので、隠れたときにも送る
     const onVisible = () => {
       if (document.visibilityState === 'visible') void flush()
@@ -262,6 +274,7 @@ export function useGooglePush() {
       cancelled = true
       clearTimeout(timer)
       unsub()
+      unregisterWrites()
       useTaskStore.getState().setGooglePushFailed(0)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('pagehide', flushOnLeave)

@@ -23,7 +23,6 @@ export function DataSettingsPage({ onBack }: { onBack: () => void }) {
   const exportData = useTaskStore((s) => s.exportData)
   const importData = useTaskStore((s) => s.importData)
   const importTasksFromCsv = useTaskStore((s) => s.importTasksFromCsv)
-  const lang = i18n.resolvedLanguage?.startsWith('en') ? 'en' : 'ja'
 
   const jsonInputRef = useRef<HTMLInputElement>(null)
   const csvInputRef = useRef<HTMLInputElement>(null)
@@ -117,7 +116,7 @@ export function DataSettingsPage({ onBack }: { onBack: () => void }) {
             if (parsed.errors.length === 0 && unknown.count > 0) {
               const choice = await askChoice({
                 message: i18n.t('confirm.csvUnknownLists', {
-                  names: unknown.names.slice(0, 5).join(lang === 'en' ? ', ' : '、') + (unknown.names.length > 5 ? ' …' : ''),
+                  names: unknown.names.slice(0, 5).join(i18n.t('common.listSeparator')) + (unknown.names.length > 5 ? ' …' : ''),
                   labels: unknown.names.length,
                   count: unknown.count,
                 }),
@@ -127,7 +126,7 @@ export function DataSettingsPage({ onBack }: { onBack: () => void }) {
               if (!choice) return
               unknownLists = choice === 'confirm' ? 'label' : 'inbox'
             }
-            const result = importTasksFromCsv(text, { fileName: file.name, unknownLists })
+            const result = await importTasksFromCsv(text, { fileName: file.name, unknownLists })
             // 取り込めたときは store が「元に戻す」付きの通知を出す
             if (result.errors.length > 0) notify(i18n.t('alert.invalidCsvFile'))
             else if (result.imported === 0) notify(i18n.t('alert.csvNoRows'))

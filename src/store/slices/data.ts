@@ -3,11 +3,10 @@ import type { Task } from '../../types/task'
 import { newId } from '../../lib/id'
 import { assignColorsInOrder } from '../../lib/logCategoryColors'
 import { buildBackupPayload, parseBackupJson, withFreshStamps, type BackupImportResult } from '../../lib/backupFormat'
-import { csvListTarget, parseTasksCsv } from '../../lib/importTasksCsv'
 import { ensureLabel, type LabelTable } from '../../lib/foldTaskFolders'
 import { fillLabelIds, labelIndex } from '../../lib/labelIds'
 import { clearImportRollback, loadImportRollback, saveImportRollback } from '../../lib/importRollback'
-import { restoreMissing } from '../../lib/autoBackup'
+import { restoreMissing, restoreMissingSettings } from '../../lib/autoBackup'
 import { INBOX_ID } from '../storeConstants'
 import { defaultLogCategories, initialLists } from '../storeDefaults'
 import { asIncomingChange } from '../../lib/changeOrigin'
@@ -54,21 +53,132 @@ function importedLabels(
   }
 }
 
+/**
+ * 書き出し・自動バックアップ・取り込みの控えに入れるストアの値（`backupKeys.test.ts` が、保存する値（`DATA_KEYS`）ごとに
+ * 入れるか・入れない理由が決まっているかを確かめる）
+ */
+export const BACKUP_KEYS = [
+  'tasks',
+  'lists',
+  'habits',
+  'sections',
+  'timeLogTagPresets',
+  'logCategoryColors',
+  'logLabelIds',
+  'logLabelTargets',
+  'dayMoods',
+  'timetable',
+  'addons',
+  'eventTemplates',
+  'courseLinks',
+  'extraTimeZones',
+  // 端末ごとの設定（同期しない。書き出しの `prefs`。取り込みでは今の端末の値のまま）
+  'theme',
+  'weekStartsOn',
+  'dailyCapacityMinutes',
+  'defaultBlockMinutes',
+  'eventReminderMinutes',
+  'appTimeZone',
+] as const satisfies readonly (keyof TaskState)[]
+
+/** 保存する値（`DATA_KEYS`）のうち、書き出しに入れないものと理由 */
+export const BACKUP_EXCLUDED = {
+  dataOwner: 'どのアカウントのデータか。取り込んだ先の端末・アカウントで決まる',
+  logLabelsUpdatedAt: '同期の版。取り込んだら今の時刻になる',
+  logLabelPendingAdds: '同期に送り残したラベルの印。取り込みは別に覚える',
+  extraTimeZonesUpdatedAt: '同期の版',
+  eventTemplatesUpdatedAt: '同期の版',
+  courseLinksUpdatedAt: '同期の版',
+  timetableUpdatedAt: '同期の版',
+  addonsUpdatedAt: '同期の版',
+  activeTimer: '動いているタイマー。いまこの端末で計っているもの（止めると記録としてタスクに入る）',
+  activeTimerUpdatedAt: '同期の版',
+  sleepTimer: '寝ている間だけある睡眠のタイマー。起きたら睡眠の記録としてタスクに入る',
+  sleepTimerUpdatedAt: '同期の版',
+  googleEventColors: 'Google の予定の id に付けた色。Google の予定そのものは書き出さない',
+  skippedEvents: 'やらなかった予定は Google の予定の控え。Google の予定そのものは書き出さない（同期で戻る）',
+  skippedEventsUpdatedAt: '同期の版',
+  notificationsEnabled: '通知は端末ごとに許可してから決める',
+  recordPrompts: '通知は端末ごとに許可してから決める',
+  dailyReminders: '通知は端末ごとに許可してから決める',
+  reminderPromptDismissed: '端末で閉じた案内',
+  googleConnectLineDismissed: '端末で閉じた案内',
+  onboardingDone: '端末で閉じた案内（取り込んだデータがあれば出さない）',
+  onboardingCompleted: '端末で閉じた案内',
+  onboardingFinishedOn: '端末で閉じた案内（終えた日）',
+  installNudgeDismissed: '端末で閉じた案内',
+  signInNudgeDismissed: '端末で閉じた案内',
+} as const satisfies Partial<Record<keyof TaskState, string>>
+
+/**
+ * タスク・リスト・習慣のほかに控えるデータがあるか（気分・欠席・支払い・よく入れる予定 …）。
+ * これだけを使っている人も、ログアウトの前・毎日の控えを取る
+ */
+export function hasSettingsData(
+  s: Pick<TaskState, 'dayMoods' | 'timetableUpdatedAt' | 'addonsUpdatedAt' | 'eventTemplates' | 'courseLinks' | 'extraTimeZones'>,
+): boolean {
+  return (
+    Object.keys(s.dayMoods).length > 0 ||
+    s.timetableUpdatedAt !== null ||
+    s.addonsUpdatedAt !== null ||
+    s.eventTemplates.length > 0 ||
+    s.courseLinks.length > 0 ||
+    s.extraTimeZones.length > 0
+  )
+}
+
 /** その時点の状態の控え（エクスポートと同じ形の JSON）。状態はあとで変わっても、渡したときのもの */
 export function backupJsonOf(s: TaskState): string {
-  const { tasks, lists, habits, sections, timeLogTagPresets, logCategoryColors, logLabelIds, logLabelTargets } = s
   return JSON.stringify(
     buildBackupPayload({
-      tasks,
-      lists,
-      habits,
-      sections,
-      timeLogTagPresets,
-      logCategoryColors,
-      logLabelIds,
-      logLabelTargets,
+      tasks: s.tasks,
+      lists: s.lists,
+      habits: s.habits,
+      sections: s.sections,
+      timeLogTagPresets: s.timeLogTagPresets,
+      logCategoryColors: s.logCategoryColors,
+      logLabelIds: s.logLabelIds,
+      logLabelTargets: s.logLabelTargets,
+      dayMoods: s.dayMoods,
+      timetable: s.timetable,
+      addons: s.addons,
+      eventTemplates: s.eventTemplates,
+      courseLinks: s.courseLinks,
+      extraTimeZones: s.extraTimeZones,
+      prefs: {
+        theme: s.theme,
+        weekStartsOn: s.weekStartsOn,
+        dailyCapacityMinutes: s.dailyCapacityMinutes,
+        defaultBlockMinutes: s.defaultBlockMinutes,
+        eventReminderMinutes: s.eventReminderMinutes,
+        appTimeZone: s.appTimeZone,
+      },
     }),
   )
+}
+
+/**
+ * 取り込んだファイルのラベル表のほかの値（版 4 から）。ファイルにあるものだけ置き換え、無いもの（前の版のファイル）は今の値のまま。
+ * 気分は日ごとに置き換え（ファイルに無い日は今のまま。サーバーの行は消さないので、消しても次の同期で戻る）。
+ * 置き換えた日は今の時刻にして送る（もとにした版は今の手元のもの）。
+ * 端末の設定（`prefs`）は取り込まない（取り込みはデータの置き換え。テーマ・週の開始日・タイムゾーンはこの端末のまま。
+ * タイムゾーンを変えると時刻のある予定・記録を読み替えることになる）
+ */
+function importedExtras(parsed: BackupImportResult, s: TaskState, nowIso: string): Partial<TaskState> {
+  const out: Partial<TaskState> = {}
+  if (parsed.dayMoods) {
+    const days = Object.entries(parsed.dayMoods).map(([day, m]) => [
+      day,
+      { ...m, updatedAt: nowIso, syncedAt: s.dayMoods[day]?.syncedAt ?? null },
+    ])
+    out.dayMoods = { ...s.dayMoods, ...Object.fromEntries(days) }
+  }
+  if (parsed.timetable) out.timetable = parsed.timetable
+  if (parsed.addons) out.addons = parsed.addons
+  if (parsed.eventTemplates) out.eventTemplates = parsed.eventTemplates
+  if (parsed.courseLinks) out.courseLinks = parsed.courseLinks
+  if (parsed.extraTimeZones) out.extraTimeZones = parsed.extraTimeZones
+  return out
 }
 
 export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
@@ -145,9 +255,12 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
         parsed,
         new Date().toISOString(),
       )
-      if (addedTasks === 0 && next.lists.length === s.lists.length && next.habits.length === s.habits.length) return 0
+      // 気分・欠席・支払い・よく入れる予定なども、控えにあって今は無いものを足す
+      const settings = restoreMissingSettings(s, parsed)
+      const rowsAdded = addedTasks > 0 || next.lists.length !== s.lists.length || next.habits.length !== s.habits.length
+      if (!rowsAdded && Object.keys(settings).length === 0) return 0
       pushUndo({ key: 'undo.restoredFromBackup', params: { count: addedTasks } })
-      set(next)
+      set({ ...(rowsAdded ? next : {}), ...settings })
       return addedTasks
     },
 
@@ -163,18 +276,8 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       // ⌘Z はメモリ上だけなので、再読み込みをまたげる控えも別に残す
       const before = get()
       saveImportRollback({
-        json: JSON.stringify(
-          buildBackupPayload({
-            tasks: before.tasks,
-            lists: before.lists,
-            habits: before.habits,
-            sections: before.sections,
-            timeLogTagPresets: before.timeLogTagPresets,
-            logCategoryColors: before.logCategoryColors,
-            logLabelIds: before.logLabelIds,
-            logLabelTargets: before.logLabelTargets,
-          }),
-        ),
+        // 書き出しと同じ中身（気分・時間割・追加機能・端末の設定も戻せるように）
+        json: backupJsonOf(before),
         savedAt: new Date().toISOString(),
         taskCount: before.tasks.length,
         owner: before.dataOwner,
@@ -183,6 +286,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       pushUndo({ key: 'undo.imported', params: { count: parsed.tasks.length } })
       set({
         ...importedLabels(parsed),
+        ...importedExtras(parsed, before, new Date().toISOString()),
         lists: parsed.lists,
         habits: parsed.habits,
         sections: parsed.sections,
@@ -205,6 +309,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       pushUndo()
       set({
         ...importedLabels(parsed),
+        ...importedExtras(parsed, get(), new Date().toISOString()),
         lists: parsed.lists,
         habits: parsed.habits,
         sections: parsed.sections,
@@ -213,7 +318,9 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
       clearImportRollback()
       return true
     },
-    importTasksFromCsv: (csv, options = {}) => {
+    importTasksFromCsv: async (csv, options = {}) => {
+      // 取り込むときだけ読む（起動時に読まない）
+      const { csvListTarget, parseTasksCsv } = await import('../../lib/importTasksCsv')
       const { rows, skipped, errors } = parseTasksCsv(csv, { fileName: options.fileName })
       if (errors.length > 0 || rows.length === 0) {
         return { imported: 0, skipped, errors }

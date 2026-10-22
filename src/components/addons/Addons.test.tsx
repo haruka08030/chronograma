@@ -57,7 +57,7 @@ describe('引き落とし・期限の日（#454）', () => {
       </>,
     )
     await user.click(screen.getAllByRole('button', { name: '開く' })[0]!)
-    await user.click(screen.getByRole('button', { name: '足す' }))
+    await user.click(screen.getByRole('button', { name: '追加' }))
     await user.type(screen.getByLabelText('名前'), '家賃の引き落とし')
     await user.click(screen.getByRole('button', { name: '保存' }))
     expect(useTaskStore.getState().addons.dues).toMatchObject([{ title: '家賃の引き落とし', date: today, repeat: 'none', notifyDays: 1 }])

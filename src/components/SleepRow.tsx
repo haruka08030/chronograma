@@ -12,6 +12,7 @@ import { toAppWall } from '../lib/timeZone'
 import { CloseIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
 import { SleepMoonIcon, SleepTimesField } from './SleepTimesField'
+import { minutesOfDay } from '../lib/clockTime'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
@@ -34,7 +35,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   const now = useNow()
 
   const todayKey = toDateKey(now)
-  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const nowMin = minutesOfDay(now)
   if (dateKey > todayKey) return null
   const isToday = dateKey === todayKey
   if (isToday && sleepTimer) return <SleepingRow timer={sleepTimer} dateKey={dateKey} />

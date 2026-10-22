@@ -469,3 +469,53 @@ describe('withFreshStamps', () => {
     expect(Date.parse(fresh.lists[0].updatedAt!)).toBeGreaterThanOrEqual(before)
   })
 })
+
+describe('気分・時間割・追加機能・端末の設定（版 4）', () => {
+  const base = { tasks: [], lists: [{ id: 'inbox', name: '未分類' }] }
+
+  it('前の版のファイルには無く、読んだ結果にも無い（取り込んでも今の値のまま）', () => {
+    const r = parseBackupJson(JSON.stringify({ schemaVersion: 3, ...base }))!
+    for (const k of ['dayMoods', 'timetable', 'addons', 'eventTemplates', 'courseLinks', 'extraTimeZones', 'prefs']) {
+      expect(k in r, k).toBe(false)
+    }
+  })
+
+  it('手で直したファイルの読めない値はそろえて読む（時刻の無い気分は書き出した時刻に、知らない設定は捨てる）', () => {
+    const r = parseBackupJson(
+      JSON.stringify({
+        schemaVersion: 4,
+        exportedAt: '2026-10-21T00:00:00.000Z',
+        ...base,
+        dayMoods: { '2026-10-20': { mood: 4, note: 'よかった' }, 'not-a-day': { mood: 1, note: '', updatedAt: 'x' } },
+        timetable: { periods: 'x', absences: { 英語: ['2026-10-05', 'bad'] } },
+        addons: { enabled: { dues: true, unknown: true }, dues: [{ id: 'a' }] },
+        eventTemplates: [{ id: 'e', title: '早番', startTime: '09:00', endTime: '08:00', color: null }],
+        courseLinks: 'x',
+        extraTimeZones: ['Not/AZone', 'Europe/London'],
+        prefs: { theme: 'neon', weekStartsOn: 0, dailyCapacityMinutes: 5, appTimeZone: 'Not/AZone' },
+      }),
+    )!
+    expect(r.dayMoods).toEqual({ '2026-10-20': { mood: 4, note: 'よかった', updatedAt: '2026-10-21T00:00:00.000Z', syncedAt: null } })
+    expect(r.timetable?.absences).toEqual({ 英語: ['2026-10-05'] })
+    expect(r.timetable?.periods.length).toBeGreaterThan(0)
+    expect(r.addons).toMatchObject({ enabled: { dues: true }, dues: [] })
+    expect(r.eventTemplates).toEqual([])
+    expect('courseLinks' in r).toBe(false)
+    expect(r.extraTimeZones).toEqual([{ tz: 'Europe/London', label: '' }])
+    expect(r.prefs).toEqual({ weekStartsOn: 0, dailyCapacityMinutes: 60 })
+  })
+
+  it('書き出しに気分のもとにしたサーバーの版（端末ごとのもの）は書かない', () => {
+    const out = buildBackupPayload({
+      tasks: [],
+      lists: [],
+      habits: [],
+      sections: [],
+      timeLogTagPresets: [],
+      logCategoryColors: {},
+      dayMoods: { '2026-10-20': { mood: 3, note: '', updatedAt: '2026-10-20T10:00:00.000Z', syncedAt: '2026-10-20T10:00:01+00:00' } },
+    })
+    expect(out.schemaVersion).toBe(BACKUP_SCHEMA_VERSION)
+    expect(out.dayMoods).toEqual({ '2026-10-20': { mood: 3, note: '', updatedAt: '2026-10-20T10:00:00.000Z' } })
+  })
+})

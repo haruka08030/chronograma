@@ -22,6 +22,7 @@ import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { isLeaderTab } from '../lib/tabLeader'
 import { NOTION_PULLED_PREFIX, loadPulled, savePulled } from '../lib/externalFields'
 import { WRITE_BACK_PREFIX, writeBackQueue } from '../lib/writeBackQueue'
+import { registerIntegrationWrites } from '../lib/integrationWrites'
 import type { SyncStatus } from '../types/sync'
 
 /** Notion は 1 秒 3 回までなので、開いている間の取り込みは控えめに */
@@ -282,14 +283,31 @@ export function useNotionSync() {
      */
     const flushPending = () => {
       const token = accessTokenRef.current
+      for (const p of queuePending()) if (token) advanceNotionPageOnLeave(p.pageId, p.status, token)
+    }
+
+    /** 猶予中のものを送り直し待ちに積む（猶予は待たない）。積んだものを返す */
+    function queuePending(): AdvancePayload[] {
+      const queued: AdvancePayload[] = []
       for (const [taskId, p] of [...pendingAdvance]) {
         clearTimeout(p.timer)
         pendingAdvance.delete(taskId)
         if (!useTaskStore.getState().tasks.find((t) => t.id === taskId)?.completed) continue
-        advanceQueue.put(taskId, { pageId: p.pageId, status: p.status })
-        if (token) advanceNotionPageOnLeave(p.pageId, p.status, token)
+        const payload = { pageId: p.pageId, status: p.status }
+        advanceQueue.put(taskId, payload)
+        queued.push(payload)
       }
+      return queued
     }
+
+    // ログアウトの前に、猶予中のものも含めて今すぐ送る（残った数は確かめに出す）
+    const unregisterWrites = registerIntegrationWrites('notion', {
+      flush: () => {
+        queuePending()
+        return flushAdvances(undefined, true)
+      },
+      count: () => advanceQueue.all().length,
+    })
 
     const unsub = useTaskStore.subscribe((state, prev) => {
       if (state.tasks === prev.tasks) return
@@ -348,6 +366,7 @@ export function useNotionSync() {
     return () => {
       cancelled = true
       requestSync = null
+      unregisterWrites()
       clearTimeout(firstTimer)
       unsubFirst?.()
       clearInterval(poll)

@@ -1,23 +1,28 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './i18n'
 
 test('はじめて開くと今日の画面に 3 ステップの案内が出て、進むと次のステップに変わり、× で閉じたら読み込み直しても出ない', async ({
   page,
+  t,
+  ja,
 }) => {
   await page.goto('/')
-  const guide = page.getByRole('region', { name: 'Getting started' })
-  await expect(guide).toBeVisible()
-  await expect(guide).toContainText('Step 1 of 3: Add one thing to do')
+  const guide = page.getByRole('region', { name: t('onboarding.heading') })
+  // 最初の 1 回は dev サーバーが変換するので待つ（WebKit は遅い）
+  await expect(guide).toBeVisible({ timeout: 30_000 })
+  await expect(guide).toContainText(`${t('onboarding.stepOf', { n: 1, total: 3 })} ${t('onboarding.add')}`)
 
   // 追加欄の例を押すと欄に入り、Enter で時刻つきの To-Do になる（① と ② が済む）
-  await page.getByRole('button', { name: 'Put “3pm essay 1h” in the add field' }).click()
-  const input = page.getByPlaceholder(/^e\.g\. /)
-  await expect(input).toHaveValue('3pm essay 1h')
+  const example = t('onboarding.example')
+  await page.getByRole('button', { name: t('onboarding.useExample', { text: example }) }).click()
+  const input = page.getByPlaceholder(t('onboarding.placeholder', { example: '' }))
+  await expect(input).toHaveValue(example)
   await input.press('Enter')
-  await expect(guide).toContainText('Step 3 of 3: Press ▶ on the row when you start')
+  await expect(guide).toContainText(t('onboarding.stepOf', { n: 3, total: 3 }))
 
-  await guide.getByRole('button', { name: 'Close the guide' }).click()
+  await guide.getByRole('button', { name: t('onboarding.close') }).click()
   await expect(guide).toHaveCount(0)
   await page.reload()
-  await expect(page.getByRole('option', { name: 'essay' })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Getting started' })).toHaveCount(0)
+  // 例の題名（時刻を除いた部分）の行が残っている
+  await expect(page.getByRole('option', { name: ja ? 'バイト' : 'essay' })).toBeVisible()
+  await expect(page.getByRole('region', { name: t('onboarding.heading') })).toHaveCount(0)
 })

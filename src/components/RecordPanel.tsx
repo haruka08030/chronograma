@@ -17,11 +17,11 @@ import { buttonClass } from './ui/buttonClass'
 import { isCancelEscape, isModKey, isSubmitEnter } from '../lib/keyboard'
 import { openTaskDetail } from '../lib/overlays'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
-import { addClockMinutes, clockOf, timeToMinutes } from '../lib/clockTime'
+import { addClockMinutes, clockOf, minutesOfDay, timeToMinutes } from '../lib/clockTime'
 import { chipClass } from './ui/chipClass'
 import { ERROR_TEXT } from './ui/textClass'
 import { usePendingAction } from '../lib/pendingAction'
-import { OPEN_LOG_LATER_ACTION, takePendingLaterSpan } from '../lib/logLater'
+import { OPEN_LOG_LATER_ACTION } from '../lib/logLater'
 import { isLogTask, isSleepTask } from '../types/task'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
@@ -43,7 +43,7 @@ const MOBILE_BREAKDOWN_ROWS = 2
 /** 今の時刻を 5 分単位に丸めた HH:MM */
 function nowRounded(): string {
   const d = zonedNow()
-  const m = Math.round((d.getHours() * 60 + d.getMinutes()) / 5) * 5
+  const m = Math.round(minutesOfDay(d) / 5) * 5
   return addClockMinutes('00:00', Math.min(m, 1435))
 }
 
@@ -136,24 +136,15 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     }
     setMode('manual')
   }
-  const panelRef = useRef<HTMLDivElement>(null)
   usePendingAction(OPEN_LOG_LATER_ACTION, () => {
-    const span = takePendingLaterSpan()
-    if (!canLogLater) return
-    openManual()
-    if (span) {
-      setStart(span.start)
-      setEnd(span.end)
-      // 下の締めから開いたとき、上のフォームまで連れていく（タップの端末は入力欄に自動でフォーカスしない）
-      requestAnimationFrame(() => panelRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
-    }
+    if (canLogLater) openManual()
   })
 
   // 題名もラベルも空なら「記録」で始める（あとから題名・ラベルを付けられる。押せないボタンで止めない）
   const name = title.trim() || category.trim() || t('quickLog.untitled')
   const overnight = Boolean(start && end && timeToMinutes(end) < timeToMinutes(start))
   // 記録は今より先には作れない（今日は「今」まで。日をまたぐのも不可）
-  const nowMin = zonedNow().getHours() * 60 + zonedNow().getMinutes()
+  const nowMin = minutesOfDay(zonedNow())
   const inFuture = viewingToday && Boolean(start && end) && (overnight || timeToMinutes(end) > nowMin)
   // 候補の予定・いつもやっていることを引く時間（タイマーは今、後から記録は入れた時間）
   const nowHm = clockOf(zonedNow())
@@ -262,7 +253,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
 
   if (mode !== 'idle') {
     return (
-      <div ref={panelRef} className="scroll-mt-4 space-y-3">
+      <div className="space-y-3">
         {summary}
         <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
           <LogTitleInput
@@ -392,7 +383,11 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
                   if (!running) startTimer(r.title, r.category ? [r.category] : [])
                 }}
                 {...tip(running ? t('activityLog.timerRunning') : t('quickLog.resume', { title: r.title }))}
-                aria-label={running ? `${r.title}（${t('activityLog.timerRunning')}）` : t('quickLog.resume', { title: r.title })}
+                aria-label={
+                  running
+                    ? t('common.withNote', { title: r.title, note: t('activityLog.timerRunning') })
+                    : t('quickLog.resume', { title: r.title })
+                }
                 style={running ? hexVars : undefined}
                 className={chipClass(
                   { variant: 'outline', size: 'md', selected: running },

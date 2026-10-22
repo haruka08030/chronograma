@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CalendarEvent } from '../types/calendarEvent'
 import type { Task } from '../types/task'
@@ -114,9 +114,9 @@ describe('useGoogleCalendarEvents', () => {
     const deleted = (id: string) => ({ id: googleEventIdForTask(id), updated: '2026-10-19T00:00:00Z' })
     mocks.fetch.mockResolvedValue({ events: [], canWrite: true, deletedPushed: [deleted('gone'), deleted('restored')], skipped: [] })
     renderHook(() => useGoogleCalendarEvents(new Date(2026, 8, 28), new Date(2026, 10, 8, 23, 59, 59)))
-    await act(async () => {})
+    // ゴミ箱に入れる処理は消すときに読む（import() を待つ）
+    await waitFor(() => expect(useTaskStore.getState().tasks.find((t) => t.id === 'gone')?.deletedAt).not.toBeNull())
     const byId = new Map(useTaskStore.getState().tasks.map((t) => [t.id, t]))
-    expect(byId.get('gone')?.deletedAt).not.toBeNull()
     expect(byId.get('restored')?.deletedAt).toBeNull()
   })
 

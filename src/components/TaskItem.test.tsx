@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { refreshAppClock } from '../lib/appClock'
 import { useTaskStore } from '../store/taskStore'
 import { TaskItem } from './TaskItem'
 
@@ -154,5 +155,27 @@ describe('TaskItem: 子の進み具合', () => {
     const task = addTask('Solo')
     render(<Row id={task.id} />)
     expect(screen.getByText('Solo').closest('[data-task-title]')).toHaveTextContent(/^Solo$/)
+  })
+})
+
+describe('TaskItem: 開いたまま 0 時をまたぐ', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    refreshAppClock()
+  })
+
+  it('実行日が今日の行は、描き直すと「今日」でなく日付になる', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 21, 23, 58))
+    refreshAppClock()
+    const task = addTask('Report')
+    useTaskStore.getState().updateTask(task.id, { scheduledDate: '2026-10-21', startTime: '10:00', endTime: '11:00' })
+    const { container } = render(<Row id={task.id} />)
+    expect(container).toHaveTextContent('Today 10:00–11:00')
+
+    vi.setSystemTime(new Date(2026, 9, 22, 0, 2))
+    act(() => refreshAppClock())
+    expect(container).not.toHaveTextContent('Today')
+    expect(container).toHaveTextContent('10/21')
   })
 })

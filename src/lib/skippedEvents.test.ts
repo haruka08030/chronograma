@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { CalendarEvent } from '../types/calendarEvent'
+import { mergeSkipped, planSkippedSync } from './settingPlans'
 import {
   SKIPPED_MAX,
   isSkippedDeletion,
-  mergeSkipped,
   normalizeSkippedEvents,
-  planSkippedSync,
   skippedAsEvents,
   toSkippedEvent,
   withRemoved,
@@ -134,5 +133,7 @@ describe('同期', () => {
     )
     expect(plan.apply?.events.map((e) => e.id).sort()).toEqual(['b', 'gym1'])
     expect(plan.push?.base).toBe('2026-10-21T01:00:00Z')
+    // 消したものは印で残るので、合わせても片方を捨てていない
+    expect(plan.conflicts).toBe(0)
   })
 })

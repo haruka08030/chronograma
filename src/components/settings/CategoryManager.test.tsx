@@ -43,7 +43,7 @@ describe('設定のラベル: 直近 30 日でラベルなし（#390）', () => 
     act(() => within(list).getByRole('button', { name: 'Color and label' }).click())
     act(() =>
       within(list)
-        .getByRole('radio', { name: /^勉強（/ })
+        .getByRole('radio', { name: /^勉強 \(/ })
         .click(),
     )
     expect(useTaskStore.getState().tasks.find((x) => x.id === '読書')).toMatchObject({ category: '勉強' })

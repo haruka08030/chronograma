@@ -7,6 +7,7 @@ import { shiftReviewPeriod } from '../lib/reviewPeriod'
 import { periodTargetMinutes } from '../lib/labelTargets'
 import { zonedNow } from '../lib/timeZone'
 import type { Task } from '../types/task'
+import type { Habit } from '../types/habit'
 import { WeekReviewCard } from './WeekReviewCard'
 import { dispatchNav } from '../lib/shortcuts'
 import { openReviewDay } from '../lib/reviewFocus'
@@ -34,6 +35,16 @@ const task = (id: string, over: Partial<Task> = {}): Task =>
     recurrence: null,
     ...over,
   }) as Task
+
+/** 3 か月前の 1 時間の記録（一度は記録したことのある人にする） */
+const oldLog = () =>
+  task('old', {
+    kind: 'log',
+    completed: true,
+    dueDate: toDateKey(shiftReviewPeriod('month', zonedNow(), -3)),
+    startTime: '09:00',
+    endTime: '10:00',
+  })
 
 /** 今日終えた「Write ES」（見積もり 1 時間）と、▶ で始めた 2 時間の記録 */
 function seed() {
@@ -109,7 +120,7 @@ describe('WeekReviewCard: 月のふりかえり（#304）', () => {
     expect(screen.queryByText('Planned')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
-    expect(screen.getByText('Habits kept that month')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeEnabled()
     expect(screen.getAllByText('1h').length).toBeGreaterThan(0)
     // その前の月に記録が無いので差は出さない
     expect(screen.queryByText(/vs previous month/)).toBeNull()
@@ -235,7 +246,7 @@ describe('WeekReviewCard: 一言は数字から（#276）', () => {
 
 describe('WeekReviewCard: 今日の計画の過ぎた日から開く（#282）', () => {
   it('その日を含む週を開き、その日の棒に印を付ける。次に開いたときは今週', () => {
-    useTaskStore.setState({ tasks: [] })
+    useTaskStore.setState({ tasks: [oldLog()] })
     const day = toDateKey(shiftReviewPeriod('week', zonedNow(), -2))
     openReviewDay(day)
     expect(useTaskStore.getState().selectedView).toBe('stats')
@@ -258,6 +269,7 @@ describe('WeekReviewCard: 持ち越しが続いているタスク（#300）', ()
       tasks: [
         task('es', { title: 'Write ES', scheduledDate: today, carriedDays: 3 }),
         task('one', { scheduledDate: today, carriedDays: 1 }),
+        oldLog(),
       ],
     })
     const { unmount } = render(<WeekReviewCard />)
@@ -278,14 +290,61 @@ describe('WeekReviewCard: T / J / K（#389）', () => {
     render(<WeekReviewCard />)
     fireEvent.click(screen.getByRole('radio', { name: 'Month' }))
     act(() => dispatchNav('prev'))
-    expect(screen.getByText('Habits kept that month')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeEnabled()
     act(() => dispatchNav('next'))
     act(() => dispatchNav('next'))
-    expect(screen.queryByText('Habits kept that month')).toBeNull()
     expect(screen.getByRole('button', { name: 'Next month' })).toBeDisabled()
     act(() => dispatchNav('prev'))
     act(() => dispatchNav('prev'))
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeEnabled()
     act(() => dispatchNav('today'))
-    expect(screen.queryByText('Habits kept that month')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeDisabled()
+  })
+})
+
+describe('WeekReviewCard: 使っていないものの数字は出さない', () => {
+  const habit: Habit = {
+    id: 'h',
+    title: 'Vocab',
+    color: '#33B679',
+    timeMode: 'none',
+    startTime: null,
+    endTime: null,
+    frequency: { type: 'daily' },
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    completedDates: [],
+    archivedAt: null,
+  } as Habit
+
+  it('一度も記録していない人には、数字の枠・棒・ラベル別を出さず一言だけ', () => {
+    useTaskStore.setState({ tasks: [task('open')], habits: [habit] })
+    render(<WeekReviewCard />)
+    expect(screen.getByText(/^Nothing logged this week yet\. Block time/)).toBeInTheDocument()
+    expect(screen.queryByText('Tasks done')).toBeNull()
+    expect(screen.queryByText('Habits kept this week')).toBeNull()
+    expect(screen.queryByText('Time logged per day')).toBeNull()
+    expect(screen.queryByText('Time by label')).toBeNull()
+    useTaskStore.setState({ habits: [] })
+  })
+
+  it('習慣の予定が無い期間は習慣の達成、時間に置いた予定が無い期間は計画どおり実行の枠を出さない', () => {
+    seed()
+    useTaskStore.setState({ habits: [] })
+    const { unmount } = render(<WeekReviewCard />)
+    expect(screen.getByText('Tasks done')).toBeInTheDocument()
+    expect(screen.queryByText('Habits kept this week')).toBeNull()
+    expect(screen.queryByText('Followed the plan')).toBeNull()
+    unmount()
+
+    const today = toDateKey(zonedNow())
+    useTaskStore.setState({
+      habits: [habit],
+      tasks: [...useTaskStore.getState().tasks, task('plan', { scheduledDate: today, startTime: '00:00', endTime: '00:30' })],
+    })
+    render(<WeekReviewCard />)
+    expect(screen.getByText('Habits kept this week')).toBeInTheDocument()
+    expect(screen.getByText('Followed the plan')).toBeInTheDocument()
+    useTaskStore.setState({ habits: [] })
   })
 })

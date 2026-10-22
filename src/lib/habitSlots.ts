@@ -4,21 +4,10 @@ import { habitDayStatus, habitTimesOn, habitUsualTimesOn, plannedRecordTimes, ty
 import type { PlannedItem } from '../types/plannedItem'
 import { fromDateKey } from './dateKey'
 import { timeToMinutes } from './clockTime'
+import { habitSlotId } from '../../supabase/functions/_shared/dayResult.ts'
 
-const SLOT_PREFIX = 'habit-slot::'
-
-/** タイムラインの習慣の枠の id（`habit-slot::<習慣の id>::<yyyy-MM-dd>`） */
-export function habitSlotId(habitId: string, dateKey: string): string {
-  return `${SLOT_PREFIX}${habitId}::${dateKey}`
-}
-
-/** 習慣の枠の id なら習慣の id と日。ほかの id は null */
-export function parseHabitSlotId(id: string): { habitId: string; dateKey: string } | null {
-  if (!id.startsWith(SLOT_PREFIX)) return null
-  const rest = id.slice(SLOT_PREFIX.length)
-  const at = rest.lastIndexOf('::')
-  return at > 0 ? { habitId: rest.slice(0, at), dateKey: rest.slice(at + 2) } : null
-}
+/** タイムラインの習慣の枠の id（`habit-slot::<習慣の id>::<yyyy-MM-dd>`）。通知の数え方（`dayResult.ts`）と同じ */
+export { habitSlotId, parseHabitSlotId } from '../../supabase/functions/_shared/dayResult.ts'
 
 /**
  * タイムライン用。時間を決めた習慣だけ。枠は ✓ で作る記録と同じ（時刻ひとつは許容幅ぶん）。

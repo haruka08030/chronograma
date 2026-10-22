@@ -7,6 +7,7 @@ import { unplannedListIds } from '../lib/listKind'
 import { recordLabelKey } from '../lib/logCategoryColors'
 import { fromDateKey } from '../lib/dateKey'
 import { useAppTodayKey } from './useAppClock'
+import { useAbsentOn } from './useAbsentOn'
 
 /** 日の違いの行（`computeDayInsights`）。睡眠カードが出すかどうかを決めるのにも使う */
 export function useDayInsights(): DayInsight[] {
@@ -18,14 +19,15 @@ export function useDayInsights(): DayInsight[] {
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const todayKey = useAppTodayKey()
   const excluded = useMemo(() => unplannedListIds(lists), [lists])
+  const absentOn = useAbsentOn()
   const labelOf = useMemo(
     () => (log: LabelSource) => recordLabelKey(log, labelPresets, logCategoryColors),
     [labelPresets, logCategoryColors],
   )
   // 記録・予定の数字は日ごと（ふりかえりと同じ数え方）。気分が変わっただけでは数え直さない
   const days = useMemo(
-    () => getDayReviews(tasks, habits, insightDateKeys(todayKey).map(fromDateKey), excluded, undefined, labelOf),
-    [tasks, habits, todayKey, excluded, labelOf],
+    () => getDayReviews(tasks, habits, insightDateKeys(todayKey).map(fromDateKey), excluded, undefined, labelOf, absentOn),
+    [tasks, habits, todayKey, excluded, labelOf, absentOn],
   )
   const nights = useMemo(() => {
     const keys = insightDateKeys(todayKey)

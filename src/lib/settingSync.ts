@@ -13,6 +13,7 @@
  * （手元の時刻はサーバーの時計に直す。前回同期で測ったずれ `clockOffsetMs`）
  */
 import { reportSyncError } from './errorReport'
+import { SETTINGS_BASE_KEY_PREFIX, SETTINGS_SYNCED_KEY_PREFIX, readStored, writeStored } from './dataStore'
 
 export type SettingSyncStep =
   /** サーバーに行が無い・手元が新しい: 送る（`base` はサーバーの版、行が無ければ null） */
@@ -55,11 +56,16 @@ export function settingSyncStep(
 /** ラベル表・他のタイムゾーン・動いているタイマー（`timerSync.ts`）・よく入れる予定（`eventTemplates.ts`）・授業と科目のつながり（`courseLinks.ts`）・時間割（`timetable.ts`）・追加機能（`addons.ts`）・睡眠のタイマー（`sleepTimer.ts`）・やらなかった予定（`skippedEvents.ts`） */
 export type SettingKey = 'labels' | 'zones' | 'timer' | 'templates' | 'courses' | 'timetable' | 'addons' | 'sleepTimer' | 'skipped'
 
-const syncedKey = (userId: string) => `chronograma-settings-sync-v1:${userId}`
+/**
+ * 版と中身の控えは本体と同じ置き場所（`dataStore.ts`。IndexedDB なら本体と同じトランザクション）に置く。
+ * 別の置き場所だと、サーバーの値に合わせた後に本体だけ書けない・閉じて消えると、古い値なのに版だけ新しくなり、
+ * 次の同期で古い値を「手元で変えた」と読んでサーバーに送っていた
+ */
+const syncedKey = (userId: string) => `${SETTINGS_SYNCED_KEY_PREFIX}${userId}`
 
 function readAll(userId: string): Partial<Record<SettingKey, string>> {
   try {
-    const raw = localStorage.getItem(syncedKey(userId))
+    const raw = readStored(syncedKey(userId))
     const parsed = raw ? (JSON.parse(raw) as unknown) : null
     return parsed && typeof parsed === 'object' ? (parsed as Partial<Record<SettingKey, string>>) : {}
   } catch {
@@ -75,7 +81,7 @@ export function loadSettingSyncedAt(userId: string, key: SettingKey): string | n
 
 export function saveSettingSyncedAt(userId: string, key: SettingKey, at: string): void {
   try {
-    localStorage.setItem(syncedKey(userId), JSON.stringify({ ...readAll(userId), [key]: at }))
+    writeStored(syncedKey(userId), JSON.stringify({ ...readAll(userId), [key]: at }))
   } catch {
     /* 保存できなければ次回は編集時刻で比べる（前の版と同じ動き）だけ */
   }
@@ -83,8 +89,8 @@ export function saveSettingSyncedAt(userId: string, key: SettingKey, at: string)
 
 export function clearSettingSyncedAt(userId: string): void {
   try {
-    localStorage.removeItem(syncedKey(userId))
-    localStorage.removeItem(baseKey(userId))
+    writeStored(syncedKey(userId), null)
+    writeStored(baseKey(userId), null)
   } catch {
     /* ignore */
   }
@@ -94,11 +100,11 @@ export function clearSettingSyncedAt(userId: string): void {
  * 手元の値のもとになったサーバーの版の中身の控え（ラベル表はラベルの id の一覧、#357）。版（`at`）と一緒に持ち、
  * `syncedAt` と同じ版の控えだけを使う。両方の端末で変えたときに、片方で消したものを消したと分かるようにする
  */
-const baseKey = (userId: string) => `chronograma-settings-base-v1:${userId}`
+const baseKey = (userId: string) => `${SETTINGS_BASE_KEY_PREFIX}${userId}`
 
 function readBases(userId: string): Partial<Record<SettingKey, { at: string; value: unknown }>> {
   try {
-    const raw = localStorage.getItem(baseKey(userId))
+    const raw = readStored(baseKey(userId))
     const parsed = raw ? (JSON.parse(raw) as unknown) : null
     return parsed && typeof parsed === 'object' ? (parsed as Partial<Record<SettingKey, { at: string; value: unknown }>>) : {}
   } catch {
@@ -115,7 +121,7 @@ export function loadSettingBase(userId: string, key: SettingKey, at: string | nu
 
 export function saveSettingBase(userId: string, key: SettingKey, at: string, value: unknown): void {
   try {
-    localStorage.setItem(baseKey(userId), JSON.stringify({ ...readBases(userId), [key]: { at, value } }))
+    writeStored(baseKey(userId), JSON.stringify({ ...readBases(userId), [key]: { at, value } }))
   } catch {
     /* 保存できなければ控えの無いとき（前の版と同じ合わせ方）になるだけ */
   }
@@ -135,7 +141,16 @@ export interface SettingSyncDeps<
   key: SettingKey
   fetch: () => Promise<R | null | { error: string }>
   /** `base` は `syncedAt` の版の中身の控え（`baseOf` で作ったもの。無ければ null） */
-  plan: (remote: R | null, syncedAt: string | null, clockOffsetMs: number, base: unknown) => { apply?: A; push?: P; adopt?: string }
+  /**
+   * `conflicts` は中身ごとに合わせたとき、両方が別の値に変えて新しいほうにした数（`settingMerge.ts`）。
+   * 返さない設定は、両方の端末で変えて新しいほうに丸ごと任せたら 1 回と数える
+   */
+  plan: (
+    remote: R | null,
+    syncedAt: string | null,
+    clockOffsetMs: number,
+    base: unknown,
+  ) => { apply?: A; push?: P; adopt?: string; conflicts?: number }
   /** 合わせた版の中身の控えを作る（サーバーの値か送った値から）。無ければ控えを持たない */
   baseOf?: (synced: R | P) => unknown
   /** 手元の変えた時刻（`logLabelsUpdatedAt` など） */
@@ -171,6 +186,11 @@ export async function runSettingSync<
      * 手元のもとにした版と同じで、手元でも変えていなければ取りに行かない（#258。何も変わらない同期で設定ごとに 1 往復していた）
      */
     remoteVersion?: string | null
+    /**
+     * 片方の編集を捨てた回数を記録に送る（`noteMergeConflicts`。キーは `settings.<設定の名前>`）。
+     * 記録の部分を設定の同期から読み込まない（読み込み順が回り、テストの差し替えが効かなくなる）ので、呼ぶ側から渡す
+     */
+    onConflicts?: (counts: Record<string, number>) => void
   } = {},
 ): Promise<void> {
   const cancelled = opts.isCancelled ?? (() => false)
@@ -191,6 +211,18 @@ export async function runSettingSync<
     const plannedAt = s.localUpdatedAt()
     const syncedAt = loadSettingSyncedAt(userId, s.key)
     const plan = s.plan(remote, syncedAt, opts.clockOffsetMs ?? 0, s.baseOf ? loadSettingBase(userId, s.key, syncedAt) : null)
+    // 片方の編集を捨てた回数を記録に（行の項目と同じ記録。表の名前だけで数え、中身は送らない）
+    const conflicts =
+      plan.conflicts ??
+      (remote &&
+      plannedAt !== null &&
+      syncedAt !== null &&
+      plannedAt !== syncedAt &&
+      remote.updatedAt !== syncedAt &&
+      (plan.apply || plan.push)
+        ? 1
+        : 0)
+    if (conflicts > 0) opts.onConflicts?.({ [`settings.${s.key}`]: conflicts })
     /** この版に合わせた。版と中身の控えを覚える */
     const synced = (at: string, value: R | P) => {
       saveSettingSyncedAt(userId, s.key, at)

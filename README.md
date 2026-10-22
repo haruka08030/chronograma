@@ -10,7 +10,7 @@
 
 - **今日の計画**（既定の画面）: 今日のやり残し・今日やること・習慣を左に、1 日のタイムラインを右に置き、ドラッグや「15時 レポート 1時間」のような入力で時間に置く。1 日の区切りは 0 時で、前の日に終わらなかった予定は今日のやり残しに繰り越す
 - **記録**: 行の ▶ で記録を始めると、タイムラインの予定の横に実際の記録が並び、予定とのずれが見える。記録の名前は過去の記録・その時間に重なる予定・今日の To-Do から候補を出し、選ぶとラベルや時間が入る
-- **ふりかえり**: 予定 vs 実績・活動ログ・統計（日・週・月）、夜の締め（その日の数字。記録の無い時間を埋められる）
+- **ふりかえり**: 予定 vs 実績・活動ログ・統計（日・週・月）、夜のまとめ（その日の予定と記録のずれの数字）
 
 ### その他にできること
 
@@ -42,7 +42,7 @@
 | 読み込み | 「今日の計画」以外の画面と、開いたときだけ要る詳細・メニューは遅延読み込み。読めなければ次に開くときに読み直す | `src/lib/lazyComponent.ts`、`src/components/lazyOverlays.ts` |
 | エラー | 画面・同期・端末の保存・連携・通知の購読のエラーを Supabase の `client_errors` に送る（ログインしていない間はためておき、ログインしたら送る。同じエラーはまとめ、トークンやメールは伏せる。30 日で消える。見る SQL は `supabase/metrics/health.sql`）。Edge Function の中のエラーは Supabase の Edge Functions → Logs | `src/lib/errorReport.ts` |
 | 問い合わせ | 設定の一番下から、ログインしている人が文面を Supabase の `feedback` に送る（端末からは送るだけで読めない。1 人 24 時間に 20 件まで） | `src/lib/feedback.ts` |
-| 数を見る | 本番の SQL Editor で流す読むだけの SQL。エラーと通知の回（`health.sql`）、同期している版（`versions.sql`）、使われ方（`usage.sql`: はじめの 3 日・2 週目・記録した日の数・機能ごとの人数・予定と記録の比・ラベルの無い記録の割合。数と日付だけで、タイトル・メモ・ラベル名は読まない）。migration には入れない | `supabase/metrics/` |
+| 数を見る | 本番の SQL Editor で流す読むだけの SQL。エラーと通知の回（`health.sql`）、同期している版（`versions.sql`）、使われ方（`usage.sql`: 使い始めた人（最初の行から 3 日のうちに、同じ日に予定と記録が並んだ日がある）・続けている人（7〜13 日目にその日が 2 日以上）・記録した日の数・機能ごとの人数と 2 週目も使った人・予定と記録の比・ラベルの無い記録の割合。数と日付だけで、タイトル・メモ・ラベル名は読まない。作った人・試しのアカウントは `auth.users` の app_metadata `metrics_exclude` で外す）。migration には入れない | `supabase/metrics/` |
 
 **テスト**: 計算・同期・保存の移行は vitest（node）、画面の部品は vitest + Testing Library（jsdom）、起動から使う流れは Playwright、RLS とトリガーは pgTAP（`supabase/tests/`）。CI（`.github/workflows/ci.yml`）は型・Lint（a11y 込み）・書式・テスト・E2E に加え、Edge Function の型チェックと、ローカルの Supabase に migration を全部流して pgTAP を回します。
 
@@ -56,6 +56,8 @@ npm run dev
 ```
 
 ビルドは `npm run build`、Lint は `npm run lint`、整形は `npm run format`（確認だけなら `npm run format:check`）です。`npm install` で入るコミット前のフック（`.githooks/pre-commit`）が、ステージしたファイルの書式を確かめ、崩れていればコミットを止めます。
+
+端末のタイムゾーンと今日を決めて全部のテストを回すのは `npm run test:tz`（Los Angeles の夏時間の切り替わる日、東京の年末の 15:30Z とうるう日。時刻は `FAKE_NOW` と `src/test/fakeNow.ts`）。CI は Los Angeles の 2026-11-01 で 1 回回します。
 
 DB のテスト（RLS とトリガー、pgTAP の `supabase/tests/*.sql`）は Docker と Supabase CLI で、手元の DB に対して流します（本番には向けない）:
 
@@ -82,11 +84,11 @@ CI は migration を 2 回流し（何度流しても同じ形になること）
 3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
    アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
    ブラウザから呼ぶ Edge Function（account・google-calendar・notion・canvas）は、secret `ALLOWED_ORIGINS` に入れたオリジンからだけ呼べます。本番の URL を入れてください: `supabase secrets set ALLOWED_ORIGINS=https://your-app.vercel.app`（複数はカンマ区切り）。開発用（`http://localhost:5173`・`:4173`）は環境変数 `ALLOW_DEV_ORIGINS=true` のときだけ足します（ローカルの `supabase functions serve` なら `supabase/functions/.env` に書く。本番の secret には入れない）。
-   連携のトークン（Google のリフレッシュトークン・Notion / Canvas のトークン・Canvas のフィード URL）は、DB に置く前に Edge Function が暗号化します。鍵を secret に入れてください: `supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。入れる前に保存したトークン（平文）は、`daily-reminders` が 5 分ごとに少しずつ暗号化し直します（それまでの間、平文のトークンは使わずにエラーにします）。鍵が無い間は連携の保存を断り、500 を返します。
+   連携のトークン（Google のリフレッシュトークンとアクセストークン・Notion / Canvas のトークン・Canvas のフィード URL）は、DB に置く前に Edge Function が暗号化します。鍵を secret に入れてください: `supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。入れる前に保存したトークン（平文）は、`daily-reminders` が 5 分ごとに少しずつ暗号化し直します（それまでの間、平文のトークンは使わずにエラーにします）。鍵が無い間は連携の保存を断り、500 を返します。
    **鍵の入れ替え**（漏れたときや定期的に）は、連携を切らずにできます:
    1. 今の鍵を前の鍵に回し、新しい鍵を入れる（2 つを 1 回で）: `supabase secrets set TOKEN_ENCRYPTION_PREVIOUS_KEYS=<今の鍵> TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。前の鍵がすでにあるなら、カンマ区切りで並べる（`TOKEN_ENCRYPTION_PREVIOUS_KEYS=<今の鍵>,<その前の鍵>`）。secret は次の呼び出しから効き、デプロイし直しは要りません
    2. 連携の関数は前の鍵でも開け、読んだついでに新しい鍵で閉じ直します。使われていない連携の行も `daily-reminders` が 5 分ごとに（表ごと 100 行まで）閉じ直します
-   3. 全部閉じ直されたか SQL Editor で確かめる（新しい鍵の名前は暗号文の `enc:v2:` の次の 8 文字。新しく保存された行で分かる）: `select count(*) from google_oauth where refresh_token not like 'enc:v2:<新しい鍵の名前>:%'`（`notion_connection.token`・`canvas_connection.token` / `feed_url` も同じ）が 0 になったら
+   3. 全部閉じ直されたか SQL Editor で確かめる（新しい鍵の名前は暗号文の `enc:v2:` の次の 8 文字。新しく保存された行で分かる）: `select count(*) from google_oauth where refresh_token not like 'enc:v2:<新しい鍵の名前>:%'`（`google_oauth.access_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url` も同じ）が 0 になったら。Google のアクセストークンは作り直せるので、どの鍵でも開けなければ `daily-reminders` が空にします
    4. 前の鍵を外す: `supabase secrets unset TOKEN_ENCRYPTION_PREVIOUS_KEYS`（漏れた鍵はこれで使えなくなる）。0 にならない行は、どの鍵でも開けない壊れた値です（`daily-reminders` のログに `token sweep: unreadable values`）。その連携はつなぎ直しになります
    **鍵を消したり、前の鍵に回さずに替えたりすると、保存済みの連携はすべてつなぎ直しになります**。
    ログイン用メールは、Supabase の標準のメール送信だと 1 時間に送れる数がごく少なく、超えると `email rate limit exceeded` になります。人に使ってもらう前に **Authentication → Emails → SMTP Settings** で自前の SMTP（Resend・SendGrid など）を設定し、**Authentication → Rate Limits** でメールの上限を上げてください。
@@ -103,7 +105,7 @@ CI は migration を 2 回流し（何度流しても同じ形になること）
 
 ### 通知（Web Push、任意）
 
-アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・夜の締め（その日の数字つき）・タイマーの止め忘れ・「あと何分」の時間（最大 5 分ほど遅れます。アプリを開いていればちょうどの時刻）を届けます。予定の前の通知の「記録を始める」を押すと、その予定のタイマーを動かした状態でアプリが開きます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
+アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・夜のまとめ（その日の数字つき）・タイマーの止め忘れ・「あと何分」の時間（最大 5 分ほど遅れます。アプリを開いていればちょうどの時刻）を届けます。予定の前の通知の「記録を始める」を押すと、その予定のタイマーを動かした状態でアプリが開きます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
 
 1. VAPID 鍵を作る: `npx web-push generate-vapid-keys`
 2. 公開鍵を `.env`（とホスティングの環境変数）の `VITE_VAPID_PUBLIC_KEY` に設定
@@ -151,6 +153,12 @@ select jobname, schedule, command from cron.job where jobname = 'chronograma-dai
 秘密を変えるときは、Edge Function の secret と Vault の両方を変えます: `supabase secrets set CRON_SECRET=NEW_SECRET` と `select vault.update_secret((select id from vault.secrets where name = 'chronograma_cron_secret'), 'NEW_SECRET');`
 
 通知時刻は各端末のタイムゾーンで判定し、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。1 回が失敗しても（読み込みの失敗・デプロイ中・タイムアウト）、次の回が前の成功の回から今まで（上限 60 分）の分を送ります（`reminder_runs`、migration `012`。送った通知は二度送りません）。
+
+**VAPID 鍵の入れ替え**（漏れたとき・作り直したとき）。前の鍵の購読にはプッシュサービスが 403 を返すので、`daily-reminders` はその購読を消し（`reminder_runs.last_key_mismatch` に数える。`supabase/metrics/health.sql` の 4）、端末はアプリを開いたときに購読の鍵が今の公開鍵と違えば今の鍵で購読し直します（`src/lib/webPush.ts` の `subscribedWithKey`）:
+
+1. 新しい鍵を作る: `npx web-push generate-vapid-keys`
+2. 公開鍵・秘密鍵を両方の側で同時に替える: Supabase の `supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=...` と、ホスティング（Vercel）の `VITE_VAPID_PUBLIC_KEY`（替えたら再デプロイ。公開鍵はビルドに入る）。片方だけ替えると、新しい購読にも 403 が返って消され続けます
+3. 替えたあと、各端末はアプリを開くまで通知が届きません（開いたときに購読し直す）。`last_key_mismatch` が 0 に戻れば、残っていた前の鍵の購読は片付いています
 
 ### Google でログイン（任意）
 
