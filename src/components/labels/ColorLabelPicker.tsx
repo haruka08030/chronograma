@@ -70,7 +70,7 @@ export function ColorLabelSelect({
   useDismiss({ open, onClose: () => setOpen(false), inside: [ref] })
   useEffect(() => {
     // カードの下のほうで開いたとき、色の一覧が隠れないように見える位置まで送る
-    if (open) ref.current?.scrollIntoView({ block: 'nearest' })
+    if (open) ref.current?.scrollIntoView?.({ block: 'nearest' })
   }, [open])
 
   const choose = (hex: string | null) => {

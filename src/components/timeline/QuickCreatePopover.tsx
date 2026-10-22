@@ -100,7 +100,7 @@ export function QuickCreatePopover({
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   // 記録の列では、名前を打つと推定したラベルを先に選び、過去の記録を候補に出す
-  const { title, category, taskId, color, setTitle, setCategory, pick } = useLogDraft({ infer: asLog })
+  const { title, category, taskId, color, setTitle, setLabel, pick } = useLogDraft({ infer: asLog })
   const googleWritable = useTaskStore((s) => s.googleConnected && s.googleCanWrite)
   const [choice, setChoice] = useState<QuickCreateChoice>(readChoice)
   const asEvent = !asLog && choice.kind === 'event'
@@ -348,7 +348,7 @@ export function QuickCreatePopover({
       </div>
       {asLog ? (
         <div className="mt-3">
-          <TimeLogTagField value={category} onChange={setCategory} compact />
+          <TimeLogTagField value={category} color={color} onChange={setLabel} compact />
         </div>
       ) : (
         <label className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">

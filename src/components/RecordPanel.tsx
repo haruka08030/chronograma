@@ -69,7 +69,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
   const laterButtonRef = useRef<HTMLButtonElement>(null)
   useFocusBackOnClose(mode === 'timer', timerButtonRef)
   useFocusBackOnClose(mode === 'manual', laterButtonRef)
-  const { title, category, taskId, color, setTitle, setCategory, pick, reset } = useLogDraft()
+  const { title, category, taskId, color, setTitle, setLabel, pick, reset } = useLogDraft()
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const recent = useMemo(() => frequentLogs(tasks, 2), [tasks])
@@ -315,7 +315,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
               ))}
             </div>
           )}
-          <TimeLogTagField value={category} onChange={setCategory} compact />
+          <TimeLogTagField value={category} color={color} onChange={setLabel} compact />
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={close} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
               {t('common.cancel')}

@@ -19,7 +19,9 @@ import { HINT_TEXT } from './ui/textClass'
 import { endsAfter, planEndFor, TIMER_LENGTH_CHOICES } from '../lib/timerLength'
 import { primeTimerChime } from '../lib/timerEndAlert'
 import { useTextEntry } from '../hooks/useTextEntry'
-import { TimeLogTagField } from './TimeLogTagField'
+import { useLogLabelChoice } from '../hooks/useLogLabelChoice'
+import { ColorPalette } from './labels/ColorPalette'
+import { NEUTRAL_HEX } from '../lib/googleColors'
 import { LogTitleInput } from './LogTitleInput'
 
 function formatElapsed(ms: number): string {
@@ -70,11 +72,11 @@ export function FloatingTimer() {
   // 「あと何分」を選ぶ並び（#290）。開いたときの予定の終わり（予定から ▶ したときだけ）も覚える
   const [lengthMenu, setLengthMenu] = useState<{ planEnd: string | null } | null>(null)
   const editActiveTimer = useTaskStore((s) => s.editActiveTimer)
-  const colors = useTaskStore((s) => s.logCategoryColors)
   // 題名を直している間の下書きと、ラベルを選ぶ並び
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [labelMenu, setLabelMenu] = useState(false)
+  const labelChoice = useLogLabelChoice(activeTimer?.tags[0] ?? '', activeTimer?.color, editActiveTimer)
   const titleEntry = useTextEntry({
     onSubmit: () => {
       editActiveTimer({ taskTitle: titleDraft })
@@ -157,7 +159,6 @@ export function FloatingTimer() {
     setLengthMenu({ planEnd: s.activeTimer ? planEndFor(s.activeTimer, s.tasks) : null })
   }
   const timeUp = remaining !== null && remaining <= 0
-  const label = activeTimer.tags[0] ?? ''
 
   return (
     <div
@@ -211,17 +212,17 @@ export function FloatingTimer() {
             </div>
           )}
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2">
-            {/* ラベルは押すとチップを並べて選び直す（無ければ「ラベル」） */}
+            {/* ラベルは押すと色の一覧から選び直す（無ければ「ラベル」） */}
             {!labelMenu &&
-              (label ? (
+              (labelChoice.current ? (
                 <button
                   type="button"
                   onClick={() => setLabelMenu(true)}
                   {...tip(t('floatingTimer.editLabel'))}
                   className={chipClass({ variant: 'outline', size: 'sm', selected: true }, 'min-h-7 md:min-h-0')}
-                  style={colorVars(categoryHex(label, colors))}
+                  style={colorVars(labelChoice.current)}
                 >
-                  {label}
+                  {labelChoice.text}
                 </button>
               ) : (
                 <button type="button" onClick={() => setLabelMenu(true)} className={TIMER_TEXT_BUTTON}>
@@ -309,7 +310,23 @@ export function FloatingTimer() {
       )}
       {labelMenu && (
         <div className="mt-2.5 flex items-start gap-1.5">
-          <TimeLogTagField value={label} onChange={(v) => editActiveTimer({ tags: v ? [v] : [] })} compact />
+          <div className="min-w-0 flex-1">
+            <ColorPalette
+              selectedHex={labelChoice.current}
+              onChoose={(hex) => {
+                labelChoice.choose(hex)
+                setLabelMenu(false)
+              }}
+              onDefault={() => {
+                labelChoice.choose(null)
+                setLabelMenu(false)
+              }}
+              defaultLabel={labelChoice.defaultLabel}
+              defaultHex={NEUTRAL_HEX}
+              bare
+              fill
+            />
+          </div>
           <button
             type="button"
             onClick={() => setLabelMenu(false)}

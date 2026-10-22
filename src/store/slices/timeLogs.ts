@@ -209,15 +209,16 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       void _drop
       set({ activeTimer: next ? { ...rest, endsAt: next } : rest })
     },
-    editActiveTimer: ({ taskTitle, tags }) => {
+    editActiveTimer: ({ taskTitle, tags, color }) => {
       const timer = get().activeTimer
       if (!timer) return
       const next = { ...timer }
       const title = taskTitle?.trim()
       if (title && title !== timer.taskTitle) next.taskTitle = title
-      if (tags && tags.join('\n') !== timer.tags.join('\n')) {
+      // ラベルを選び直したら色も選んだもの（名前の無い色）に。ラベルだけなら色は外す
+      if (tags && (tags.join('\n') !== timer.tags.join('\n') || (color ?? null) !== (timer.color ?? null))) {
         next.tags = tags
-        next.color = null
+        next.color = color ?? null
       }
       if (next.taskTitle === timer.taskTitle && next.tags === timer.tags) return
       set({ activeTimer: next })
