@@ -32,8 +32,11 @@ export function TimeBlock({
   colorHex,
   withCheck,
   skipped,
+  running,
 }: {
   task: TimeBlockTask
+  /** 記録中（タイマーが動いている）。題名の前に赤い点、終わりの代わりに「記録中」 */
+  running?: boolean
   /** やらなかった予定（#528）。灰色に重ねて薄く・取り消し線 */
   skipped?: boolean
   /** 右上に ✓（`SlotCheck`）を重ねる。文字を避け、完了は ✓ の塗りで見せる */
@@ -76,6 +79,10 @@ export function TimeBlock({
     !isLog && !sleep && state === 'upcoming' && dayKey && task.dueDate && task.dueDate <= dayKey
       ? dueToneOf(task.dueDate, task.dueTime ?? null, dayKey, { atTime: task.startTime })
       : null
+  const runningDot = running && (
+    <span aria-hidden className="mr-1 inline-block h-1.5 w-1.5 -translate-y-px animate-breathe rounded-full bg-red-500" />
+  )
+  const endLabel = running ? t('activityLog.timerRunning') : task.endTime
   const dueDot = dueTone && (
     <span aria-hidden className={`mr-1 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-current ${DUE_TONE_CLASS[dueTone]}`} />
   )
@@ -84,7 +91,7 @@ export function TimeBlock({
   const compact = height < 32
   const tight = height < 20
   const bare = height < 13
-  const timeLabel = `${task.title}  ${task.startTime} – ${task.endTime}`
+  const timeLabel = `${task.title}  ${task.startTime} – ${endLabel}`
 
   return (
     <button
@@ -123,6 +130,7 @@ export function TimeBlock({
       {bare ? null : compact ? (
         <span className="block truncate">
           <span className="font-medium">
+            {runningDot}
             {dueDot}
             {moon}
             {doneMark}
@@ -139,6 +147,7 @@ export function TimeBlock({
         // 狭い＝「開始 – 終了」の行が入らない中身の幅 5rem 未満（ブロック自身の `@container` で測る）
         <span className="block @max-[5rem]:flex @max-[5rem]:flex-wrap">
           <span className="block truncate font-medium">
+            {runningDot}
             {dueDot}
             {moon}
             {doneMark}
@@ -147,7 +156,7 @@ export function TimeBlock({
           </span>
           <span className="block truncate text-[10px] opacity-80 @max-[5rem]:text-[11px]">
             {task.startTime}
-            <span className="@max-[5rem]:hidden"> – {task.endTime}</span>
+            <span className="@max-[5rem]:hidden"> – {endLabel}</span>
           </span>
         </span>
       )}

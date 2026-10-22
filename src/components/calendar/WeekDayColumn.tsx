@@ -13,7 +13,7 @@ import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex } from '../../lib/planVisual'
 import { habitToPlannedItem, isPointHabitOn } from '../../lib/habitSlots'
 import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
-import { isAppToday, isNowOnDay } from '../../lib/timeZone'
+import { fromAppWall, isAppToday, isNowOnDay } from '../../lib/timeZone'
 import { SELECTED_COLUMN, TODAY_COLUMN } from '../../lib/dayMarker'
 import { toDateKey } from '../../lib/dateKey'
 import { formatDate } from '../../lib/dateFormat'
@@ -22,6 +22,9 @@ import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
 import { OnboardingPlaceSlot } from './OnboardingPlaceSlot'
 import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
+import { RUNNING_LOG_ID, runningLogTimes } from '../../lib/timerRecord'
+import { makeTask } from '../../store/taskHelpers'
+import { useNowWhile } from '../../hooks/useAppClock'
 import { googleEventCrossesDay, googleEventSegmentOnDay } from '../../lib/googleEventSpan'
 import { unrecordedGapsForDay } from '../../lib/unrecordedGaps'
 import { matchPlanAndActualForDate } from '../../lib/matchEvents'
@@ -139,6 +142,20 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const key = toDateKey(day)
+  // 記録中は、記録の列に始めた時刻から今まで伸びる枠（止めたら入る記録と同じ形。分の境目で描き直す）
+  const wallNow = useNowWhile(activeTimer !== null && splitLanes)
+  const runningLog = (() => {
+    if (!splitLanes || !activeTimer) return null
+    const times = runningLogTimes(activeTimer.startedAt, fromAppWall(wallNow).getTime())
+    if (!times) return null
+    const log = {
+      ...makeTask({ title: activeTimer.taskTitle, listId: '', kind: 'log', completed: true, tags: activeTimer.tags, ...times }, 0),
+      id: RUNNING_LOG_ID,
+      category: activeTimer.tags[0] ?? null,
+      color: activeTimer.color ?? null,
+    }
+    return logSegmentClockOnDay(log, key) ? log : null
+  })()
   // 日をまたぐ予定は、この日にかかる区間だけ描く（始まった日は 24:00 まで、次の日は 0:00 から）
   const dayTimedEvents = timedEvents.map((e) => ({
     e,
@@ -229,6 +246,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     ],
     [
       ...dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
+      ...(runningLog ? [{ id: RUNNING_LOG_ID, ...blockGeometry(runningLog as TimeBlockTask, key, true) }] : []),
       // 記録の無い時間も記録の列のもの（週表示でも予定と左右に分け、枠が予定の下に隠れないように）
       ...gaps.map((g) => {
         const top = (g.start / 60) * HOUR_HEIGHT
@@ -422,6 +440,21 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           />
         </div>
       ))}
+      {runningLog && (
+        // 動かせない・開かない（タイマーは下の浮いている欄で直す・止める）
+        <div data-running-log className="pointer-events-none">
+          <TimeBlock
+            task={runningLog as TimeBlockTask}
+            dayKey={key}
+            isLog
+            running
+            hStyle={logStyle(RUNNING_LOG_ID)}
+            colorHex={recordHex(runningLog, logCategoryColors)}
+            onPointerDown={() => {}}
+            onOpenDetail={() => {}}
+          />
+        </div>
+      )}
       {shownHabitSlots.map(({ habit, slot, done }) => (
         <div className="group/slot" key={slot.id} style={{ opacity: movingTaskId === slot.id ? 0.3 : 1 }}>
           <TimeBlock
