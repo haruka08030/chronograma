@@ -30,34 +30,34 @@ function Dot({ hex }: { hex: string }) {
 export function TaskEventMenu({
   x,
   y,
-  alignRight,
+  fromCard,
   taskId,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
-  alignRight?: boolean
+  fromCard?: boolean
   taskId: string
   onClose: () => void
   onOpenDetail: (taskId: string) => void
 }) {
   const task = useTaskStore((s) => s.tasks.find((t) => t.id === taskId) ?? null)
   if (!task) return null
-  return <TaskEventMenuBody x={x} y={y} alignRight={alignRight} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
+  return <TaskEventMenuBody x={x} y={y} fromCard={fromCard} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
 }
 
 function TaskEventMenuBody({
   x,
   y,
-  alignRight,
+  fromCard,
   task,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
-  alignRight?: boolean
+  fromCard?: boolean
   task: Task
   onClose: () => void
   onOpenDetail: (taskId: string) => void
@@ -153,14 +153,19 @@ function TaskEventMenuBody({
               ]
             : []),
         ] satisfies ActionEntry[])),
-    {
-      kind: 'leaf',
-      id: 'open',
-      divider: isLog,
-      label: t('taskMenu.open'),
-      icon: <PencilIcon className={ICON} />,
-      run: () => onOpenDetail(task.id),
-    },
+    // カードの ⋮ からは出さない（すぐ隣に ✎ がある）
+    ...(fromCard
+      ? []
+      : [
+          {
+            kind: 'leaf' as const,
+            id: 'open',
+            divider: isLog,
+            label: t('taskMenu.open'),
+            icon: <PencilIcon className={ICON} />,
+            run: () => onOpenDetail(task.id),
+          },
+        ]),
     // 同じ日・同じ時間に写し、写したものの詳細を開く（行のメニューの「複製」と同じ）
     ...(isLog
       ? []
@@ -189,21 +194,26 @@ function TaskEventMenuBody({
           },
         ]
       : []),
-    {
-      kind: 'leaf',
-      id: 'delete',
-      label: t('common.delete'),
-      icon: <TrashIcon className={ICON} />,
-      danger: true,
-      // 毎週の予定は範囲を聞いてから
-      run: () => void deleteTaskAsking(task.id),
-    },
+    // カードの ⋮ からは出さない（すぐ隣に 🗑 がある）
+    ...(fromCard
+      ? []
+      : [
+          {
+            kind: 'leaf' as const,
+            id: 'delete',
+            label: t('common.delete'),
+            icon: <TrashIcon className={ICON} />,
+            danger: true,
+            // 毎週の予定は範囲を聞いてから
+            run: () => void deleteTaskAsking(task.id),
+          },
+        ]),
   ]
   return (
     <ActionMenu
       x={x}
       y={y}
-      alignRight={alignRight}
+      alignRight={fromCard}
       header={task.title || t('taskMenu.one')}
       entries={entries}
       onClose={onClose}
@@ -220,13 +230,13 @@ function TaskEventMenuBody({
 export function GoogleEventMenu({
   x,
   y,
-  alignRight,
+  fromCard,
   eventId,
   onClose,
 }: {
   x: number
   y: number
-  alignRight?: boolean
+  fromCard?: boolean
   eventId: string
   onClose: () => void
 }) {
@@ -247,7 +257,7 @@ export function GoogleEventMenu({
       danger: true,
       run: () => removeSkippedEvent(event.id),
     }
-    return <ActionMenu x={x} y={y} alignRight={alignRight} header={event.summary} entries={[remove]} onClose={onClose} searchable={false} />
+    return <ActionMenu x={x} y={y} alignRight={fromCard} header={event.summary} entries={[remove]} onClose={onClose} searchable={false} />
   }
   const editable = canEditGoogleEvent(event, googleCanWrite)
   const scope = event.recurringEventId ? 'series' : 'event'
@@ -281,7 +291,8 @@ export function GoogleEventMenu({
           },
         ]
       : []),
-    ...(event.htmlLink
+    // カードの ⋮ からは「Google カレンダーで開く」「削除」を出さない（すぐ隣にボタンがある）
+    ...(event.htmlLink && !fromCard
       ? [
           {
             kind: 'leaf' as const,
@@ -292,7 +303,7 @@ export function GoogleEventMenu({
           },
         ]
       : []),
-    ...(editable
+    ...(editable && !fromCard
       ? [
           {
             kind: 'leaf' as const,
@@ -306,5 +317,5 @@ export function GoogleEventMenu({
       : []),
   ]
   if (entries.length === 0) return null
-  return <ActionMenu x={x} y={y} alignRight={alignRight} header={event.summary} entries={entries} onClose={onClose} searchable={false} />
+  return <ActionMenu x={x} y={y} alignRight={fromCard} header={event.summary} entries={entries} onClose={onClose} searchable={false} />
 }
