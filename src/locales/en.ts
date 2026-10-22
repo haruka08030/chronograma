@@ -1019,7 +1019,7 @@ export default {
     moveTo: 'Move to list',
     moveToSection: 'Move to section',
     label: 'Label',
-    open: 'Open details',
+    open: 'Edit',
     duplicate: 'Duplicate',
     googleSkip: "Don't send this name to Google",
     doToday: 'Do today',

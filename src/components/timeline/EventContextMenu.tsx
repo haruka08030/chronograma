@@ -10,7 +10,7 @@ import { canEditGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit
 import { useTaskColor } from '../../hooks/useTaskColor'
 import { ColorPalette } from '../labels/ColorPalette'
 import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
-import { CalendarIcon, CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
+import { CalendarIcon, CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
 import { useScheduleEntry } from '../../hooks/useScheduleEntry'
 import { deleteTaskAsking } from '../../lib/seriesScope'
 import { isGoogleSkipped } from '../../lib/googleSkip'
@@ -24,8 +24,8 @@ function Dot({ hex }: { hex: string }) {
 
 /**
  * タイムラインの予定・記録を右クリックしたときのメニュー（押して出るカードと同じ操作を、カードを開かずに）。
- * 予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・複製・（Google に送っているとき）この名前は Google に送らない・削除。
- * 記録: 色（＝ラベル）・詳細・削除
+ * 予定: 色・完了/未完了・予定どおり記録・記録を始める・編集・コピー・（Google に送っているとき）この名前は Google に送らない・削除。
+ * 記録: 色（＝ラベル）・編集・削除
  */
 export function TaskEventMenu({
   x,
@@ -158,7 +158,7 @@ function TaskEventMenuBody({
       id: 'open',
       divider: isLog,
       label: t('taskMenu.open'),
-      icon: <OpenPanelIcon className={ICON} />,
+      icon: <PencilIcon className={ICON} />,
       run: () => onOpenDetail(task.id),
     },
     // 同じ日・同じ時間に写し、写したものの詳細を開く（行のメニューの「複製」と同じ）
