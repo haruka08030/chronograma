@@ -111,6 +111,23 @@ describe('はじめの 3 ステップ', () => {
     expect(screen.getAllByRole('button', { name: 'Start logging this task' })[0]!.className).toContain('group-hover/row:inline-flex')
   })
 
+  it('案内を終えた日は睡眠の行を出さず、次の日から出す', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(new Date().setHours(13, 0, 0, 0)))
+    try {
+      const user = userEvent.setup()
+      openToday()
+      await user.click(screen.getByRole('button', { name: 'Close the guide' }))
+      expect(screen.queryByText('Log your sleep?')).toBeNull()
+      act(() => {
+        useTaskStore.setState({ onboardingFinishedOn: '2000-01-01' })
+      })
+      expect(screen.getByText('Log your sleep?')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('3 つ終わると「できました」を出し、少しして消え、二度と出ない', () => {
     vi.useFakeTimers()
     try {

@@ -1,6 +1,7 @@
 import { useTaskStore } from '../store/taskStore'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { useOnboardingFinishedToday } from './useShowsOnboarding'
 import { pickOnboardingNudge, type OnboardingNudge } from '../lib/onboardingNudge'
 
 /** いま出す誘い。今日の画面の下の通知の 1 行は、案内のあとのカードを出している間は出さない（同じことを 2 回聞かない） */
@@ -12,9 +13,11 @@ export function useOnboardingNudge(): OnboardingNudge | null {
   const reminderPromptDismissed = useTaskStore((s) => s.reminderPromptDismissed)
   const signInNudgeDismissed = useTaskStore((s) => s.signInNudgeDismissed)
   const canSignIn = useCanSuggestSignIn()
+  const finishedToday = useOnboardingFinishedToday()
   return pickOnboardingNudge({
     onboardingDone,
     onboardingCompleted,
+    finishedToday,
     installNudgeDismissed,
     recordPrompts,
     reminderPromptDismissed,

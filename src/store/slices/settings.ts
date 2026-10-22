@@ -2,7 +2,7 @@
 import { normalizeTimeLogTagPresetList } from '../../lib/timeLogTags'
 import { categoryHex, isHexColor, labelForHex, nextCategoryColor } from '../../lib/logCategoryColors'
 import { hexForGoogleKey } from '../../lib/googleColors'
-import { isValidTimeZone, setAppTimeZoneSetting } from '../../lib/timeZone'
+import { appTodayKey, isValidTimeZone, setAppTimeZoneSetting } from '../../lib/timeZone'
 import { reanchorTasks } from '../../lib/taskTimeZone'
 import { normalizeExtraTimeZones } from '../../lib/extraTimeZones'
 import { normalizeWeekStart } from '../../lib/weekStart'
@@ -200,8 +200,8 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     setDailyReminders: (patch) => set((s) => ({ dailyReminders: { ...s.dailyReminders, ...patch } })),
     dismissReminderPrompt: () => set({ reminderPromptDismissed: true }),
     dismissGoogleConnectLine: () => set({ googleConnectLineDismissed: true }),
-    finishOnboarding: () => set({ onboardingDone: true }),
-    completeOnboarding: () => set({ onboardingDone: true, onboardingCompleted: true }),
+    finishOnboarding: () => set({ onboardingDone: true, onboardingFinishedOn: appTodayKey() }),
+    completeOnboarding: () => set({ onboardingDone: true, onboardingCompleted: true, onboardingFinishedOn: appTodayKey() }),
     dismissInstallNudge: () => set({ installNudgeDismissed: true }),
     dismissSignInNudge: () => set({ signInNudgeDismissed: true }),
     setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),

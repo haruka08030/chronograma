@@ -183,6 +183,11 @@ export interface TaskState {
    * （iPhone の Safari ならホーム画面への追加）を出してよい（端末に保存）
    */
   onboardingCompleted: boolean
+  /**
+   * はじめの案内を終えた日（3 つ済んだ・× で閉じた、`yyyy-MM-dd`）。その日の間は睡眠の行と案内のあとの誘いを出さない
+   * （最初の成功の場面に新しいものを重ねない）。前の版から引き継いだ人は null（すぐ出す）。端末に保存
+   */
+  onboardingFinishedOn: string | null
   /** iPhone の Safari でのホーム画面への追加の誘いを閉じたか（端末に保存） */
   installNudgeDismissed: boolean
   /** ログインしていない人へのログインの誘い（2 台目・ホーム画面のアプリでは空になる）を閉じたか（端末に保存） */
