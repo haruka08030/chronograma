@@ -16,7 +16,7 @@ import type { TaskList } from '../types/list'
 import { Modal } from './ui/Modal'
 import { MENU_ROW_ACTIVE, MENU_ROW_HOVER } from './ui/surface'
 import { HINT_TEXT, META_TEXT } from './ui/textClass'
-import { CalendarArrowIcon, ClockIcon, OpenPanelIcon, PlayIcon, SearchIcon } from './icons'
+import { CalendarArrowIcon, ClockIcon, PencilIcon, PlayIcon, SearchIcon } from './icons'
 
 /** 一度に出す結果の数（パレットは「探してすぐ選ぶ」所。全部見るなら To-Do の検索欄） */
 const MAX_RESULTS = 30
@@ -37,7 +37,7 @@ function availableActions(task: Task, lists: readonly TaskList[]): Record<Palett
 /**
  * ⌘K の検索パレット。今の画面の上に小さく出し、画面は切り替えない（今日の計画を組みながら探せる）。
  * - 打つと題名・メモ・タグで絞る（To-Do の検索欄と同じ `searchTasks`）
- * - ↑↓ で選び、Enter で詳細。⌥T 今日やる / 明日へ回す・⌥S 時間を決める・⌥L 記録を始める（下の段のボタンでも）
+ * - ↑↓ で選び、Enter で編集（詳細を開く）。⌥T 今日やる / 明日へ回す・⌥S 時間を決める・⌥L 記録を始める（下の段のボタンでも）
  * - Esc・⌘K・背景で閉じ、開く前のフォーカスへ戻す（`Modal`）
  */
 export function SearchPalette({ onClose }: { onClose: () => void }) {
@@ -216,7 +216,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
           )}
           <span className="flex-1" />
           <PaletteButton
-            icon={<OpenPanelIcon className={ICON} />}
+            icon={<PencilIcon className={ICON} />}
             label={t('palette.open')}
             keys="Enter"
             onClick={() => openDetail(current)}
