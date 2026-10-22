@@ -33,7 +33,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 const openLater = () => {
-  render(<RecordPanel dateKey="2026-10-08" viewingToday />)
+  render(<RecordPanel dateKey="2026-10-08" viewingToday reviewing={false} />)
   fireEvent.click(screen.getByRole('button', { name: '後から記録' }))
   const input = screen.getByPlaceholderText(/何をした？/)
   fireEvent.focus(input)

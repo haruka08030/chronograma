@@ -50,8 +50,6 @@ import { WeekAllDayRow } from './calendar/WeekAllDayRow'
 import { WeekDayColumn } from './calendar/WeekDayColumn'
 import { WeekHabitRow } from './calendar/WeekHabitRow'
 import { useWeekBuckets } from '../hooks/useWeekBuckets'
-import { dayPlanTally } from '../lib/movedPlans'
-import { unplannedListIds } from '../lib/listKind'
 import { useStableRows } from '../hooks/useStableRows'
 import { useHolidayName } from '../hooks/useHolidayName'
 import { useWeekScrollPosition } from '../hooks/useWeekScrollPosition'
@@ -172,13 +170,6 @@ export function WeekCalendarView({
     calendarEvents,
     days,
   )
-  /** 1 日だけ描く過ぎた日の「予定 n・できた n・持ち越し n」。予定の無い日は出さない */
-  const planTally = useMemo(() => {
-    if (gridDays.length !== 1 || gridKey0 >= todayKey) return null
-    const tally = dayPlanTally(tasks, gridKey0, unplannedListIds(lists))
-    return tally.planned > 0 ? tally : null
-  }, [gridDays.length, gridKey0, todayKey, tasks, lists])
-
   const fetchRange = useMemo(() => {
     const ws = new Date(days[0]!)
     const we = new Date(days[days.length - 1]!)
@@ -555,7 +546,6 @@ export function WeekCalendarView({
             onSelectDate={onSelectDate}
             setAllDayAddDate={setAllDayAddDate}
             dayLoads={dayLoads}
-            planTally={planTally}
           />
         </div>
 

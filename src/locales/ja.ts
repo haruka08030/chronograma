@@ -183,15 +183,7 @@ export default {
     todayTitle: '今日',
     prevDay: '前の日',
     nextDay: '次の日',
-    summaryPlanned: '置いた {{time}}',
     summaryPlannedFree: '置いた {{time}} / 空き {{free}}',
-    summaryLogged: '記録 {{time}}',
-    summaryUnrecorded: '記録なし {{time}}',
-    summaryResult: '予定 {{total}} 件中 {{done}} 件',
-    summaryResultUnplanned: '予定 {{total}} 件中 {{done}} 件・予定外 {{time}}',
-    summaryResultHint:
-      '時間に置いた予定のうち、記録と合った・✓ で終えた数（ふりかえりの「計画どおり実行」と同じ数え方）。予定外は予定に無かった記録の時間。押すと週のふりかえりを開きます',
-    summaryUnrecordedHint: '起きている間（今日は今まで）で、30 分以上記録のない時間の合計。押すと後から記録',
     minutes: '{{m}}分',
     hours: '{{h}}時間',
     hoursMinutes: '{{h}}時間{{m}}分',
@@ -1477,7 +1469,6 @@ export default {
     allDayCollapse: 'たたむ',
     unrecordedGap: '記録なし {{time}}',
     movedPlanAria: '{{title}} {{start}}–{{end}}（{{date}} に移した予定）',
-    planTally: '置いた {{planned}}・できた {{done}}・持ち越し {{carried}}',
     unrecordedGapAria: '記録なし {{start}}–{{end}}（押すとこの時間の記録を作る）',
   },
   calendarDayPanel: {

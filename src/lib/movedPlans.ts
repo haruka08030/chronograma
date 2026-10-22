@@ -79,23 +79,3 @@ export function movedPlanToPlannedItem(task: Task, plan: MovedPlan): PlannedItem
     completed: false,
   }
 }
-
-/**
- * 過ぎた日の一行「予定 n・できた n・持ち越し n」の数。予定はその日に置いた To-Do（親だけ）と、その日から移した予定。
- * できたはその日に置いて完了した To-Do、持ち越しはその日から移した予定
- */
-export function dayPlanTally(
-  tasks: readonly Task[],
-  key: string,
-  excludedListIds: ReadonlySet<string> = new Set(),
-): { planned: number; done: number; carried: number } {
-  let placed = 0
-  let done = 0
-  for (const t of tasks) {
-    if (t.scheduledDate !== key || t.parentId || !isTodoTask(t) || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
-    placed++
-    if (t.completed) done++
-  }
-  const carried = movedPlansOnDay(tasks, key, excludedListIds).filter(({ task }) => !task.parentId).length
-  return { planned: placed + carried, done, carried }
-}

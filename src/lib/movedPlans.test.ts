@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { TASK_DEFAULTS } from './taskDefaults'
-import { dayPlanTally, MAX_MOVED_PLANS, movedPlansAfter, movedPlansOnDay, readMovedPlans, withMovedPlans } from './movedPlans'
+import { MAX_MOVED_PLANS, movedPlansAfter, movedPlansOnDay, readMovedPlans, withMovedPlans } from './movedPlans'
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
   ...TASK_DEFAULTS,
@@ -87,7 +87,7 @@ describe('readMovedPlans / withMovedPlans', () => {
   })
 })
 
-describe('dayPlanTally / movedPlansOnDay', () => {
+describe('movedPlansOnDay', () => {
   const moved = { date: '2026-10-02', startTime: '13:00', endTime: '14:00', to: '2026-10-05' }
   const tasks = [
     task('done', { scheduledDate: '2026-10-02', completed: true, completedAt: '2026-10-02T10:00:00Z' }),
@@ -97,8 +97,7 @@ describe('dayPlanTally / movedPlansOnDay', () => {
     task('someday', { scheduledDate: '2026-10-05', movedPlans: [moved], listId: 'someday' }),
   ]
 
-  it('予定はその日に置いた To-Do と移した予定、できたは置いて完了したもの、持ち越しは移したもの', () => {
-    expect(dayPlanTally(tasks, '2026-10-02', new Set(['someday']))).toEqual({ planned: 3, done: 1, carried: 1 })
+  it('その日から移した予定（ゴミ箱・除いたリストは入れない）', () => {
     expect(movedPlansOnDay(tasks, '2026-10-02', new Set(['someday'])).map((m) => m.task.id)).toEqual(['moved'])
   })
 })

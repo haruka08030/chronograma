@@ -9,6 +9,7 @@ import { categoryHex, colorVars, recordLabelKey, recordLabelKeyHex } from '../li
 import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
+import { minutesByRecordLabel } from '../lib/recordLabelMinutes'
 import { TimeLogTagField } from './TimeLogTagField'
 import { LogTimeRow } from './LogTimeRow'
 import { zonedNow } from '../lib/timeZone'
@@ -22,7 +23,7 @@ import { chipClass } from './ui/chipClass'
 import { ERROR_TEXT } from './ui/textClass'
 import { usePendingAction } from '../lib/pendingAction'
 import { OPEN_LOG_LATER_ACTION } from '../lib/logLater'
-import { isLogTask, isSleepTask } from '../types/task'
+import { isLogTask } from '../types/task'
 import { useIsCoarsePointer } from '../hooks/useMediaQuery'
 import { useFocusBackOnClose } from '../hooks/useFocusBackOnClose'
 import { LogTitleInput } from './LogTitleInput'
@@ -49,11 +50,11 @@ function nowRounded(): string {
 
 /**
  * 今日画面の「記録」ブロック（旧・記録画面を統合）。
- * 1. 分類ごとの記録時間（色の帯＋凡例）— 記録がある日だけ
- * 2. タイマー開始（よく使う記録はワンタップで再開）と「後から記録」
+ * 1. ラベル別の記録時間（色の帯＋凡例）— 振り返るとき（`reviewing`）で記録がある日だけ
+ * 2. タイマー開始（よく使う記録はワンタップで再開）と「後から記録」— 今日だけ（過ぎた日はタイムラインの「記録なし」から）
  * 入力欄は押したときだけ開く。記録中は FloatingTimer に任せ、開始ボタンは隠す。
  */
-export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewingToday: boolean }) {
+export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: string; viewingToday: boolean; reviewing: boolean }) {
   const { t } = useTranslation()
   const coarse = useIsCoarsePointer()
   const tasks = useTaskStore((s) => s.tasks)
@@ -80,19 +81,10 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     () => tasks.filter((x) => isLogTask(x) && isActiveTask(x) && minutesOfLogOnCalendarDay(x, dateKey) > 0),
     [tasks, dateKey],
   )
-  const { totalMinutes, byCategory } = useMemo(() => {
-    const m = new Map<string, number>()
-    let total = 0
-    for (const log of dayLogs) {
-      // 睡眠は分類の帯に入れない（上の「睡眠」の行で見る）
-      if (isSleepTask(log)) continue
-      const min = minutesOfLogOnCalendarDay(log, dateKey)
-      total += min
-      const cat = recordLabelKey(log, labelPresets, logCategoryColors)
-      m.set(cat, (m.get(cat) ?? 0) + min)
-    }
-    return { totalMinutes: total, byCategory: [...m.entries()].sort((a, b) => b[1] - a[1]) }
-  }, [dayLogs, dateKey, labelPresets, logCategoryColors])
+  const { totalMinutes, byCategory } = useMemo(
+    () => minutesByRecordLabel(dayLogs, dateKey, (log) => recordLabelKey(log, labelPresets, logCategoryColors)),
+    [dayLogs, dateKey, labelPresets, logCategoryColors],
+  )
 
   // 凡例の「ラベルなし」を押して開いたラベルなしの記録（付けても行は残し、押し間違いを直せる）。閉じていれば null
   const [untaggedOpen, setUntaggedOpen] = useState<string[] | null>(null)
@@ -182,7 +174,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     if (isCancelEscape(e)) close()
   }
 
-  const summary = totalMinutes > 0 && (
+  const summary = reviewing && totalMinutes > 0 && (
     <div>
       {/* 帯。スマホでは押すと分類ごとの時間をすべて開く（閉じている間は上位 2 件だけ 1 行で出す）。PC は常にすべて出す。
           押せることは右の › で伝える（開くと下向き） */}
@@ -337,7 +329,9 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
     )
   }
 
-  if (!canStartTimer && !canLogLater && !summary) return null
+  // 過ぎた日の記入漏れはタイムラインの「記録なし」の枠から入れる（大きなボタンは今日だけ。キーの「後から記録」は過ぎた日も開く）
+  const showLaterButton = canLogLater && viewingToday
+  if (!canStartTimer && !showLaterButton && !summary) return null
 
   return (
     <div className="space-y-3">
@@ -356,7 +350,7 @@ export function RecordPanel({ dateKey, viewingToday }: { dateKey: string; viewin
             {t('quickLog.start')}
           </button>
         )}
-        {canLogLater && (
+        {showLaterButton && (
           <button
             type="button"
             ref={laterButtonRef}

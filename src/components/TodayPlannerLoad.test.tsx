@@ -127,14 +127,14 @@ describe('今日の計画の「予定 / 空き」', () => {
     expect(weekLine()).toHaveTextContent('Free 2h / 3h')
   })
 
-  it('過ぎた日は空きを出さず、予定の時間だけ', () => {
+  it('過ぎた日は置いた時間も空きも出さない（計画しているときだけ）', () => {
     useTaskStore.getState().setSelectedCalendarDateKey('2026-10-07')
     useTaskStore.setState({
       tasks: [{ ...todo('done', { estimateMinutes: 60 }), scheduledDate: '2026-10-07' }],
     })
     const { container } = render(<TodayPlannerView />)
     const header = container.querySelector('header')!
-    expect(header).toHaveTextContent('1h placed')
+    expect(header).not.toHaveTextContent('placed')
     expect(header).not.toHaveTextContent('free')
     expect(header.querySelector('[data-day-free]')).toBeNull()
   })

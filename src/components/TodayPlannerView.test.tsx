@@ -74,7 +74,7 @@ describe('TodayPlannerView（読み上げ）', () => {
   })
 })
 
-describe('TodayPlannerView: 過ぎた日のその日の結果（#282）', () => {
+describe('TodayPlannerView: 見出しは振り返るときだけラベル別の時間（#542）', () => {
   const task = (id: string, over: Partial<Task>): Task =>
     ({
       ...TASK_DEFAULTS,
@@ -98,37 +98,40 @@ describe('TodayPlannerView: 過ぎた日のその日の結果（#282）', () => 
       ...over,
     }) as Task
 
-  it('予定 / 空きの代わりに「予定 2 件中 1 件・予定外」を出し、押すと週のふりかえりを開く', async () => {
+  it('過ぎた日はラベル別の時間だけ。記録の合計・予定の数・予定外・後から記録のボタンは出さない', () => {
     const day = toDateKey(addDays(appToday(), -1))
     useTaskStore.setState({
       tasks: [
-        task('seminar', { title: 'Seminar', scheduledDate: day, startTime: '09:00', endTime: '10:00' }),
         task('essay', { title: 'Essay', scheduledDate: day, startTime: '13:00', endTime: '14:00' }),
-        task('seminarLog', { kind: 'log', title: 'Seminar', dueDate: day, startTime: '09:00', endTime: '10:00', completed: true }),
         task('yt', { kind: 'log', title: 'YouTube', dueDate: day, startTime: '20:00', endTime: '21:00', completed: true }),
       ],
     })
     useTaskStore.getState().setSelectedCalendarDateKey(day)
-    const user = userEvent.setup()
-    render(<TodayPlannerView />)
-    const result = document.querySelector('[data-day-result]')!
-    expect(result.textContent).toMatch(/^1 of 2 plans · 1h unplanned/)
-    // 記録の時間は左の 1 か所だけ（結果の行に重ねない）
-    expect(screen.getAllByText('2h logged')).toHaveLength(1)
-    expect(document.querySelector('[data-day-free]')).toBeNull()
-    await user.click(result)
-    expect(useTaskStore.getState().selectedView).toBe('stats')
+    const { container } = render(<TodayPlannerView />)
+    const header = container.querySelector('header')!
+    expect(within(header).getByRole('button', { name: 'Time by label' })).toBeInTheDocument()
+    expect(header).not.toHaveTextContent(/logged|unplanned|unrecorded|of 1 plan/)
+    expect(within(header).queryByRole('button', { name: 'Log past time' })).toBeNull()
   })
 
-  it('時間に置いた予定が無い過ぎた日は今のまま（結果の行を出さない）', () => {
-    const day = toDateKey(addDays(appToday(), -1))
-    useTaskStore.setState({
-      tasks: [task('yt', { kind: 'log', title: 'YouTube', dueDate: day, startTime: '20:00', endTime: '21:00', completed: true })],
-    })
-    useTaskStore.getState().setSelectedCalendarDateKey(day)
-    render(<TodayPlannerView />)
-    expect(document.querySelector('[data-day-result]')).toBeNull()
-    expect(screen.getByText('1h logged')).toBeInTheDocument()
+  it('今日の昼（締めの時刻の前）はラベル別の時間を出さない', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const now = new Date()
+      now.setHours(13, 0, 0, 0)
+      vi.setSystemTime(now)
+      const day = toDateKey(appToday())
+      useTaskStore.setState({
+        tasks: [task('yt', { kind: 'log', title: 'YouTube', dueDate: day, startTime: '09:00', endTime: '10:00', completed: true })],
+      })
+      useTaskStore.getState().setSelectedCalendarDateKey(day)
+      const { container } = render(<TodayPlannerView />)
+      const header = container.querySelector('header')!
+      expect(within(header).queryByRole('button', { name: 'Time by label' })).toBeNull()
+      expect(within(header).getByRole('button', { name: 'Log past time' })).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

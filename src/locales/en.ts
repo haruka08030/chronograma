@@ -194,15 +194,7 @@ export default {
     todayTitle: 'Today',
     prevDay: 'Previous day',
     nextDay: 'Next day',
-    summaryPlanned: '{{time}} placed',
     summaryPlannedFree: '{{time}} placed / {{free}} free',
-    summaryLogged: '{{time}} logged',
-    summaryUnrecorded: '{{time}} unrecorded',
-    summaryResult: '{{done}} of {{total}} plans',
-    summaryResultUnplanned: '{{done}} of {{total}} plans · {{time}} unplanned',
-    summaryResultHint:
-      'Time-blocked plans that matched a record or were checked off (counted like “Followed the plan” in the review). Unplanned is time logged outside any plan. Click to open the weekly review',
-    summaryUnrecordedHint: 'Total of gaps of 30 minutes or more with no record while awake (today: until now). Click to log it',
     minutes: '{{m}}m',
     hours: '{{h}}h',
     hoursMinutes: '{{h}}h {{m}}m',
@@ -1536,7 +1528,6 @@ export default {
     allDayCollapse: 'Collapse',
     unrecordedGap: '{{time}} unrecorded',
     movedPlanAria: '{{title}} {{start}}–{{end}} (moved to {{date}})',
-    planTally: 'Placed {{planned}} · done {{done}} · moved {{carried}}',
     unrecordedGapAria: 'Unrecorded {{start}}–{{end}} (click to record this time)',
   },
   calendarDayPanel: {

@@ -171,8 +171,11 @@ const SCREENS = [
     click: 'button:has-text("あと何分") >> visible=true',
   },
   { name: 'timer-time-up', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 52, endsIn: -2 } },
-  // 見出しの「記録なし」から後から記録を開いた所（#393）
-  { name: 'planner-unrecorded', view: 'planner', click: 'button:has-text("記録なし") >> visible=true' },
+  // 今日の「後から記録」を開いた所（直前の記録の終わり〜今、#393）
+  { name: 'planner-unrecorded', view: 'planner', click: 'button:has-text("後から記録") >> visible=true' },
+  // 振り返るとき（今日の締めの時刻から・前の日）はラベル別の時間だけ（#542）
+  { name: 'planner-evening-top', view: 'planner', at: '19:30' },
+  { name: 'planner-yesterday', view: 'planner', click: 'button[aria-label="前の日"] >> visible=true' },
   // 通知の「記録する」（#392）。記録パネルの「後から記録」と同じフォーム
   { name: 'record-prompt', view: 'planner', query: '?record=s6' },
   // 記録中に題名・ラベルを直す（#391）

@@ -4,7 +4,6 @@ import { addDays } from 'date-fns'
 import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { getDayLeftBehind, getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
-import { getDayReviews } from '../lib/weekReview'
 import { useNavShortcut } from '../lib/shortcuts'
 import { onWrapUpRequest } from '../lib/notificationLaunch'
 import { choosePlannerPane, openedPlannerPane } from '../lib/plannerPane'
@@ -131,9 +130,8 @@ export function TodayPlannerView() {
     dueSoon,
     open,
     done,
-    loggedMinutes,
   } = useMemo(() => getDayPlan(tasks, dateKey, excludedListIds), [tasks, dateKey, excludedListIds])
-  // 過ぎた日（と今日の締めの時刻から）は、見出しの予定の代わりにその日の結果（ふりかえりの 1 日分と同じ数え方）
+  // 過ぎた日と今日の締めの時刻からは振り返り（見出しにラベル別の時間を出し、スマホはタイムラインの面から開く）
   const wrapUpFrom = minutesOfClock(wrapUpTime) ?? WRAP_UP_FROM_HOUR * 60
   const nowMinutes = minutesOfDay(now)
   const todayKey = toDateKey(appToday())
@@ -159,14 +157,6 @@ export function TodayPlannerView() {
     choosePlannerPane(pane, todayKey)
     setPaneOf({ dateKey, opened, pane })
   }
-  // 今日は時間が進むと終わった予定が増えるので、今日を見ている間は分ごとに数え直す
-  const resultMinute = viewingToday ? nowMinutes : 0
-  const dayResult = useMemo(
-    () => (showResult ? (getDayReviews(tasks, habits, [fromDateKey(dateKey)], excludedListIds)[0] ?? null) : null),
-    // resultMinute は数え直す合図（getDayReviews は今の時刻を自分で読む）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [showResult, tasks, habits, dateKey, excludedListIds, resultMinute],
-  )
   /** 見出しの「予定 / 空き」。週の見出しと同じ計算（授業・バイト・Google の予定を引いた空きと、置いた To-Do の時間・見積もり） */
   const dayLoad = useDayLoads([dateKey]).get(dateKey)!
   // 今日やる行を、時間を決めたもの（時刻順）と時間未定に分ける
@@ -353,15 +343,7 @@ export function TodayPlannerView() {
         className={`${mobilePane === 'list' ? 'flex' : 'hidden'} timer-safe min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
                     md:flex md:w-[380px] md:flex-none md:shrink-0 md:border-r`}
       >
-        <PlannerHeader
-          date={date}
-          dateKey={dateKey}
-          viewingToday={viewingToday}
-          dayNav={dayNav}
-          load={dayLoad}
-          loggedMinutes={loggedMinutes}
-          dayResult={dayResult}
-        />
+        <PlannerHeader date={date} dateKey={dateKey} viewingToday={viewingToday} dayNav={dayNav} load={dayLoad} reviewing={showResult} />
 
         <PlannerDues dateKey={dateKey} />
 
