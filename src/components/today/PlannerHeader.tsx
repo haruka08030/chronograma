@@ -92,8 +92,8 @@ export function PlannerHeader({
       {/* 過ぎた日は、締めで付けた気分の記号を睡眠の横に小さく（今日の昼・これからの日には出さない） */}
       {(onboardingDone || !showFree) && (
         <div className="mt-2 flex flex-wrap items-start gap-x-2 md:mt-3">
-          {onboardingDone && <SleepRow key={dateKey} dateKey={dateKey} />}
-          {!showFree && <DayMoodBadge key={dateKey} dateKey={dateKey} />}
+          {onboardingDone && <SleepRow key={`sleep-${dateKey}`} dateKey={dateKey} />}
+          {!showFree && <DayMoodBadge key={`mood-${dateKey}`} dateKey={dateKey} />}
         </div>
       )}
       {/* 記録の合計を主役に、予定は右に小さく。完了数は下の「完了 N 件」と重なるので出さない */}
