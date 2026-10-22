@@ -414,3 +414,18 @@ describe('TodayPlannerView: 記録中の枠（#530）', () => {
     vi.useRealTimers()
   })
 })
+
+describe('TodayPlannerView: 足したばかりの行の締切（#533）', () => {
+  it('追加欄から足した行は先の締切も出し、画面を開き直すと今日やる行の決まり（先の締切は出さない）に戻る', async () => {
+    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    useTaskStore.setState({ onboardingDone: true })
+    const user = userEvent.setup()
+    const { unmount } = render(<TodayPlannerView />)
+    await user.type(screen.getByPlaceholderText(/^Add/), 'essay by tomorrow{Enter}')
+    const row = () => document.querySelector('[data-task-row]')!
+    expect(row()).toHaveTextContent(/Due /)
+    unmount()
+    render(<TodayPlannerView />)
+    expect(row()).not.toHaveTextContent(/Due /)
+  })
+})
