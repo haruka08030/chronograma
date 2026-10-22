@@ -77,6 +77,7 @@ test('バックアップを取り込み、読み込み直したあとでも「�
   await openTodo(otherPage)
   await addTodo(otherPage, 'Backup task')
   await otherPage.goto('/?view=settings')
+  await otherPage.getByRole('button', { name: 'Backup, import and export' }).click()
   const download = otherPage.waitForEvent('download')
   await otherPage.getByRole('button', { name: 'Export', exact: true }).click()
   const file = testInfo.outputPath('backup.json')
@@ -87,6 +88,7 @@ test('バックアップを取り込み、読み込み直したあとでも「�
   await openTodo(page)
   await addTodo(page, 'Current task')
   await page.goto('/?view=settings')
+  await page.getByRole('button', { name: 'Backup, import and export' }).click()
   const chooser = page.waitForEvent('filechooser')
   // CSV の行にも「Import」があるので、バックアップの行（「Export」の隣）を押す
   await page.getByRole('button', { name: 'Export', exact: true }).locator('..').getByRole('button', { name: 'Import', exact: true }).click()
@@ -95,6 +97,7 @@ test('バックアップを取り込み、読み込み直したあとでも「�
   await expect.poll(() => savedTitles(page)).toEqual(['Backup task'])
 
   await page.reload()
+  await page.getByRole('button', { name: 'Backup, import and export' }).click()
   await page.getByRole('button', { name: 'Restore', exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Restore', exact: true }).click()
   await expect.poll(() => savedTitles(page)).toEqual(['Current task'])

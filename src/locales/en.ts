@@ -862,6 +862,7 @@ export default {
     title: 'Settings',
     appearance: 'Appearance',
     data: 'Data',
+    dataOpen: 'Backup, import and export',
     account: 'Account',
     syncOffTitle: 'Cloud sync',
     supabaseOff: 'Not available in this version. Your data is saved on this device.',

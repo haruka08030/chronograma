@@ -842,6 +842,7 @@ export default {
     title: '設定',
     appearance: '外観',
     data: 'データ',
+    dataOpen: 'バックアップ・取り込み・書き出し',
     account: 'アカウント',
     syncOffTitle: 'クラウド同期',
     supabaseOff: 'このバージョンでは使えません。データはこの端末に保存されます。',
