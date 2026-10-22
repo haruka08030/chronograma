@@ -1,6 +1,6 @@
 import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { OpenPanelIcon, PlusIcon } from '../icons'
+import { PencilIcon, PlusIcon } from '../icons'
 import { useTextEntry } from '../../hooks/useTextEntry'
 import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 import { isModKey, isSubmitEnter } from '../../lib/keyboard'
@@ -105,7 +105,7 @@ export const InlineAddInput = forwardRef<
           {...tip(t('quickAdd.expandHint'))}
           className="-mr-1 inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-700/70 dark:hover:text-zinc-200"
         >
-          <OpenPanelIcon className="h-3.5 w-3.5" />
+          <PencilIcon className="h-3.5 w-3.5" />
           {t('quickAdd.expand')}
         </button>
       )}

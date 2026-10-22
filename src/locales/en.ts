@@ -1078,8 +1078,8 @@ export default {
   palette: {
     label: 'Search palette',
     placeholder: 'Find a to-do',
-    hint: 'Searches titles, notes and tags. ↑↓ to choose, Enter for details',
-    open: 'Details',
+    hint: 'Searches titles, notes and tags. ↑↓ to choose, Enter to edit',
+    open: 'Edit',
     startTimer: 'Start logging',
   },
   quickAdd: {

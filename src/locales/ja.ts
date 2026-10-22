@@ -1046,8 +1046,8 @@ export default {
   palette: {
     label: '検索パレット',
     placeholder: 'To-Do を探す',
-    hint: '題名・メモ・タグで探せます。↑↓ で選び、Enter で詳細',
-    open: '詳細',
+    hint: '題名・メモ・タグで探せます。↑↓ で選び、Enter で編集',
+    open: '編集',
     startTimer: '記録を始める',
   },
   quickAdd: {
