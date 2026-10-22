@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { CalendarEvent } from '../types/calendarEvent'
-import { planSkippedSync } from './settingPlans'
+import { mergeSkipped, planSkippedSync } from './settingPlans'
 import {
   SKIPPED_MAX,
   isSkippedDeletion,
-  mergeSkipped,
   normalizeSkippedEvents,
   skippedAsEvents,
   toSkippedEvent,

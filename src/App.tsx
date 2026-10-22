@@ -19,7 +19,6 @@ import { TimerDropZone } from './components/TimerDropZone'
 import { TooltipHost } from './components/ui/Tooltip'
 import { OverlayHost } from './components/OverlayHost'
 import { SearchBox } from './components/SearchBox'
-import { SearchPalette } from './components/SearchPalette'
 import { DragOverlayTaskRow } from './components/DragOverlayTaskRow'
 import { MobileBottomNav } from './components/MobileBottomNav'
 import { RecordPromptHost } from './components/RecordPromptHost'
@@ -49,6 +48,8 @@ const AddonsView = lazyNamed(() => import('./components/addons/AddonsView'), 'Ad
 const TaskList = lazyNamed(() => import('./components/TaskList'), 'TaskList')
 const SearchResults = lazyNamed(() => import('./components/SearchResults'), 'SearchResults')
 const ShortcutsHelp = lazyNamed(() => import('./components/ShortcutsHelp'), 'ShortcutsHelp')
+/** ⌘K の検索パレット（開いたときだけ読む） */
+const SearchPalette = lazyNamed(() => import('./components/SearchPalette'), 'SearchPalette')
 
 /** 離したときの動き。速さと動き方は他の出入りと同じ（index.css の --ease-standard） */
 const DROP_ANIMATION = { duration: 150, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
@@ -192,7 +193,9 @@ export default function App() {
 
         {showPalette && (
           <PartBoundary name="palette" onCrash={() => setShowPalette(false)}>
-            <SearchPalette onClose={() => setShowPalette(false)} />
+            <OverlaySuspense onLoadFailed={() => setShowPalette(false)}>
+              <SearchPalette onClose={() => setShowPalette(false)} />
+            </OverlaySuspense>
           </PartBoundary>
         )}
         {showShortcuts && (

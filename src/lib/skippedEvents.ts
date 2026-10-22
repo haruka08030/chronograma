@@ -72,11 +72,11 @@ export function normalizeSkippedEvents(raw: unknown): SkippedEvent[] {
       ...(x.removed === true ? { removed: true as const } : {}),
     })
   }
-  return clean(out)
+  return cleanSkipped(out)
 }
 
 /** 日付の新しい順・上限まで。undefined の項目は持たない（同期で比べたときに違って見えないように） */
-function clean(list: SkippedEvent[]): SkippedEvent[] {
+export function cleanSkipped(list: SkippedEvent[]): SkippedEvent[] {
   return [...list]
     .sort((a, b) => b.date.localeCompare(a.date) || b.start.localeCompare(a.start) || a.id.localeCompare(b.id))
     .slice(0, SKIPPED_MAX)
@@ -114,7 +114,7 @@ export function withSkipped(list: readonly SkippedEvent[], additions: readonly S
   const fresh = additions.filter((e) => !known.has(e.id))
   const kept = list.filter((e) => !e.removed || now - Date.parse(e.skippedAt) <= REMOVED_KEEP_MS)
   if (fresh.length === 0 && kept.length === list.length) return list as SkippedEvent[]
-  return clean([...kept, ...fresh])
+  return cleanSkipped([...kept, ...fresh])
 }
 
 /** 予定に戻った（Google でもとに戻した・アプリで消すのを取り消した）予定を外す。本当に消した印は残す。変わらなければ同じ並び */
@@ -147,19 +147,6 @@ export function withSkippedEvents(live: readonly CalendarEvent[], skipped: reado
   const extra = skipped.filter((e) => !ids.has(e.id))
   return extra.length === 0 ? (live as CalendarEvent[]) : [...live, ...extra]
 }
-
-/** 両方の端末で変えた並びを合わせる（どちらかで本当に消した予定は消したまま。ほかは先の並びのもの） */
-export function mergeSkipped(a: readonly SkippedEvent[], b: readonly SkippedEvent[]): SkippedEvent[] {
-  const byId = new Map<string, SkippedEvent>()
-  for (const e of [...a, ...b]) {
-    const prev = byId.get(e.id)
-    if (!prev || (e.removed && !prev.removed)) byId.set(e.id, e)
-  }
-  return clean([...byId.values()])
-}
-
-export const sameSkipped = (a: readonly SkippedEvent[], b: readonly SkippedEvent[]) =>
-  a.length === b.length && a.every((x, i) => JSON.stringify(x) === JSON.stringify(b[i]))
 
 /**
  * 同期。サーバーには利用者ごとに 1 行（`user_skipped_events`、`045`）。並び全体を 1 つの値として扱う（計画は `settingPlans.ts` の `planSkippedSync`）。

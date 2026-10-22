@@ -30,10 +30,10 @@ import {
   type RemoteCourseLinks,
 } from './courseLinks'
 import {
-  mergeSkipped,
+  cleanSkipped,
   normalizeSkippedEvents,
-  sameSkipped,
   type LocalSkipped,
+  type SkippedEvent,
   type RemoteSkipped,
   type SkippedSyncPlan,
 } from './skippedEvents'
@@ -277,6 +277,19 @@ export function planSleepTimerSync(
       return {}
   }
 }
+
+/** 両方の端末で変えたやらなかった予定を合わせる（どちらかで本当に消した予定は消したまま。ほかは先の並びのもの） */
+export function mergeSkipped(a: readonly SkippedEvent[], b: readonly SkippedEvent[]): SkippedEvent[] {
+  const byId = new Map<string, SkippedEvent>()
+  for (const e of [...a, ...b]) {
+    const prev = byId.get(e.id)
+    if (!prev || (e.removed && !prev.removed)) byId.set(e.id, e)
+  }
+  return cleanSkipped([...byId.values()])
+}
+
+const sameSkipped = (a: readonly SkippedEvent[], b: readonly SkippedEvent[]) =>
+  a.length === b.length && a.every((x, i) => JSON.stringify(x) === JSON.stringify(b[i]))
 
 export function planSkippedSync(
   local: LocalSkipped,

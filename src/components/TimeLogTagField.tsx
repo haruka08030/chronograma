@@ -1,7 +1,7 @@
 import { useLogLabelChoice } from '../hooks/useLogLabelChoice'
 import { NEUTRAL_HEX } from '../lib/googleColors'
 import type { LogLabel } from '../lib/logCategoryColors'
-import { ColorLabelSelect } from './labels/ColorLabelPicker'
+import { ColorLabelSelect } from './labels/ColorLabelSelect'
 
 /**
  * 記録のラベル（色＝ラベル）。予定・記録の詳細と同じ色のドロップダウンで選ぶ（候補は設定のラベルだけ）。
