@@ -73,6 +73,17 @@ describe('EventPopover: ⋮（#402）', () => {
     const copy = useTaskStore.getState().tasks.find((t) => t.id === opened)!
     expect(copy).toMatchObject({ title: 'バイト', scheduledDate: '2026-10-07', startTime: '17:00' })
     expect(opened).not.toBe('b')
+    menu.unmount()
+
+    // カードの ⋮ からは、隣のボタンと同じ「編集」「削除」を出さない（右クリックには出す）
+    const fromCard = render(<TaskEventMenu x={0} y={0} fromCard taskId="b" onClose={() => {}} onOpenDetail={() => {}} />)
+    expect(fromCard.queryByRole('menuitem', { name: 'Edit' })).toBeNull()
+    expect(fromCard.queryByRole('menuitem', { name: 'Delete' })).toBeNull()
+    expect(await fromCard.findByRole('menuitem', { name: 'Duplicate' })).toBeTruthy()
+    fromCard.unmount()
+    const rightClick = render(<TaskEventMenu x={0} y={0} taskId="b" onClose={() => {}} onOpenDetail={() => {}} />)
+    expect(await rightClick.findByRole('menuitem', { name: 'Edit' })).toBeTruthy()
+    expect(rightClick.getByRole('menuitem', { name: 'Delete' })).toBeTruthy()
   })
 })
 

@@ -178,13 +178,13 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
           </button>
         )}
-        {/* ⋮: 右クリックと同じメニュー（色・削除）。予定のカードと同じ位置で、メニューは右端を ⋮ にそろえて真下に。色はカードに出しっぱなしにしない */}
+        {/* ⋮: 右クリックのメニューから、隣のボタンと同じ項目（Google で開く・削除）を除いたもの（色）。予定のカードと同じ位置で、メニューは右端を ⋮ にそろえて真下に。色はカードに出しっぱなしにしない */}
         {editable && (
           <button
             type="button"
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect()
-              openTaskMenu({ kind: 'google', x: r.right, y: r.bottom, alignRight: true, eventId: event.id })
+              openTaskMenu({ kind: 'google', x: r.right, y: r.bottom, fromCard: true, eventId: event.id })
             }}
             className={iconButtonClass()}
             aria-label={t('eventCard.more')}
