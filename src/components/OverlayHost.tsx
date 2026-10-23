@@ -39,7 +39,14 @@ export function OverlayHost() {
             />
           )}
           {menu?.kind === 'event' && (
-            <TaskEventMenu x={menu.x} y={menu.y} taskId={menu.taskId} onClose={closeTaskMenu} onOpenDetail={openTaskDetail} />
+            <TaskEventMenu
+              x={menu.x}
+              y={menu.y}
+              brief={menu.brief}
+              taskId={menu.taskId}
+              onClose={closeTaskMenu}
+              onOpenDetail={openTaskDetail}
+            />
           )}
           {menu?.kind === 'timeSlot' && (
             <TimeSlotMenu key={menu.taskId} x={menu.x} y={menu.y} taskId={menu.taskId} dateKey={menu.dateKey} onClose={closeTaskMenu} />

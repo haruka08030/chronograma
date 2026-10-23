@@ -44,7 +44,7 @@ import { toDateKey } from '../lib/dateKey'
 import { shortDate } from '../lib/moveToast'
 import { endWithinDay, minutesToTime } from '../lib/clockTime'
 import { useQuickAddAction } from '../lib/quickAddFocus'
-import { openTaskDetail } from '../lib/overlays'
+import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { WeekDayHeader } from './calendar/WeekDayHeader'
 import { WeekAllDayRow } from './calendar/WeekAllDayRow'
 import { WeekDayColumn } from './calendar/WeekDayColumn'
@@ -205,7 +205,7 @@ export function WeekCalendarView({
   }, [])
 
   const cards = useCalendarCards(gridRef)
-  const { openCard, openGoogleCard, openHabitCard, openHabitMenu, createAnchor, setCreateAnchorFromEl } = cards
+  const { setEventCard, openCard, setGoogleCard, openGoogleCard, openHabitCard, openHabitMenu, createAnchor, setCreateAnchorFromEl } = cards
 
   /** ブロックを押したとき: 習慣の枠・Google の予定・予定と記録のカード */
   const openBlockCard = useCallback(
@@ -228,12 +228,28 @@ export function WeekCalendarView({
   const onResizeDone = useCallback((taskId: string, startTime: string, endTime: string, dateKey: string) => {
     applyBlockResize(taskId, startTime, endTime, dateKey, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
   }, [])
-  // タッチの長押し: 習慣の枠は習慣の画面と同じメニュー。予定・記録・Google の予定はメニューを出さず、押したときと同じカード
+  /**
+   * 右クリック・タッチの長押しのメニュー。習慣の枠は習慣の画面と同じメニュー、予定・To-Do は完了 / 未完了・複製だけ
+   * （ほかはカードと編集画面）。記録・Google の予定には出さない。出したときだけ true
+   */
+  const openBlockMenu = useCallback(
+    (id: string, x: number, y: number): boolean => {
+      if (openHabitMenu(id, x, y)) return true
+      const task = useTaskStore.getState().tasks.find((t) => t.id === id)
+      if (!task || isLogTask(task)) return false
+      setEventCard(null)
+      setGoogleCard(null)
+      openTaskMenu({ kind: 'event', x, y, taskId: id, brief: true })
+      return true
+    },
+    [openHabitMenu, setEventCard, setGoogleCard],
+  )
+  // タッチの長押し: メニューを出せないもの（記録・Google の予定）は押したときと同じカード
   const onBlockLongPress = useCallback(
     (id: string, x: number, y: number) => {
-      if (!openHabitMenu(id, x, y)) openBlockCard(id)
+      if (!openBlockMenu(id, x, y)) openBlockCard(id)
     },
-    [openHabitMenu, openBlockCard],
+    [openBlockMenu, openBlockCard],
   )
   const timelineDrag = useTimelineDrag({
     getRelativeY,
@@ -510,10 +526,9 @@ export function WeekCalendarView({
     <div
       ref={rootRef}
       className="flex min-h-0 min-w-0 flex-1 flex-row"
-      // 習慣の枠を右クリック: 習慣の画面と同じメニュー。予定・記録・Google の予定にはメニューを出さない（操作はカードと編集画面）
       onContextMenu={(e) => {
         const id = (e.target as Element).closest?.('[data-block-id]')?.getAttribute('data-block-id')
-        if (id && openHabitMenu(id, e.clientX, e.clientY)) e.preventDefault()
+        if (id && openBlockMenu(id, e.clientX, e.clientY)) e.preventDefault()
       }}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">

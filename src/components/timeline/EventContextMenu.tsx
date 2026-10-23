@@ -23,37 +23,43 @@ function Dot({ hex }: { hex: string }) {
 }
 
 /**
- * 月・予定リスト・日の一覧で予定・記録を右クリックしたときのメニュー（タイムラインでは出さず、操作はカードと編集画面）。
+ * 月・予定リスト・日の一覧で予定・記録を右クリックしたときのメニュー。
+ * タイムラインの右クリック・長押しは `brief` で完了 / 未完了・複製だけ（ほかはカードと編集画面）。
  * 予定: 色・完了/未完了・予定どおり記録・記録を始める・編集・コピー・（Google に送っているとき）この名前は Google に送らない・削除。
  * 記録: 色（＝ラベル）・編集・削除
  */
 export function TaskEventMenu({
   x,
   y,
+  brief,
   taskId,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
+  /** タイムラインの右クリック: 完了 / 未完了・複製だけ（ほかはカードと編集画面） */
+  brief?: boolean
   taskId: string
   onClose: () => void
   onOpenDetail: (taskId: string) => void
 }) {
   const task = useTaskStore((s) => s.tasks.find((t) => t.id === taskId) ?? null)
   if (!task) return null
-  return <TaskEventMenuBody x={x} y={y} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
+  return <TaskEventMenuBody x={x} y={y} brief={brief} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
 }
 
 function TaskEventMenuBody({
   x,
   y,
+  brief,
   task,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
+  brief?: boolean
   task: Task
   onClose: () => void
   onOpenDetail: (taskId: string) => void
@@ -195,7 +201,11 @@ function TaskEventMenuBody({
       run: () => void deleteTaskAsking(task.id),
     },
   ]
-  return <ActionMenu x={x} y={y} header={task.title || t('taskMenu.one')} entries={entries} onClose={onClose} searchable={false} />
+  const shown = brief
+    ? entries.filter((e) => e.id === 'toggle' || e.id === 'duplicate').map((e) => (e.kind === 'leaf' ? { ...e, divider: false } : e))
+    : entries
+  if (shown.length === 0) return null
+  return <ActionMenu x={x} y={y} header={task.title || t('taskMenu.one')} entries={shown} onClose={onClose} searchable={false} />
 }
 
 /**

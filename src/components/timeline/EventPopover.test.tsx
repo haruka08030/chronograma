@@ -90,6 +90,23 @@ describe('予定のメニュー（月・予定リストの右クリック）: �
   })
 })
 
+describe('タイムラインの右クリック（brief）: 完了 / 未完了・複製だけ', () => {
+  it('To-Do は「完了にする」「複製」だけを出す', async () => {
+    const { TaskEventMenu } = await import('./EventContextMenu')
+    useTaskStore.setState({
+      tasks: [
+        {
+          ...makeTask({ title: 'ゼミ', listId: INBOX_LIST_ID, scheduledDate: '2099-10-07', startTime: '15:00', endTime: '16:30' }, 0),
+          id: 'z',
+        },
+      ],
+    })
+    const menu = render(<TaskEventMenu x={0} y={0} brief taskId="z" onClose={() => {}} onOpenDetail={() => {}} />)
+    const items = (await menu.findAllByRole('menuitem')).map((el) => el.textContent)
+    expect(items).toEqual(['Mark done', 'Duplicate'])
+  })
+})
+
 describe('予定のメニュー: この名前は Google に送らない（#461）', () => {
   const seed = (kind: 'event' | 'todo', connected: boolean) =>
     useTaskStore.setState({
