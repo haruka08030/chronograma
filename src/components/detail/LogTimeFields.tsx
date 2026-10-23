@@ -9,17 +9,25 @@ import { TimeInput } from '../TimeInput'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from '../TaskTimeZoneField'
 import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
-import { HINT_TEXT, META_TEXT } from '../ui/textClass'
+import { META_TEXT } from '../ui/textClass'
+import { timeToMinutes } from '../../lib/timeGrid'
+import { dateKeyOfDayIndex, dayIndexOf } from '../../lib/wallTime'
 import { useTaskTimes } from './useTaskTimes'
 
 /**
  * 記録の日付と時刻（To-Do の実行日と同じ形: 日付の下に 開始 〜 終了 と長さ）。
- * 終わりが開始以前の時刻なら翌日まで。日をまたぐ記録だけ終了日を出して変えられる
+ * 終わりが開始以前の時刻なら翌日まで。日をまたぐ記録だけ終了日（翌日など）を出して変えられる
  */
 export function LogTimeFields({ task }: { task: Task }) {
   const { t } = useTranslation()
   const { zone, tv, updateTimes } = useTaskTimes(task)
   const overnight = isOvernightTimeLog(task)
+  // 終了日を持たない記録は、終わりが開始以前の時刻なら翌日
+  const endKey =
+    tv.endDate ??
+    (tv.dueDate && tv.startTime && tv.endTime && timeToMinutes(tv.endTime) <= timeToMinutes(tv.startTime)
+      ? dateKeyOfDayIndex(dayIndexOf(tv.dueDate) + 1)
+      : (tv.dueDate ?? null))
   const logDurationLabel = useMemo(() => {
     if (!task.startTime || !task.endTime) return null
     const mins = durationMinutesForTaskSlot(task)
@@ -34,7 +42,8 @@ export function LogTimeFields({ task }: { task: Task }) {
         // 日をまたぐ記録は終わりの日も同じ日数ずらす
         onChange={(v) => updateTimes(v ? { dueDate: v, endDate: endDateAfterStartDateEdit(tv.dueDate, tv.endDate, v) } : { dueDate: v })}
         ariaLabel={t('taskDetail.logDate')}
-        className={fieldClass({}, 'w-[12rem]')}
+        inline
+        className={fieldClass()}
       />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <TimeInput
@@ -58,7 +67,7 @@ export function LogTimeFields({ task }: { task: Task }) {
         <div className="mt-2 flex items-center gap-2">
           <span className={sectionLabelClass('field')}>{t('taskDetail.logEndDate')}</span>
           <DateField
-            value={tv.dueDate ? (tv.endDate ?? tv.dueDate) : null}
+            value={endKey}
             min={tv.dueDate ?? undefined}
             disabled={!tv.dueDate}
             onChange={(v) => {
@@ -66,11 +75,11 @@ export function LogTimeFields({ task }: { task: Task }) {
               updateTimes({ endDate: v !== tv.dueDate ? v : null })
             }}
             ariaLabel={t('taskDetail.logEndDate')}
-            className={fieldClass({}, 'w-[12rem]')}
+            inline
+            className={fieldClass()}
           />
         </div>
       )}
-      {overnight && <p className={`mt-2 ${HINT_TEXT}`}>{t('activityLog.overnightHint')}</p>}
       <TaskTimeZoneNote task={task} />
     </div>
   )

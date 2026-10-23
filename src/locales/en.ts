@@ -1544,8 +1544,6 @@ export default {
     timer: 'Timer',
     start: 'Start',
     record: 'Save entry',
-    overnightHint:
-      'If the end time is earlier than the start time on the clock, the entry is treated as continuing until that time the next day (e.g. sleep).',
     spansNextDay: 'Next day {{time}}',
     endDate: 'End date',
   },

@@ -16,6 +16,7 @@ export function DateField({
   align = 'left',
   className = '',
   placeholder,
+  inline = false,
 }: {
   /** `yyyy-MM-dd`。未選択は空文字か null */
   value: string | null
@@ -28,6 +29,8 @@ export function DateField({
   className?: string
   /** 未選択のときの文字 */
   placeholder?: string
+  /** 横いっぱいにせず中身の幅（詳細の実行日のボタンと同じ） */
+  inline?: boolean
 }) {
   const df = useDateFormat()
   const text = value ? df.fullDate(value) : (placeholder ?? '')
@@ -38,7 +41,7 @@ export function DateField({
       min={min}
       onChange={(v) => v && onChange(v)}
       align={align}
-      wrapperClassName="relative"
+      wrapperClassName={inline ? 'relative inline-block' : 'relative'}
       trigger={({ open, toggle }) => (
         <button
           type="button"
@@ -47,7 +50,7 @@ export function DateField({
           aria-expanded={open}
           aria-haspopup="dialog"
           onClick={toggle}
-          className={`flex w-full items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
+          className={`flex ${inline ? '' : 'w-full'} items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
             open ? 'ring-2 ring-accent-500/40' : ''
           } ${className}`}
         >
