@@ -4,11 +4,23 @@ import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { useTextEntry } from '../../hooks/useTextEntry'
 import { useFocusBackOnClose } from '../../hooks/useFocusBackOnClose'
-import { CloseIcon } from '../icons'
+import { CloseIcon, TrashIcon } from '../icons'
+import { tip } from '../../lib/tooltip'
 import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 
 /** タスク詳細の題名（押すと書き換え。Enter で確定・Esc で取り消し）と、PC の閉じるボタン */
-export function TaskTitleField({ task, onClose }: { task: Task; onClose: () => void }) {
+export function TaskTitleField({
+  task,
+  onClose,
+  onDelete,
+  deleteLabel,
+}: {
+  task: Task
+  onClose: () => void
+  /** × の左の 🗑（Google カレンダーの詳細と同じ位置。スマホは上に固定した帯の右） */
+  onDelete?: () => void
+  deleteLabel?: string
+}) {
   const { t } = useTranslation()
   const updateTask = useTaskStore((s) => s.updateTask)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -78,15 +90,28 @@ export function TaskTitleField({ task, onClose }: { task: Task; onClose: () => v
           </h2>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label={t('common.close')}
-        // スマホは上に固定した「戻る」で閉じる（ここはスクロールで消え、右上は親指が届きにくい）
-        className="hidden p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0 md:block"
-      >
-        <CloseIcon className="w-5 h-5 text-zinc-400" />
-      </button>
+      <div className="flex flex-shrink-0 items-center gap-1">
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={deleteLabel}
+            {...tip(deleteLabel)}
+            className="hidden p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0 md:block"
+          >
+            <TrashIcon className="w-5 h-5 text-zinc-400" strokeWidth={1.75} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t('common.close')}
+          // スマホは上に固定した「戻る」で閉じる（ここはスクロールで消え、右上は親指が届きにくい）
+          className="hidden p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0 md:block"
+        >
+          <CloseIcon className="w-5 h-5 text-zinc-400" />
+        </button>
+      </div>
     </div>
   )
 }

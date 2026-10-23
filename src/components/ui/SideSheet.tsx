@@ -14,6 +14,7 @@ export function SideSheet({
   onClose,
   returnFocus,
   onBackdropPress,
+  mobileActions,
   children,
 }: {
   /** 読み上げのシート名 */
@@ -24,6 +25,8 @@ export function SideSheet({
   returnFocus?: () => HTMLElement | null | undefined
   /** 背景を押したとき、閉じる前に呼ぶ（押した所の下を読む。true なら閉じない）。押下は下に届けない */
   onBackdropPress?: (e: PointerEvent, root: HTMLElement | null) => boolean
+  /** スマホの上の帯の右に出すボタン（詳細の 🗑 など） */
+  mobileActions?: ReactNode
   children: ReactNode
 }) {
   const { t } = useTranslation()
@@ -63,6 +66,7 @@ export function SideSheet({
           >
             <ChevronLeftIcon className="h-6 w-6" />
           </button>
+          {mobileActions && <div className="ml-auto flex items-center">{mobileActions}</div>}
         </div>
         {children}
       </div>

@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { useTaskStore } from '../../store/taskStore'
-import { useOverlays } from '../../lib/overlays'
 import { GoogleEventPopover } from './GoogleEventPopover'
 
 const anchor = { top: 100, left: 100, right: 200, bottom: 140 }
@@ -68,19 +67,12 @@ describe('GoogleEventPopover: 記録にする・▶', () => {
   })
 })
 
-describe('GoogleEventPopover: 色', () => {
-  it('色の一覧はカードに出さず、⋮ で右クリックと同じメニュー（色・削除）を開く', () => {
+describe('GoogleEventPopover: 色（#573）', () => {
+  it('色の一覧も ⋮ もカードに出さない', () => {
     useTaskStore.setState({ googleCanWrite: true })
     showEvent()
     expect(screen.queryByRole('button', { name: /Use Google color/ })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'More options' }))
-    expect(useOverlays.getState().menu).toMatchObject({ kind: 'google', eventId: 'g1' })
-    useTaskStore.setState({ googleCanWrite: false })
-  })
-
-  it('書き込めない予定には ⋮ を出さない', () => {
-    useTaskStore.setState({ googleCanWrite: false })
-    showEvent()
     expect(screen.queryByRole('button', { name: 'More options' })).toBeNull()
+    useTaskStore.setState({ googleCanWrite: false })
   })
 })

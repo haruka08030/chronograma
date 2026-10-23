@@ -45,10 +45,9 @@ describe('EventPopover: Alt+↑↓ / Alt+Shift+↑↓', () => {
   })
 })
 
-describe('EventPopover: ⋮（#402）', () => {
-  it('⋮ を押すと右クリックと同じメニューをカードの上に重ねて出し、詳細が開いたらカードを閉じる。メニューの「複製」で写したものの詳細を開く', async () => {
+describe('EventPopover: ⋮ を出さない（#573）', () => {
+  it('カードに ⋮ は無く、詳細が開いたらカードを閉じる', async () => {
     const { useOverlays } = await import('../../lib/overlays')
-    const { TaskEventMenu } = await import('./EventContextMenu')
     useTaskStore.setState({
       tasks: [
         {
@@ -59,31 +58,52 @@ describe('EventPopover: ⋮（#402）', () => {
     })
     let closed = false
     const view = render(<EventPopover taskId="b" anchor={anchor} onClose={() => (closed = true)} onOpenDetail={() => {}} />)
-    fireEvent.click(await view.findByRole('button', { name: 'More options' }))
-    expect(useOverlays.getState().menu).toMatchObject({ kind: 'event', taskId: 'b' })
+    await view.findByRole('dialog')
+    expect(view.queryByRole('button', { name: 'More options' })).toBeNull()
     expect(closed).toBe(false)
-    act(() => useOverlays.setState({ detailTaskId: 'b', menu: null }))
+    act(() => useOverlays.setState({ detailTaskId: 'b' }))
     expect(closed).toBe(true)
     view.unmount()
     act(() => useOverlays.setState({ detailTaskId: null }))
+  })
+})
 
+describe('予定のメニュー（月・予定リストの右クリック）: 複製・編集・削除', () => {
+  it('「複製」で写したものの詳細を開く', async () => {
+    const { TaskEventMenu } = await import('./EventContextMenu')
+    useTaskStore.setState({
+      tasks: [
+        {
+          ...makeTask({ title: 'バイト', listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime: '17:00', endTime: '22:00' }, 0),
+          id: 'b',
+        },
+      ],
+    })
     let opened = ''
     const menu = render(<TaskEventMenu x={0} y={0} taskId="b" onClose={() => {}} onOpenDetail={(id) => (opened = id)} />)
-    fireEvent.click(await menu.findByRole('menuitem', { name: 'Duplicate' }))
+    expect(await menu.findByRole('menuitem', { name: 'Edit' })).toBeTruthy()
+    expect(menu.getByRole('menuitem', { name: 'Delete' })).toBeTruthy()
+    fireEvent.click(menu.getByRole('menuitem', { name: 'Duplicate' }))
     const copy = useTaskStore.getState().tasks.find((t) => t.id === opened)!
     expect(copy).toMatchObject({ title: 'バイト', scheduledDate: '2026-10-07', startTime: '17:00' })
     expect(opened).not.toBe('b')
-    menu.unmount()
+  })
+})
 
-    // カードの ⋮ からは、隣のボタンと同じ「編集」「削除」を出さない（右クリックには出す）
-    const fromCard = render(<TaskEventMenu x={0} y={0} fromCard taskId="b" onClose={() => {}} onOpenDetail={() => {}} />)
-    expect(fromCard.queryByRole('menuitem', { name: 'Edit' })).toBeNull()
-    expect(fromCard.queryByRole('menuitem', { name: 'Delete' })).toBeNull()
-    expect(await fromCard.findByRole('menuitem', { name: 'Duplicate' })).toBeTruthy()
-    fromCard.unmount()
-    const rightClick = render(<TaskEventMenu x={0} y={0} taskId="b" onClose={() => {}} onOpenDetail={() => {}} />)
-    expect(await rightClick.findByRole('menuitem', { name: 'Edit' })).toBeTruthy()
-    expect(rightClick.getByRole('menuitem', { name: 'Delete' })).toBeTruthy()
+describe('タイムラインの右クリック（brief）: 完了 / 未完了・複製だけ', () => {
+  it('To-Do は「完了にする」「複製」だけを出す', async () => {
+    const { TaskEventMenu } = await import('./EventContextMenu')
+    useTaskStore.setState({
+      tasks: [
+        {
+          ...makeTask({ title: 'ゼミ', listId: INBOX_LIST_ID, scheduledDate: '2099-10-07', startTime: '15:00', endTime: '16:30' }, 0),
+          id: 'z',
+        },
+      ],
+    })
+    const menu = render(<TaskEventMenu x={0} y={0} brief taskId="z" onClose={() => {}} onOpenDetail={() => {}} />)
+    const items = (await menu.findAllByRole('menuitem')).map((el) => el.textContent)
+    expect(items).toEqual(['Mark done', 'Duplicate'])
   })
 })
 

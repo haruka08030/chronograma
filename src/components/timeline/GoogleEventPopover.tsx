@@ -11,7 +11,7 @@ import { useHotkey } from '../../hooks/useHotkey'
 import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
 import { anchoredCardClass } from '../ui/surface'
 import { iconButtonClass } from '../ui/iconButtonClass'
-import { CloseIcon, EllipsisVerticalIcon, OpenPanelIcon, TrashIcon } from '../icons'
+import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
 import { shortcutTip, tip } from '../../lib/tooltip'
@@ -25,7 +25,7 @@ import { useNow } from '../../hooks/useAppClock'
 import { googleRecordPromptId } from '../../hooks/useCompleteWithLog'
 import { htmlToPlainText } from '../../lib/linkify'
 import { MemoPreview } from '../ui/MemoPreview'
-import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
+import { openTaskDetail } from '../../lib/overlays'
 import { CourseAssignments } from './CourseAssignments'
 import { ClassAttendance } from './ClassAttendance'
 import { useExitGhost } from '../../hooks/useExitGhost'
@@ -176,22 +176,6 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             {...shortcutTip(t('common.delete'), 'delete')}
           >
             <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
-          </button>
-        )}
-        {/* ⋮: 右クリックのメニューから、隣のボタンと同じ項目（Google で開く・削除）を除いたもの（色）。予定のカードと同じ位置で、メニューは右端を ⋮ にそろえて真下に。色はカードに出しっぱなしにしない */}
-        {editable && (
-          <button
-            type="button"
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect()
-              openTaskMenu({ kind: 'google', x: r.right, y: r.bottom, fromCard: true, eventId: event.id })
-            }}
-            className={iconButtonClass()}
-            aria-label={t('eventCard.more')}
-            aria-haspopup="menu"
-            {...tip(t('eventCard.more'))}
-          >
-            <EllipsisVerticalIcon className="h-4 w-4" strokeWidth={2.25} />
           </button>
         )}
         <button
