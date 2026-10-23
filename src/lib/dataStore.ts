@@ -11,6 +11,7 @@
  * - 移した後に localStorage で動いた回（開けなかった）があれば、次に開けたときにその分を取り込む（`RECOVERED_LOCAL_KEY`）
  */
 import { LEGACY_PERSIST_STORAGE_KEY, PERSIST_STORAGE_KEY } from '../store/storeConstants'
+import { reloadPage } from './reloadPage'
 
 export const BASELINE_KEY_PREFIX = 'chronograma-sync-baseline-v1:'
 /** 設定ごとの「手元の値のもとにしたサーバーの版」と、その版の中身の控え（`settingSync.ts`、利用者ごと） */
@@ -252,8 +253,8 @@ function adoptDb(d: IDBDatabase) {
 
 /** 書き終えてから読み込み直す（書いていなければその場で） */
 export function reloadWhenSaved(): void {
-  if (!db || busy.size === 0) window.location.reload()
-  else void whenSaved().then(() => window.location.reload())
+  if (!db || busy.size === 0) reloadPage()
+  else void whenSaved().then(reloadPage)
 }
 
 const savedWaiters: (() => void)[] = []

@@ -3,6 +3,7 @@
  * この時点では React も i18n の文言も無いので、素の DOM で描き、文言は日英をここに持つ
  */
 import { toAppLanguage, type AppLanguage } from '../locales/builtinNames'
+import { reloadPage } from './reloadPage'
 
 const TEXT: Record<AppLanguage, { title: string; help: string; reload: string }> = {
   ja: { title: '起動できませんでした', help: '回線を確かめて、再読み込みしてください。データは消えていません。', reload: '再読み込み' },
@@ -42,7 +43,7 @@ export function renderBootFailure(root: HTMLElement, language: AppLanguage = boo
   // アプリの主ボタンと同じ墨色の塗り
   button.style.cssText =
     'margin-top:4px;padding:8px 16px;border-radius:6px;border:0;background:CanvasText;color:Canvas;font:inherit;font-size:14px;cursor:pointer'
-  button.addEventListener('click', () => location.reload())
+  button.addEventListener('click', reloadPage)
   box.append(title, help, button)
   root.replaceChildren(box)
 }

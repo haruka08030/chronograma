@@ -106,7 +106,8 @@ export function topFrame(stack: string | undefined): string {
 }
 
 function describe(error: unknown): { message: string; stack?: string } {
-  if (error instanceof Error) {
+  // DOMException（容量不足など）は Error を継がない環境がある（別の realm の Error・Node の vm）
+  if (error instanceof Error || (typeof DOMException !== 'undefined' && error instanceof DOMException)) {
     const name = error.name && error.name !== 'Error' ? `${error.name}: ` : ''
     return { message: `${name}${error.message}`, stack: error.stack }
   }

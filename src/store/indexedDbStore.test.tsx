@@ -5,6 +5,9 @@ import { useTaskStore as firstStore } from './taskStore'
 import { PERSIST_STORAGE_KEY } from './storeConstants'
 import { startAfterDataLoaded } from '../lib/startAfterDataLoaded'
 
+const reloadPage = vi.hoisted(() => vi.fn())
+vi.mock('../lib/reloadPage', () => ({ reloadPage }))
+
 /**
  * 本体と控えを IndexedDB に置いたときの、ストアの読み込み・保存・他のタブ（#255）。
  * 開いたタブ 1 つを、モジュールを読み込み直した 1 組（保存の置き場所＋ストア）で表す
@@ -402,12 +405,11 @@ describe('保存先との接続・開けない回（#255 の残り）', () => {
 
   it('書き終えるまで待ってから読み込み直す', async () => {
     const tab = await openTab()
-    const reload = vi.fn()
-    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, reload } as Location)
+    reloadPage.mockClear()
     tab.useTaskStore.getState().addTask('before reload')
     tab.data.reloadWhenSaved()
-    expect(reload).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1))
+    expect(reloadPage).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1))
     expect(await diskTitles()).toEqual(['before reload'])
   })
 

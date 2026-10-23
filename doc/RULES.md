@@ -26,7 +26,8 @@ main に出すとき（DB と Edge Function は main へのマージでは出な
 
 ## テスト
 
-- 全部のテスト（`npx vitest run`）は 1 回で 10 コアをほぼ使い切って約 1 分かかる（時間の 6〜7 割はファイルごとの準備: ストア・訳文の読み込みと jsdom）。いくつもの作業を並べて動かすと負荷がそのまま積み上がる
+- 全部のテスト（`npx vitest run`）は 10 コアの Mac で約 10 秒・CPU 約 60 秒（`--maxWorkers=50%` なら時間は同じで CPU 約 45 秒）。いくつもの作業を並べて動かすと負荷がそのまま積み上がる
+- テストは `vmForks` で動く（`vitest.config.ts`）。ファイルごとに新しい vm（モジュール・jsdom・グローバル）で、プロセスはファイルをまたいで使い回す。vm の中の jsdom は `window.location` を書き換えられないので、読み込み直しは `lib/reloadPage.ts` を差し替えて確かめる。環境変数はファイルの終わりに戻す（`src/test/setup*.ts`）
 - 作業の途中は、変えたファイルに関わるテストだけ流す: `npx vitest related <変えたファイル> --run`（または `npx vitest run <テストのファイル>`）。全部のテストはコミットの前に 1 回、`--maxWorkers=50%` で流す
 - 日付・タイムゾーンを変えて全部流す `npm run test:tz` は 4 回分の重さなので、時刻を扱うところ（`src/lib/timeZone.ts`・`wallTime.ts`・`dayKey` まわり・タイムライン）を変えたときだけ流す
 - CI: テストは 2 つに分けて同時に流す。タイムゾーンを決めた回（`test-tz`）は main に出す PR のときだけ流し、dev は毎晩 `.github/workflows/test-tz.yml` で流す（手で流すこともできる）。ビルドは static で 1 回だけ（manifest つき）、起動時の大きさはその manifest で数える
