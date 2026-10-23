@@ -47,16 +47,17 @@ jobs:
       - name: Format
         run: npm run format:check
 
+      # 起動時の大きさ（下）を数えるのに manifest が要るので、ビルドは 1 回だけ manifest つきで行う
       - name: Build
-        run: npm run build
+        run: npx tsc -b && npx vite build --manifest
 
       # noUncheckedIndexedAccess で出る件数が上限を超えたら落とす（scripts/lint/unchecked-index.mjs の LIMIT）
       - name: Unchecked index access (ratchet)
         run: npm run lint:unchecked-index
 
-      # 起動時に読む JS（gzip）が上限を超えたら落とす（scripts/build/startup-size.mjs の LIMIT_GZIP_KB）。数えるのに manifest が要るのでもう一度ビルドする
+      # 起動時に読む JS（gzip）が上限を超えたら落とす（scripts/build/startup-size.mjs の LIMIT_GZIP_KB）。上の Build の manifest を読む
       - name: Startup bundle size
-        run: npx vite build --manifest && node scripts/build/startup-size.mjs --list
+        run: node scripts/build/startup-size.mjs --list
 
   # 単体テスト（node）と部品のテスト（jsdom）。ファイルを 2 つに分けて同時に流す
   test:
@@ -81,11 +82,13 @@ jobs:
   # 端末のタイムゾーンと今日を決めて走る回（Los Angeles の夏時間が終わる 25 時間の日）。上の test は UTC の今日で走るので、
   # 端末の Date で壁時計を数える・ファイルの頭で今日を決めるなどの、日とタイムゾーンで落ちるテストをここで見つける。
   # 時刻は src/test/fakeNow.ts（テストが自分で時計を決めていないときだけ）。ほかの日とタイムゾーンは npm run test:tz
+  # 全部のテストをもう 1 回流すので重い。main に出す PR のときだけ流す（dev は毎晩 test-tz.yml で流す）
   test-tz:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     env:
       TZ: America/Los_Angeles
-      FAKE_NOW: 2026-11-01T08:30:00Z
+      FAKE_NOW: '2026-11-01T08:30:00Z'
     steps:
       - uses: actions/checkout@v4
 
@@ -146,7 +149,8 @@ jobs:
         run: |
           test "${{ needs.static.result }}" = success
           test "${{ needs.test.result }}" = success
-          test "${{ needs.test-tz.result }}" = success
+          # main に出す PR 以外では流さない（skipped）
+          case "${{ needs.test-tz.result }}" in success|skipped) ;; *) exit 1 ;; esac
           test "${{ needs.e2e.result }}" = success
           test "${{ needs.functions.result }}" = success
           test "${{ needs.database.result }}" = success

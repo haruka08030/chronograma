@@ -1,0 +1,37 @@
+name: Test (time zone)
+
+# 端末のタイムゾーンと今日を決めて全部のテストを流す回を、dev について毎晩流す（ci.yml の test-tz は main に出す PR のときだけ）。
+# 日付が進むと落ちるテスト・端末の夏時間で壁時計がずれる不具合を、push のたびに重くせずに見つける。手で流すこともできる
+on:
+  schedule:
+    - cron: '0 18 * * *' # 日本時間の 3:00
+  workflow_dispatch:
+
+jobs:
+  test-tz:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tz: America/Los_Angeles
+            now: '2026-11-01T08:30:00Z'
+          - tz: Asia/Tokyo
+            now: ''
+    env:
+      TZ: ${{ matrix.tz }}
+      FAKE_NOW: ${{ matrix.now }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test (${{ matrix.tz }} ${{ matrix.now || 'today' }})
+        run: npx vitest run
