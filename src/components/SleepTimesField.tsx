@@ -28,8 +28,10 @@ interface SleepTimesFieldProps {
   dateKey: string
   /** その夜の記録（無ければ埋める） */
   record: Task | null
-  /** 月のアイコンの右の見出し */
+  /** 欄の見出し */
   label: ReactNode
+  /** 見出しの頭に月のアイコンを付けるか（統計の睡眠のカードの中では付けない） */
+  icon?: boolean
   /** 保存したあと */
   onSaved: () => void
   /** やめる（×・Esc）。渡さなければ × を出さない */
@@ -45,7 +47,7 @@ interface SleepTimesFieldProps {
  * 開いた瞬間の値（記録があればその時刻、無ければ前回の睡眠の時刻）を下書きにする。
  * 開き直すたびに下書きを作り直したいので、呼ぶ側は `key` を夜と記録ごとに変えて出し入れする。
  */
-export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bedTime, cancelLabel }: SleepTimesFieldProps) {
+export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bedTime, cancelLabel, icon = true }: SleepTimesFieldProps) {
   const { t } = useTranslation()
   const logSleep = useTaskStore((s) => s.logSleep)
   const now = useNow()
@@ -85,7 +87,7 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
       }}
     >
       <span className="inline-flex items-center gap-1.5">
-        <SleepMoonIcon />
+        {icon && <SleepMoonIcon />}
         {label}
       </span>
       <span className="inline-flex items-center gap-1" role="group">

@@ -22,7 +22,7 @@ const PROMPT_FROM_MIN = 5 * 60
  * まだ無ければ前回の時刻を入れた入力欄（同じならワンタップで記録）、あれば時刻と長さだけを薄く出す。
  * 今日の分は朝 5 時を過ぎてから「睡眠を記録しますか？」と聞く。
  * 今日の夜（20 時〜朝 5 時）は「寝る」を出し、押すと睡眠のタイマー（#519）。寝ている間は「起きた」で睡眠にする。
- * 入力欄は統計の睡眠の図と同じ部品（SleepTimesField）。
+ * 入力欄は統計の睡眠の図と同じ部品（SleepTimesField）。月のアイコンは行頭の 1 つだけ（「寝る」には付けない）。
  */
 export function SleepRow({ dateKey }: { dateKey: string }) {
   const { t } = useTranslation()
@@ -40,19 +40,28 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   const isToday = dateKey === todayKey
   if (isToday && sleepTimer) return <SleepingRow timer={sleepTimer} dateKey={dateKey} />
 
-  const bedButton = isToday && isBedtime(nowMin) && (
-    <button
-      type="button"
-      onClick={goToBed}
-      {...tip(t('sleep.goToBedTip'))}
-      className="-mx-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-    >
-      <SleepMoonIcon />
-      <span>{t('sleep.goToBed')}</span>
-    </button>
-  )
+  const bedButton =
+    isToday &&
+    isBedtime(nowMin) &&
+    ((withMoon: boolean) => (
+      <button
+        type="button"
+        onClick={goToBed}
+        {...tip(t('sleep.goToBedTip'))}
+        // 睡眠の記録・入力欄と並ぶときは「起きた」と同じ小さな操作の形（月は行頭の 1 つだけ）
+        className={
+          withMoon
+            ? '-mx-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+            : buttonClass({ variant: 'link', size: 'xs' })
+        }
+      >
+        {withMoon && <SleepMoonIcon />}
+        {t('sleep.goToBed')}
+      </button>
+    ))
 
-  if (isToday && !record && nowMin < PROMPT_FROM_MIN) return bedButton || null
+  // 「寝る」だけの行は月を頭に付ける（記録の行と並ぶときは月は行頭の 1 つだけ）
+  if (isToday && !record && nowMin < PROMPT_FROM_MIN) return bedButton ? bedButton(true) : null
 
   if (record && !editing && record.startTime && record.endTime) {
     return (
@@ -72,7 +81,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
             {formatDuration(sleepMinutes(record.startTime, record.endTime))}
           </span>
         </button>
-        {bedButton}
+        {bedButton && bedButton(false)}
       </>
     )
   }
@@ -88,7 +97,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
         onSaved={() => setEditing(false)}
         onCancel={record ? () => setEditing(false) : undefined}
       />
-      {bedButton}
+      {bedButton && bedButton(false)}
     </>
   )
 }
