@@ -38,9 +38,9 @@ export function SleepBar({ open = false }: { open?: boolean }) {
   )
 }
 
-/** 睡眠の行のアイコンだけのボタン（寝る ▶・起きた ☀・保存 ✓）。枠でボタンと分かる形にする */
+/** 睡眠の行のアイコンだけのボタン（寝る ▶・起きた ☀・保存 ✓）。枠でボタンと分かる形にする。スマホは指で押せる大きさ（32px） */
 export const SLEEP_ICON_BUTTON =
-  'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-zinc-200 text-sleep transition-colors hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-700 dark:hover:bg-zinc-800'
+  'inline-flex h-8 w-8 shrink-0 md:h-6 md:w-6 items-center justify-center rounded-full border border-zinc-200 text-sleep transition-colors hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-700 dark:hover:bg-zinc-800'
 
 interface SleepTimesFieldProps {
   /** 起きた日（この日の朝に起きた睡眠を入れる・直す） */
@@ -129,7 +129,7 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
             type="button"
             onClick={onCancel}
             {...tip(cancelLabel ?? t('common.cancel'), { name: true })}
-            className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            className="rounded-md p-2 text-zinc-400 hover:bg-zinc-100 md:p-1 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           >
             <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
           </button>

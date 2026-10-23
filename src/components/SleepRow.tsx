@@ -145,7 +145,7 @@ function SleepingRow({ timer, dateKey }: { timer: SleepTimer; dateKey: string })
         type="button"
         onClick={() => cancelSleep(true)}
         {...tip(t('sleep.cancelTimer'), { name: true })}
-        className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+        className="rounded-md p-2 text-zinc-400 hover:bg-zinc-100 md:p-1 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
       >
         <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
       </button>

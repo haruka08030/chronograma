@@ -81,16 +81,16 @@ export function SleepStatsCard() {
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className={CARD_TITLE_CLASS}>{t('sleepStats.title')}</h2>
-        <p className={META_TEXT}>{t('sleepStats.range', { days: DAYS, count: summary.count })}</p>
+        <h2 className={`shrink-0 ${CARD_TITLE_CLASS}`}>{t('sleepStats.title')}</h2>
+        <p className={`min-w-0 text-right ${META_TEXT}`}>{t('sleepStats.range', { days: DAYS, count: summary.count })}</p>
       </div>
 
-      <div className="mt-4 flex items-center gap-5">
+      <div className="mt-4 flex items-center gap-4 sm:gap-5">
         <SleepClock nights={summary.nights} />
         <dl className="grid min-w-0 gap-2.5">
-          <div className="flex items-baseline gap-1.5">
+          <div className="flex flex-wrap items-baseline gap-x-1.5">
             <dt className="sr-only">{t('sleepStats.avgSleep')}</dt>
-            <dd className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100 sm:text-3xl">
+            <dd className="whitespace-nowrap text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100 sm:text-3xl">
               {formatDuration(summary.avgMinutes ?? 0)}
             </dd>
             <span className="text-xs text-zinc-500 dark:text-zinc-400" aria-hidden>
@@ -133,9 +133,10 @@ export function SleepStatsCard() {
         {/* 行頭の日付（3rem）・帯の領域・右に長さの文字ぶんの余白（4.5rem） */}
         <div className="relative pl-12 pr-[4.5rem]">
           {/* 上の目盛りと、いつもの寝た・起きた（☾・☀ の点線） */}
-          <div className="relative h-8 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500" aria-hidden>
-            {ticks.map((m) => (
-              <span key={m} className="absolute bottom-0.5 -translate-x-1/2" style={{ left: x(m) }}>
+          <div className="@container relative h-8 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500" aria-hidden>
+            {/* 狭いとき（帯の幅が 13rem 未満）は目盛りの文字を 1 つおきに（重ならないように） */}
+            {ticks.map((m, i) => (
+              <span key={m} className={`absolute bottom-0.5 -translate-x-1/2 ${i % 2 ? '@max-[13rem]:hidden' : ''}`} style={{ left: x(m) }}>
                 {clockLabel(m)}
               </span>
             ))}
@@ -178,7 +179,7 @@ export function SleepStatsCard() {
                     setFocusKey(key)
                     setEditKey((k) => (k === key ? null : key))
                   }}
-                  className={`group relative -ml-12 -mr-[4.5rem] block h-7 w-[calc(100%+7.5rem)] rounded-md outline-none hover:bg-zinc-500/[0.08] focus-visible:bg-zinc-500/[0.1] dark:hover:bg-zinc-400/[0.08] ${
+                  className={`group relative -ml-12 -mr-[4.5rem] block h-8 w-[calc(100%+7.5rem)] md:h-7 rounded-md outline-none hover:bg-zinc-500/[0.08] focus-visible:bg-zinc-500/[0.1] dark:hover:bg-zinc-400/[0.08] ${
                     dow === 0 || dow === 6 ? 'bg-zinc-500/[0.04] dark:bg-zinc-400/[0.04]' : ''
                   } ${active && activeKey ? 'bg-zinc-500/[0.08] dark:bg-zinc-400/[0.08]' : ''}`}
                 >
@@ -199,7 +200,7 @@ export function SleepStatsCard() {
                         style={{ ...SLEEP_VARS, left: x(n.bedOffset), width: `calc(${x(n.wakeOffset)} - ${x(n.bedOffset)})` }}
                       />
                       <span
-                        className="absolute top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap text-[11px] tabular-nums text-zinc-500 dark:text-zinc-400"
+                        className="absolute top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap text-[11px] tabular-nums text-zinc-500 [text-shadow:0_0_2px_var(--gc-surface),0_0_3px_var(--gc-surface),0_0_4px_var(--gc-surface)] dark:text-zinc-400"
                         style={{ left: x(n.wakeOffset) }}
                       >
                         {formatDuration(n.minutes)}
@@ -269,7 +270,7 @@ function SleepClock({ nights }: { nights: readonly (SleepNight | null)[] }) {
   }
   const last = nights.length - 1
   return (
-    <svg viewBox="-80 -80 160 160" className="w-28 shrink-0 sm:w-32" aria-hidden>
+    <svg viewBox="-80 -80 160 160" className="w-24 shrink-0 sm:w-32" aria-hidden>
       <circle r={R} fill="none" className="stroke-zinc-200 dark:stroke-zinc-700" />
       {[0, 6, 12, 18].map((h) => {
         const [tx, ty] = point(66, (h / 24) * Math.PI * 2 - Math.PI / 2)

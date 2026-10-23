@@ -138,6 +138,8 @@ const ABSENCE_TIMETABLE = (() => {
 })()
 /** ラベルの週の目安（分、#291）。種データのラベル名 */
 const SEED_TARGETS = { 授業: 600, 課題: 480, 就活: 180 }
+/** スマホの今日の画面の「やること」のタブ（夜はタイムラインが開いているので、睡眠の行を撮るときに切り替える） */
+const PLANNER_LIST_TAB = 'button:has-text("やること") >> visible=true'
 /** ふりかえりのラベル別の時間の行（スマホでも行が見えるところまで送る） */
 const TARGET_ROWS = 'ul[aria-labelledby="review-by-label"]'
 /** 習慣の表の「朝に 10 分ストレッチ」の水曜のマス */
@@ -145,7 +147,7 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする。手の `select` は <select> の選択肢を選ぶ */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする、`lang` は表示の言語（既定は 'ja'）、`mobileWidth` はスマホ幅の横幅（既定 390）。手の `select` は <select> の選択肢を選ぶ */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -160,8 +162,31 @@ const SCREENS = [
   { name: 'first-run-signin', fresh: true, view: 'settings', click: 'button:has-text("ログイン") >> visible=true' },
   { name: 'planner', view: 'planner' },
   // 睡眠のタイマー（#519）: 夜は睡眠の行に寝る（▶）、押すと ☾ 23:40 ▬╌ と起きた（☀）
-  { name: 'sleep-bedtime', view: 'planner', at: '22:30' },
-  { name: 'sleep-sleeping', view: 'planner', at: '23:40', click: 'button[aria-label="寝る"] >> visible=true' },
+  { name: 'sleep-bedtime', view: 'planner', at: '22:30', mobileClick: PLANNER_LIST_TAB },
+  {
+    name: 'sleep-sleeping',
+    view: 'planner',
+    at: '23:40',
+    mobileClick: PLANNER_LIST_TAB,
+    click: 'button[aria-label="寝る"] >> visible=true',
+  },
+  // 睡眠の行の残りの形: 朝まだ記録が無い（入力欄）・夜更かし中（月と ▶ だけ）・寝たまま 16 時間を過ぎた（起きた時刻を聞く）
+  {
+    name: 'sleep-morning-empty',
+    view: 'planner',
+    at: '08:00',
+    mobileClick: PLANNER_LIST_TAB,
+    taskPatch: { s10: { dueDate: '2000-01-01', endDate: '2000-01-02' } },
+  },
+  {
+    name: 'sleep-late-night',
+    view: 'planner',
+    at: '01:30',
+    mobileClick: PLANNER_LIST_TAB,
+    taskPatch: { s10: { dueDate: '2000-01-01', endDate: '2000-01-02' } },
+  },
+  { name: 'sleep-row-narrow', view: 'planner', at: '22:30', mobileOnly: true, mobileWidth: 320, mobileClick: PLANNER_LIST_TAB },
+  { name: 'sleep-row-en', view: 'planner', at: '22:30', lang: 'en', mobileClick: 'button:has-text("To do") >> visible=true' },
   // 浮いているタイマーの「あと何分」（#290）: 残り時間・長さを選ぶ並び・時間を過ぎた（`timer` は撮る瞬間からの分で動いているタイマーを置く）
   { name: 'timer-remaining', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 12.4, endsIn: 12.6 } },
   {
@@ -700,6 +725,15 @@ const SCREENS = [
   { name: 'stats-day-insights', view: 'stats', insightHistory: true, scrollTo: 'section[aria-labelledby="day-insights-title"]' },
   // 統計の睡眠（#577）: 2 週間ぶんの睡眠で、上の小さい時計・平均と夜ごとの横の帯
   { name: 'stats-sleep', view: 'stats', insightHistory: true, scrollTo: 'section:has(> figure)' },
+  {
+    name: 'stats-sleep-narrow',
+    view: 'stats',
+    insightHistory: true,
+    mobileOnly: true,
+    mobileWidth: 320,
+    scrollTo: 'section:has(> figure)',
+  },
+  { name: 'stats-sleep-en', view: 'stats', insightHistory: true, lang: 'en', scrollTo: 'section:has(> figure)' },
   { name: 'settings', view: 'settings' },
   // 設定の一番下の「お問い合わせ・フィードバック」を開いたところ（ログインしていない人。Supabase の設定（.env）があるビルドでだけ出る）
   { name: 'settings-feedback', view: 'settings', click: 'button:has-text("お問い合わせ・フィードバック") >> visible=true' },
@@ -1012,7 +1046,7 @@ async function main() {
           // 画面ごとに context を作り直す。addInitScript は context に積み上がるので、
           // 使い回すと前の画面の種データが後から上書きしてしまう
           const context = await browser.newContext({
-            viewport: { width: vp.width, height: vp.height },
+            viewport: { width: (vp.hasTouch && screen.mobileWidth) || vp.width, height: vp.height },
             isMobile: vp.isMobile ?? false,
             hasTouch: vp.hasTouch ?? false,
             // 2x は文字が読みやすい反面、固定サイドバーの左端に描画の切れ端が
@@ -1134,10 +1168,10 @@ async function main() {
           // アプリが動き出す前に仕込む。goto してから書くと、起動した store が
           // 作りたての state を先に保存してしまい、種データが上書きされる
           await context.addInitScript(
-            ([key, value]) => {
+            ([key, value, lang]) => {
               try {
                 if (value) window.localStorage.setItem(key, value)
-                window.localStorage.setItem('chronograma-lang', 'ja')
+                window.localStorage.setItem('chronograma-lang', lang)
               } catch {
                 /* 読めない環境ではそのまま進む */
               }
@@ -1152,6 +1186,7 @@ async function main() {
                     ? JSON.stringify({ state: { selectedView: screen.view, selectedListId: null }, version: seed.version })
                     : null
                   : JSON.stringify(seed),
+              screen.lang ?? 'ja',
             ],
           )
 
