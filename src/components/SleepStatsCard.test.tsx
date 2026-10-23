@@ -60,15 +60,15 @@ describe('統計の睡眠: 夜を押して直す・埋める', () => {
     expect(useTaskStore.getState().tasks.filter((t) => t.kind === 'sleep')).toHaveLength(2)
   })
 
-  it('記録の無い夜の点線の枠を押すと、前回の時刻が入った入力欄でその夜を埋められる', async () => {
+  it('記録の無い夜（日付だけ薄い行）を押すと、前回の時刻が入った入力欄でその夜を埋められる', async () => {
     seedNights()
     const user = userEvent.setup()
     render(<SleepStatsCard />)
     expect(screen.getByText(/\(2 logged\)/)).toBeInTheDocument()
 
-    // いちばん右の抜けた夜＝昨日の朝
+    // 新しい夜が上なので、いちばん上の抜けた夜＝昨日の朝
     const missing = screen.getAllByRole('button', { name: /^Log sleep for/ })
-    await user.click(missing[missing.length - 1]!)
+    await user.click(missing[0]!)
     const editor = editorOf()
     const [bedInput, wakeInput] = within(editor).getAllByRole('combobox')
     // 前回（今日の朝）の時刻

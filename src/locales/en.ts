@@ -460,6 +460,9 @@ export default {
   },
   sleepStats: {
     title: 'Sleep',
+    avg: 'avg',
+    bed: 'Bedtime',
+    wake: 'Woke up',
     range: 'Last {{days}} days: average and spread ({{count}} logged)',
     avgSleep: 'Avg sleep',
     avgBed: 'Avg bedtime',

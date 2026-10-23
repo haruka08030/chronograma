@@ -446,6 +446,9 @@ export default {
   },
   sleepStats: {
     title: '睡眠',
+    avg: '平均',
+    bed: '寝た',
+    wake: '起きた',
     range: '直近 {{days}} 日の平均とばらつき（{{count}} 日分）',
     avgSleep: '平均睡眠時間',
     avgBed: '平均就寝',
