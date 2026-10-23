@@ -418,6 +418,8 @@ const SCREENS = [
     click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
   },
   { name: 'calendar', view: 'calendar' },
+  // 習慣が多い週（#578）: 種の 3 件に、毎日・平日・週 3 の習慣を足した 7 件。習慣の段が格子を押し下げないか
+  { name: 'calendar-habits-many', view: 'calendar', moreHabits: true },
   // やらなかった予定（#528）: 時間が過ぎてから消した Google の予定を、薄く・取り消し線で残す。押すとカードで「やらなかった予定」と削除
   { name: 'calendar-skipped', view: 'calendar', skipped: true },
   {
@@ -1100,6 +1102,57 @@ async function main() {
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
           if (screen.weekStartsOn !== undefined) seed.state.weekStartsOn = screen.weekStartsOn
           if (screen.state) Object.assign(seed.state, screen.state)
+          if (screen.moreHabits) {
+            const base = {
+              endTime: null,
+              createdAt: new Date(seedInstant.getTime() - 30 * 864e5).toISOString(),
+              updatedAt: seedInstant.toISOString(),
+              archivedAt: null,
+            }
+            const ago = (n) => dayKeyOf(new Date(seedNow.getFullYear(), seedNow.getMonth(), seedNow.getDate() - n))
+            seed.state.habits.push(
+              {
+                ...base,
+                id: 'hm1',
+                title: '水を 2L 飲む',
+                color: '#039BE5',
+                timeMode: 'none',
+                startTime: null,
+                frequency: { type: 'daily' },
+                completedDates: [ago(1), ago(2), ago(4)],
+              },
+              {
+                ...base,
+                id: 'hm2',
+                title: '読書 30 分',
+                color: '#8E24AA',
+                timeMode: 'fixed',
+                startTime: '22:30',
+                frequency: { type: 'daily' },
+                completedDates: [ago(1), ago(3)],
+              },
+              {
+                ...base,
+                id: 'hm3',
+                title: 'SPI の問題集',
+                color: '#F6BF26',
+                timeMode: 'none',
+                startTime: null,
+                frequency: { type: 'weekly', weekdays: [1, 2, 3, 4, 5] },
+                completedDates: [ago(1), ago(2)],
+              },
+              {
+                ...base,
+                id: 'hm4',
+                title: 'ランニング',
+                color: '#0B8043',
+                timeMode: 'fixed',
+                startTime: '06:30',
+                frequency: { type: 'weekly', weekdays: [2, 4, 6] },
+                completedDates: [ago(1)],
+              },
+            )
+          }
           if (screen.skipped) {
             // やらなかった予定（#528）: 昨日の gym（時刻あり）と今日の 1 限（もう過ぎた時刻）。どちらも時間が過ぎてから消した Google の予定
             const tKey = dayKeyOf(seedNow)
