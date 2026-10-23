@@ -76,7 +76,7 @@ export function DayInsightsSection({ rows }: { rows: readonly DayInsight[] }) {
         <p className={META_TEXT}>{t('dayInsights.range', { days: INSIGHT_DAYS })}</p>
       </div>
       <ul className="mt-3 max-w-xl space-y-4">
-        {rows.map((row, i) => {
+        {rows.map((row) => {
           const isLabel = row.metric.kind === 'label'
           const hex = row.metric.kind === 'label' ? recordLabelKeyHex(row.metric.tag, logCategoryColors) : null
           const metricName =
@@ -94,19 +94,13 @@ export function DayInsightsSection({ rows }: { rows: readonly DayInsight[] }) {
             [labelA, row.a],
             [labelB, row.b],
           ]
-          // 上の行と同じ指標なら見出しは繰り返さない（読み上げには残す）
-          const prev = rows[i - 1]
-          const sameMetric =
-            prev != null &&
-            prev.metric.kind === row.metric.kind &&
-            (row.metric.kind !== 'label' || (prev.metric.kind === 'label' && prev.metric.tag === row.metric.tag))
           return (
             <li key={row.condition} data-day-insight={row.condition}>
-              <p className={sameMetric ? 'sr-only' : 'mb-1.5 flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400'}>
+              <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
                 {hex && <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(hex)} aria-hidden />}
                 <span className="min-w-0 truncate">{metricName}</span>
               </p>
-              <div className="grid grid-cols-[minmax(0,max-content)_minmax(2.5rem,1fr)_auto] items-center gap-x-2 gap-y-1.5 text-xs">
+              <div className="mt-1.5 grid grid-cols-[minmax(0,max-content)_minmax(2.5rem,1fr)_auto] items-center gap-x-2 gap-y-1.5 text-xs">
                 {sides.map(([label, side], i) => (
                   <div key={i} className="contents">
                     <span className="min-w-0 truncate text-zinc-600 dark:text-zinc-300">{label}</span>

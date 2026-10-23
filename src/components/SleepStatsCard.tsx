@@ -21,7 +21,7 @@ const CHART_HEIGHT = 144
  * 統計の「睡眠」。直近 14 日の平均（睡眠時間・寝た時刻・起きた時刻とそのばらつき）と、
  * 夜ごとの「寝た → 起きた」を縦の帯で並べた図。帯の上下がそろっているほど規則正しい。
  * 睡眠の記録が無い期間は出さない。
- * 帯を押すとその夜の時刻を図の下で直せ、記録の無い夜（ふだんは空き、ホバー・選択中だけ点線の枠）を押すとその夜を埋められる。
+ * 帯を押すとその夜の時刻を図の下で直せ、記録の無い夜（薄い点線の枠）を押すとその夜を埋められる。
  * 入力欄は今日の計画の睡眠の行と同じ部品（SleepTimesField）。
  * 下の段は「日の違い」（#326）: 睡眠の長さ・寝た時刻・気分で分けた日どうしの記録・予定どおりの差（直近 28 日）。
  * 直近 14 日に睡眠の記録が無くても、日の違いが出せるなら見出しと下の段だけ出す
@@ -85,10 +85,9 @@ export function SleepStatsCard() {
         <p className={META_TEXT}>{t('sleepStats.range', { days: DAYS, count: summary.count })}</p>
       </div>
 
-      {/* 平均は枠で囲まず数字を並べるだけ */}
       <dl className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
         {tiles.map((tile) => (
-          <div key={tile.label} className="min-w-0">
+          <div key={tile.label} className="min-w-0 rounded-lg bg-zinc-50 px-2.5 py-2.5 dark:bg-zinc-800/60 sm:px-3">
             <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{tile.label}</dt>
             <dd className="mt-0.5 whitespace-nowrap text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100 sm:text-lg">
               {tile.value}
@@ -166,10 +165,12 @@ export function SleepStatsCard() {
                           }
                         />
                       ) : (
-                        // 記録の無い夜: ふだんは何も描かず、ホバー・選択中だけ平均の位置に点線の枠（押すと埋められる）
+                        // 記録の無い夜: 平均の位置に薄い点線の枠（押すと埋められる）
                         <span
-                          className={`absolute left-1/2 w-2.5 -translate-x-1/2 rounded border border-dashed border-sleep sm:w-3 ${
-                            active ? '' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'
+                          className={`absolute left-1/2 w-2.5 -translate-x-1/2 rounded border border-dashed sm:w-3 ${
+                            active
+                              ? 'border-sleep'
+                              : 'border-zinc-300 group-hover:border-sleep dark:border-zinc-600 dark:group-hover:border-sleep'
                           }`}
                           style={{ top: y(avgBedOffset), height: Math.max(y(avgWakeOffset) - y(avgBedOffset), 4) }}
                         />
@@ -195,15 +196,13 @@ export function SleepStatsCard() {
           </div>
         </div>
         {editKey && (
-          <div className="mt-3">
+          <div className="mt-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800">
             <SleepTimesField
               // 夜・記録が変わるたびに下書きを作り直す
               key={`${editKey}|${editRecord?.id ?? ''}`}
               dateKey={editKey}
               record={editRecord}
               label={t('sleepStats.editTitle', { day: dayLabel(editKey) })}
-              // カードの見出しが「睡眠」なので月は付けない
-              icon={false}
               onSaved={() => setEditKey(null)}
               onCancel={() => setEditKey(null)}
             />
