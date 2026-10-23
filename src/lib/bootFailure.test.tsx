@@ -3,6 +3,9 @@ import { bootLanguage, renderBootFailure } from './bootFailure'
 import { startAfterDataLoaded } from './startAfterDataLoaded'
 import { hasTypingInProgress } from './pendingEdits'
 
+const reloadPage = vi.hoisted(() => vi.fn())
+vi.mock('./reloadPage', () => ({ reloadPage }))
+
 afterEach(() => {
   localStorage.removeItem('chronograma-lang')
   document.body.replaceChildren()
@@ -24,14 +27,12 @@ describe('起動に失敗したとき', () => {
   it('React なしで「起動できませんでした」と再読み込みを出す', () => {
     const root = document.createElement('div')
     document.body.append(root)
-    const reload = vi.fn()
-    vi.stubGlobal('location', { ...location, reload })
     renderBootFailure(root, 'ja')
     expect(root.querySelector('[role="alert"] h1')?.textContent).toBe('起動できませんでした')
     const button = root.querySelector('button')!
     expect(button.textContent).toBe('再読み込み')
     button.click()
-    expect(reload).toHaveBeenCalledTimes(1)
+    expect(reloadPage).toHaveBeenCalledTimes(1)
     renderBootFailure(root, 'en')
     expect(root.querySelector('h1')?.textContent).toBe("Couldn't start")
     expect(root.querySelectorAll('[role="alert"]')).toHaveLength(1)

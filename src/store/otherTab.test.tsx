@@ -5,6 +5,7 @@ import { loadImportRollback, saveImportRollback } from '../lib/importRollback'
 import { DEFAULT_TIMETABLE } from '../lib/timetable'
 import { DEFAULT_ADDONS } from '../lib/addons'
 import { DEFAULT_WEEK_STARTS_ON } from '../lib/weekStart'
+import * as page from '../lib/reloadPage'
 
 type Saved = { state: Record<string, unknown> & { tasks: { id: string; title: string }[] }; version: number }
 
@@ -98,8 +99,8 @@ describe('他のタブの変更の取り込み（adoptOtherTabChanges）', () =>
 
   it('新しい版のタブが書いたら読み込み直し、古い版・読めない中身は取り込まない', () => {
     useTaskStore.getState().addTask('A')
-    const reload = vi.fn()
-    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, reload } as Location)
+    // ストアはテストの準備（setup.ts）で読み込み済みなので、vi.mock ではなく差し替える
+    const reloadPage = vi.spyOn(page, 'reloadPage').mockImplementation(() => {})
 
     otherTabWrites((s) => {
       s.version = STORE_VERSION - 1
@@ -107,7 +108,7 @@ describe('他のタブの変更の取り込み（adoptOtherTabChanges）', () =>
     })
     adoptOtherTabChanges()
     expect(titles()).toEqual(['A'])
-    expect(reload).not.toHaveBeenCalled()
+    expect(reloadPage).not.toHaveBeenCalled()
 
     otherTabWrites((s) => {
       s.version = STORE_VERSION + 1
@@ -115,7 +116,7 @@ describe('他のタブの変更の取り込み（adoptOtherTabChanges）', () =>
     })
     adoptOtherTabChanges()
     expect(titles()).toEqual(['A'])
-    expect(reload).toHaveBeenCalledTimes(1)
+    expect(reloadPage).toHaveBeenCalledTimes(1)
 
     localStorage.setItem(PERSIST_STORAGE_KEY, '{not json')
     expect(() => adoptOtherTabChanges()).not.toThrow()
