@@ -11,7 +11,8 @@ export type TaskMenuRequest =
   | { kind: 'event'; x: number; y: number; taskId: string; brief?: boolean }
   /** 時間未定のタスクの「時間を決める」（空き時間の候補） */
   | { kind: 'timeSlot'; x: number; y: number; taskId: string; dateKey: string }
-  | { kind: 'google'; x: number; y: number; eventId: string }
+  /** `brief`: タイムラインの右クリック・長押し（コピーだけ） */
+  | { kind: 'google'; x: number; y: number; eventId: string; brief?: boolean }
   /** 締切の「日時を指定…」（日付と時刻を一度に選ぶ） */
   | { kind: 'dueDateTime'; x: number; y: number; taskIds: string[]; onDone?: () => void }
 

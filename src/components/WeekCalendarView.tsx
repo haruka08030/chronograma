@@ -62,6 +62,7 @@ import { useHourHeight, usePinchHourHeight } from '../hooks/useHourHeight'
 import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
 import { calendarWeekDays } from '../lib/weekStart'
 import { useDayLoads } from '../hooks/useDayLoads'
+import { canEditGoogleEvent } from '../lib/googleEventEdit'
 
 const NO_TASKS: Task[] = []
 const NO_EVENTS: CalendarEvent[] = []
@@ -229,12 +230,21 @@ export function WeekCalendarView({
     applyBlockResize(taskId, startTime, endTime, dateKey, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
   }, [])
   /**
-   * 右クリック・タッチの長押しのメニュー。習慣の枠は習慣の画面と同じメニュー、予定・To-Do は完了 / 未完了・複製だけ
-   * （ほかはカードと編集画面）。記録・Google の予定には出さない。出したときだけ true
+   * 右クリック・タッチの長押しのメニュー。習慣の枠は習慣の画面と同じメニュー、予定・To-Do は完了 / 未完了・コピーだけ、
+   * 書き込める Google の予定はコピーだけ（ほかはカードと編集画面）。記録・書き込めない Google の予定には出さない。出したときだけ true
    */
   const openBlockMenu = useCallback(
     (id: string, x: number, y: number): boolean => {
       if (openHabitMenu(id, x, y)) return true
+      if (id.startsWith('event-')) {
+        const s = useTaskStore.getState()
+        const event = s.calendarEvents.find((e) => e.id === id.slice('event-'.length))
+        if (!event || !canEditGoogleEvent(event, s.googleCanWrite)) return false
+        setEventCard(null)
+        setGoogleCard(null)
+        openTaskMenu({ kind: 'google', x, y, eventId: event.id, brief: true })
+        return true
+      }
       const task = useTaskStore.getState().tasks.find((t) => t.id === id)
       if (!task || isLogTask(task)) return false
       setEventCard(null)
@@ -244,7 +254,7 @@ export function WeekCalendarView({
     },
     [openHabitMenu, setEventCard, setGoogleCard],
   )
-  // タッチの長押し: メニューを出せないもの（記録・Google の予定）は押したときと同じカード
+  // タッチの長押し: メニューを出せないもの（記録・書き込めない Google の予定）は押したときと同じカード
   const onBlockLongPress = useCallback(
     (id: string, x: number, y: number) => {
       if (!openBlockMenu(id, x, y)) openBlockCard(id)
