@@ -7,7 +7,7 @@ import { durationMinutesForTaskSlot, endDateAfterStartDateEdit, isOvernightTimeL
 import { DateField } from '../DateField'
 import { TimeInput } from '../TimeInput'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from '../TaskTimeZoneField'
-import { fieldClass } from '../ui/fieldClass'
+import { fieldClass, TIME_FIELD_WIDTH } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { META_TEXT } from '../ui/textClass'
 import { timeToMinutes } from '../../lib/timeGrid'
@@ -50,7 +50,7 @@ export function LogTimeFields({ task }: { task: Task }) {
           value={tv.startTime ?? ''}
           onChange={(v) => updateTimes({ startTime: v || null })}
           ariaLabel={t('common.start')}
-          className={fieldClass({}, 'w-[7rem]')}
+          className={fieldClass({}, TIME_FIELD_WIDTH)}
         />
         <span className="text-zinc-400 text-sm">{t('common.timeRangeSeparator')}</span>
         <TimeInput
@@ -58,7 +58,7 @@ export function LogTimeFields({ task }: { task: Task }) {
           onChange={(v) => updateTimes({ endTime: v || null })}
           pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, 60) : undefined}
           ariaLabel={t('common.end')}
-          className={fieldClass({}, 'w-[7rem]')}
+          className={fieldClass({}, TIME_FIELD_WIDTH)}
         />
         {(task.startTime || zone) && <TaskTimeZoneButton task={task} view={tv} />}
         {logDurationLabel && <span className={META_TEXT}>{logDurationLabel}</span>}
