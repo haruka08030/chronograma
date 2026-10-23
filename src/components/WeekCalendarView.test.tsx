@@ -348,6 +348,11 @@ describe('WeekCalendarView: C で作成カード', () => {
 })
 
 /** 習慣の段の丸（格子の枠は除く） */
+/** 習慣の段の左の「習慣 ▾」（その週の今日、無ければ最初の日の一覧を開く） */
+function openHabitList() {
+  fireEvent.click(screen.getByRole('button', { name: 'Habits' }))
+}
+
 function rowDots(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>('[data-block-id^="habit-slot::"]')].filter((el) => !el.closest('[data-datekey]'))
 }
@@ -414,12 +419,21 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(screen.getByText('Habits')).toBeInTheDocument()
     // 段は丸だけ。時刻と題名は名前（ヒント）で
     expect(rowDots(view.container).map((el) => el.getAttribute('aria-label'))).toEqual(['07:00 Stretch', '07:00 Stretch', '07:00 Stretch'])
-    // 押すとその日の一覧。押した丸の行を目立たせ、10/7 の 7:00 は始まっているので一覧の ✓ で達成
+    // 丸はほかの画面と同じく押すと ✓（10/7 の 7:00 は始まっている）。「元に戻す」のトーストで戻せる
     const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${id}::2026-10-07"]`)!
     fireEvent.click(chip)
+    expect(useTaskStore.getState().habits[0]!.completedDates).toContain('2026-10-07')
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+    const banner = useTaskStore.getState().undoBanner!
+    expect(banner.text).toEqual({ key: 'undo.habitRecorded', params: { name: 'Stretch', label: '' } })
+    act(() => {
+      useTaskStore.getState().undoOperation(banner.undoId!)
+    })
+    expect(useTaskStore.getState().habits[0]!.completedDates).not.toContain('2026-10-07')
+    // 名前・カードへは左の「習慣 ▾」から（今日の一覧）。一覧の ✓ でも達成
+    openHabitList()
     const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
     const row = list.querySelector<HTMLElement>(`[data-block-id="habit-slot::${id}::2026-10-07"]`)!
-    expect(row).toHaveAttribute('data-highlight')
     fireEvent.click(within(row).getByRole('button', { name: 'Done as planned (log it)' }))
     expect(useTaskStore.getState().habits[0]!.completedDates).toContain('2026-10-07')
     // 一覧の行を押すとカード
@@ -449,7 +463,13 @@ describe('WeekCalendarView: 習慣の枠', () => {
       root.querySelector(`[data-block-id="habit-slot::${id}::2026-10-07"] [data-dot-state]`)!.getAttribute('data-dot-state')
     expect(state(view.container, early)).toBe('today')
     expect(state(view.container, late)).toBe('future')
-    fireEvent.click(view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${late}::2026-10-07"]`)!)
+    // 先の丸は押しても何もしない（一覧も開かない）
+    const lateDot = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${late}::2026-10-07"]`)!
+    expect(lateDot).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(lateDot)
+    expect(useTaskStore.getState().habits.find((h) => h.id === late)!.completedDates).toEqual([])
+    expect(screen.queryByRole('dialog')).toBeNull()
+    openHabitList()
     const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
     expect(state(list, early)).toBe('today')
     expect(state(list, late)).toBe('future')
@@ -471,7 +491,12 @@ describe('WeekCalendarView: 習慣の枠', () => {
       goalMinutes: undefined,
     })
     const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    // 10/8 の丸は先の日なので押しても何もしない。一覧は「習慣 ▾」から開いて › で次の日へ
     fireEvent.click(view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${id}::2026-10-08"]`)!)
+    expect(useTaskStore.getState().habits[0]!.completedDates).toEqual([])
+    openHabitList()
+    expect(screen.getByRole('button', { name: 'Previous day' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
     const list = screen.getByRole('dialog', { name: 'Habits on 10/8' })
     expect(within(list).queryByRole('button', { name: 'Done as planned (log it)' })).toBeNull()
     fireEvent.contextMenu(within(list).getByText('Stretch'), { clientX: 100, clientY: 100 })
@@ -617,7 +642,8 @@ describe('WeekCalendarView: 習慣の枠', () => {
     })
     const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
     const slotId = `habit-slot::${id}::2026-10-08`
-    fireEvent.click(view.container.querySelector<HTMLElement>(`[data-block-id="${slotId}"]`)!)
+    openHabitList()
+    fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Habits on 10/8' })).getByText('Stretch'))
     const card = await screen.findByRole('dialog', { name: 'Stretch' })
     fireEvent.click(within(card).getByRole('button', { name: 'Place on timeline' }))
@@ -676,7 +702,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(tile!.style.height).toBe(`${0.5 * HOUR_HEIGHT}px`)
   })
 
-  it('時間を決めていない習慣も、習慣の段に出す（丸も一覧も習慣の並び。押すと一覧からカード）', async () => {
+  it('時間を決めていない習慣も、習慣の段に出す（丸も一覧も習慣の並び。今日の丸は ✓、一覧からカード）', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
     useTaskStore.setState({ habits: [], tasks: [] })
@@ -699,8 +725,18 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect([...cell.children].map((c) => c.getAttribute('aria-label'))).toEqual(['Wash puff', '22:00 Stretch'])
     const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-07"]`)!
     expect(chip.getAttribute('draggable')).toBe('true')
-    const future = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-08"]`)!
-    fireEvent.click(future)
+    // 今日の丸を押すと達成（時間なしは記録を作らないので「達成にしました」のトースト）。もう一度で取り消し
+    fireEvent.click(chip)
+    expect(useTaskStore.getState().habits.find((h) => h.id === puff)!.completedDates).toContain('2026-10-07')
+    expect(useTaskStore.getState().undoBanner!.text).toEqual({ key: 'undo.habitChecked', params: { name: 'Wash puff' } })
+    fireEvent.click(chip)
+    expect(useTaskStore.getState().habits.find((h) => h.id === puff)!.completedDates).not.toContain('2026-10-07')
+    expect(useTaskStore.getState().undoBanner!.text).toEqual({ key: 'undo.habitUnchecked', params: { name: 'Wash puff' } })
+    // 先の日の丸は押しても何もしない
+    fireEvent.click(view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-08"]`)!)
+    expect(useTaskStore.getState().habits.find((h) => h.id === puff)!.completedDates).toEqual([])
+    openHabitList()
+    fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
     const list = screen.getByRole('dialog', { name: 'Habits on 10/8' })
     // 一覧も段の丸と同じ並び
     expect([...list.querySelectorAll('[data-block-id]')].map((r) => r.textContent)).toEqual(['Wash puff', '22:00Stretch'])
@@ -708,7 +744,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(await screen.findByRole('dialog', { name: 'Wash puff' })).toBeInTheDocument()
   })
 
-  it('スマホの 1 日表示は次の 1 件だけ題名つきで丸の ✓ を 1 タップ、残りは丸（押すと一覧）', () => {
+  it('スマホの 1 日表示は次の 1 件だけ題名つきで丸の ✓ を 1 タップ、残りの丸も押すと ✓（一覧は「習慣 ▾」）', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
     useTaskStore.setState({ habits: [], tasks: [] })
@@ -725,16 +761,22 @@ describe('WeekCalendarView: 習慣の枠', () => {
       })
     const puff = add('Wash puff', null)
     add('Stretch', '22:00')
+    const water = add('Water', null)
     const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />)
-    expect(rowDots(view.container)).toHaveLength(2)
-    // 次の 1 件（始まっている Wash puff）だけ題名つき、まだ始まっていない Stretch は丸だけ
+    expect(rowDots(view.container)).toHaveLength(3)
+    // 次の 1 件（始まっている Wash puff）だけ題名つき、ほかは丸だけ
     expect(screen.getByText('Wash puff')).toBeInTheDocument()
     expect(screen.queryByText('Stretch')).toBeNull()
-    // 丸を押すとその日の一覧（押した丸の行を目立たせる）
-    const stretch = rowDots(view.container).find((el) => el.getAttribute('aria-label') === '22:00 Stretch')!
-    fireEvent.click(stretch)
+    // 残りの丸も押すと ✓（まだ始まっていない Stretch は何もしない）
+    const dot = (name: string) => rowDots(view.container).find((el) => el.getAttribute('aria-label') === name)!
+    fireEvent.click(dot('22:00 Stretch'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(dot('Water'))
+    expect(useTaskStore.getState().habits.find((h) => h.id === water)!.completedDates).toContain('2026-10-07')
+    // 一覧は左の「習慣 ▾」から（1 日なので ‹ › は出さない）
+    openHabitList()
     const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
-    expect(list.querySelector('[data-highlight]')!.textContent).toContain('Stretch')
+    expect(within(list).queryByRole('button', { name: 'Next day' })).toBeNull()
     expect(within(list).queryByRole('button', { name: 'Done as planned (log it)' })).toBeNull()
     fireEvent.keyDown(document, { key: 'Escape' })
     const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-07"]`)!

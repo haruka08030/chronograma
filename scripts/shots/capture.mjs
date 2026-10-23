@@ -420,16 +420,22 @@ const SCREENS = [
   { name: 'calendar', view: 'calendar' },
   // 習慣が多い週（#578）: 種の 3 件に、毎日・平日・週 3 の習慣を足した 7 件。習慣の段が格子を押し下げないか
   { name: 'calendar-habits-many', view: 'calendar', moreHabits: true },
-  // 習慣の段の丸を押したところ（その日の習慣の一覧。押した丸の行を目立たせる）
+  // 習慣の段の左の「習慣 ▾」を押したところ（今日の習慣の一覧。‹ › で日を替える）
+  { name: 'calendar-habits-list', view: 'calendar', moreHabits: true, desktopOnly: true, click: '[data-habit-list-open] >> visible=true' },
+  // スマホの 1 日表示で「習慣 ▾」を押したところ（同じ一覧）
+  { name: 'calendar-habits-more', view: 'calendar', moreHabits: true, mobileOnly: true, click: '[data-habit-list-open] >> visible=true' },
+  // 今日の丸を押したところ（✓ になり、「元に戻す」のトーストが出る）
   {
-    name: 'calendar-habits-list',
+    name: 'calendar-habits-check',
     view: 'calendar',
     moreHabits: true,
-    desktopOnly: true,
-    click: '[data-habit-today] [data-block-id] >> nth=2',
+    steps: [
+      {
+        click: '[data-habit-today] [data-dot]:not([aria-disabled]) >> nth=1',
+        mobileClick: '[data-dot]:not([aria-disabled]) >> visible=true >> nth=0',
+      },
+    ],
   },
-  // スマホの 1 日表示で、次の 1 件の後ろの丸を押したところ（同じ一覧。押した丸の行を目立たせる）
-  { name: 'calendar-habits-more', view: 'calendar', moreHabits: true, mobileOnly: true, click: '[data-dot] >> visible=true >> nth=1' },
   // 狭い画面（スマホ 320px・PC 1280px）でも習慣の段が崩れないか
   { name: 'calendar-habits-narrow', view: 'calendar', moreHabits: true, mobileOnly: true, mobileWidth: 320 },
   { name: 'calendar-habits-1280', view: 'calendar', moreHabits: true, desktopOnly: true, desktopWidth: 1280 },

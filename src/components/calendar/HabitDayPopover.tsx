@@ -1,15 +1,16 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
-import { useTaskStore } from '../../store/taskStore'
 import type { Habit } from '../../types/habit'
 import { colorVars } from '../../lib/logCategoryColors'
 import { dateFnsLocale, fromDateKey } from '../../lib/dateKey'
 import { appTodayKey } from '../../lib/timeZone'
 import { startTaskDrag } from '../../lib/taskDrag'
 import { tip } from '../../lib/tooltip'
+import { ChevronLeftIcon, ChevronRightIcon } from '../icons'
 import { HabitDotMark } from './HabitDotMark'
+import { useHabitToggle } from './useHabitToggle'
 import { habitDotState, habitStarted } from './habitDotState'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useTouchContextMenu } from '../../hooks/useTouchContextMenu'
@@ -21,7 +22,7 @@ const PANEL_WIDTH = 260
 export type HabitDayItem = { habit: Habit; id: string; time: string | null; done: boolean }
 
 /**
- * 習慣の段の丸・「+N」を押したときに出す、その日の習慣の一覧。名前を見ながら ✓ を付けられる。
+ * 習慣の段の「習慣 ▾」・「+N」から開く、その日の習慣の一覧。名前を見ながら ✓ を付けられる。上に日付、週・3 日は ‹ › で丸のある日を替える。
  * 行は段と同じ並び（週・3 日は習慣の並び、1 日表示はまだを時刻順→達成）で、時刻は前に小さく灰色で。押した丸の行は目立たせ、その行の ✓ にフォーカスする（Enter・Space で ✓）。
  * ✓ で達成・取り消し（始まった時刻から。先の日・先の時刻は輪だけ）。✓ しても閉じない（続けて付けられる）。Esc・外側を押すと閉じる。
  * 行を押すとカード、右クリック（タッチは長押し）でメニュー、格子へドラッグでその日だけの枠。
@@ -35,6 +36,9 @@ export function HabitDayPopover({
   logLimitMin,
   openHabitCard,
   openHabitMenu,
+  onStep,
+  canPrev = false,
+  canNext = false,
   onClose,
 }: {
   /** 開いたマス・「+N」（位置合わせと、カードの起点） */
@@ -46,10 +50,14 @@ export function HabitDayPopover({
   logLimitMin: (key: string) => number | null
   openHabitCard: (slotId: string, el?: Element | null) => void
   openHabitMenu: (slotId: string, x: number, y: number) => boolean
+  /** 前・次の日へ（無ければ ‹ › を出さない） */
+  onStep?: (dir: -1 | 1) => void
+  canPrev?: boolean
+  canNext?: boolean
   onClose: () => void
 }) {
   const { t, i18n } = useTranslation()
-  const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
+  const toggle = useHabitToggle()
   const panelRef = useRef<HTMLDivElement>(null)
   const dialogId = useId()
   const [style, setStyle] = useState<CSSProperties>({ position: 'fixed', visibility: 'hidden' })
@@ -108,6 +116,19 @@ export function HabitDayPopover({
       style={style}
       className={`z-[80] w-[260px] overflow-y-auto p-1 ${POPOVER_PANEL} ${dragging ? 'pointer-events-none opacity-0' : ''}`}
     >
+      <div className="flex h-7 items-center gap-1 px-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+        {onStep && (
+          <StepButton label={t('planner.prevDay')} disabled={!canPrev} onClick={() => onStep(-1)}>
+            <ChevronLeftIcon className="h-3.5 w-3.5" />
+          </StepButton>
+        )}
+        <span className={`flex-1 tabular-nums ${onStep ? 'text-center' : 'px-1'}`}>{label}</span>
+        {onStep && (
+          <StepButton label={t('planner.nextDay')} disabled={!canNext} onClick={() => onStep(1)}>
+            <ChevronRightIcon className="h-3.5 w-3.5" />
+          </StepButton>
+        )}
+      </div>
       {items.map(({ habit, id, time, done }) => {
         // 始まった（記録にできる）時刻からは ✓ で予定どおり達成。時間なしは今日と過ぎた日（先の日の記録は付けない）
         const started = habitStarted(time, limit)
@@ -147,7 +168,7 @@ export function HabitDayPopover({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation()
-                  toggleHabitDate(habit.id, dateKey)
+                  toggle(habit.id, dateKey)
                 }}
                 {...tip(
                   done
@@ -183,5 +204,30 @@ export function HabitDayPopover({
       })}
     </div>,
     document.body,
+  )
+}
+
+/** 一覧の上の ‹ ›（前・次の日） */
+function StepButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  disabled: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      {...tip(label, { name: true })}
+      className="grid h-6 w-6 place-items-center rounded-md hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent pointer-coarse:h-9 pointer-coarse:w-9 dark:hover:bg-zinc-700"
+    >
+      {children}
+    </button>
   )
 }

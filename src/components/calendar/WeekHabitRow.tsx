@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
 import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
@@ -8,11 +8,12 @@ import { colorVars } from '../../lib/logCategoryColors'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../../lib/dateKey'
 import { appTodayKey } from '../../lib/timeZone'
 import { tip } from '../../lib/tooltip'
-import { CheckIcon } from '../icons'
+import { CheckIcon, ChevronDownIcon } from '../icons'
 import { DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/taskDrag'
 import { HabitDayPopover, type HabitDayItem } from './HabitDayPopover'
 import { HabitDotMark as DotMark, type DotState } from './HabitDotMark'
 import { habitDotState, habitStarted } from './habitDotState'
+import { useHabitToggle } from './useHabitToggle'
 
 /**
  * 丸の並びの大きさ。sm は週・3 日のマス（見た目 12px・間 2px、混んだ日は間を 0 まで詰める）、
@@ -29,15 +30,17 @@ const HEAD_MIN_W = 32 + 6 * 12 + 4
 const HEAD_TIME_W = 34
 
 type Item = HabitDayItem
-type Popover = { key: string; anchor: Element; highlightId: string | null }
+type Popover = { key: string; anchor: Element }
 
 /**
  * 終日の行の下の習慣の段。その日にやる習慣を 1 件 1 つの色の丸で詰めて横に並べ、段の高さを 1 行に保つ。
  * 丸の並びは週を通して習慣の並び（習慣の画面の順）に固定し、同じ習慣を横にたどれるようにする。丸の見た目は `HabitDotMark`。
- * 週・3 日は、その日のマス全体が 1 つのボタン。押すとその日の習慣の一覧（同じ並び）が開き、押した位置にいちばん近い丸の行を目立たせる。
+ * 丸はほかの画面（習慣の表・詳細・今日）と同じく、押すと ✓ / 取り消し（今日で始まっている分と過ぎた日。先の日・まだの時刻は押しても何もしない）。
+ * 押し間違えは当たりを丸の間隔いっぱい×段の高さに広げ、✓ のたびに「元に戻す」のトーストを出して防ぐ。
+ * 名前・カード・その日の一覧へは、左の「習慣 ▾」（今日、無ければ最初の日の一覧。一覧の ‹ › で日を替える）と「+N」（その日の一覧）から。PC は丸のヒントにも名前。
  * 丸を右クリック（タッチは長押し）すると習慣のメニュー、丸以外ならその日の一覧。丸をその日の格子へドラッグすると、その日だけその時間の枠になる。
- * 1 日表示は 1 段。次の 1 件だけ丸＋時刻＋題名（丸が ✓ のボタンで始まっていれば 1 タップ、題名がカード）、残りは週と同じ丸（まだ→達成）。
- * 全部済んだ日は「✓ N」1 つ。
+ * 1 日表示は 1 段。次の 1 件だけ丸＋時刻＋題名（丸が ✓、題名がカード）、残りは週と同じ丸（押すと ✓）。
+ * 全部済んだ日は「✓ N」1 つ（押すと一覧）。
  * その週に 1 つも無ければ出さない
  */
 export function WeekHabitRow({
@@ -65,7 +68,7 @@ export function WeekHabitRow({
 }) {
   const { t, i18n } = useTranslation()
   const habits = useTaskStore(selectLiveHabits)
-  const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
+  const toggle = useHabitToggle()
   const named = gridDays.length === 1
   const [popover, setPopover] = useState<Popover | null>(null)
   const [gridWidth, setGridWidth] = useState(0)
@@ -99,26 +102,58 @@ export function WeekHabitRow({
   if (!byDay.some((d) => d.dots.length > 0 || (keepEmpty && d.placed))) return null
   const cellWidth = gridWidth / gridDays.length
   const today = appTodayKey()
-  // 同じ丸をもう一度押したら閉じる。別の丸なら目立たせる行を替える
-  const openList = (key: string, anchor: Element, highlightId: string | null) =>
-    setPopover((p) => (p && p.key === key && p.highlightId === highlightId ? null : { key, anchor, highlightId }))
-  const popDay = popover && byDay.find((d) => d.key === popover.key)
+  // 開いたのと同じ所（「習慣 ▾」・「+N」）をもう一度押したら閉じる
+  const openList = (key: string, anchor: Element) => setPopover((p) => (p && p.anchor === anchor ? null : { key, anchor }))
+  const withDots = byDay.filter((d) => d.dots.length > 0)
+  // 左の「習慣 ▾」: 今日（丸があれば）、無ければ丸のある最初の日
+  const startKey = (withDots.find((d) => d.key === today) ?? withDots[0])?.key ?? null
+  const popIndex = popover ? withDots.findIndex((d) => d.key === popover.key) : -1
+  const popDay = popIndex >= 0 ? withDots[popIndex] : null
   const dayLabel = (key: string) =>
     t('weekCalendar.habitDayList', { date: format(fromDateKey(key), 'M/d', { locale: dateFnsLocale(i18n.resolvedLanguage) }) })
+  const checkable = (item: Item, limit: number | null) => item.done || habitStarted(item.time, limit)
   return (
     <div className="flex flex-shrink-0 border-b border-zinc-200 px-2 dark:border-zinc-800">
-      <div
-        style={{ width: gutterWidth }}
-        className={`flex-shrink-0 pr-2 text-right text-[10px] text-zinc-400 ${named ? 'pt-2.5' : 'pt-1.5'}`}
-      >
-        {t('weekCalendar.habitRow')}
+      <div style={{ width: gutterWidth }} className={`flex flex-shrink-0 items-center justify-end pr-1 ${named ? 'h-9' : 'h-7'}`}>
+        {startKey ? (
+          <button
+            type="button"
+            data-habit-list-open
+            aria-haspopup="dialog"
+            aria-expanded={popover !== null}
+            onClick={(e) => openList(startKey, e.currentTarget)}
+            {...tip(t('weekCalendar.habitListOpen'))}
+            className="group flex h-full items-center pl-1"
+          >
+            <span
+              className={`flex h-5 items-center gap-px rounded-md border pl-1 pr-0.5 text-[10px] text-zinc-500 group-hover:bg-zinc-50 group-hover:text-zinc-700 dark:text-zinc-400 dark:group-hover:bg-zinc-800 dark:group-hover:text-zinc-200
+                ${popover ? 'border-zinc-400 dark:border-zinc-500' : 'border-zinc-200 dark:border-zinc-700'}`}
+            >
+              {t('weekCalendar.habitRow')}
+              <ChevronDownIcon className="h-3 w-3" />
+            </span>
+          </button>
+        ) : (
+          <span className="pr-1 text-[10px] text-zinc-400">{t('weekCalendar.habitRow')}</span>
+        )}
       </div>
       <div ref={gridRef} className={`flex-1 grid ${gridColsClass}`}>
         {byDay.map(({ key, dots, named: namedItems }) => {
           const limit = logLimitMin(key)
           const stateOf = (item: Item): DotState => habitDotState(item, key, today, limit)
-          const cellClass = `min-w-0 border-l border-zinc-200 transition-colors dark:border-zinc-700 ${dropKey === key ? DROP_HIGHLIGHT_CLASS : ''}`
           const listOpen = popover?.key === key
+          const cellClass = `min-w-0 border-l border-zinc-200 transition-colors dark:border-zinc-700 ${
+            dropKey === key ? DROP_HIGHLIGHT_CLASS : listOpen && !named ? 'bg-zinc-100 dark:bg-zinc-800' : ''
+          }`
+          const dotsProps = {
+            label: dayLabel(key),
+            stateOf,
+            canCheck: (item: Item) => checkable(item, limit),
+            onCheck: (item: Item) => toggle(item.habit.id, key),
+            open: listOpen,
+            onOpen: (el: Element) => openList(key, el),
+            openHabitMenu,
+          }
           if (named)
             return (
               <NamedDay
@@ -143,30 +178,18 @@ export function WeekHabitRow({
                               : t('weekCalendar.habitDoneAsPlanned')
                           : null
                       }
-                      onCheck={() => toggleHabitDate(item.habit.id, key)}
+                      onCheck={() => toggle(item.habit.id, key)}
                       openHabitCard={openHabitCard}
                       openHabitMenu={openHabitMenu}
                     />
                   )
                 }}
-                renderDots={(rest, width) => (
-                  <DotsDay
-                    className="shrink-0 rounded-md"
-                    size="lg"
-                    label={dayLabel(key)}
-                    items={rest}
-                    width={width}
-                    open={listOpen}
-                    stateOf={stateOf}
-                    onOpen={(el, highlightId) => openList(key, el, highlightId)}
-                    openHabitMenu={openHabitMenu}
-                  />
-                )}
+                renderDots={(rest, width) => <DotsDay className="shrink-0" size="lg" items={rest} width={width} {...dotsProps} />}
                 renderAllDone={() => (
                   <PillButton
                     label={t('weekCalendar.habitAllDone', { count: namedItems.length })}
                     open={listOpen}
-                    onOpen={(el) => openList(key, el, null)}
+                    onOpen={(el) => openList(key, el)}
                   >
                     <CheckIcon className="h-3 w-3" strokeWidth={3} />
                     {namedItems.length}
@@ -174,33 +197,30 @@ export function WeekHabitRow({
                 )}
               />
             )
-          return (
-            <DotsDay
-              key={key}
-              className={cellClass}
-              label={dayLabel(key)}
-              isToday={key === today}
-              items={dots}
-              width={cellWidth}
-              open={listOpen}
-              stateOf={stateOf}
-              onOpen={(el, highlightId) => openList(key, el, highlightId)}
-              openHabitMenu={openHabitMenu}
-            />
-          )
+          return <DotsDay key={key} className={cellClass} isToday={key === today} items={dots} width={cellWidth} {...dotsProps} />
         })}
       </div>
-      {popover && popDay && popDay.dots.length > 0 && (
+      {popover && popDay && (
         <HabitDayPopover
-          key={`${popover.key}-${popover.highlightId}`}
           anchor={popover.anchor}
           dateKey={popover.key}
           // 1 日表示は段と同じ並び（まだを時刻順→達成）
           items={named ? popDay.named : popDay.dots}
-          highlightId={popover.highlightId}
+          highlightId={null}
           logLimitMin={logLimitMin}
           openHabitCard={openHabitCard}
           openHabitMenu={openHabitMenu}
+          // 丸のある日だけを ‹ › でたどる（週・3 日）
+          onStep={
+            withDots.length > 1
+              ? (dir) => {
+                  const next = withDots[popIndex + dir]
+                  if (next) setPopover({ key: next.key, anchor: popover.anchor })
+                }
+              : undefined
+          }
+          canPrev={popIndex > 0}
+          canNext={popIndex < withDots.length - 1}
           onClose={() => setPopover(null)}
         />
       )}
@@ -209,8 +229,9 @@ export function WeekHabitRow({
 }
 
 /**
- * 週・3 日の 1 日分のマス。マス全体が一覧を開くボタン（押した位置にいちばん近い丸の行を一覧で目立たせる）。
- * 丸は格子へドラッグでき（ブラウザのドラッグは少し動いてから始まる）、右クリック・長押しで習慣のメニュー
+ * 週・3 日の 1 日分のマス（1 日表示は「次の 1 件」の後ろの丸）。丸 1 つ 1 つが ✓ のボタンで、当たりは丸の間隔いっぱい×段の高さ。
+ * 入らない分は「+N」（押すとその日の一覧）。丸は格子へドラッグでき（ブラウザのドラッグは少し動いてから始まる）、右クリック・長押しで習慣のメニュー。
+ * 丸の無い所を右クリック・長押しするとその日の一覧（近道）
  */
 function DotsDay({
   className,
@@ -221,6 +242,8 @@ function DotsDay({
   width,
   open,
   stateOf,
+  canCheck,
+  onCheck,
   onOpen,
   openHabitMenu,
 }: {
@@ -232,7 +255,9 @@ function DotsDay({
   width: number
   open: boolean
   stateOf: (item: Item) => DotState
-  onOpen: (el: Element, highlightId: string | null) => void
+  canCheck: (item: Item) => boolean
+  onCheck: (item: Item) => void
+  onOpen: (el: Element) => void
   openHabitMenu: (slotId: string, x: number, y: number) => boolean
 }) {
   const { t } = useTranslation()
@@ -244,76 +269,79 @@ function DotsDay({
   // 1 件の幅: ゆとりがあれば決まった幅、混んだ日は入るまで詰める
   const slot = width <= 0 ? d.w : Math.max(d.minW, Math.min(d.w, (inner - (fits ? 0 : d.moreW)) / Math.max(1, shown.length)))
   const rest = items.length - shown.length
-  /** 押した丸、無ければ押した位置にいちばん近い丸（「+N」がいちばん近ければ目立たせない） */
-  const nearest = (e: MouseEvent<HTMLDivElement>): string | null => {
-    const hit = (e.target as Element).closest('[data-dot]')
-    if (hit) return hit.getAttribute('data-block-id')
-    let best: Element | null = null
-    let bestDist = Infinity
-    for (const el of e.currentTarget.querySelectorAll('[data-dot], [data-more]')) {
-      const r = el.getBoundingClientRect()
-      const d = Math.abs(r.left + r.width / 2 - e.clientX)
-      if (d < bestDist) {
-        best = el
-        bestDist = d
-      }
-    }
-    return best?.getAttribute('data-block-id') ?? null
-  }
   if (items.length === 0) return <div className={className} />
   return (
     <div
-      role="button"
-      tabIndex={0}
-      data-habit-today={isToday || undefined}
-      aria-haspopup="dialog"
-      aria-expanded={open}
+      role="group"
       aria-label={label}
-      onClick={(e) => onOpen(e.currentTarget, nearest(e))}
-      onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
-        // eslint-disable-next-line no-restricted-syntax -- 入力欄でないマスのボタン（変換の Enter は来ない）
-        if (e.key !== 'Enter' && e.key !== ' ') return
-        e.preventDefault()
-        onOpen(e.currentTarget, items[0]?.id ?? null)
-      }}
-      // 丸以外を右クリック・長押ししたら、その日の一覧
+      data-habit-today={isToday || undefined}
       onContextMenu={(e) => {
         e.preventDefault()
-        onOpen(e.currentTarget, null)
+        onOpen(e.currentTarget)
       }}
-      className={`${className} flex ${d.row} cursor-pointer items-center outline-none hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-500 dark:hover:bg-zinc-800/60
-        ${open ? 'bg-zinc-100 dark:bg-zinc-800' : ''}`}
+      className={`${className} flex ${d.row} items-center`}
     >
-      {shown.map((item) => (
-        <span
-          key={item.id}
-          data-dot
-          data-block-id={item.id}
-          data-touch-menu
-          // 予定の列に落とすとその日だけその時間の枠、記録の列ならその時間にやった記録（時間なしも同じ）
-          draggable
-          onDragStart={(e: DragEvent) => startTaskDrag(e, item.id)}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            openHabitMenu(item.id, e.clientX, e.clientY)
-          }}
-          {...tip(item.time !== null ? `${item.time} ${item.habit.title}` : item.habit.title, { name: true })}
-          className="flex h-full shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
-          style={{ ...colorVars(item.habit.color), width: slot }}
-        >
-          <DotMark state={stateOf(item)} large={size === 'lg'} list={size === 'lg'} />
-        </span>
-      ))}
+      {shown.map((item) => {
+        const can = canCheck(item)
+        const check = () => {
+          if (can) onCheck(item)
+        }
+        return (
+          <span
+            key={item.id}
+            role="button"
+            tabIndex={0}
+            data-dot
+            data-block-id={item.id}
+            data-touch-menu
+            aria-pressed={can ? item.done : undefined}
+            aria-disabled={!can || undefined}
+            onClick={check}
+            onKeyDown={(e: KeyboardEvent<HTMLSpanElement>) => {
+              // eslint-disable-next-line no-restricted-syntax -- 入力欄でない丸のボタン（変換の Enter は来ない）
+              if (e.key !== 'Enter' && e.key !== ' ') return
+              e.preventDefault()
+              check()
+            }}
+            // 予定の列に落とすとその日だけその時間の枠、記録の列ならその時間にやった記録（時間なしも同じ）
+            draggable
+            onDragStart={(e: DragEvent) => startTaskDrag(e, item.id)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              openHabitMenu(item.id, e.clientX, e.clientY)
+            }}
+            {...tip(item.time !== null ? `${item.time} ${item.habit.title}` : item.habit.title, { name: true })}
+            className={`group flex h-full shrink-0 items-center justify-center rounded outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-500 ${
+              can ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+            }`}
+            style={{ ...colorVars(item.habit.color), width: slot }}
+          >
+            <span
+              className={`grid shrink-0 place-items-center rounded-full ${size === 'lg' ? 'h-6 w-6' : 'h-[18px] w-[18px]'} ${
+                can ? 'group-hover:bg-zinc-200/70 dark:group-hover:bg-zinc-700' : ''
+              }`}
+            >
+              <DotMark state={stateOf(item)} large={size === 'lg'} list={size === 'lg'} />
+            </span>
+          </span>
+        )
+      })}
       {rest > 0 && (
-        <span
+        <button
+          type="button"
           data-more
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={(e) => onOpen(e.currentTarget)}
           {...tip(t('weekCalendar.habitRowMore', { count: rest }), { name: true })}
-          className="shrink-0 text-center text-[11px] tabular-nums text-zinc-500 dark:text-zinc-400"
+          className={`h-full shrink-0 rounded text-center text-[11px] tabular-nums text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200 ${
+            open ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''
+          }`}
           style={{ width: d.moreW }}
         >
           +{rest}
-        </span>
+        </button>
       )}
     </div>
   )
@@ -356,7 +384,7 @@ function PillButton({
 
 /**
  * 1 日表示の段（1 段）。「次の 1 件」（まだの習慣で始まっているものの時刻のいちばん早い件、無ければまだの先頭）だけ丸＋時刻＋題名で出し、
- * 残りは週と同じ丸を同じ行に並べる（まだ→達成の順。丸の並びは 1 つのボタンで、押すとその日の一覧）。題名は丸に場所を譲って省略する。
+ * 残りは週と同じ丸を同じ行に並べる（まだ→達成の順。押すと ✓）。題名は丸に場所を譲って省略する。
  * 全部済んだ日は「✓ N」1 つにまとめる
  */
 function NamedDay({
