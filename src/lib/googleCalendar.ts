@@ -491,8 +491,13 @@ async function writeGoogle(body: Record<string, unknown>): Promise<CalendarEvent
   }
 }
 
-export async function createGoogleEvent(summary: string, timing: GoogleEventTiming): Promise<CalendarEvent | null> {
-  return writeGoogle({ action: 'create', fields: { summary, ...toGoogleTimes(timing) } })
+/** `extra`: コピーのときに写すメモ・予定の色 */
+export async function createGoogleEvent(
+  summary: string,
+  timing: GoogleEventTiming,
+  extra: { description?: string; colorId?: string } = {},
+): Promise<CalendarEvent | null> {
+  return writeGoogle({ action: 'create', fields: { summary, ...extra, ...toGoogleTimes(timing) } })
 }
 
 export async function updateGoogleEvent(

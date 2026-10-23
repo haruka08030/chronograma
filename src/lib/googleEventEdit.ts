@@ -8,6 +8,7 @@ import {
   googleWriteFailure,
   localizeGoogleError,
   updateGoogleEvent,
+  googleEventTiming,
   type GoogleEventTiming,
 } from './googleCalendar'
 import { UNDO_WINDOW_MS } from './undoWindow'
@@ -154,19 +155,41 @@ function ensureFlushOnLeave() {
   })
 }
 
-export async function addGoogleEvent(summary: string, timing: GoogleEventTiming) {
+export async function addGoogleEvent(summary: string, timing: GoogleEventTiming, from?: CalendarEvent) {
   const tempId = `pending-${crypto.randomUUID()}`
+  // コピーは返ってくるまでも元と同じ色で出す
+  const look = from ? { color: from.color, baseColor: from.baseColor, ownColor: from.ownColor, colorId: from.colorId } : {}
   const draft = applyTimingLocally(
-    { id: tempId, summary, start: '', end: '', startTime: null, endTime: null, date: timing.date, isAllDay: false, editable: false },
+    {
+      id: tempId,
+      summary,
+      start: '',
+      end: '',
+      startTime: null,
+      endTime: null,
+      date: timing.date,
+      isAllDay: false,
+      editable: false,
+      ...look,
+    },
     timing,
   )
   upsert(draft)
   try {
-    const saved = await createGoogleEvent(summary, timing)
+    const saved = await createGoogleEvent(
+      summary,
+      timing,
+      from ? { description: from.description || undefined, colorId: from.ownColor ? from.colorId : undefined } : {},
+    )
     if (saved) upsert(saved, tempId)
     else remove(tempId)
   } catch (e) {
     remove(tempId)
     report(e)
   }
+}
+
+/** 同じ日・同じ時間にもう 1 つ作る（題名・メモ・予定の色を写す。繰り返しはその回だけの 1 件） */
+export function duplicateGoogleEvent(event: CalendarEvent) {
+  return addGoogleEvent(event.summary, googleEventTiming(event), event)
 }

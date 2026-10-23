@@ -6,7 +6,7 @@ import { NEUTRAL_HEX, DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { recordHex, colorVars } from '../../lib/logCategoryColors'
 import { planTiming } from '../../lib/planTiming'
 import { startTimerForTask } from '../../lib/timerDrop'
-import { canEditGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit'
+import { canEditGoogleEvent, duplicateGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit'
 import { useTaskColor } from '../../hooks/useTaskColor'
 import { ColorPalette } from '../labels/ColorPalette'
 import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
@@ -209,11 +209,25 @@ function TaskEventMenuBody({
 }
 
 /**
- * Google の予定を右クリックしたときのメニュー（Google カレンダーの右クリックと同じく、色と削除）。
+ * Google の予定を右クリックしたときのメニュー（Google カレンダーの右クリックと同じく、色・コピー・削除）。
+ * タイムラインの右クリック・長押しは `brief` でコピーだけ（ほかはカード）。
  * 書き込めない予定は「Google カレンダーで開く」だけ。繰り返しの色はカードの既定と同じく「すべての予定」に付ける。
  * やらなかった予定（#528）は削除だけ（予定していなかったものを消す）
  */
-export function GoogleEventMenu({ x, y, eventId, onClose }: { x: number; y: number; eventId: string; onClose: () => void }) {
+export function GoogleEventMenu({
+  x,
+  y,
+  brief,
+  eventId,
+  onClose,
+}: {
+  x: number
+  y: number
+  /** タイムラインの右クリック: コピーだけ（ほかはカード） */
+  brief?: boolean
+  eventId: string
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const liveEvent = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
   const skipped = useTaskStore((s) => !liveEvent && s.skippedEvents.some((e) => e.id === eventId && !e.removed))
@@ -265,6 +279,18 @@ export function GoogleEventMenu({ x, y, eventId, onClose }: { x: number; y: numb
           },
         ]
       : []),
+    // 同じ日・同じ時間にもう 1 つ（自分の予定の「コピー」と同じ）
+    ...(editable
+      ? [
+          {
+            kind: 'leaf' as const,
+            id: 'duplicate',
+            label: t('taskMenu.duplicate'),
+            icon: <DuplicateIcon className={ICON} />,
+            run: () => void duplicateGoogleEvent(event),
+          },
+        ]
+      : []),
     ...(event.htmlLink
       ? [
           {
@@ -289,6 +315,7 @@ export function GoogleEventMenu({ x, y, eventId, onClose }: { x: number; y: numb
         ]
       : []),
   ]
-  if (entries.length === 0) return null
-  return <ActionMenu x={x} y={y} header={event.summary} entries={entries} onClose={onClose} searchable={false} />
+  const shown = brief ? entries.filter((e) => e.id === 'duplicate') : entries
+  if (shown.length === 0) return null
+  return <ActionMenu x={x} y={y} header={event.summary} entries={shown} onClose={onClose} searchable={false} />
 }
