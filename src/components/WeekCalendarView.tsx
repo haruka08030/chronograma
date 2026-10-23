@@ -3,7 +3,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { skippedEventById, useShownCalendarEvents } from '../hooks/useShownCalendarEvents'
+import { useShownCalendarEvents } from '../hooks/useShownCalendarEvents'
 import { timeToMinutes } from '../lib/timeGrid'
 import { durationMinutesForTaskId } from '../lib/taskTimeRange'
 import {
@@ -44,7 +44,7 @@ import { toDateKey } from '../lib/dateKey'
 import { shortDate } from '../lib/moveToast'
 import { endWithinDay, minutesToTime } from '../lib/clockTime'
 import { useQuickAddAction } from '../lib/quickAddFocus'
-import { openTaskDetail, openTaskMenu } from '../lib/overlays'
+import { openTaskDetail } from '../lib/overlays'
 import { WeekDayHeader } from './calendar/WeekDayHeader'
 import { WeekAllDayRow } from './calendar/WeekAllDayRow'
 import { WeekDayColumn } from './calendar/WeekDayColumn'
@@ -205,28 +205,16 @@ export function WeekCalendarView({
   }, [])
 
   const cards = useCalendarCards(gridRef)
-  const { setEventCard, openCard, setGoogleCard, openGoogleCard, openHabitCard, openHabitMenu, createAnchor, setCreateAnchorFromEl } = cards
+  const { openCard, openGoogleCard, openHabitCard, openHabitMenu, createAnchor, setCreateAnchorFromEl } = cards
 
-  /**
-   * 予定・記録・Google の予定のメニュー（右クリック・タッチの長押し）。
-   * 習慣の枠は習慣の画面と同じメニュー。メニューを出せるもの（タスク・Google の予定・習慣の枠）のときだけ開いて true
-   */
-  const openBlockMenu = useCallback(
-    (id: string, x: number, y: number): boolean => {
-      if (openHabitMenu(id, x, y)) return true
-      const { tasks, calendarEvents } = useTaskStore.getState()
-      const known = id.startsWith('event-')
-        ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length)) || !!skippedEventById(id.slice('event-'.length))
-        : tasks.some((t) => t.id === id)
-      if (!known) return false
-      setEventCard(null)
-      setGoogleCard(null)
-      openTaskMenu(
-        id.startsWith('event-') ? { kind: 'google', x, y, eventId: id.slice('event-'.length) } : { kind: 'event', x, y, taskId: id },
-      )
-      return true
+  /** ブロックを押したとき: 習慣の枠・Google の予定・予定と記録のカード */
+  const openBlockCard = useCallback(
+    (id: string) => {
+      if (parseHabitSlotId(id)) openHabitCard(id)
+      else if (id.startsWith('event-')) openGoogleCard(id.slice('event-'.length))
+      else openCard(id)
     },
-    [setEventCard, setGoogleCard, openHabitMenu],
+    [openCard, openGoogleCard, openHabitCard],
   )
 
   // ref だけを読むので作り直さない（フックの中の useCallback が描くたびに作り直されないように）
@@ -240,25 +228,19 @@ export function WeekCalendarView({
   const onResizeDone = useCallback((taskId: string, startTime: string, endTime: string, dateKey: string) => {
     applyBlockResize(taskId, startTime, endTime, dateKey, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
   }, [])
+  // タッチの長押し: 習慣の枠は習慣の画面と同じメニュー。予定・記録・Google の予定はメニューを出さず、押したときと同じカード
   const onBlockLongPress = useCallback(
     (id: string, x: number, y: number) => {
-      openBlockMenu(id, x, y)
+      if (!openHabitMenu(id, x, y)) openBlockCard(id)
     },
-    [openBlockMenu],
+    [openHabitMenu, openBlockCard],
   )
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
     onMoveDone,
     onResizeDone,
-    onBlockTap: useCallback(
-      (taskId: string) => {
-        if (parseHabitSlotId(taskId)) openHabitCard(taskId)
-        else if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
-        else openCard(taskId)
-      },
-      [openCard, openGoogleCard, openHabitCard],
-    ),
+    onBlockTap: openBlockCard,
     clickCreateMinutes: defaultBlockMinutes,
     onBlockLongPress,
   })
@@ -528,10 +510,10 @@ export function WeekCalendarView({
     <div
       ref={rootRef}
       className="flex min-h-0 min-w-0 flex-1 flex-row"
-      // 予定・記録・Google の予定を右クリック: カードを開かずに操作するメニュー（Google カレンダーと同じ）
+      // 習慣の枠を右クリック: 習慣の画面と同じメニュー。予定・記録・Google の予定にはメニューを出さない（操作はカードと編集画面）
       onContextMenu={(e) => {
         const id = (e.target as Element).closest?.('[data-block-id]')?.getAttribute('data-block-id')
-        if (id && openBlockMenu(id, e.clientX, e.clientY)) e.preventDefault()
+        if (id && openHabitMenu(id, e.clientX, e.clientY)) e.preventDefault()
       }}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
