@@ -347,6 +347,11 @@ describe('WeekCalendarView: C で作成カード', () => {
   })
 })
 
+/** 習慣の段の丸（格子の枠は除く） */
+function rowDots(container: HTMLElement): HTMLElement[] {
+  return [...container.querySelectorAll<HTMLElement>('[data-block-id^="habit-slot::"]')].filter((el) => !el.closest('[data-datekey]'))
+}
+
 describe('WeekCalendarView: 習慣の枠', () => {
   afterEach(() => {
     vi.useRealTimers()
@@ -407,14 +412,70 @@ describe('WeekCalendarView: 習慣の枠', () => {
     const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
     expect(view.container.querySelector('[data-datekey] [data-block-id^="habit-slot::"]')).toBeNull()
     expect(screen.getByText('Habits')).toBeInTheDocument()
-    expect(screen.getAllByText('Stretch')).toHaveLength(3)
-    // 10/7 の 7:00 は始まっているので ✓ で達成
+    // 段は丸だけ。時刻と題名は名前（ヒント）で
+    expect(rowDots(view.container).map((el) => el.getAttribute('aria-label'))).toEqual(['07:00 Stretch', '07:00 Stretch', '07:00 Stretch'])
+    // 押すとその日の一覧。押した丸の行を目立たせ、10/7 の 7:00 は始まっているので一覧の ✓ で達成
     const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${id}::2026-10-07"]`)!
-    fireEvent.click(within(chip).getByRole('button', { name: 'Done as planned (log it)' }))
-    expect(useTaskStore.getState().habits[0]!.completedDates).toContain('2026-10-07')
-    // 押すとカード
     fireEvent.click(chip)
+    const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
+    const row = list.querySelector<HTMLElement>(`[data-block-id="habit-slot::${id}::2026-10-07"]`)!
+    expect(row).toHaveAttribute('data-highlight')
+    fireEvent.click(within(row).getByRole('button', { name: 'Done as planned (log it)' }))
+    expect(useTaskStore.getState().habits[0]!.completedDates).toContain('2026-10-07')
+    // 一覧の行を押すとカード
+    fireEvent.click(within(row).getByText('Stretch'))
     expect(await screen.findByRole('dialog', { name: 'Stretch' })).toBeInTheDocument()
+  })
+
+  it('今日でもまだ始まっていない時刻の習慣は、段・一覧とも「先」の丸（✓ を出さない）', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const add = (title: string, startTime: string) =>
+      useTaskStore.getState().addHabit({
+        title,
+        color: '#0B8043',
+        timeMode: 'fixed',
+        startTime,
+        endTime: null,
+        frequency: { type: 'daily' },
+        weekdayTimes: undefined,
+        goalMinutes: undefined,
+      })
+    const early = add('Stretch', '07:00')
+    const late = add('Read', '22:00')
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    const state = (root: ParentNode, id: string) =>
+      root.querySelector(`[data-block-id="habit-slot::${id}::2026-10-07"] [data-dot-state]`)!.getAttribute('data-dot-state')
+    expect(state(view.container, early)).toBe('today')
+    expect(state(view.container, late)).toBe('future')
+    fireEvent.click(view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${late}::2026-10-07"]`)!)
+    const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
+    expect(state(list, early)).toBe('today')
+    expect(state(list, late)).toBe('future')
+    expect(within(list).getAllByRole('button', { name: 'Done as planned (log it)' })).toHaveLength(1)
+  })
+
+  it('一覧の行は右クリックで習慣のメニュー、10/8（先の日）は ✓ を出さない', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const id = useTaskStore.getState().addHabit({
+      title: 'Stretch',
+      color: '#0B8043',
+      timeMode: 'fixed',
+      startTime: '07:00',
+      endTime: null,
+      frequency: { type: 'daily' },
+      weekdayTimes: undefined,
+      goalMinutes: undefined,
+    })
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
+    fireEvent.click(view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${id}::2026-10-08"]`)!)
+    const list = screen.getByRole('dialog', { name: 'Habits on 10/8' })
+    expect(within(list).queryByRole('button', { name: 'Done as planned (log it)' })).toBeNull()
+    fireEvent.contextMenu(within(list).getByText('Stretch'), { clientX: 100, clientY: 100 })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
   })
 
   it('習慣の段のチップをその日の格子に落とすと、その日だけ枠になる（ほかの日には置かない）', () => {
@@ -451,7 +512,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     drop(column('2026-10-08'))
     expect(useTaskStore.getState().habits[0]!.timeOverrides?.['2026-10-08']).toEqual({ startTime: '00:00', endTime: '01:00' })
     expect(column('2026-10-08').querySelector(`[data-block-id="${slotId}"]`)).not.toBeNull()
-    expect(screen.getAllByText('Stretch')).toHaveLength(3)
+    expect(rowDots(view.container)).toHaveLength(2)
   })
 
   it('今日の画面で習慣を予定の列に落とすとその日だけの枠、記録の列ならその時間の記録（今より先は不可）', () => {
@@ -533,7 +594,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /Move back to Habits row/ }))
     expect(useTaskStore.getState().habits[0]!.timeOverrides).toBeUndefined()
     expect(view.container.querySelector(`[data-datekey="2026-10-08"] [data-block-id="${slotId}"]`)).toBeNull()
-    expect(screen.getAllByText('Stretch')).toHaveLength(3)
+    expect(rowDots(view.container)).toHaveLength(3)
     // 置いていない日のチップのメニューには出さない
     const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${id}::2026-10-09"]`)!
     fireEvent.contextMenu(chip, { clientX: 100, clientY: 100 })
@@ -557,6 +618,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
     const slotId = `habit-slot::${id}::2026-10-08`
     fireEvent.click(view.container.querySelector<HTMLElement>(`[data-block-id="${slotId}"]`)!)
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Habits on 10/8' })).getByText('Stretch'))
     const card = await screen.findByRole('dialog', { name: 'Stretch' })
     fireEvent.click(within(card).getByRole('button', { name: 'Place on timeline' }))
     expect(useTaskStore.getState().habits[0]!.timeOverrides?.['2026-10-08']).toEqual({ startTime: '07:00', endTime: '08:00' })
@@ -614,7 +676,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(tile!.style.height).toBe(`${0.5 * HOUR_HEIGHT}px`)
   })
 
-  it('時間を決めていない習慣も、習慣の段に時刻なしで出す（時刻つきの後ろ。✓ で達成、押すとカード）', async () => {
+  it('時間を決めていない習慣も、習慣の段に出す（丸も一覧も習慣の並び。押すと一覧からカード）', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
     useTaskStore.setState({ habits: [], tasks: [] })
@@ -633,16 +695,77 @@ describe('WeekCalendarView: 習慣の枠', () => {
     add('Stretch', '22:00')
     const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
     const cell = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-07"]`)!.parentElement!
-    expect([...cell.children].map((c) => c.textContent)).toEqual(['22:00 Stretch', 'Wash puff'])
+    // 丸は日によって入れ替わらないよう習慣の並び
+    expect([...cell.children].map((c) => c.getAttribute('aria-label'))).toEqual(['Wash puff', '22:00 Stretch'])
     const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-07"]`)!
     expect(chip.getAttribute('draggable')).toBe('true')
+    const future = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-08"]`)!
+    fireEvent.click(future)
+    const list = screen.getByRole('dialog', { name: 'Habits on 10/8' })
+    // 一覧も段の丸と同じ並び
+    expect([...list.querySelectorAll('[data-block-id]')].map((r) => r.textContent)).toEqual(['Wash puff', '22:00Stretch'])
+    fireEvent.click(within(list).getByText('Wash puff'))
+    expect(await screen.findByRole('dialog', { name: 'Wash puff' })).toBeInTheDocument()
+  })
+
+  it('スマホの 1 日表示は次の 1 件だけ題名つきで丸の ✓ を 1 タップ、残りは丸（押すと一覧）', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const add = (title: string, startTime: string | null) =>
+      useTaskStore.getState().addHabit({
+        title,
+        color: '#0B8043',
+        timeMode: startTime ? 'fixed' : 'none',
+        startTime,
+        endTime: null,
+        frequency: { type: 'daily' },
+        weekdayTimes: undefined,
+        goalMinutes: undefined,
+      })
+    const puff = add('Wash puff', null)
+    add('Stretch', '22:00')
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />)
+    expect(rowDots(view.container)).toHaveLength(2)
+    // 次の 1 件（始まっている Wash puff）だけ題名つき、まだ始まっていない Stretch は丸だけ
+    expect(screen.getByText('Wash puff')).toBeInTheDocument()
+    expect(screen.queryByText('Stretch')).toBeNull()
+    // 丸を押すとその日の一覧（押した丸の行を目立たせる）
+    const stretch = rowDots(view.container).find((el) => el.getAttribute('aria-label') === '22:00 Stretch')!
+    fireEvent.click(stretch)
+    const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
+    expect(list.querySelector('[data-highlight]')!.textContent).toContain('Stretch')
+    expect(within(list).queryByRole('button', { name: 'Done as planned (log it)' })).toBeNull()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    const chip = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-07"]`)!
     fireEvent.click(within(chip).getByRole('button', { name: 'Mark done' }))
     expect(useTaskStore.getState().habits.find((h) => h.id === puff)!.completedDates).toContain('2026-10-07')
-    // 先の日はまだ ✓ を出さない
-    const future = view.container.querySelector<HTMLElement>(`[data-block-id="habit-slot::${puff}::2026-10-08"]`)!
-    expect(within(future).queryByRole('button')).toBeNull()
-    fireEvent.click(future)
-    expect(await screen.findByRole('dialog', { name: 'Wash puff' })).toBeInTheDocument()
+  })
+
+  it('スマホの 1 日表示は、全部済んだ日を「✓ N」1 つにまとめ、押すと一覧（✓ しても閉じない）', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
+    useTaskStore.setState({ habits: [], tasks: [] })
+    const add = (title: string) =>
+      useTaskStore.getState().addHabit({
+        title,
+        color: '#0B8043',
+        timeMode: 'none',
+        startTime: null,
+        endTime: null,
+        frequency: { type: 'daily' },
+        weekdayTimes: undefined,
+        goalMinutes: undefined,
+      })
+    const ids = [add('Wash puff'), add('Water')]
+    for (const id of ids) useTaskStore.getState().toggleHabitDate(id, '2026-10-07')
+    const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />)
+    expect(rowDots(view.container)).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'All 2 habits done' }))
+    const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
+    fireEvent.click(within(list).getAllByRole('button', { name: 'Mark as not done' })[0]!)
+    expect(useTaskStore.getState().habits.find((h) => h.id === ids[0])!.completedDates).not.toContain('2026-10-07')
+    expect(screen.getByRole('dialog', { name: 'Habits on 10/7' })).toBeInTheDocument()
   })
 
   it('今日の計画（1 日表示）には習慣の段を出さない', () => {

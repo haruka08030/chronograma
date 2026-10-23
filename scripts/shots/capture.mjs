@@ -420,6 +420,19 @@ const SCREENS = [
   { name: 'calendar', view: 'calendar' },
   // 習慣が多い週（#578）: 種の 3 件に、毎日・平日・週 3 の習慣を足した 7 件。習慣の段が格子を押し下げないか
   { name: 'calendar-habits-many', view: 'calendar', moreHabits: true },
+  // 習慣の段の丸を押したところ（その日の習慣の一覧。押した丸の行を目立たせる）
+  {
+    name: 'calendar-habits-list',
+    view: 'calendar',
+    moreHabits: true,
+    desktopOnly: true,
+    click: '[data-habit-today] [data-block-id] >> nth=2',
+  },
+  // スマホの 1 日表示で、次の 1 件の後ろの丸を押したところ（同じ一覧。押した丸の行を目立たせる）
+  { name: 'calendar-habits-more', view: 'calendar', moreHabits: true, mobileOnly: true, click: '[data-dot] >> visible=true >> nth=1' },
+  // 狭い画面（スマホ 320px・PC 1280px）でも習慣の段が崩れないか
+  { name: 'calendar-habits-narrow', view: 'calendar', moreHabits: true, mobileOnly: true, mobileWidth: 320 },
+  { name: 'calendar-habits-1280', view: 'calendar', moreHabits: true, desktopOnly: true, desktopWidth: 1280 },
   // やらなかった予定（#528）: 時間が過ぎてから消した Google の予定を、薄く・取り消し線で残す。押すとカードで「やらなかった予定」と削除
   { name: 'calendar-skipped', view: 'calendar', skipped: true },
   {
@@ -1048,7 +1061,7 @@ async function main() {
           // 画面ごとに context を作り直す。addInitScript は context に積み上がるので、
           // 使い回すと前の画面の種データが後から上書きしてしまう
           const context = await browser.newContext({
-            viewport: { width: (vp.hasTouch && screen.mobileWidth) || vp.width, height: vp.height },
+            viewport: { width: (vp.hasTouch ? screen.mobileWidth : screen.desktopWidth) || vp.width, height: vp.height },
             isMobile: vp.isMobile ?? false,
             hasTouch: vp.hasTouch ?? false,
             // 2x は文字が読みやすい反面、固定サイドバーの左端に描画の切れ端が
