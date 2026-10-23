@@ -485,7 +485,6 @@ export default {
     edit: '睡眠の時刻を編集',
     noFuture: '起きた時刻が今より先です',
     goToBed: '寝る',
-    goToBedTip: '寝た時刻を残し、起きたら「起きた」で睡眠にする',
     sleeping: '{{time}} から寝ています',
     wakeUp: '起きた',
     askWake: '{{time}} に寝ました。起きた時刻は？',

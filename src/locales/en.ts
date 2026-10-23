@@ -500,7 +500,6 @@ export default {
     edit: 'Edit sleep times',
     noFuture: 'Wake time is in the future',
     goToBed: 'Go to bed',
-    goToBedTip: 'Note when you went to bed, then tap “Woke up” in the morning',
     sleeping: 'Asleep since {{time}}',
     wakeUp: 'Woke up',
     askWake: 'Went to bed at {{time}}. When did you wake up?',
