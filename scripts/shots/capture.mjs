@@ -216,6 +216,18 @@ const SCREENS = [
     view: 'planner',
     click: ['button:has-text("後から記録") >> visible=true', 'button[aria-label="色とラベル"] >> visible=true'],
   },
+  // 名前を付けた色はすぐパレットにラベル名のチップで出る（#596）
+  {
+    name: 'record-label-named',
+    view: 'planner',
+    click: ['button:has-text("後から記録") >> visible=true', 'button[aria-label="色とラベル"] >> visible=true'],
+    steps: [
+      { click: 'button[aria-label="ラベルを編集"] >> visible=true' },
+      { fill: { selector: '[role=dialog] input[placeholder="ラベルを追加"][value=""] >> nth=0', text: '趣味' } },
+      { click: '[role=dialog] button:has-text("保存")' },
+      { wait: 400 },
+    ],
+  },
   // 記録の名前を打つと過去の記録が候補に出る（#415）。後から記録と、記録中に題名を直すところ
   {
     name: 'record-suggest',

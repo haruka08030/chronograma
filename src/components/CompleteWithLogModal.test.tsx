@@ -30,7 +30,7 @@ describe('記録する（CompleteWithLogModal）', () => {
     expect(screen.queryByRole('button', { name: /Start date|End date/ })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Color and label' }))
-    fireEvent.click(screen.getByRole('radio', { name: /^バイト \(/ }))
+    fireEvent.click(screen.getByRole('radio', { name: 'バイト' }))
     fireEvent.change(screen.getByRole('textbox', { name: /What did you do/ }), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: 'Log and complete' }))
 
