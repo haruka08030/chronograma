@@ -14,8 +14,6 @@ import { TaskColorSectionFields } from './detail/TaskColorSectionFields'
 import { SubtasksField } from './detail/SubtasksField'
 import { SeriesScopeField } from './detail/SeriesScopeField'
 import { deleteTaskAsking } from '../lib/seriesScope'
-import { openTaskDetail } from '../lib/overlays'
-import { rowIdOfTarget } from '../lib/touchLift'
 
 /**
  * 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる）。
@@ -94,14 +92,6 @@ export function TaskDetail({
           (el) => el.getClientRects().length > 0,
         )
       }
-      onBackdropPress={(e, root) => {
-        // 幕の下の別の行を押したら、閉じずにその行の詳細へ替える（PC で 1 件ずつ見ていくとき。下のボタンは押さない）
-        const under = document.elementsFromPoint(e.clientX, e.clientY).find((el) => !root?.contains(el))
-        const id = rowIdOfTarget(under ?? null)
-        if (!id || id === task.id) return false
-        openTaskDetail(id)
-        return true
-      }}
     >
       {detailBody}
     </SideSheet>

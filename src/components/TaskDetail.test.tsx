@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { TaskDetail } from './TaskDetail'
+import { useOverlays } from '../lib/overlays'
 
 function renderDetail(description = '') {
   const id = useTaskStore.getState().addTask('Buy milk')!
@@ -48,5 +49,33 @@ describe('TaskDetail の並び（#380）', () => {
     const order = ['Buy milk', 'Do date', 'Deadline', 'Estimate', 'Priority', 'Location', 'Add notes…'].map((s) => text.indexOf(s))
     expect(order.every((i) => i >= 0)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
+  })
+
+  it('外を押したら閉じるだけで、押した所の別の行は開かない', async () => {
+    const otherId = useTaskStore.getState().addTask('Other')!
+    const id = useTaskStore.getState().addTask('Buy milk')!
+    const task = useTaskStore.getState().tasks.find((t) => t.id === id)!
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <>
+        <div data-task-row={otherId}>
+          <span>Other</span>
+        </div>
+        <TaskDetail task={task} onClose={onClose} />
+      </>,
+    )
+    // 開いた押下で閉じないよう、1 拍置いてから外を押す
+    await act(() => new Promise((r) => setTimeout(r, 0)))
+    const backdrop = screen.getByRole('dialog').parentElement!
+    const under = document.elementsFromPoint
+    document.elementsFromPoint = () => [screen.getByText('Other')]
+    try {
+      await user.click(backdrop)
+    } finally {
+      document.elementsFromPoint = under
+    }
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(useOverlays.getState().detailTaskId).not.toBe(otherId)
   })
 })
