@@ -1,7 +1,7 @@
 import { addDays, startOfWeek } from 'date-fns'
 import { isHabitActive, isHabitRestOn, type Habit } from '../types/habit'
 import { isHabitScheduledOn } from '../../supabase/functions/_shared/dayResult.ts'
-import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
+import { habitAsOf, habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { fromDateKey, toDateKey } from './dateKey'
 
 /**
@@ -33,6 +33,14 @@ export function habitWeekDates(date: Date): Date[] {
   return Array.from({ length: 7 }, (_, i) => addDays(start, i))
 }
 
+/**
+ * その日を含む週の設定の習慣（週の最後の日の設定）。週に◯回の回数は週でまとめて数えるので、
+ * 終わった週はその週の設定、今週は今の設定で数える
+ */
+export function habitAsOfWeek(habit: Habit, date: Date): Habit {
+  return habitAsOf(habit, toDateKey(habitWeekDates(date)[6]))
+}
+
 /** その日を含む週に達成した日数（時間を決めた習慣は時間どおりの日だけ。`records` を渡したとき） */
 export function habitWeekDoneCount(habit: Habit, date: Date, records?: HabitRecordIndex): number {
   return habitWeekDates(date).filter((d) => habitDayStatus(habit, toDateKey(d), records) === 'done').length
@@ -41,7 +49,8 @@ export function habitWeekDoneCount(habit: Habit, date: Date, records?: HabitReco
 /**
  * 週に◯回の習慣で、その週に求める回数。休みの日を除いた日数より多くは求めない（週まるごと休みなら 0 で、その週は数えない）
  */
-export function habitWeekRequired(habit: Habit, date: Date): number {
+export function habitWeekRequired(h: Habit, date: Date): number {
+  const habit = habitAsOfWeek(h, date)
   if (habit.frequency.type !== 'timesPerWeek') return 0
   if (!habit.restDates) return habit.frequency.count
   const open = habitWeekDates(date).filter((d) => !isHabitRestOn(habit, toDateKey(d))).length
@@ -53,7 +62,7 @@ export function habitWeekRequired(habit: Habit, date: Date): number {
  * その日にやった（達成・時間外）なら false（その日の結果をそのまま出す）
  */
 export function isHabitWeekGoalMetOnDate(habit: Habit, date: Date, records?: HabitRecordIndex): boolean {
-  if (habit.frequency.type !== 'timesPerWeek' || !isHabitActive(habit)) return false
+  if (habitAsOfWeek(habit, date).frequency.type !== 'timesPerWeek' || !isHabitActive(habit)) return false
   if (habitDayStatus(habit, toDateKey(date), records) !== 'missed') return false
   return habitWeekDoneCount(habit, date, records) >= habitWeekRequired(habit, date)
 }

@@ -1,6 +1,6 @@
 import type { Habit } from '../types/habit'
 import { isHabitDueOnDate } from './habitSchedule'
-import { habitDayStatus, habitTimesOn, habitUsualTimesOn, plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
+import { habitAsOf, habitDayStatus, habitTimesOn, habitUsualTimesOn, plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
 import type { PlannedItem } from '../types/plannedItem'
 import { fromDateKey } from './dateKey'
 import { timeToMinutes } from './clockTime'
@@ -31,7 +31,7 @@ export function habitToPlannedItem(habit: Habit, dateKey: string, records?: Habi
  * 「1 回の目標」があれば長さが決まるので、最初から格子の枠（開始〜開始＋目標）にする
  */
 export function isPointHabitOn(habit: Habit, dateKey: string): boolean {
-  return !habit.goalMinutes && habitTimesOn(habit, dateKey)?.endTime === null
+  return !habitAsOf(habit, dateKey).goalMinutes && habitTimesOn(habit, dateKey)?.endTime === null
 }
 
 /** 習慣の段に出す、その日の時刻ひとつの習慣（時刻順） */
@@ -52,7 +52,8 @@ export function pointHabitsOn(
 /**
  * 時刻ひとつの習慣（目標なし）・時間を決めていない習慣を、その日だけ格子に置いた（終わりのある枠にした）か。習慣の段のチップに戻せる
  */
-export function isPlacedPointHabitOn(habit: Habit, dateKey: string): boolean {
+export function isPlacedPointHabitOn(h: Habit, dateKey: string): boolean {
+  const habit = habitAsOf(h, dateKey)
   if (habit.timeMode === 'none') return isUntimedPlacedOn(habit, dateKey)
   return !habit.goalMinutes && habitUsualTimesOn(habit, dateKey)?.endTime === null && habitTimesOn(habit, dateKey)?.endTime != null
 }
@@ -69,7 +70,12 @@ export function untimedHabitsOn(
   records: HabitRecordIndex,
 ): { habit: Habit; id: string; done: boolean }[] {
   return habits.flatMap((habit) => {
-    if (habit.timeMode !== 'none' || isUntimedPlacedOn(habit, dateKey) || !isHabitDueOnDate(habit, fromDateKey(dateKey), records)) return []
+    if (
+      habitAsOf(habit, dateKey).timeMode !== 'none' ||
+      isUntimedPlacedOn(habit, dateKey) ||
+      !isHabitDueOnDate(habit, fromDateKey(dateKey), records)
+    )
+      return []
     return [{ habit, id: habitSlotId(habit.id, dateKey), done: habitDayStatus(habit, dateKey, records) !== 'missed' }]
   })
 }
@@ -81,5 +87,5 @@ export function untimedHabitsOn(
 export function habitDurationMinutes(habit: Habit, dateKey: string): number | null {
   const times = habitTimesOn(habit, dateKey)
   if (times?.endTime) return (timeToMinutes(times.endTime) - timeToMinutes(times.startTime) + 1440) % 1440 || null
-  return habit.goalMinutes ?? null
+  return habitAsOf(habit, dateKey).goalMinutes ?? null
 }

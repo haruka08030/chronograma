@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { isHabitRestOn, type Habit } from '../../types/habit'
 import { habitLongestStreak, habitStreak, isHabitCountedOnDate } from '../../lib/habitStats'
-import { habitWeekDoneCount, habitWeekRequired, isHabitDueOnDate } from '../../lib/habitSchedule'
-import { habitDayStatus, habitMinutesOn, habitRecordFor, type HabitRecordIndex } from '../../lib/habitTiming'
+import { habitAsOfWeek, habitWeekDoneCount, habitWeekRequired, isHabitDueOnDate } from '../../lib/habitSchedule'
+import { habitAsOf, habitDayStatus, habitMinutesOn, habitRecordFor, type HabitRecordIndex } from '../../lib/habitTiming'
 import { HABIT_DONE_FILL, HABIT_MISSED, HABIT_OFF_TIME_FILL, HABIT_PENDING } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
 import { TODAY_COLUMN, TODAY_TEXT } from '../../lib/dayMarker'
@@ -111,7 +111,7 @@ function HabitWeekRow({
   // 右端: 週に◯回は見ている週の回数（休みの日を除いた日数まで。まるごと休みの週は出さない）、
   // ほかは今の連続。途切れたら最長を残す（どちらも 0 なら出さない）
   const tail =
-    h.frequency.type === 'timesPerWeek'
+    habitAsOfWeek(h, weekDates[0]).frequency.type === 'timesPerWeek'
       ? (() => {
           const count = habitWeekRequired(h, weekDates[0])
           if (count === 0) return null
@@ -152,8 +152,9 @@ function HabitWeekRow({
           const isPast = key < todayKey
           const record = isOffTime ? habitRecordFor(habitRecords, h, key) : null
           // 時間の目標に届いていない日の分（読み上げとツールチップだけ。マスには出さない）
-          const minutes = h.goalMinutes && status === 'missed' ? habitMinutesOn(habitRecords, h, key) : 0
-          const progress = minutes > 0 ? t('habits.goalProgress', { done: minutes, goal: h.goalMinutes }) : null
+          const goal = habitAsOf(h, key).goalMinutes
+          const minutes = goal && status === 'missed' ? habitMinutesOn(habitRecords, h, key) : 0
+          const progress = minutes > 0 ? t('habits.goalProgress', { done: minutes, goal }) : null
           const cellDate = df.monthDayWeekday(d)
           const cellLabel = record
             ? t('habits.cellOffTimeAria', { date: cellDate, start: record.startTime, end: record.endTime })

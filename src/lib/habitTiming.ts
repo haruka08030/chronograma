@@ -8,6 +8,7 @@ import { indexHabitRecords, type HabitRecordIndex as SharedHabitRecordIndex } fr
 
 export {
   HABIT_ON_TIME_TOLERANCE_MIN,
+  habitAsOf,
   habitDayStatus,
   habitMinutesOn,
   habitRecordFor,

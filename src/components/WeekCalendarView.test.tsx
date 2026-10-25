@@ -694,6 +694,8 @@ describe('WeekCalendarView: 習慣の枠', () => {
       weekdayTimes: undefined,
       goalMinutes: 30,
     })
+    // 前から続けている習慣（作った日より前の日は枠を出さないので、作った日の印を外す）
+    useTaskStore.setState((s) => ({ habits: s.habits.map((h) => ({ ...h, pastRules: undefined })) }))
     const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" threeDay />)
     expect(screen.queryByText('Habits')).toBeNull()
     const tile = view.container.querySelector<HTMLElement>(`[data-datekey="2026-10-08"] [data-block-id="habit-slot::${id}::2026-10-08"]`)

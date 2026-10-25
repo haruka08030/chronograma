@@ -1,7 +1,7 @@
 import { RowColorLine } from '../ui/RowColorLine'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { habitMinutesOn, habitRecordFor, isTimedHabit, type buildHabitRecordIndex } from '../../lib/habitTiming'
+import { habitAsOf, habitMinutesOn, habitRecordFor, isTimedHabit, type buildHabitRecordIndex } from '../../lib/habitTiming'
 import type { HabitDayRow } from '../../hooks/usePlannerHabitRows'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL } from '../../lib/habitMark'
@@ -103,14 +103,16 @@ function HabitRow({
   const status = pending ? 'done' : savedStatus
   const record = status === 'offTime' ? habitRecordFor(habitRecords, h, dateKey) : null
   // 時間の目標に届いていない日は、何分やったかを出す
-  const minutes = h.goalMinutes && status === 'missed' ? habitMinutesOn(habitRecords, h, dateKey) : 0
+  // その日の設定（頻度・時間を変えた日より前の日は前の設定）
+  const day = habitAsOf(h, dateKey)
+  const minutes = day.goalMinutes && status === 'missed' ? habitMinutesOn(habitRecords, h, dateKey) : 0
   const date = fromDateKey(dateKey)
-  const weekly = h.frequency.type === 'timesPerWeek'
+  const weekly = day.frequency.type === 'timesPerWeek'
   const open = status === 'missed' && !weekMet
   const canTime = viewingToday && open && activeTimer?.taskTitle !== h.title
   // 右の文字: 時間外・目標の進みのどちらか → 今週の回数（週に◯回）か時刻
   const meta = [
-    record ? t('planner.habitOffTime') : minutes > 0 ? t('habits.goalProgress', { done: minutes, goal: h.goalMinutes }) : null,
+    record ? t('planner.habitOffTime') : minutes > 0 ? t('habits.goalProgress', { done: minutes, goal: day.goalMinutes }) : null,
     weekly
       ? weekMet && status === 'missed'
         ? t('habits.weekGoalMet')
@@ -179,7 +181,7 @@ function HabitRow({
             const label = logLabelFromTask(h, labelPresets, logCategoryColors)
             startTimer(h.title, label.tags, null, label.color)
             // 時刻を決めていない習慣は記録で判定しないので、始めた時点で達成にする（時間の目標があれば記録の合計で決まる）
-            if (!isTimedHabit(h) && !h.goalMinutes) toggleHabitDate(h.id, dateKey)
+            if (!isTimedHabit(day) && !day.goalMinutes) toggleHabitDate(h.id, dateKey)
           }}
           {...tip(t('quickLog.resume', { title: h.title }), { name: true })}
           className="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
