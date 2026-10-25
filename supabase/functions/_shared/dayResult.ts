@@ -7,7 +7,9 @@
  * - 予定外: どの予定とも組にならなかった記録の時間
  */
 import {
+  habitAsOf,
   habitDayStatus,
+  habitPastRuleOn,
   isoWeekdayOf,
   plannedRecordTimes,
   type HabitRecordIndex,
@@ -198,11 +200,13 @@ export function parseHabitSlotId(id: string): { habitId: string; dateKey: string
 
 /**
  * その日にやる習慣か。アーカイブした習慣はどの日にも入らない。休みの日（`restDates`）はどの頻度でも入らない。
- * 週に◯回の習慣はどの日にやってもよいので、毎日入る
+ * 週に◯回の習慣はどの日にやってもよいので、毎日入る。作る前の日は入らず、設定を変える前の日はその日の設定で見る（`habitAsOf`）
  */
-export function isHabitScheduledOn(habit: SlotHabit, dateKey: string): boolean {
-  if (habit.archivedAt) return false
-  if (habit.restDates?.includes(dateKey)) return false
+export function isHabitScheduledOn(h: SlotHabit, dateKey: string): boolean {
+  if (h.archivedAt) return false
+  if (h.restDates?.includes(dateKey)) return false
+  if (habitPastRuleOn(h, dateKey)?.off) return false
+  const habit = habitAsOf(h, dateKey)
   if (habit.frequency.type === 'daily' || habit.frequency.type === 'timesPerWeek') return true
   return habit.frequency.weekdays.includes(isoWeekdayOf(dateKey))
 }
@@ -213,7 +217,7 @@ export function isHabitScheduledOn(habit: SlotHabit, dateKey: string): boolean {
  */
 export function habitPlanSlot<R extends TimingRecord>(habit: SlotHabit, dateKey: string, records: HabitRecordIndex<R>): PlanSlot | null {
   if (!isHabitScheduledOn(habit, dateKey)) return null
-  if (habit.frequency.type === 'timesPerWeek' && habitDayStatus(habit, dateKey, records) === 'missed') return null
+  if (habitAsOf(habit, dateKey).frequency.type === 'timesPerWeek' && habitDayStatus(habit, dateKey, records) === 'missed') return null
   const times = plannedRecordTimes(habit, dateKey)
   if (!times) return null
   return { id: habitSlotId(habit.id, dateKey), summary: habit.title, startTime: times.startTime, endTime: times.endTime, source: 'habit' }

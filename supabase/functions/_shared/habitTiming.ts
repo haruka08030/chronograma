@@ -24,6 +24,48 @@ export interface TimingHabit {
   timeOverrides?: Readonly<Record<string, TimeOfDay>>
   weekdayTimes?: Readonly<Partial<Record<Weekday, TimeOfDay>>>
   goalMinutes?: number
+  /** 前の日の設定（古い順。`habitAsOf`） */
+  pastRules?: readonly HabitPastRule[]
+}
+
+/** 日によって変わる習慣の設定（頻度・時間・時間の目標） */
+export interface HabitRuleSettings {
+  timeMode: TimingHabit['timeMode']
+  startTime: string | null
+  endTime: string | null
+  frequency: TimingHabit['frequency']
+  weekdayTimes?: TimingHabit['weekdayTimes']
+  goalMinutes?: number
+}
+
+/**
+ * 前の日の設定。`until` より前（前の項目の `until` 以降）の日はこの設定で数える。
+ * `off` は習慣を作る前（その日は予定の日に入れない）。設定を変えても、作っても、終わった日の結果は変わらない
+ */
+export type HabitPastRule = { until: string; off: true } | ({ until: string; off?: undefined } & HabitRuleSettings)
+
+/** その日に当てはまる前の日の設定。今の設定の日は null */
+export function habitPastRuleOn(habit: Pick<TimingHabit, 'pastRules'>, dateKey: string): HabitPastRule | null {
+  if (!habit.pastRules) return null
+  for (const rule of habit.pastRules) if (dateKey < rule.until) return rule
+  return null
+}
+
+/** その日の設定の習慣（前の日の設定を当てはめ、`pastRules` を外したもの）。作る前の日は最初の設定 */
+export function habitAsOf<H extends TimingHabit>(habit: H, dateKey: string): H {
+  const rules = habit.pastRules
+  if (!rules) return habit
+  const at = rules.findIndex((r) => dateKey < r.until)
+  const rule = at < 0 ? undefined : rules.slice(at).find((r) => !r.off)
+  const rest = { ...habit }
+  delete rest.pastRules
+  if (!rule || rule.off) return rest
+  const out: H = { ...rest, timeMode: rule.timeMode, startTime: rule.startTime, endTime: rule.endTime, frequency: rule.frequency }
+  if (rule.weekdayTimes) out.weekdayTimes = rule.weekdayTimes
+  else delete out.weekdayTimes
+  if (rule.goalMinutes) out.goalMinutes = rule.goalMinutes
+  else delete out.goalMinutes
+  return out
 }
 
 /** 判定に使う記録の項目（アプリの `Task` と同じ名前）。開始日は `dueDate`、終わりの日は `endDate` */
@@ -134,7 +176,8 @@ export function isTimedHabit(habit: TimingHabit): boolean {
  * その曜日のいつもの時間（時間を決めた習慣だけ。その日だけの時間は見ない）。
  * 曜日を指定した習慣で曜日ごとの時間があればそれ、無ければ習慣の時間
  */
-export function habitUsualTimesOn(habit: TimingHabit, dateKey: string): { startTime: string; endTime: string | null } | null {
+export function habitUsualTimesOn(h: TimingHabit, dateKey: string): { startTime: string; endTime: string | null } | null {
+  const habit = habitAsOf(h, dateKey)
   if (!isTimedHabit(habit)) return null
   const w = habit.frequency.type === 'weekly' ? habit.weekdayTimes?.[isoWeekdayOf(dateKey)] : undefined
   const startTime = w?.startTime ?? habit.startTime!
@@ -153,7 +196,8 @@ export function isoWeekdayOf(dateKey: string): Weekday {
  * 時刻ひとつの習慣も、習慣の段から格子に置いた日は終わりを持つ。
  * 時間を決めていない習慣も、格子に置いた日はその枠（判定は時刻を見ないまま。`isTimedHabit`）
  */
-export function habitTimesOn(habit: TimingHabit, dateKey: string): { startTime: string; endTime: string | null } | null {
+export function habitTimesOn(h: TimingHabit, dateKey: string): { startTime: string; endTime: string | null } | null {
+  const habit = habitAsOf(h, dateKey)
   const usual = habitUsualTimesOn(habit, dateKey)
   const o = habit.timeOverrides?.[dateKey]
   if (!usual) return o?.endTime ? { startTime: o.startTime, endTime: o.endTime } : null
@@ -209,7 +253,8 @@ export function habitRecordFor<R extends TimingRecord>(index: HabitRecordIndex<R
  * 時間を決めていない習慣は、時間の目標があればその日に始めた記録、無ければその日に始めた習慣につながった記録
  * （記録の列に落とした・格子に置いた日に ✓ した記録）
  */
-export function habitRecordsFor<R extends TimingRecord>(index: HabitRecordIndex<R>, habit: TimingHabit, dateKey: string): R[] {
+export function habitRecordsFor<R extends TimingRecord>(index: HabitRecordIndex<R>, h: TimingHabit, dateKey: string): R[] {
+  const habit = habitAsOf(h, dateKey)
   if (!isTimedHabit(habit)) {
     const spans = habit.goalMinutes
       ? goalSpans(index, habit, dateKey)
@@ -266,7 +311,8 @@ function goalSpans<R extends TimingRecord>(index: HabitRecordIndex<R>, habit: Ti
 }
 
 /** その日の習慣の記録の合計（分）。時間の目標の判定と「12/30 分」に使う */
-export function habitMinutesOn(index: HabitRecordIndex<TimingRecord>, habit: TimingHabit, dateKey: string): number {
+export function habitMinutesOn(index: HabitRecordIndex<TimingRecord>, h: TimingHabit, dateKey: string): number {
+  const habit = habitAsOf(h, dateKey)
   const seen = new Set<string>()
   let total = 0
   for (const span of goalSpans(index, habit, dateKey)) {
@@ -292,7 +338,8 @@ function isOnTime(habit: TimingHabit, dateKey: string, record: TimingRecord): bo
  * その日の結果。時間の目標のある習慣は、記録の合計が届いたら（チェックしていなくても）達成、届かなければ未達成
  * （時刻のずれは見ない）。手でチェックした日は目標の無い習慣と同じく達成（記録を消した日は外れる）
  */
-export function habitDayStatus(habit: TimingHabit, dateKey: string, index?: HabitRecordIndex<TimingRecord>): HabitDayStatus {
+export function habitDayStatus(h: TimingHabit, dateKey: string, index?: HabitRecordIndex<TimingRecord>): HabitDayStatus {
+  const habit = habitAsOf(h, dateKey)
   const checked = habit.completedDates.includes(dateKey)
   if (index && habit.goalMinutes) {
     const minutes = habitMinutesOn(index, habit, dateKey)
@@ -313,7 +360,8 @@ export function habitDayStatus(habit: TimingHabit, dateKey: string, index?: Habi
  * チェックで作る記録（＝タイムラインの枠）のその日の時間。時刻ひとつの習慣は「1 回の目標」の長さ、
  * 目標が無ければ許容幅ぶんの長さにする
  */
-export function plannedRecordTimes(habit: TimingHabit, dateKey: string): { startTime: string; endTime: string } | null {
+export function plannedRecordTimes(h: TimingHabit, dateKey: string): { startTime: string; endTime: string } | null {
+  const habit = habitAsOf(h, dateKey)
   const times = habitTimesOn(habit, dateKey)
   if (!times) return null
   if (times.endTime !== null) return { startTime: times.startTime, endTime: times.endTime }

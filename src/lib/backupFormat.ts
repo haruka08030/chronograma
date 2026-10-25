@@ -8,6 +8,7 @@ import {
   readHabitTimeOverrides,
   readHabitWeekdayTimes,
   readHabitGoalMinutes,
+  readHabitPastRules,
   type Habit,
 } from '../types/habit'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
@@ -377,6 +378,7 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
   const restDates = readHabitRestDates(rec.restDates)
   const weekdayTimes = readHabitWeekdayTimes(rec.weekdayTimes)
   const goalMinutes = readHabitGoalMinutes(rec.goalMinutes)
+  const pastRules = readHabitPastRules(rec.pastRules)
   const deletedAt = typeof rec.deletedAt === 'string' && !Number.isNaN(Date.parse(rec.deletedAt)) ? rec.deletedAt : null
   // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
@@ -397,6 +399,7 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
     ...(restDates ? { restDates } : {}),
     ...(weekdayTimes ? { weekdayTimes } : {}),
     ...(goalMinutes ? { goalMinutes } : {}),
+    ...(pastRules ? { pastRules } : {}),
     // ゴミ箱に無い習慣には無い
     ...(deletedAt ? { deletedAt } : {}),
   }

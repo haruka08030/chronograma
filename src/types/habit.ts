@@ -1,3 +1,7 @@
+import type { HabitPastRule } from '../../supabase/functions/_shared/habitTiming.ts'
+
+export type { HabitPastRule }
+
 /** 週次: 1=月 … 7=日 (date-fns の getDay ではなく ISO 曜日に合わせ getISODay: 1=月) */
 export type HabitWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
@@ -119,6 +123,43 @@ export interface Habit {
    * 無ければ今までどおりチェックで達成。項目ごと無い
    */
   goalMinutes?: number
+  /**
+   * 前の日の設定（古い順。`until` より前の日はその設定、`off` は作る前で予定の日にしない）。
+   * 作った・頻度や時間を変えた日より前の日の結果を変えないため（`habitAsOf`）。無ければ項目ごと無い
+   */
+  pastRules?: HabitPastRule[]
+}
+
+/** 保存データ・同期・バックアップの前の日の設定を読む。読めない項目は捨てて古い順に並べ、1 つも無ければ undefined */
+export function readHabitPastRules(raw: unknown): HabitPastRule[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: HabitPastRule[] = []
+  for (const v of raw) {
+    if (typeof v !== 'object' || v === null) continue
+    const r = v as Record<string, unknown>
+    if (typeof r.until !== 'string' || !OVERRIDE_DATE_RE.test(r.until)) continue
+    if (r.off === true) {
+      out.push({ until: r.until, off: true })
+      continue
+    }
+    const startTime = typeof r.startTime === 'string' && OVERRIDE_TIME_RE.test(r.startTime) ? r.startTime : null
+    const endTime = typeof r.endTime === 'string' && OVERRIDE_TIME_RE.test(r.endTime) ? r.endTime : null
+    const timeMode =
+      r.timeMode === 'none' || r.timeMode === 'fixed' || r.timeMode === 'range' ? r.timeMode : inferHabitTimeMode(startTime, endTime)
+    const weekdayTimes = readHabitWeekdayTimes(r.weekdayTimes)
+    const goalMinutes = readHabitGoalMinutes(r.goalMinutes)
+    out.push({
+      until: r.until,
+      timeMode,
+      startTime,
+      endTime,
+      frequency: readHabitFrequency(r.frequency),
+      ...(weekdayTimes ? { weekdayTimes } : {}),
+      ...(goalMinutes ? { goalMinutes } : {}),
+    })
+  }
+  out.sort((a, b) => (a.until < b.until ? -1 : a.until > b.until ? 1 : 0))
+  return out.length > 0 ? out : undefined
 }
 
 export const HABIT_GOAL_MINUTES_MAX = 1440

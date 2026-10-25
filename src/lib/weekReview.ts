@@ -4,6 +4,7 @@ import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
 import { buildHabitRecordIndex, habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { isHabitCountedOnDate, timesPerWeekTally } from './habitStats'
+import { habitAsOfWeek } from './habitSchedule'
 import type { MatchedPair } from './matchEvents'
 import { countDayResult, habitPlanSlot, planEnded } from '../../supabase/functions/_shared/dayResult.ts'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
@@ -163,9 +164,10 @@ export function getReview(
 
   const habitWeeks = period === 'month' ? monthHabitWeekStarts(anchor) : [reviewPeriodStart('week', anchor)]
   for (const h of habits) {
-    if (h.frequency.type !== 'timesPerWeek' || !isHabitActive(h)) continue
+    if (!isHabitActive(h)) continue
     for (const week of habitWeeks) {
       if (toDateKey(week) > todayKey) break
+      if (habitAsOfWeek(h, week).frequency.type !== 'timesPerWeek') continue
       const tally = timesPerWeekTally(h, week, todayKey, habitRecords)
       habitDue += tally.expected
       habitDone += tally.completed
@@ -285,7 +287,7 @@ function collectReviewDays(
 
     for (const h of habits) {
       // 週に◯回の習慣は日ごとではなく週でまとめて数える（下）
-      if (h.frequency.type !== 'timesPerWeek' && isHabitCountedOnDate(h, date, habitRecords)) {
+      if (habitAsOfWeek(h, date).frequency.type !== 'timesPerWeek' && isHabitCountedOnDate(h, date, habitRecords)) {
         habitDue++
         if (habitDayStatus(h, key, habitRecords) === 'done') habitDone++
       }

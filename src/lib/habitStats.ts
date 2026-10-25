@@ -1,6 +1,6 @@
 import { addDays, addWeeks, startOfWeek, subDays, subWeeks } from 'date-fns'
 import { isHabitActive, isHabitRestOn, type Habit } from '../types/habit'
-import { habitWeekDates, habitWeekDoneCount, habitWeekRequired, isHabitScheduledOnDate } from './habitSchedule'
+import { habitAsOfWeek, habitWeekDates, habitWeekDoneCount, habitWeekRequired, isHabitScheduledOnDate } from './habitSchedule'
 import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { appDayKeyOf, appToday } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
@@ -83,7 +83,7 @@ export function timesPerWeekTally(
   todayKey: string,
   records?: HabitRecordIndex,
 ): { expected: number; completed: number } {
-  if (habit.frequency.type !== 'timesPerWeek') return { expected: 0, completed: 0 }
+  if (habitAsOfWeek(habit, weekAnchor).frequency.type !== 'timesPerWeek') return { expected: 0, completed: 0 }
   const count = habitWeekRequired(habit, weekAnchor)
   let done = 0
   let open = 0

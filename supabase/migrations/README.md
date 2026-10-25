@@ -50,6 +50,7 @@
 | [`044_rename_someday_list.sql`](044_rename_someday_list.sql) | いつかのリスト（`kind = 'someday'`）で名前が前の初期の名前そのまま（いつか / Someday）のものを、同じ言語の今の名前（やりたいこと / Bucket list）にする。`updated_at` を進める。アプリも保存データの版 43 で同じ規則で直す |
 | [`045_user_skipped_events.sql`](045_user_skipped_events.sql) | やらなかった予定 `user_skipped_events`（利用者ごとに 1 行。`events` は開始を過ぎてから消した Google の予定の並び。「削除」で本当に消したものは `removed` の印だけ残す、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
 | [`046_reminder_run_key_mismatch.sql`](046_reminder_run_key_mismatch.sql) | 通知の送信の実行の記録に、最後の回で鍵が合わずに消した購読の数 `reminder_runs.last_key_mismatch`（プッシュサービスの 403。`last_removed` に含まれる）。VAPID の鍵を替えたあと・secret の入れ間違いで増える |
+| [`047_habit_past_rules.sql`](047_habit_past_rules.sql) | 習慣の前の日の設定 `habits.past_rules`（`until` より前の日の頻度・時間・時間の目標、`off` は作る前で予定の日にしない。古い順の並び）。null は無し。作った日・設定を変えた日より前の日の結果を変えないため。形と大きさの上限 `habits_past_rules_check` |
 
 テーブル（最新の形）:
 

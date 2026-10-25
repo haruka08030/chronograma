@@ -6,7 +6,7 @@
  */
 import { dayWallMs, wallDate, wallMs } from './schedule.ts'
 import { countDayResult, habitPlanSlot, type LogSlot, type PlanSlot, type SlotHabit } from '../_shared/dayResult.ts'
-import { indexHabitRecords, type TimingRecord } from '../_shared/habitTiming.ts'
+import { indexHabitRecords, type HabitPastRule, type HabitRuleSettings, type TimingRecord } from '../_shared/habitTiming.ts'
 
 /** 数えるのに使うタスクの列（DB の行と同じ名前） */
 export interface WrapUpRow {
@@ -44,6 +44,7 @@ export interface WrapUpHabitRow {
   weekday_times?: unknown
   rest_dates?: unknown
   goal_minutes?: number | null
+  past_rules?: unknown
   archived_at?: string | null
   deleted_at?: string | null
 }
@@ -113,38 +114,80 @@ function readTimes(raw: unknown, key: RegExp): Record<string, { startTime: strin
   return Object.keys(out).length > 0 ? out : undefined
 }
 
-/** 習慣の行を数え方の形に（アプリの `rowToHabit` と同じ読み方）。ゴミ箱の習慣は null */
-export function habitFromRow(row: WrapUpHabitRow): SlotHabit | null {
-  if (row.deleted_at) return null
-  const f = (row.frequency ?? {}) as Record<string, unknown>
+/** 頻度・時間・時間の目標の列を読む（今の設定と前の日の設定で同じ読み方。アプリの `rowToHabit` / `readHabitPastRules` と同じ） */
+function readRuleSettings(r: {
+  time_mode?: unknown
+  start_time?: unknown
+  end_time?: unknown
+  frequency?: unknown
+  weekday_times?: unknown
+  goal_minutes?: unknown
+}): HabitRuleSettings {
+  const f = (r.frequency ?? {}) as Record<string, unknown>
   const frequency: SlotHabit['frequency'] =
     f.type === 'weekly' && Array.isArray(f.weekdays)
       ? { type: 'weekly', weekdays: f.weekdays.filter((d): d is 1 | 2 | 3 | 4 | 5 | 6 | 7 => Number.isInteger(d) && d >= 1 && d <= 7) }
       : f.type === 'timesPerWeek' && typeof f.count === 'number' && Number.isFinite(f.count)
         ? { type: 'timesPerWeek', count: Math.min(6, Math.max(1, Math.round(f.count))) }
         : { type: 'daily' }
-  const has = (t: string | null | undefined) => typeof t === 'string' && t.trim().length > 0
+  const startTime = typeof r.start_time === 'string' ? r.start_time : null
+  const endTime = typeof r.end_time === 'string' ? r.end_time : null
+  const has = (t: string | null) => t !== null && t.trim().length > 0
   const timeMode =
-    row.time_mode === 'none' || row.time_mode === 'fixed' || row.time_mode === 'range'
-      ? row.time_mode
-      : has(row.start_time) && has(row.end_time)
+    r.time_mode === 'none' || r.time_mode === 'fixed' || r.time_mode === 'range'
+      ? r.time_mode
+      : has(startTime) && has(endTime)
         ? 'range'
-        : has(row.start_time)
+        : has(startTime)
           ? 'fixed'
           : 'none'
-  const goal = row.goal_minutes
+  const goal = r.goal_minutes
+  return {
+    timeMode,
+    startTime,
+    endTime,
+    frequency,
+    weekdayTimes: readTimes(r.weekday_times, /^[1-7]$/),
+    goalMinutes: typeof goal === 'number' && Number.isInteger(goal) && goal >= 1 && goal <= 1440 ? goal : undefined,
+  }
+}
+
+/** 前の日の設定（`[{ until, off } | { until, timeMode, startTime, … }]`、アプリの項目名）を読み、古い順に並べる */
+function readPastRules(raw: unknown): HabitPastRule[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: HabitPastRule[] = []
+  for (const v of raw) {
+    if (!v || typeof v !== 'object') continue
+    const r = v as Record<string, unknown>
+    if (typeof r.until !== 'string' || !DATE_KEY.test(r.until)) continue
+    if (r.off === true) out.push({ until: r.until, off: true })
+    else {
+      const settings = readRuleSettings({
+        time_mode: r.timeMode,
+        start_time: r.startTime,
+        end_time: r.endTime,
+        frequency: r.frequency,
+        weekday_times: r.weekdayTimes,
+        goal_minutes: r.goalMinutes,
+      })
+      out.push({ until: r.until, ...settings })
+    }
+  }
+  out.sort((a, b) => (a.until < b.until ? -1 : a.until > b.until ? 1 : 0))
+  return out.length > 0 ? out : undefined
+}
+
+/** 習慣の行を数え方の形に（アプリの `rowToHabit` と同じ読み方）。ゴミ箱の習慣は null */
+export function habitFromRow(row: WrapUpHabitRow): SlotHabit | null {
+  if (row.deleted_at) return null
   return {
     id: row.id,
     title: row.title ?? '',
-    timeMode,
-    startTime: row.start_time ?? null,
-    endTime: row.end_time ?? null,
-    frequency,
+    ...readRuleSettings(row),
     completedDates: isStringArray(row.completed_dates) ? row.completed_dates : [],
     timeOverrides: readTimes(row.time_overrides, DATE_KEY),
-    weekdayTimes: readTimes(row.weekday_times, /^[1-7]$/),
     restDates: isStringArray(row.rest_dates) ? row.rest_dates : undefined,
-    goalMinutes: typeof goal === 'number' && Number.isInteger(goal) && goal >= 1 && goal <= 1440 ? goal : undefined,
+    pastRules: readPastRules(row.past_rules),
     archivedAt: row.archived_at ?? null,
   }
 }

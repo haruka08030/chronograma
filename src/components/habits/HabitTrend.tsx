@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { subDays } from 'date-fns'
 import type { Habit } from '../../types/habit'
 import { HABIT_RATE_WEEKS, habitRecentRate, isHabitCountedOnDate } from '../../lib/habitStats'
-import { isHabitDueOnDate } from '../../lib/habitSchedule'
+import { habitAsOfWeek, isHabitDueOnDate } from '../../lib/habitSchedule'
 import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
 import { HABIT_MISSED } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
@@ -56,7 +56,7 @@ export function HabitTrend({
 
 function cellState(h: Habit, d: Date, key: string, todayKey: string, records: HabitRecordIndex): CellState {
   if (habitDayStatus(h, key, records) !== 'missed') return 'done'
-  if (key >= todayKey || h.frequency.type === 'timesPerWeek') return 'none'
+  if (key >= todayKey || habitAsOfWeek(h, d).frequency.type === 'timesPerWeek') return 'none'
   return isHabitDueOnDate(h, d, records) && isHabitCountedOnDate(h, d, records) ? 'missed' : 'none'
 }
 
