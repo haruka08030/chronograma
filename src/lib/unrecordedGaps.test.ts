@@ -7,7 +7,7 @@ import {
   unrecordedMinutes,
   unrecordedMinutesOnDay,
 } from './unrecordedGaps'
-import { absentOnOf } from './timetable'
+import { absentOnOf as absentOnSchool, emptyTerm } from './schoolTerms'
 import { courseKey } from './courseLinks'
 import { makeTask } from '../store/taskHelpers'
 import { INBOX_LIST_ID } from '../store/storeConstants'
@@ -196,3 +196,8 @@ describe('予定（授業・バイト）は出たものとして記録の無い�
     expect(unrecordedMinutesOnDay(all, D, pastDay)).toBe(0)
   })
 })
+
+/** 欠席の印だけの学校（学期は広く取る） */
+function absentOnOf({ absences }: { absences: Record<string, string[]> }) {
+  return absentOnSchool({ terms: [{ ...emptyTerm('t', { termStart: '2000-01-01', termEnd: '2099-12-31' }), absences }] })
+}

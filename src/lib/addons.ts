@@ -2,6 +2,7 @@ import { isEventTask, type Task } from '../types/task'
 import { normalizeDues, type DueItem } from './dues'
 import { googleSkipKey, normalizeGoogleSkip } from './googleSkip'
 import { normalizeAbsenceCourses } from './absenceCourses'
+import { mergeSchool, normalizeSchool, type School } from './schoolTerms'
 import { courseKey } from './courseLinks'
 import { merge3, merge3ById, merge3Record, merge3Set, type Side } from './settingMerge'
 
@@ -25,11 +26,13 @@ export type Addons = {
   dues: DueItem[]
   /** Google カレンダーに送らない予定の名前（#461、`lib/googleSkip.ts`） */
   googleSkip: string[]
-  /** 授業の欠席の一覧に並べる授業の名前（#503、`lib/absenceCourses.ts`。休んだ日・休める回数は時間割の設定） */
+  /** 前の版の授業の欠席の一覧の授業（#503）。学校（`school`）がまだ無いときだけ、1 つめの学期の授業として読む */
   absenceCourses: string[]
+  /** 学校の学期と授業（#622、`lib/schoolTerms.ts`）。null はまだ決めていない（今までの時間割から見せる） */
+  school: School | null
 }
 
-export const DEFAULT_ADDONS: Addons = { enabled: {}, dues: [], googleSkip: [], absenceCourses: [] }
+export const DEFAULT_ADDONS: Addons = { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null }
 
 const isAddonId = (v: string): v is AddonId => (ADDON_IDS as readonly string[]).includes(v)
 
@@ -38,7 +41,7 @@ const isAddonId = (v: string): v is AddonId => (ADDON_IDS as readonly string[]).
  * （前の版のアプリが送り直しても、後の版の中身を消さない）
  */
 export function normalizeAddons(raw: unknown): Addons {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { enabled: {}, dues: [], googleSkip: [], absenceCourses: [] }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...DEFAULT_ADDONS, enabled: {} }
   const x = raw as Record<string, unknown>
   const enabled: Addons['enabled'] = {}
   if (x.enabled && typeof x.enabled === 'object' && !Array.isArray(x.enabled)) {
@@ -56,6 +59,7 @@ export function normalizeAddons(raw: unknown): Addons {
     dues: normalizeDues(x.dues),
     googleSkip: normalizeGoogleSkip(x.googleSkip),
     absenceCourses: normalizeAbsenceCourses(x.absenceCourses),
+    school: normalizeSchool(x.school),
   }
 }
 
@@ -91,14 +95,14 @@ export type AddonsSyncPlan = {
 
 /**
  * 両方の端末で変えた追加機能の設定を中身ごとに合わせる（`base` は前回合わせた版。無ければ両方にあるものを残す）。
- * オン・オフは機能ごと、引き落とし・期限は id ごと、Google に送らない名前・欠席の一覧の授業は名前の集合。
+ * オン・オフは機能ごと、引き落とし・期限は id ごと、Google に送らない名前・欠席の一覧の授業は名前の集合、学校は学期ごと（`mergeSchool`）。
  * 両方が別の値に変えたものだけ `prefer` の側（新しいほう）。知らない項目（後の版で足すもの）は `prefer` の側のまま
  */
 export function mergeAddons(base: Addons | null, l: Addons, r: Addons, prefer: Side, onConflict?: () => void): Addons {
   const [first, second] = prefer === 'l' ? [l, r] : [r, l]
   const extra: Record<string, unknown> = { ...second, ...first }
   for (const k of Object.keys(extra)) {
-    if (k === 'enabled' || k === 'dues' || k === 'googleSkip' || k === 'absenceCourses') continue
+    if (k === 'enabled' || k === 'dues' || k === 'googleSkip' || k === 'absenceCourses' || k === 'school') continue
     const bx = base as Record<string, unknown> | null
     extra[k] = merge3(bx?.[k], (l as Record<string, unknown>)[k], (r as Record<string, unknown>)[k], prefer)
   }
@@ -108,5 +112,6 @@ export function mergeAddons(base: Addons | null, l: Addons, r: Addons, prefer: S
     dues: merge3ById(base?.dues ?? null, l.dues, r.dues, (d) => d.id, prefer, onConflict),
     googleSkip: merge3Set(base?.googleSkip ?? null, l.googleSkip, r.googleSkip, prefer, googleSkipKey),
     absenceCourses: merge3Set(base?.absenceCourses ?? null, l.absenceCourses, r.absenceCourses, prefer, courseKey),
+    school: mergeSchool(base?.school ?? null, l.school, r.school, prefer, onConflict),
   })
 }

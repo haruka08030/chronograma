@@ -42,8 +42,12 @@ const term: Timetable = {
 
 /** 月曜 1 限の授業を入れて、いちばん早い回の id を返す */
 function addMondayClass(opts: Partial<Timetable> = {}) {
-  useTaskStore.setState({ timetable: { ...term, ...opts } })
-  const n = S().addTimetableClass({ weekday: 1, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: '#039BE5' })
+  const tt = { ...term, ...opts }
+  useTaskStore.setState({ timetable: tt })
+  const n = S().addTimetableClass(
+    { weekday: 1, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: '#039BE5' },
+    { termStart: tt.termStart!, termEnd: tt.termEnd! },
+  )
   return { n, rows: live().sort((a, b) => a.scheduledDate!.localeCompare(b.scheduledDate!)) }
 }
 
@@ -80,7 +84,12 @@ describe('時間割から授業を入れる', () => {
     const { n, rows } = addMondayClass({ termStart: '2027-04-06', termEnd: '2027-07-31' })
     expect(rows[0]!.scheduledDate).toBe('2027-04-12')
     expect(n).toBe(16)
-    expect(S().addTimetableClass({ weekday: 2, startTime: '09:00', endTime: '10:30', title: '  ', color: null })).toBe(0)
+    expect(
+      S().addTimetableClass(
+        { weekday: 2, startTime: '09:00', endTime: '10:30', title: '  ', color: null },
+        { termStart: '2027-04-06', termEnd: '2027-07-31' },
+      ),
+    ).toBe(0)
   })
 
   it('1 回の取り消しで全部の回が消える', () => {

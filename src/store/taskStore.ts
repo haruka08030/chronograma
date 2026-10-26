@@ -9,7 +9,7 @@ import { reanchorTasks } from '../lib/taskTimeZone'
 import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
-import { courseKey, withCourseLink, type CourseLink } from '../lib/courseLinks'
+import { withCourseLink, type CourseLink } from '../lib/courseLinks'
 import { withRemoved, withSkipped, withoutRestored, type SkippedEvent } from '../lib/skippedEvents'
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
@@ -69,12 +69,13 @@ import { createDataSlice } from './slices/data'
 import { createEventTemplatesSlice } from './slices/eventTemplates'
 import { createDayMoodsSlice } from './slices/dayMoods'
 import type { DayMoods } from '../lib/dayMood'
-import { DEFAULT_TIMETABLE, renameAttendance, withAbsence, withAbsenceLimit, type Timetable } from '../lib/timetable'
+import { DEFAULT_TIMETABLE, type Timetable } from '../lib/timetable'
 import { DEFAULT_ADDONS, withAddonOn, type Addons } from '../lib/addons'
 import type { SleepTimer } from '../lib/sleepTimer'
 import { normalizeDues } from '../lib/dues'
 import { withGoogleSkip } from '../lib/googleSkip'
-import { hasAbsenceCourse, renamedAbsenceCourse, withAbsenceCourse, withoutAbsenceCourse } from '../lib/absenceCourses'
+import { renameCourse, withAbsence, withAbsenceLimit, withAddedCourse, withRemovedCourse } from '../lib/schoolTerms'
+import { schoolOfState } from './schoolOfState'
 import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 import { SETTING_STAMPS, normalizeStoredState } from './storedSettings'
@@ -282,35 +283,24 @@ export const useTaskStore = create<TaskState>()(
           undo.pushUndo({ key: 'undo.dueDeleted', params: { name: due.title } })
           set({ addons: { ...cur, dues: cur.dues.filter((d) => d.id !== id) } })
         },
-        saveAbsenceCourse: (from, title, limit) =>
-          get().asOneUndo(() => {
-            const name = title.trim()
-            if (!name) return
-            const cur = get().addons
-            const absenceCourses =
-              from === null ? withAbsenceCourse(cur.absenceCourses, name) : renamedAbsenceCourse(cur.absenceCourses, from, name)
-            if (!sameValue(absenceCourses, cur.absenceCourses)) {
-              undo.pushUndo()
-              set({ addons: { ...cur, absenceCourses } })
-            }
-            // 休んだ日・休める回数は授業名で持つので、名前を直したら新しい名前に移してから回数を決める
-            const tt =
-              from !== null && courseKey(from) !== courseKey(name) ? renameAttendance(get().timetable, from, name) : get().timetable
-            get().saveTimetable(withAbsenceLimit(tt, name, limit))
-          }),
-        removeAbsenceCourse: (title) =>
-          get().asOneUndo(() => {
-            const cur = get().addons
-            if (!hasAbsenceCourse(cur.absenceCourses, title)) return
-            undo.pushUndo({ key: 'undo.absenceCourseRemoved', params: { name: title } })
-            set({ addons: { ...cur, absenceCourses: withoutAbsenceCourse(cur.absenceCourses, title) } })
-            const absences = { ...get().timetable.absences }
-            delete absences[courseKey(title)]
-            get().saveTimetable(withAbsenceLimit({ ...get().timetable, absences }, title, null))
-          }),
-        setCourseAbsent: (title, date, absent) => {
-          get().saveTimetable(withAbsence(get().timetable, title, date, absent))
+        saveSchool: (school) => {
+          const cur = get().addons
+          if (sameValue(school, schoolOfState(get()))) return
+          // 学期・欠席・休める回数・授業も ⌘Z とトーストで戻せる
+          undo.pushUndo()
+          set({ addons: { ...cur, school } })
         },
+        setCourseAbsent: (title, date, absent) => get().saveSchool(withAbsence(schoolOfState(get()), title, date, absent)),
+        setCourseAbsenceLimit: (termId, title, limit) => get().saveSchool(withAbsenceLimit(schoolOfState(get()), termId, title, limit)),
+        addCourse: (termId, title) => get().saveSchool(withAddedCourse(schoolOfState(get()), termId, title.trim())),
+        renameAddedCourse: (from, to) => get().saveSchool(renameCourse(schoolOfState(get()), from, to.trim())),
+        removeCourse: (termId, title, lms) =>
+          get().asOneUndo(() => {
+            const next = withRemovedCourse(schoolOfState(get()), termId, title, lms)
+            if (sameValue(next, schoolOfState(get()))) return
+            undo.pushUndo({ key: 'undo.absenceCourseRemoved', params: { name: title } })
+            set({ addons: { ...get().addons, school: next } })
+          }),
         setGoogleSkip: (title, skip) => {
           const cur = get().addons
           const googleSkip = withGoogleSkip(cur.googleSkip, title, skip)

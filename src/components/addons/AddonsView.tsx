@@ -4,7 +4,6 @@ import { useTaskStore } from '../../store/taskStore'
 import { ADDON_IDS, isAddonOn, type AddonId } from '../../lib/addons'
 import { ADDON_CATALOG } from './addonCatalog'
 import { Switch } from '../settings/SettingsPrimitives'
-import { SettingsSubPage } from '../settings/SettingsSubPage'
 import { PathIcon } from '../PathIcon'
 import { ChevronRightIcon, InfoIcon } from '../icons'
 import { Modal, ModalTitle } from '../ui/Modal'
@@ -22,12 +21,8 @@ export function AddonsView() {
   const { t } = useTranslation()
   const [page, setPage] = useState<AddonId | null>(null)
   if (page) {
-    const { Body } = ADDON_CATALOG[page]
-    return (
-      <SettingsSubPage title={t(`addons.${page}.name`)} backLabel={t('addons.title')} onBack={() => setPage(null)}>
-        <Body />
-      </SettingsSubPage>
-    )
+    const { Page } = ADDON_CATALOG[page]
+    return <Page onBack={() => setPage(null)} />
   }
   return (
     <div className={PAGE_SCROLL_CLASS}>

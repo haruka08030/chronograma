@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { merge3, merge3ById, merge3Record, merge3Set } from './settingMerge'
-import { DEFAULT_TIMETABLE, normalizeTimetable, withAbsence, withAbsenceLimit, type Timetable } from './timetable'
+import { courseKey } from './courseLinks'
+import { DEFAULT_TIMETABLE, normalizeTimetable, type Timetable } from './timetable'
 import { DEFAULT_ADDONS, withAddonOn, type Addons } from './addons'
 import { type EventTemplate } from './eventTemplates'
 import { runSettingSync, saveSettingBase, saveSettingSyncedAt } from './settingSync'
@@ -19,6 +20,17 @@ const NOW = '2026-10-01T02:00:00.000Z'
 const term: Timetable = normalizeTimetable({ ...DEFAULT_TIMETABLE, termStart: '2026-10-01', termEnd: '2027-01-31' })
 
 const due = (id: string, title: string): DueItem => ({ id, title, date: '2026-10-27', repeat: 'monthly', notifyDays: 1 })
+
+/** 前の版の時間割の欠席の印（学期の中の日だけ） */
+function withAbsence(tt: Timetable, name: string, date: string, absent: boolean): Timetable {
+  const key = courseKey(name)
+  const cur = tt.absences[key] ?? []
+  const next = absent ? [...new Set([...cur, date])] : cur.filter((d) => d !== date)
+  const absences = { ...tt.absences }
+  if (next.length > 0) absences[key] = next
+  else delete absences[key]
+  return normalizeTimetable({ ...tt, absences })
+}
 
 describe('三方向の合わせ方の部品', () => {
   it('1 つの値: 片方だけ変えたらその側、両方なら prefer の側', () => {
@@ -61,7 +73,7 @@ describe('時間割の同期: 両方の端末で変えたら中身ごとに合�
   it('2 台で別々の授業に欠席を足しても、どちらも残る（同じ授業の別の日も）', () => {
     const base = withAbsence(term, '英語', '2026-10-05', true)
     const phone = withAbsence(withAbsence(base, '数学', '2026-10-06', true), '英語', '2026-10-12', true)
-    const pc = withAbsence(withAbsenceLimit(base, '化学', 4), '英語', '2026-10-19', true)
+    const pc = withAbsence(normalizeTimetable({ ...base, absenceLimits: { ...base.absenceLimits, 化学: 4 } }), '英語', '2026-10-19', true)
     const plan = planTimetableSync(
       { timetable: phone, updatedAt: LOCAL_EDIT, syncedAt: S0 },
       { timetable: pc, updatedAt: S1 },

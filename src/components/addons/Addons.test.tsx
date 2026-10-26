@@ -36,8 +36,8 @@ describe('追加機能の画面と設定（#453）', () => {
     // 中身のページ: 時間割と授業の欠席が 1 ページに。戻ると一覧
     await user.click(screen.getByRole('button', { name: '学校' }))
     expect(screen.getByRole('heading', { level: 1, name: '学校' })).toBeTruthy()
-    expect(screen.getByRole('region', { name: '時間割' })).toBeTruthy()
-    expect(screen.getByRole('region', { name: '授業の欠席' })).toBeTruthy()
+    // 学期がまだ無ければ学期を足すところから
+    expect(screen.getByRole('button', { name: '学期を追加' })).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '追加機能' }))
     expect(screen.getByRole('heading', { level: 1, name: '追加機能' })).toBeTruthy()
   })
@@ -65,7 +65,7 @@ describe('引き落とし・期限の日（#454）', () => {
   it('オンにして開き、足すと一覧に出る。今日の計画には近いものだけ出る', async () => {
     const user = userEvent.setup()
     const { PlannerDues } = await import('../today/PlannerDues')
-    useTaskStore.setState({ addons: { enabled: { dues: true }, dues: [], googleSkip: [], absenceCourses: [] } })
+    useTaskStore.setState({ addons: { enabled: { dues: true }, dues: [], googleSkip: [], absenceCourses: [], school: null } })
     const today = (await import('../../lib/timeZone')).appTodayKey()
     render(
       <>
@@ -90,6 +90,7 @@ describe('引き落とし・期限の日（#454）', () => {
         dues: [{ id: 'a', title: '家賃', date: today, repeat: 'none', notifyDays: 0 }],
         googleSkip: [],
         absenceCourses: [],
+        school: null,
       },
     })
     render(<PlannerDues dateKey={today} />)

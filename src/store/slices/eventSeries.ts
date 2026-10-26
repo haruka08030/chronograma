@@ -1,6 +1,8 @@
 /** 毎週の予定（授業など、#279）の繰り返しの付け替え・範囲を選んだ削除と、時間割の設定・マスからの授業の出し入れ */
-import { changeSeriesRule, defaultSeriesUntil, occurrenceFrom, seriesDates, seriesScopeIds, sharedSeriesPatch } from '../../lib/eventSeries'
-import { classStartDate, normalizeTimetable, renameAttendance, withAbsence, withAbsenceLimit } from '../../lib/timetable'
+import { changeSeriesRule, occurrenceFrom, seriesDates, seriesScopeIds, sharedSeriesPatch } from '../../lib/eventSeries'
+import { classStartDate, normalizeTimetable } from '../../lib/timetable'
+import { renameCourse, withAbsence } from '../../lib/schoolTerms'
+import { schoolOfState } from '../schoolOfState'
 import { newId } from '../../lib/id'
 import { sameValue } from '../../lib/sameValue'
 import { appTodayKey } from '../../lib/timeZone'
@@ -19,7 +21,6 @@ type EventSeriesActions = Pick<
   | 'addTimetableClass'
   | 'updateTimetableClass'
   | 'setClassAbsent'
-  | 'setClassAbsenceLimit'
 >
 
 export function createEventSeriesSlice({ set, get, undo }: SliceContext): EventSeriesActions {
@@ -74,11 +75,11 @@ export function createEventSeriesSlice({ set, get, undo }: SliceContext): EventS
       set({ timetable: next })
     },
 
-    addTimetableClass: ({ weekday, startTime, endTime, title, color }) => {
+    addTimetableClass: ({ weekday, startTime, endTime, title, color }, term) => {
       const s = get()
       const tt = s.timetable
-      const from = classStartDate(tt, appTodayKey())
-      const until = tt.termEnd ?? defaultSeriesUntil(from)
+      const from = classStartDate(term, appTodayKey())
+      const until = term.termEnd
       const series: EventSeries = { id: newId(), weekdays: [weekday], until, skipHolidays: tt.skipHolidays }
       const dates = seriesDates(from, series)
       const name = title.trim()
@@ -114,17 +115,13 @@ export function createEventSeriesSlice({ set, get, undo }: SliceContext): EventS
         const now = new Date().toISOString()
         set((st) => ({ tasks: st.tasks.map((t) => (ids.has(t.id) ? applyTaskPatch(t, clean, now) : t)) }))
         // 欠席と休める回数は授業名で持つので、新しい名前に移す
-        if (clean.title !== undefined) get().saveTimetable(renameAttendance(get().timetable, task.title, clean.title))
+        if (clean.title !== undefined) get().saveSchool(renameCourse(schoolOfState(get()), task.title, clean.title))
       }),
 
     setClassAbsent: (taskId, absent) => {
       const task = get().tasks.find((t) => t.id === taskId)
       if (!task?.scheduledDate) return
-      get().saveTimetable(withAbsence(get().timetable, task.title, task.scheduledDate, absent))
-    },
-
-    setClassAbsenceLimit: (title, limit) => {
-      get().saveTimetable(withAbsenceLimit(get().timetable, title, limit))
+      get().saveSchool(withAbsence(schoolOfState(get()), task.title, task.scheduledDate, absent))
     },
   }
 }
