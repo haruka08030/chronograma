@@ -10,6 +10,7 @@ import {
   makeTask,
   orderForNewSiblingAtFront,
   patchChangesTask,
+  takenTogetherIds,
 } from '../taskHelpers'
 import { toggleTaskCompletion } from '../taskRecurrence'
 import { toggleChecklistTree } from '../../lib/listTree'
@@ -387,7 +388,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
     },
     restoreDeletedTasks: (rootIds) => {
       const s0 = get()
-      const ids = expandDescendantIds(rootIds, s0.tasks)
+      const ids = takenTogetherIds(rootIds, s0.tasks, (t) => t.deletedAt)
       if (![...ids].some((tid) => s0.tasks.find((t) => t.id === tid)?.deletedAt)) return
       pushUndo(rootIds.length > 1 ? { key: 'undo.tasksRestored', params: { count: rootIds.length } } : undefined)
       const nowIso = new Date().toISOString()
@@ -473,7 +474,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
     },
     unarchiveTasks: (rootIds) => {
       const s0 = get()
-      const ids = expandDescendantIds(rootIds, s0.tasks)
+      const ids = takenTogetherIds(rootIds, s0.tasks, (t) => t.archivedAt)
       if (![...ids].some((tid) => s0.tasks.find((t) => t.id === tid)?.archivedAt)) return
       pushUndo(rootIds.length > 1 ? { key: 'undo.tasksRestored', params: { count: rootIds.length } } : undefined)
       const nowIso = new Date().toISOString()
