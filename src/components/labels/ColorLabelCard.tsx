@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { CALENDAR_COLORS } from '../../lib/googleColors'
+import { useLabeledSwatches } from '../../hooks/useLabeledSwatches'
 import { colorKeyForHex, labelForHex } from '../../lib/logCategoryColors'
 import { colorLabelEditRows } from '../../lib/todoColorLabels'
 import { tip } from '../../lib/tooltip'
@@ -37,10 +37,9 @@ export function ColorLabelCard({ hex, anchor, onClose }: { hex: string; anchor: 
   const exitRef = useExitGhost(ref)
 
   // 24 色に無い色（自分で作った色）は後ろに足して、選んでいることが分かるようにする
-  const swatches = useMemo(() => {
-    const base = CALENDAR_COLORS.map((c) => ({ hex: c.hex, name: t(`googleColors.${c.key}`) }))
-    return colorKeyForHex(hex) ? base : [...base, { hex: hex.toUpperCase() }]
-  }, [hex, t])
+  // 色の名前はパレットと同じ（設定のラベル名、無ければ色名）
+  const base = useLabeledSwatches()
+  const swatches = useMemo(() => (colorKeyForHex(hex) ? base : [...base, { hex: hex.toUpperCase() }]), [hex, base])
 
   const save = () => {
     const trimmed = name.trim()

@@ -230,6 +230,14 @@ const SCREENS = [
       { hover: '[role=radiogroup][aria-label="色とラベル"] [role=radio] >> nth=0' },
     ],
   },
+  // To-Do のリストの色も、丸のヒントにラベル名（無ければ色名）が出る（#596）
+  {
+    name: 'todo-list-color-hover',
+    view: 'all',
+    desktopOnly: true,
+    click: 'button[aria-label="色を変更"] >> nth=0',
+    steps: [{ hover: '[role=dialog][aria-label="リストの色"] [role=radio][data-tip*="（"] >> nth=0' }],
+  },
   // 記録の名前を打つと過去の記録が候補に出る（#415）。後から記録と、記録中に題名を直すところ
   {
     name: 'record-suggest',
