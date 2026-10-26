@@ -16,6 +16,7 @@ import { normalizeAddons } from '../lib/addons'
 import { normalizeSleepTimer } from '../lib/sleepTimer'
 import { normalizeSleepPrefs } from '../lib/sleepPrefs'
 import { normalizeSkippedEvents } from '../lib/skippedEvents'
+import { normalizeMyEventTimes } from '../lib/myEventTimes'
 import { normalizeStoredRows } from '../lib/backupFormat'
 import { withTaskDefaults } from '../lib/taskDefaults'
 import type { Task } from '../types/task'
@@ -71,6 +72,8 @@ export const STORED_SETTINGS: Record<SettingDataKey, StoredSetting> = {
   courseLinksUpdatedAt: {},
   skippedEvents: { normalize: normalizeSkippedEvents, stamp: 'skippedEventsUpdatedAt' },
   skippedEventsUpdatedAt: {},
+  myEventTimes: { normalize: normalizeMyEventTimes, stamp: 'myEventTimesUpdatedAt' },
+  myEventTimesUpdatedAt: {},
   dayMoods: { normalize: normalizeDayMoods },
   timetable: { normalize: normalizeTimetable, stamp: 'timetableUpdatedAt' },
   timetableUpdatedAt: {},

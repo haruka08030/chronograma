@@ -14,10 +14,10 @@ import { CalendarCheck, CalendarDot } from './timeline/CalendarCheck'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import { beginCalendarItemNativeDrag } from '../lib/calendarItemDrag'
 import {
-  canEditGoogleEvent,
+  canSetMyEventTime,
   getDraggedGoogleEvent,
   GOOGLE_EVENT_DND_TYPE,
-  moveGoogleEvent,
+  setMyGoogleEventTime,
   setDraggedGoogleEvent,
 } from '../lib/googleEventEdit'
 import { movedGoogleEventTiming } from '../lib/googleCalendar'
@@ -105,7 +105,6 @@ export function CalendarView({
   const tasks = useTaskStore((s) => s.tasks)
   // やらなかった予定（#528）も薄く出す
   const calendarEvents = useShownCalendarEvents()
-  const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const updateTask = useTaskStore((s) => s.updateTask)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
@@ -271,8 +270,8 @@ export function CalendarView({
                   setDragOverDate(null)
                   const gev = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? getDraggedGoogleEvent() : null
                   if (gev) {
-                    // Google の予定は時刻と長さ（何日続くか）を保ったまま日だけ動かす。⌥ の複製はアプリの予定だけ（動かしもしない）
-                    if (gev.date !== key && !isCopyDrop(e)) void moveGoogleEvent(gev, movedGoogleEventTiming(gev, key))
+                    // Google の予定は時刻と長さを保ったまま日だけ動かす（自分の時間にする、#625）。⌥ の複製はアプリの予定だけ（動かしもしない）
+                    if (gev.date !== key && !isCopyDrop(e)) setMyGoogleEventTime(gev, movedGoogleEventTiming(gev, key))
                     return
                   }
                   const ids = readDraggedTaskIds(e.dataTransfer)
@@ -377,7 +376,7 @@ export function CalendarView({
                       key={`event-${e.id}`}
                       {...tip(e.summary)}
                       data-touch-menu
-                      draggable={canEditGoogleEvent(e, googleCanWrite)}
+                      draggable={canSetMyEventTime(e)}
                       onDragStart={(ev) => {
                         ev.stopPropagation()
                         setDraggedGoogleEvent(e)
@@ -400,7 +399,7 @@ export function CalendarView({
                       className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight
                         ${itemClass(!e.startTime, eventState(e, key))}
                         ${e.skipped ? SKIPPED_EVENT_CLASS : ''}
-                        ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                        ${canSetMyEventTime(e) ? 'cursor-grab active:cursor-grabbing' : ''}`}
                       style={colorVars(eventState(e, key) === 'upcoming' ? (e.color ?? DEFAULT_GOOGLE_EVENT_HEX) : '#BDBDBD')}
                     >
                       {/* タスクと同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯。色は予定ごと */}

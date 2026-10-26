@@ -1,18 +1,10 @@
 import { useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, differenceInCalendarDays, parseISO } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
 import { SKIPPED_EVENT_CLASS } from '../ui/rowStateClass'
 import { readDraggedTaskIds } from '../../lib/useTimelineDrop'
 import { beginCalendarItemNativeDrag } from '../../lib/calendarItemDrag'
-import {
-  canEditGoogleEvent,
-  getDraggedGoogleEvent,
-  GOOGLE_EVENT_DND_TYPE,
-  moveGoogleEvent,
-  setDraggedGoogleEvent,
-} from '../../lib/googleEventEdit'
-import { googleEventTiming } from '../../lib/googleCalendar'
+import { GOOGLE_EVENT_DND_TYPE } from '../../lib/googleEventEdit'
 import type { CalendarEvent } from '../../types/calendarEvent'
 import { CalendarInlineTaskAdd } from '../CalendarInlineTaskAdd'
 import { isEventTask, planKindOf, type Task } from '../../types/task'
@@ -77,7 +69,6 @@ export function WeekAllDayRow({
   const { t } = useTranslation()
   /** 予定を `t` で回す箇所でも使えるように */
   const tr = t
-  const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const updateTask = useTaskStore((s) => s.updateTask)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
@@ -124,25 +115,16 @@ export function WeekAllDayRow({
             ...(holiday ? [<HolidayLabel key="holiday" name={holiday} className="px-1.5 py-0.5" />] : []),
             ...dayDues.map((d) => <DueMark key={`due-${d.id}`} item={d} dateKey={key} className="px-1.5 py-0.5" />),
             ...dayAllDayEvents.map((e) => (
-              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道
+              // 終日の Google の予定はアプリでは動かさない（Google の日付が開催の日。時刻つきの予定だけ自分の時間にできる、#625）
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 押して開くのはマウス・指の近道（キーでは日のパネル・スケジュールから）
               <div
                 key={`event-all-day-${e.id}`}
                 {...tip(e.summary)}
                 data-block-id={`event-${e.id}`}
-                draggable={canEditGoogleEvent(e, googleCanWrite)}
-                onDragStart={(ev) => {
-                  setDraggedGoogleEvent(e)
-                  ev.dataTransfer.setData(GOOGLE_EVENT_DND_TYPE, e.id)
-                  ev.dataTransfer.effectAllowed = 'move'
-                }}
-                onDragEnd={() => {
-                  setDraggedGoogleEvent(null)
-                  setAllDayDragOver(null)
-                }}
                 onClick={(ev) => openGoogleCard(e.id, ev.currentTarget)}
                 className={`${planVisualState({ completed: false, startTime: null, endTime: null }, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} ${e.skipped ? SKIPPED_EVENT_CLASS : ''} truncate rounded px-1.5 py-0.5
                     text-[10px] leading-tight transition-[filter] hover:brightness-95
-                    ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+                    cursor-pointer`}
                 style={colorVars(e.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
               >
                 {e.summary}
@@ -208,7 +190,7 @@ export function WeekAllDayRow({
               className={`min-h-[28px] border-l border-zinc-200 dark:border-zinc-700 px-0.5 py-0.5 space-y-0.5 transition-colors
                 ${allDayDragOver === key || allDayMoveKey === key ? DROP_HIGHLIGHT_CLASS : ''}`}
               onDragOver={(e) => {
-                if (acceptTaskDrag(e, { googleEvents: true })) setAllDayDragOver(key)
+                if (acceptTaskDrag(e)) setAllDayDragOver(key)
               }}
               onDragLeave={(e) => {
                 if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
@@ -218,21 +200,8 @@ export function WeekAllDayRow({
                 e.preventDefault()
                 setAllDayAddDate(null)
                 setAllDayDragOver(null)
-                const gev = e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE) ? getDraggedGoogleEvent() : null
-                if (gev) {
-                  // 終日の Google の予定は日数を保ったまま動かす
-                  const cur = googleEventTiming(gev)
-                  // 同じ日の終日の予定に戻しただけなら Google へ書き込まない。⌥ の複製はアプリの予定だけ（動かしもしない）
-                  if ((gev.isAllDay && cur.date === key) || isCopyDrop(e)) return
-                  const span = cur.endDate ? differenceInCalendarDays(parseISO(cur.endDate), parseISO(cur.date)) : 0
-                  void moveGoogleEvent(gev, {
-                    date: key,
-                    endDate: span > 0 ? toDateKey(addDays(parseISO(key), span)) : null,
-                    startTime: null,
-                    endTime: null,
-                  })
-                  return
-                }
+                // Google の予定は終日にしない（時間は自分の時間として変えるだけで、Google の予定は書き換えない、#625）
+                if (e.dataTransfer.types.includes(GOOGLE_EVENT_DND_TYPE)) return
                 const ids = readDraggedTaskIds(e.dataTransfer)
                 if (!ids.length) return
                 // 終日の行に落とした = その日にやる ToDo（時刻は外す。期限 dueDate は変えない）。⌥ を押していたら元は残して複製を置く

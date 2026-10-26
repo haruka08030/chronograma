@@ -7,8 +7,8 @@ import type { Task } from '../types/task'
 import { appTimeZone, instantFromWall } from './timeZone'
 import { nudgedDayRange, nudgeTimelineBlock } from './timelineBlockEdit'
 
-const moveGoogleEvent = vi.hoisted(() => vi.fn())
-vi.mock('./googleEventEdit', async (orig) => ({ ...(await orig<typeof import('./googleEventEdit')>()), moveGoogleEvent }))
+const setMyGoogleEventTime = vi.hoisted(() => vi.fn())
+vi.mock('./googleEventEdit', async (orig) => ({ ...(await orig<typeof import('./googleEventEdit')>()), setMyGoogleEventTime }))
 
 /** 2026-10-07 15:00（記録はこれより先にできない） */
 const NOW = new Date(2026, 9, 7, 15, 0)
@@ -30,7 +30,7 @@ const times = (id: string) => {
 }
 
 beforeEach(() => {
-  moveGoogleEvent.mockReset()
+  setMyGoogleEventTime.mockReset()
   while (useTaskStore.getState().undoLastOperation()) {
     /* 前のテストの履歴を残さない */
   }
@@ -154,24 +154,29 @@ describe('nudgeTimelineBlock: Google の予定（ドラッグと同じ決まり�
     }
   }
 
-  it('書き換えられる予定は Google へ送る', () => {
+  it('自分の時間にする（Google へは送らない、#625）', () => {
     useTaskStore.setState({ calendarEvents: [gEvent()], googleCanWrite: true })
     expect(nudgeTimelineBlock('event-g', 'move', 1, NOW)).toEqual({ title: 'Meeting', startTime: '10:15', endTime: '11:15' })
-    expect(moveGoogleEvent).toHaveBeenCalledWith(
+    expect(setMyGoogleEventTime).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'g' }),
       expect.objectContaining({ date: '2026-10-07', startTime: '10:15', endTime: '11:15' }),
     )
     nudgeTimelineBlock('event-g', 'resize', -1, NOW)
-    expect(moveGoogleEvent).toHaveBeenLastCalledWith(
+    expect(setMyGoogleEventTime).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: 'g' }),
       expect.objectContaining({ startTime: '10:00', endTime: '10:45' }),
     )
   })
 
-  it('書き込めない・変更を許されていない・日をまたぐ予定は動かさない', () => {
-    useTaskStore.setState({ calendarEvents: [gEvent()], googleCanWrite: false })
-    expect(nudgeTimelineBlock('event-g', 'move', 1, NOW)).toBeNull()
-    useTaskStore.setState({ calendarEvents: [gEvent({ editable: false })], googleCanWrite: true })
+  it('主催者でない・書き込めない予定も自分の時間にできる', () => {
+    useTaskStore.setState({ calendarEvents: [gEvent({ editable: false })], googleCanWrite: false })
+    expect(nudgeTimelineBlock('event-g', 'move', 1, NOW)).toEqual({ title: 'Meeting', startTime: '10:15', endTime: '11:15' })
+  })
+
+  it('終日・日をまたぐ予定は動かさない', () => {
+    useTaskStore.setState({
+      calendarEvents: [gEvent({ isAllDay: true, startTime: null, endTime: null, start: '2026-10-07', end: '2026-10-08' })],
+    })
     expect(nudgeTimelineBlock('event-g', 'move', 1, NOW)).toBeNull()
     const tz = appTimeZone()
     const night = gEvent({
@@ -182,6 +187,6 @@ describe('nudgeTimelineBlock: Google の予定（ドラッグと同じ決まり�
     })
     useTaskStore.setState({ calendarEvents: [night], googleCanWrite: true })
     expect(nudgeTimelineBlock('event-g', 'move', -1, NOW)).toBeNull()
-    expect(moveGoogleEvent).not.toHaveBeenCalled()
+    expect(setMyGoogleEventTime).not.toHaveBeenCalled()
   })
 })

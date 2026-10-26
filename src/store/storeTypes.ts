@@ -12,6 +12,7 @@ import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
 import type { CourseLink } from '../lib/courseLinks'
 import type { SkippedEvent } from '../lib/skippedEvents'
+import type { MyEventTime, TimeSpan } from '../lib/myEventTimes'
 import type { Timetable } from '../lib/timetable'
 import type { School } from '../lib/schoolTerms'
 import type { AddonId, Addons } from '../lib/addons'
@@ -227,6 +228,13 @@ export interface TaskState {
   skippedEvents: SkippedEvent[]
   /** やらなかった予定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
   skippedEventsUpdatedAt: string | null
+  /**
+   * Google の予定の自分の時間（#625、予定の ID ごと）。アプリで動かした時間で出し、Google の予定の時間は変えない（`lib/myEventTimes.ts`）。
+   * `calendarEvents` にはこれを当てた時間が入る（開催時間は予定の `held`）
+   */
+  myEventTimes: MyEventTime[]
+  /** 自分の時間をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  myEventTimesUpdatedAt: string | null
   /** 1 日の気分とひとこと（#324、日付 → 気分）。日ごとに変えた時刻ともとにしたサーバーの版を持ち、日ごとに同期する（`lib/dayMood.ts`） */
   dayMoods: DayMoods
   /** 授業の時間割の設定（#279、時限・学期・祝日を除くか）。マスの中身は予定の行（毎週の印）から出す（`lib/timetable.ts`） */
@@ -485,6 +493,12 @@ export interface TaskState {
   dropRestoredSkipped: (liveIds: ReadonlySet<string>) => void
   /** 「消す」: やらなかった予定からも消す */
   removeSkippedEvent: (id: string) => void
+  /** Google の予定を自分の時間にする（「元に戻す」付き）。開催時間と同じなら自分の時間を外す。時刻つきの予定だけ */
+  setMyEventTime: (event: CalendarEvent, mine: TimeSpan) => void
+  /** 自分の時間を外して開催時間に戻す（「元に戻す」付き） */
+  clearMyEventTime: (eventId: string) => void
+  /** Google から取った予定（開催時間）に合わせて、はみ出した自分の時間を削る・重ならなくなったら外す */
+  fitMyEventTimes: (events: readonly CalendarEvent[]) => void
   /**
    * 予定に毎週の繰り返しを付ける・変える・やめる（`rule` が null）。その回から後に当てはまる（`changeSeriesRule`）。
    * 変わったら true

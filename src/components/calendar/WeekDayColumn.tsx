@@ -4,7 +4,7 @@ import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
 import { formatDuration, HOUR_HEIGHT, HOURS, timeToMinutes, yToTime } from '../../lib/timeGrid'
 import type { CreateIntent, CreatePopup, CreateStop, DragPreview, useTimelineDrag } from '../../lib/useTimelineDrag'
 import type { DropPreview, useTimelineDrop } from '../../lib/useTimelineDrop'
-import { canEditGoogleEvent } from '../../lib/googleEventEdit'
+import { canSetMyEventTime } from '../../lib/googleEventEdit'
 import type { CalendarEvent } from '../../types/calendarEvent'
 import { isEventTask, isSleepTask, type Task } from '../../types/task'
 import { layoutPlanAndLog } from '../../lib/overlapLayout'
@@ -137,7 +137,6 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   /** 予定を `t` で回す箇所でも使えるように */
   const tr = t
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
-  const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const habits = useTaskStore(selectLiveHabits)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const toggleTask = useTaskStore((s) => s.toggleTask)
@@ -511,8 +510,9 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー。やらなかった予定（#528）は薄く・取り消し線で、✓ は出さない
         const recorded = dayLogs.some((l) => l.title === e.summary)
         const canCheck = hasStarted(seg.startTime) && !recorded && !e.skipped
+        // ドラッグで動かした時間は自分の時間になる（Google の予定は変えない、#625）。
         // 日をまたぐ予定は列ごとに区間しか描いていないので、ドラッグでは動かさない（押すとカードで直せる）
-        const editable = canEditGoogleEvent(e, googleCanWrite) && !googleEventCrossesDay(e)
+        const editable = canSetMyEventTime(e) && !googleEventCrossesDay(e)
         return (
           <div className="group/slot" key={`event-${e.id}`} style={{ opacity: movingTaskId === `event-${e.id}` ? 0.3 : 1 }}>
             <TimeBlock
@@ -533,7 +533,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
                   evt.stopPropagation()
                   return
                 }
-                // 書き換えられる Google の予定は、アプリの予定と同じくドラッグで移動・長さ変更
+                // Google の予定も、アプリの予定と同じくドラッグで移動・長さ変更（自分の時間になる）
                 googleDragRef.current = e
                 handleBlockPointerDown(evt, `event-${e.id}`, key, e.startTime!, e.endTime!, gridRef.current)
               }}

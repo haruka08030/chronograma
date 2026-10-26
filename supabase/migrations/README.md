@@ -52,6 +52,7 @@
 | [`046_reminder_run_key_mismatch.sql`](046_reminder_run_key_mismatch.sql) | 通知の送信の実行の記録に、最後の回で鍵が合わずに消した購読の数 `reminder_runs.last_key_mismatch`（プッシュサービスの 403。`last_removed` に含まれる）。VAPID の鍵を替えたあと・secret の入れ間違いで増える |
 | [`047_habit_past_rules.sql`](047_habit_past_rules.sql) | 習慣の前の日の設定 `habits.past_rules`（`until` より前の日の頻度・時間・時間の目標、`off` は作る前で予定の日にしない。古い順の並び）。null は無し。作った日・設定を変えた日より前の日の結果を変えないため。形と大きさの上限 `habits_past_rules_check` |
 | [`048_habit_kind.sql`](048_habit_kind.sql) | 習慣の種類 `habits.kind`（`habit` は習慣、`routine` はルーティン＝毎日の予定のプリセットで達成を数えない）。既定は `habit`。`habits_kind_check` |
+| [`049_user_my_event_times.sql`](049_user_my_event_times.sql) | Google の予定の自分の時間 `user_my_event_times`（利用者ごとに 1 行。`times` は予定の ID ごとの自分の時間と開催時間の控えの並び。開催時間に戻したものは `removed` の印だけ残す、512KB まで `user_my_event_times_size_check`、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
 
 テーブル（最新の形）:
 
@@ -69,6 +70,7 @@
 | `user_timetable` | 時間割の設定（利用者ごとに 1 行）。`timetable` は時限 `periods`（`{ start, end }` の並び）・学期 `termStart` / `termEnd`・祝日に授業を入れないか `skipHolidays`。マスの中身（授業）は `tasks` の毎週の予定（`event_series`）から出す。どの端末でも同じ時間割になる |
 | `user_addons` | 追加機能の設定（利用者ごとに 1 行）。`addons` は機能のオン・オフ `enabled`・引き落とし・期限の日 `dues`・Google カレンダーに送らない予定の名前 `googleSkip`。知らない項目は残して送り直す。どの端末でも同じになる |
 | `user_sleep_timer` | 睡眠のタイマー（利用者ごとに 1 行）。`started_at` は「寝る」を押した時刻（null は寝ていない）。どの端末で寝て、どの端末で起きたと押してもよい。止め忘れの通知は出さない |
+| `user_my_event_times` | Google の予定の自分の時間（利用者ごとに 1 行）。`times` は予定の ID（繰り返しは回ごと）ごとの自分の時間と開催時間の控え。Google の予定の時間は書き換えない |
 | `day_moods` | 1 日の気分（1 とても悪い〜5 とても良い、null は選んでいない）とひとこと（利用者ごと・日ごとに 1 行。`day` はアプリのタイムゾーンの暦の日）。今日の計画の「1 日を締める」で選ぶ。睡眠・記録（`tasks`）と日付で突き合わせて読める。どの端末でも同じになる |
 | `push_subscriptions` | Web Push の端末ごとの購読と通知設定（朝のまとめ・予定の前・締切の前・記録の確認・タイマーの止め忘れ）。送信は Edge Function `daily-reminders`。止め忘れの列（`timer_started_at` / `timer_title`）と「あと何分」の終わり（`timer_ends_at`）は `user_active_timer` の写し（`019` / `028`）。`timer_end_notified_for` は時間の通知を送った終わり |
 | `google_oauth` | Google カレンダーのリフレッシュトークン（暗号化して保存、`_shared/secretBox.ts`）。クライアント向けポリシーなし（Edge Function `google-calendar` が service_role で読み書き） |

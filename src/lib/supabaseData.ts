@@ -27,6 +27,7 @@ import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZ
 import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
 import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
 import { normalizeSkippedEvents, type RemoteSkipped } from './skippedEvents'
+import { normalizeMyEventTimes, type RemoteMyEventTimes } from './myEventTimes'
 import { normalizeTimetable, type RemoteTimetable } from './timetable'
 import { normalizeAddons, type RemoteAddons } from './addons'
 import { readEventSeries, withSeries } from './eventSeries'
@@ -586,6 +587,7 @@ export type SettingTable =
   | 'user_addons'
   | 'user_sleep_timer'
   | 'user_skipped_events'
+  | 'user_my_event_times'
 const SETTING_TABLES: readonly SettingTable[] = [
   'user_settings',
   'user_extra_time_zones',
@@ -596,6 +598,7 @@ const SETTING_TABLES: readonly SettingTable[] = [
   'user_addons',
   'user_sleep_timer',
   'user_skipped_events',
+  'user_my_event_times',
 ]
 
 /** `sync_changes_since`（`035`）の 1 回の答え */
@@ -1116,6 +1119,23 @@ export function pushSkippedEvents(
   base: string | null,
 ): Promise<SettingPushResult> {
   return pushSettingRow(supabase, 'user_skipped_events', { user_id: userId, events: value.events, updated_at: value.updatedAt }, base)
+}
+
+/** Google の予定の自分の時間（`user_my_event_times.times`、`049`）。行が無ければ null */
+export async function fetchMyEventTimes(supabase: SupabaseClient, userId: string): Promise<RemoteMyEventTimes | null | { error: string }> {
+  const { data, error } = await supabase.from('user_my_event_times').select('times, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { times: normalizeMyEventTimes(data.times), updatedAt: String(data.updated_at) }
+}
+
+export function pushMyEventTimes(
+  supabase: SupabaseClient,
+  userId: string,
+  value: RemoteMyEventTimes,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_my_event_times', { user_id: userId, times: value.times, updated_at: value.updatedAt }, base)
 }
 
 /** 時間割の設定（`user_timetable.timetable`、`027`）。行が無ければ null */

@@ -5,7 +5,14 @@ import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, type AnchorRect } from './anchoredCard'
 import { CardTimeRange } from './CardTimeRange'
 import { googleEventTiming, movedGoogleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
-import { canEditGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent } from '../../lib/googleEventEdit'
+import {
+  canEditGoogleEvent,
+  canSetMyEventTime,
+  removeGoogleEvent,
+  renameGoogleEvent,
+  setMyGoogleEventTime,
+} from '../../lib/googleEventEdit'
+import { appTimeZone, wallInZone } from '../../lib/timeZone'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
 import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
@@ -35,8 +42,8 @@ import { SKIPPED_EVENT_CLASS } from '../ui/rowStateClass'
 const WIDTH = 320
 
 /**
- * Google の予定を押したときのカード。書き込みを許可していれば、タイトル・日付・時刻の変更と削除が Google に反映される
- * （繰り返し予定はこの回だけ）。色はアプリで付け直せる（API に出ない新しい色の代わり）。
+ * Google の予定を押したときのカード。書き込みを許可していれば、タイトルの変更と削除が Google に反映される（繰り返し予定はこの回だけ）。
+ * 時刻つきの予定の日付・時刻は、Google を変えずに自分の時間にする（#625）。自分の時間のときは開催時間と「開催時間に戻す」を出す。色はアプリで付け直せる（API に出ない新しい色の代わり）。
  * 繰り返し予定は Google と同じく「この予定 / すべての繰り返し」を選べる。付けた色は似たタイトルの色なし予定にも広がる。
  * やらなかった予定（#528、時間が過ぎてから消した予定）は、そう書いて削除だけできる（予定していなかったものを消す）。
  */
@@ -99,9 +106,15 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const hex = event.color ?? DEFAULT_GOOGLE_EVENT_HEX
   const dateText = df.monthDayWeekdayLong(event.date)
   const editable = canEditGoogleEvent(event, googleCanWrite)
+  const timeEditable = canSetMyEventTime(event)
+  const held = event.held ? heldText(event.held, event.date, df.shortDate) : null
   // Google の説明は HTML のことがあるので、メモと同じテキストに直して出す
   const memo = event.description ? htmlToPlainText(event.description) : ''
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, (recurring ? 210 : 190) + (editable ? 40 : 0) + 44 + memoHeightEstimate(memo))
+  const { style, sheet } = anchoredCardStyle(
+    anchor,
+    WIDTH,
+    (recurring ? 210 : 190) + (timeEditable ? 40 : 0) + (held ? 24 : 0) + 44 + memoHeightEstimate(memo),
+  )
   const smallField = fieldClass({ size: 'sm' })
   const nowMs = now.getTime()
   const started = new Date(event.start).getTime() <= nowMs
@@ -122,21 +135,23 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
     pendingTitleRef.current = null
     setTitleDraft(null)
   }
-  /** 日付・時刻の変更。日付・開始を動かしたら長さを保って終わりもずらす（Google と同じ。日をまたぐ予定は終わりの日も） */
+  /**
+   * 日付・時刻の変更（自分の時間にする。Google の予定は変えない）。日付・開始を動かしたら長さを保って終わりもずらす（日をまたぐ予定は終わりの日も）
+   */
   const commitTiming = (next: { date?: string; startTime?: string; endTime?: string }) => {
     const cur = googleEventTiming(event)
     if (next.endTime) {
-      if (event.isAllDay || next.endTime === cur.endTime) return
+      if (next.endTime === cur.endTime) return
       // 終わりの時刻だけ変えた: 丸 1 日以上続く予定は終わりの日を保つ。それより短ければ、終わりが始まり以前なら翌日
       const long = new Date(event.end).getTime() - new Date(event.start).getTime() >= 86_400_000
       if (!long && next.endTime === cur.startTime) return
-      void moveGoogleEvent(event, { date: cur.date, endDate: long ? cur.endDate : null, startTime: cur.startTime, endTime: next.endTime })
+      setMyGoogleEventTime(event, { date: cur.date, endDate: long ? cur.endDate : null, startTime: cur.startTime, endTime: next.endTime })
       return
     }
     const date = next.date ?? cur.date
-    const startTime = event.isAllDay ? null : (next.startTime ?? cur.startTime)
+    const startTime = next.startTime ?? cur.startTime
     if (date === cur.date && startTime === cur.startTime) return
-    void moveGoogleEvent(event, movedGoogleEventTiming(event, date, startTime))
+    setMyGoogleEventTime(event, movedGoogleEventTiming(event, date, startTime))
   }
 
   return (
@@ -211,7 +226,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
               {event.summary}
             </p>
           )}
-          {editable ? (
+          {timeEditable ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <div className="w-48">
                 <DateField
@@ -236,6 +251,19 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
               {dateText}
               {event.startTime && event.endTime && ` · ${event.startTime} – ${event.endTime}`}
+            </p>
+          )}
+          {/* 自分の時間にしているときだけ、Google にある開催時間と、開催時間に戻すボタン */}
+          {held && (
+            <p className={`mt-1 ${META_TEXT}`}>
+              {t('googleEdit.heldTime', { time: held })}
+              <button
+                type="button"
+                onClick={() => useTaskStore.getState().clearMyEventTime(event.id)}
+                className="ml-1.5 rounded px-1 font-medium text-accent-600 hover:bg-accent-50 dark:text-accent-400 dark:hover:bg-accent-500/10"
+              >
+                {t('googleEdit.useHeldTime')}
+              </button>
             </p>
           )}
           {/* 操作は題名・時刻のすぐ下（アプリの予定のカードと同じ行）。始まった予定は記録にし、終わるまでは ▶ で記録を始められる */}
@@ -288,4 +316,13 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
       )}
     </div>
   )
+}
+
+/** 開催時間の文（「13:00–15:00」。自分の時間と日が違えば日付も） */
+function heldText(held: { start: string; end: string }, myDate: string, shortDate: (key: string) => string): string {
+  const tz = appTimeZone()
+  const start = wallInZone(Date.parse(held.start), tz)
+  const end = wallInZone(Date.parse(held.end), tz)
+  const range = `${start.time}–${end.time}`
+  return start.date === myDate ? range : `${shortDate(start.date)} ${range}`
 }

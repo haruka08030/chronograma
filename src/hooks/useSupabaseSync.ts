@@ -7,6 +7,7 @@ import {
   decideHydrate,
   fetchCourseLinks,
   fetchSkippedEvents,
+  fetchMyEventTimes,
   fetchAddons,
   fetchDayMoods,
   fetchEventTemplates,
@@ -16,6 +17,7 @@ import {
   fetchTimetable,
   pushCourseLinks,
   pushSkippedEvents,
+  pushMyEventTimes,
   pushAddons,
   pushDayMoods,
   pushEventTemplates,
@@ -78,6 +80,7 @@ import {
   planCourseLinkSync,
   planEventTemplateSync,
   planSkippedSync,
+  planMyEventTimesSync,
   planSleepTimerSync,
   planTimetableSync,
 } from '../lib/settingPlans'
@@ -107,6 +110,7 @@ const SETTING_TABLE: Record<SettingKey, SettingTable> = {
   addons: 'user_addons',
   sleepTimer: 'user_sleep_timer',
   skipped: 'user_skipped_events',
+  myTimes: 'user_my_event_times',
 }
 const SETTING_KEY_OF = Object.fromEntries(Object.entries(SETTING_TABLE).map(([k, t]) => [t, k])) as Record<SettingTable, SettingKey>
 
@@ -193,6 +197,7 @@ function settingsSent(userId: string): boolean {
     ['addons', s.addonsUpdatedAt],
     ['sleepTimer', s.sleepTimerUpdatedAt],
     ['skipped', s.skippedEventsUpdatedAt],
+    ['myTimes', s.myEventTimesUpdatedAt],
   ]
   return (
     local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key)) &&
@@ -478,6 +483,23 @@ export function useSupabaseSync() {
         // まだ一度もやらなかった予定が無ければ送らない。サーバーにも行が無ければ取りに行かない
         emptyWhenUnset: true,
       })
+    /** Google の予定の自分の時間（#625） */
+    const syncMyEventTimes = () =>
+      syncSetting({
+        key: 'myTimes',
+        fetch: () => fetchMyEventTimes(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planMyEventTimesSync({ times: st.myEventTimes, updatedAt: st.myEventTimesUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().myEventTimesUpdatedAt,
+        applyLocal: ({ times, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ myEventTimes: times, myEventTimesUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ myEventTimesUpdatedAt: at })),
+        push: (p) => pushMyEventTimes(supabase, userId, p, p.base),
+        // まだ一度も自分の時間を付けていなければ送らない。サーバーにも行が無ければ取りに行かない
+        emptyWhenUnset: true,
+      })
     /** 時間割の設定（時限・学期、#279） */
     const syncTimetable = () =>
       syncSetting({
@@ -571,6 +593,7 @@ export function useSupabaseSync() {
         syncEventTemplates(),
         syncCourseLinks(),
         syncSkippedEvents(),
+        syncMyEventTimes(),
         syncTimetable(),
         syncAddons(),
         syncSleepTimer(),
@@ -952,6 +975,7 @@ export function useSupabaseSync() {
         state.eventTemplates === prev.eventTemplates &&
         state.courseLinks === prev.courseLinks &&
         state.skippedEvents === prev.skippedEvents &&
+        state.myEventTimes === prev.myEventTimes &&
         state.timetable === prev.timetable &&
         state.addons === prev.addons &&
         state.sleepTimer === prev.sleepTimer &&

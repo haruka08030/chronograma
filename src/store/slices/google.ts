@@ -1,5 +1,6 @@
 /** Google カレンダーの予定と接続の状態 */
 import { eventChoiceKey, resolveEventColors, seriesChoiceKey } from '../../lib/googleEventColors'
+import { withMyEventTimes } from '../../lib/myEventTimes'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'
 
@@ -18,7 +19,9 @@ type GoogleActions = Pick<
 
 export function createGoogleSlice({ set }: SliceContext): GoogleActions {
   return {
-    setCalendarEvents: (events) => set((s) => ({ calendarEvents: resolveEventColors(events, s.googleEventColors) })),
+    // 自分の時間（#625）はここで当てる（画面・空き時間・今と次の予定・記録へのコピーがみな自分の時間を使う）
+    setCalendarEvents: (events) =>
+      set((s) => ({ calendarEvents: withMyEventTimes(resolveEventColors(events, s.googleEventColors), s.myEventTimes) })),
     setGoogleEventColor: (event, hex, scope) => {
       set((s) => {
         const choices = { ...s.googleEventColors }

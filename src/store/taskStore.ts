@@ -12,6 +12,9 @@ import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
 import { withCourseLink, type CourseLink } from '../lib/courseLinks'
 import { withRemoved, withSkipped, withoutRestored, type SkippedEvent } from '../lib/skippedEvents'
+import { fitMyEventTimes, withMyEventTimes, withMyTime, withRemovedTime, type MyEventTime } from '../lib/myEventTimes'
+import { shortDate } from '../lib/moveToast'
+import { appTimeZone, wallInZone } from '../lib/timeZone'
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import {
@@ -227,6 +230,8 @@ export const useTaskStore = create<TaskState>()(
         courseLinksUpdatedAt: null as string | null,
         skippedEvents: [] as SkippedEvent[],
         skippedEventsUpdatedAt: null as string | null,
+        myEventTimes: [] as MyEventTime[],
+        myEventTimesUpdatedAt: null as string | null,
         dayMoods: {} as DayMoods,
         timetable: DEFAULT_TIMETABLE as Timetable,
         timetableUpdatedAt: null as string | null,
@@ -265,6 +270,33 @@ export const useTaskStore = create<TaskState>()(
           if (next !== get().skippedEvents) set({ skippedEvents: next })
         },
         removeSkippedEvent: (id) => set({ skippedEvents: withRemoved(get().skippedEvents, id) }),
+        setMyEventTime: (event, mine) => {
+          if (event.isAllDay || event.skipped) return
+          const cur = get().myEventTimes
+          const next = withMyTime(cur, event, mine)
+          if (next === cur || sameValue(next, cur)) return
+          const tz = appTimeZone()
+          const start = wallInZone(Date.parse(mine.start), tz)
+          const end = wallInZone(Date.parse(mine.end), tz)
+          undo.pushUndo({
+            key: 'undo.myEventTime',
+            params: { title: event.summary, date: shortDate(start.date), time: `${start.time}–${end.time}` },
+          })
+          set({ myEventTimes: next })
+        },
+        clearMyEventTime: (eventId) => {
+          const cur = get().myEventTimes
+          const next = withRemovedTime(cur, eventId)
+          if (next === cur) return
+          const event = get().calendarEvents.find((e) => e.id === eventId)
+          undo.pushUndo({ key: 'undo.myEventTimeCleared', params: { title: event?.summary ?? '' } })
+          set({ myEventTimes: next })
+        },
+        fitMyEventTimes: (events) => {
+          const cur = get().myEventTimes
+          const next = fitMyEventTimes(cur, events)
+          if (next !== cur) set({ myEventTimes: next })
+        },
         setAddonOn: (id, on) => {
           const next = withAddonOn(get().addons, id, on)
           if (sameValue(next, get().addons)) return
@@ -482,6 +514,12 @@ for (const [stamp, keys] of Object.entries(SETTING_STAMPS)) {
 }
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
+})
+// 自分の時間（#625）が変わったら（操作・同期・元に戻す・他のタブ）、出ている Google の予定に当て直す（入れるときは `setCalendarEvents`）
+useTaskStore.subscribe((s, prev) => {
+  if (s.myEventTimes === prev.myEventTimes) return
+  const calendarEvents = withMyEventTimes(s.calendarEvents, s.myEventTimes)
+  if (calendarEvents !== s.calendarEvents) useTaskStore.setState({ calendarEvents })
 })
 
 /**

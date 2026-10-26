@@ -18,6 +18,11 @@ export interface CalendarEvent {
   editable?: boolean
   /** やらなかった予定（開始を過ぎてから消した予定、#528、`lib/skippedEvents.ts`）。薄く・取り消し線で出し、動かせない */
   skipped?: boolean
+  /**
+   * 自分の時間（#625、`lib/myEventTimes.ts`）を当てた予定の開催時間（Google にある start / end）。当てていなければ無い。
+   * そのとき start / end / date / startTime / endTime は自分の時間
+   */
+  held?: { start: string; end: string }
   /** Google カレンダーで開くリンク */
   htmlLink?: string
   /** 繰り返し予定のシリーズ ID（色を「すべての繰り返し」に付けるとき用） */

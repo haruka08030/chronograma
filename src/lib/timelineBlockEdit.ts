@@ -5,7 +5,7 @@ import { canCopyOnDrop, placeCopies } from './dragCopy'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { isPlacedPointHabitOn, isPointHabitOn, parseHabitSlotId, habitToPlannedItem } from './habitSlots'
 import { buildHabitRecordIndex, habitDayStatus, habitTimesOn } from './habitTiming'
-import { canEditGoogleEvent, moveGoogleEvent } from './googleEventEdit'
+import { canSetMyEventTime, setMyGoogleEventTime } from './googleEventEdit'
 import { googleEventTiming, movedGoogleEventTiming } from './googleCalendar'
 import { googleEventCrossesDay } from './googleEventSpan'
 import { SNAP_MINUTES, timeToMinutes } from './timeGrid'
@@ -27,7 +27,7 @@ import { announce } from './announce'
 /**
  * タイムラインのブロック（予定・記録・習慣の枠・Google の予定）の時刻を変える処理。
  * マウスのドラッグ（`WeekCalendarView`）とキー（Alt+↑↓・Alt+Shift+↑↓）が同じ道を通る。
- * どちらも元に戻せる（Google の予定はドラッグと同じく Google へ送るだけ）
+ * どちらも元に戻せる（Google の予定は Google へは送らず、自分の時間にする。#625）
  */
 
 /** その日の記録に使える最後の分（null は制限なし＝過去の日）。記録は今より先には作れない */
@@ -73,9 +73,9 @@ export function applyBlockMove(taskId: string, dateKey: string, startTime: strin
   }
   if (taskId.startsWith('event-')) {
     const ev = ctx.googleEvent
-    // 元の枠に戻しただけなら Google へ書き込まない。動かすときは長さ（日をまたぐ予定は終わりの日も）を保つ
+    // 元の枠に戻しただけなら何もしない。動かすときは長さ（日をまたぐ予定は終わりの日も）を保つ
     if (!ev || (ev.date === dateKey && ev.startTime === startTime)) return false
-    void moveGoogleEvent(ev, movedGoogleEventTiming(ev, dateKey, startTime))
+    setMyGoogleEventTime(ev, movedGoogleEventTiming(ev, dateKey, startTime))
     return true
   }
   const { tasks, updateTask } = useTaskStore.getState()
@@ -107,7 +107,7 @@ export function applyBlockResize(taskId: string, startTime: string, endTime: str
     if (!ev || (ev.startTime === startTime && ev.endTime === endTime)) return false
     // 上の端（開始）だけ変えたときは終わりの日を保つ（日をまたぐ予定が 1 日に縮まないように）
     const endDate = ev.endTime === endTime ? googleEventTiming(ev).endDate : null
-    void moveGoogleEvent(ev, { date: ev.date, endDate, startTime, endTime })
+    setMyGoogleEventTime(ev, { date: ev.date, endDate, startTime, endTime })
     return true
   }
   const { tasks, updateTask } = useTaskStore.getState()
@@ -173,7 +173,7 @@ export type NudgeResult = { title: string; startTime: string; endTime: string }
 /**
  * ブロックをキーで 15 分ずらす（Alt+↑↓）・終わりを 15 分伸び縮みする（Alt+Shift+↑↓）。
  * ドラッグと同じ決まり: 記録は今より先にしない（伸ばすときは今で止める）、日をまたぐ記録は日付ごと動く、
- * 済んだ習慣の枠・書き換えられない Google の予定・日をまたぐ Google の予定は動かさない。変えたら新しい時刻
+ * 済んだ習慣の枠・終日の Google の予定・日をまたぐ Google の予定は動かさない。変えたら新しい時刻
  */
 export function nudgeTimelineBlock(id: string, mode: NudgeMode, dir: -1 | 1, now: Date = zonedNow()): NudgeResult | null {
   const state = useTaskStore.getState()
@@ -200,7 +200,7 @@ export function nudgeTimelineBlock(id: string, mode: NudgeMode, dir: -1 | 1, now
     const ev = state.calendarEvents.find((e) => e.id === id.slice('event-'.length))
     if (!ev || ev.isAllDay || !ev.startTime || !ev.endTime) return null
     // 日をまたぐ予定は列ごとに区間しか描いていないので、ドラッグと同じく動かさない（カードの時刻から直す）
-    if (!canEditGoogleEvent(ev, state.googleCanWrite) || googleEventCrossesDay(ev)) return null
+    if (!canSetMyEventTime(ev) || googleEventCrossesDay(ev)) return null
     const next = nudgedDayRange(ev.startTime, ev.endTime, mode, dir)
     if (!next) return null
     const withEvent = { ...ctx, googleEvent: ev }

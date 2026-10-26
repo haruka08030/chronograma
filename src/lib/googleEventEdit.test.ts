@@ -16,6 +16,7 @@ const store = vi.hoisted(() => {
     setGoogleCanWrite: vi.fn(),
     addSkippedEvents: vi.fn(),
     dropRestoredSkipped: vi.fn(),
+    setMyEventTime: vi.fn(),
   }
   return s
 })
@@ -36,7 +37,7 @@ vi.mock('./googleCalendar', () => ({
   googleWriteFailure: (e: unknown) => (e instanceof Error && e.message === 'deleted' ? 'deleted' : 'failed'),
 }))
 
-const { duplicateGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent, undoGoogleDelete, withoutPendingDeletes } =
+const { duplicateGoogleEvent, setMyGoogleEventTime, removeGoogleEvent, renameGoogleEvent, undoGoogleDelete, withoutPendingDeletes } =
   await import('./googleEventEdit')
 const { UNDO_WINDOW_MS } = await import('./undoWindow')
 
@@ -126,8 +127,22 @@ describe('Google で消されていた予定を直した（#494）', () => {
 
   it('ほかの失敗は元に戻す', async () => {
     updateGoogleEvent.mockRejectedValueOnce(new Error('boom'))
-    await moveGoogleEvent(event('a'), { date: '2026-10-03', startTime: null, endTime: null })
+    await renameGoogleEvent(event('a'), 'new')
     expect(store.calendarEvents.map((e) => e.id).sort()).toEqual(['a', 'b'])
+    expect(store.calendarEvents.find((e) => e.id === 'a')?.summary).toBe('a')
+  })
+})
+
+describe('Google の予定の時間を変える（#625）', () => {
+  it('Google には送らず、自分の時間にする。終日の予定は動かさない', () => {
+    updateGoogleEvent.mockClear()
+    store.setMyEventTime.mockClear()
+    const timed = { ...event('a'), start: '2026-10-02T13:00:00Z', end: '2026-10-02T15:00:00Z', startTime: '13:00', endTime: '15:00' }
+    setMyGoogleEventTime(timed, { date: '2026-10-02', startTime: '13:30', endTime: '15:00' })
+    expect(updateGoogleEvent).not.toHaveBeenCalled()
+    expect(store.setMyEventTime).toHaveBeenCalledTimes(1)
+    setMyGoogleEventTime({ ...event('b'), isAllDay: true }, { date: '2026-10-03', startTime: null, endTime: null })
+    expect(store.setMyEventTime).toHaveBeenCalledTimes(1)
   })
 })
 

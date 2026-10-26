@@ -1,5 +1,5 @@
 /**
- * 設定ごとの同期の計画（送る・合わせる・版だけ進める）。追加機能・時間割・よく入れる予定・授業と科目のつながり・睡眠のタイマー・やらなかった予定。
+ * 設定ごとの同期の計画（送る・合わせる・版だけ進める）。追加機能・時間割・よく入れる予定・授業と科目のつながり・睡眠のタイマー・やらなかった予定・Google の予定の自分の時間。
  * 同期（`useSupabaseSync`）からだけ読む。起動時に読む値の形・そろえ方（`normalize*`）と中身ごとの合わせ方（`merge*`）は各設定のファイル
  */
 import { settingSyncStep } from './settingSync'
@@ -37,6 +37,14 @@ import {
   type RemoteSkipped,
   type SkippedSyncPlan,
 } from './skippedEvents'
+import {
+  cleanMyEventTimes,
+  normalizeMyEventTimes,
+  type LocalMyEventTimes,
+  type MyEventTime,
+  type MyEventTimesSyncPlan,
+  type RemoteMyEventTimes,
+} from './myEventTimes'
 import { normalizeSleepTimer, type LocalSleepTimer, type RemoteSleepTimer, type SleepTimerSyncPlan } from './sleepTimer'
 
 export function planAddonsSync(
@@ -316,6 +324,51 @@ export function planSkippedSync(
       return { apply: { events: theirs, updatedAt: remote.updatedAt } }
     case 'push':
       return { push: { events: local.events, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
+    case 'adopt':
+      return { adopt: remote.updatedAt }
+    default:
+      return {}
+  }
+}
+
+/** 両方の端末で変えた自分の時間（#625）を合わせる。予定ごとに変えた時刻（`updatedAt`）の新しいほう。同じ時刻なら先の並びのもの */
+export function mergeMyEventTimes(a: readonly MyEventTime[], b: readonly MyEventTime[]): MyEventTime[] {
+  const byId = new Map<string, MyEventTime>()
+  for (const e of [...a, ...b]) {
+    const prev = byId.get(e.id)
+    if (!prev || Date.parse(e.updatedAt) > Date.parse(prev.updatedAt)) byId.set(e.id, e)
+  }
+  return cleanMyEventTimes([...byId.values()])
+}
+
+const sameMyEventTimes = (a: readonly MyEventTime[], b: readonly MyEventTime[]) =>
+  a.length === b.length && a.every((x, i) => JSON.stringify(x) === JSON.stringify(b[i]))
+
+export function planMyEventTimesSync(
+  local: LocalMyEventTimes,
+  remote: RemoteMyEventTimes | null,
+  nowIso: string = new Date().toISOString(),
+  clockOffsetMs = 0,
+): MyEventTimesSyncPlan {
+  // まだ一度も自分の時間を付けていなければ送らない
+  if (!remote) return local.updatedAt === null ? {} : { push: { times: local.times, updatedAt: local.updatedAt, base: null } }
+  const theirs = normalizeMyEventTimes(remote.times)
+  const syncedAt = local.syncedAt ?? null
+  const step = settingSyncStep({ updatedAt: local.updatedAt, syncedAt }, remote, sameMyEventTimes(local.times, theirs), clockOffsetMs)
+  const dirty = local.updatedAt !== syncedAt
+  const remoteChanged = remote.updatedAt !== syncedAt
+  // まだ一度も合わせていない・両方で変えた: 予定ごとに新しいほうで合わせる
+  if (step.kind === 'initial' || ((step.kind === 'push' || step.kind === 'apply') && dirty && remoteChanged)) {
+    const times = mergeMyEventTimes(theirs, local.times)
+    // 外したものは `removed` の印で残るので、合わせても片方の変更を捨てない（捨てた数は 0）
+    if (sameMyEventTimes(times, theirs)) return { apply: { times, updatedAt: remote.updatedAt }, conflicts: 0 }
+    return { apply: { times, updatedAt: nowIso }, push: { times, updatedAt: nowIso, base: remote.updatedAt }, conflicts: 0 }
+  }
+  switch (step.kind) {
+    case 'apply':
+      return { apply: { times: theirs, updatedAt: remote.updatedAt } }
+    case 'push':
+      return { push: { times: local.times, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
     case 'adopt':
       return { adopt: remote.updatedAt }
     default:

@@ -7,6 +7,7 @@ import {
   deleteGoogleEvent,
   googleWriteFailure,
   localizeGoogleError,
+  normalizeCalendarEventTimes,
   updateGoogleEvent,
   googleEventTiming,
   type GoogleEventTiming,
@@ -15,8 +16,9 @@ import { UNDO_WINDOW_MS } from './undoWindow'
 import { isSkippedDeletion, toSkippedEvent } from './skippedEvents'
 
 /**
- * Google の予定をアプリから書き換える操作。画面は先に変え（楽観的）、Google に送って返ってきた形で置き換える。
+ * Google の予定をアプリから書き換える操作（題名・削除・複製）。画面は先に変え（楽観的）、Google に送って返ってきた形で置き換える。
  * 失敗したら元に戻してトーストで知らせる。Google 側の変更は useGoogleCalendarEvents の取り直しで入ってくる。
+ * 時間は Google に送らない。動かした・伸び縮みさせた時間は、その予定の自分の時間としてアプリに持つ（#625、`myEventTimes.ts`）
  */
 
 /** ネイティブ D&D でつかんでいる Google の予定（週をめくって一覧から消えても落とせるように持っておく） */
@@ -32,6 +34,14 @@ export function getDraggedGoogleEvent(): CalendarEvent | null {
 /** この予定をアプリから変えられるか（書き込み権限があり、主催者か変更を許された予定） */
 export function canEditGoogleEvent(e: CalendarEvent, canWrite: boolean): boolean {
   return canWrite && e.editable !== false
+}
+
+/**
+ * この予定の時間をアプリで変えられるか（自分の時間にする）。時刻つきの予定だけ。Google に書かないので主催者でなくてもよい。
+ * 終日の予定・やらなかった予定・作っている途中の予定は動かさない
+ */
+export function canSetMyEventTime(e: CalendarEvent): boolean {
+  return !e.isAllDay && !!e.startTime && !!e.endTime && !e.skipped && !e.id.startsWith('pending-')
 }
 
 function upsert(next: CalendarEvent, replaceId = next.id) {
@@ -67,14 +77,14 @@ function report(e: unknown) {
   s.showMoveBanner(localized && localized !== raw ? localized : i18n.t('googleEdit.failed'))
 }
 
-export async function moveGoogleEvent(event: CalendarEvent, timing: GoogleEventTiming) {
-  upsert(applyTimingLocally(event, timing))
-  try {
-    const saved = await updateGoogleEvent(event.id, { timing })
-    if (saved) upsert(saved)
-  } catch (e) {
-    failed(event, e)
-  }
+/**
+ * 動かした・伸び縮みさせた時間を、その予定の自分の時間にする（Google の予定の時間は変えない、#625）。
+ * 開催時間と同じにしたら自分の時間を外す。「元に戻す」付き
+ */
+export function setMyGoogleEventTime(event: CalendarEvent, timing: GoogleEventTiming) {
+  if (!canSetMyEventTime(event) || !timing.startTime || !timing.endTime) return
+  const mine = applyTimingLocally(event, timing)
+  useTaskStore.getState().setMyEventTime(event, { start: mine.start, end: mine.end })
 }
 
 export async function renameGoogleEvent(event: CalendarEvent, summary: string) {
@@ -189,7 +199,8 @@ export async function addGoogleEvent(summary: string, timing: GoogleEventTiming,
   }
 }
 
-/** 同じ日・同じ時間にもう 1 つ作る（題名・メモ・予定の色を写す。繰り返しはその回だけの 1 件） */
+/** 同じ日・同じ時間（開催時間）にもう 1 つ作る（題名・メモ・予定の色を写す。繰り返しはその回だけの 1 件） */
 export function duplicateGoogleEvent(event: CalendarEvent) {
-  return addGoogleEvent(event.summary, googleEventTiming(event), event)
+  const held = event.held ? normalizeCalendarEventTimes({ ...event, ...event.held }) : event
+  return addGoogleEvent(event.summary, googleEventTiming(held), event)
 }
