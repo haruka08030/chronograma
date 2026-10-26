@@ -45,3 +45,8 @@ export function memoHeightEstimate(text: string): number {
   const memo = text.trim()
   return memo ? Math.min(memo.split('\n').length, 12) * 16 + 4 : 0
 }
+
+/** To-Do のカードの締切・ラベル・タグの行（`TaskCardMeta`）の高さの見積もり。出ないときは 0 */
+export function taskCardMetaHeight(task: { dueDate?: string | null; color?: string | null; tags: readonly string[] }): number {
+  return task.dueDate || task.color || task.tags.length > 0 ? 24 : 0
+}

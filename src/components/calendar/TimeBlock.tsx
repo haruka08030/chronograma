@@ -6,7 +6,7 @@ import { colorVars } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
-import { MoonSolidIcon } from '../icons'
+import { DueIcon, MoonSolidIcon } from '../icons'
 import { tip } from '../../lib/tooltip'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { SKIPPED_EVENT_CLASS } from '../ui/rowStateClass'
@@ -74,7 +74,7 @@ export function TimeBlock({
   const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : state === 'upcoming' ? 'gc-plan' : 'gc-missed'
   const moon = sleep && <MoonSolidIcon className="mr-1 inline h-3 w-3 -translate-y-px" />
   const doneMark = state === 'done' && !withCheck ? '✓ ' : ''
-  // 締切がこの日まで（過ぎた・この予定では間に合わなければ赤、当日は黄）の予定は、題名の前に点を付ける（予定を入れても締切を見失わない）
+  // 締切がこの日まで（過ぎた・この予定では間に合わなければ赤、当日は黄）の予定は、題名の前に締切の →| を付ける（先の締切は出さない）（予定を入れても締切を見失わない）
   const dueTone =
     !isLog && !sleep && state === 'upcoming' && dayKey && task.dueDate && task.dueDate <= dayKey
       ? dueToneOf(task.dueDate, task.dueTime ?? null, dayKey, { atTime: task.startTime })
@@ -83,9 +83,7 @@ export function TimeBlock({
     <span aria-hidden className="mr-1 inline-block h-1.5 w-1.5 -translate-y-px animate-breathe rounded-full bg-red-500" />
   )
   const endLabel = running ? t('activityLog.timerRunning') : task.endTime
-  const dueDot = dueTone && (
-    <span aria-hidden className={`mr-1 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-current ${DUE_TONE_CLASS[dueTone]}`} />
-  )
+  const dueDot = dueTone && <DueIcon aria-hidden className={`mr-0.5 inline h-3 w-3 -translate-y-px ${DUE_TONE_CLASS[dueTone]}`} />
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に。
   // 20 分未満は余白を詰め、1 行が入らない 13 分未満は文字を出さない（ホバーのヒントで読める）
   const compact = height < 32
