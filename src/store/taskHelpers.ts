@@ -53,6 +53,32 @@ export function expandDescendantIds(rootIds: Iterable<string>, allTasks: Task[])
   return out
 }
 
+/**
+ * 戻すときに一緒に戻す行: 選んだ行と、その下で同じ時刻に入れた（一緒に消した・アーカイブした）もの。
+ * 先に別に入れた子とその下は箱に残す（親を戻すと、先に消した小タスクまで戻っていた、#611）
+ */
+export function takenTogetherIds(
+  rootIds: Iterable<string>,
+  allTasks: Task[],
+  stampOf: (t: Task) => string | null | undefined,
+): Set<string> {
+  const byId = new Map(allTasks.map((t) => [t.id, t]))
+  const out = new Set(rootIds)
+  let added = true
+  while (added) {
+    added = false
+    for (const t of allTasks) {
+      if (!t.parentId || !out.has(t.parentId) || out.has(t.id)) continue
+      const stamp = stampOf(t)
+      if (stamp && stamp === stampOf(byId.get(t.parentId)!)) {
+        out.add(t.id)
+        added = true
+      }
+    }
+  }
+  return out
+}
+
 export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new Date().toISOString()): Task {
   const applied = { ...task, ...patch, updatedAt: now }
   // 日付・時刻の列はいつもアプリのタイムゾーンで書く（`taskTimeZone.ts`）
