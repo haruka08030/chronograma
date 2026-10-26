@@ -1,4 +1,4 @@
-import { useId, type Ref } from 'react'
+import { useId, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import {
@@ -6,7 +6,6 @@ import {
   HABIT_TIMES_PER_WEEK_MAX,
   HABIT_TIMES_PER_WEEK_MIN,
   type HabitFrequencyType,
-  type HabitTimeMode,
   type HabitWeekday,
 } from '../../types/habit'
 import { toggleHabitWeekdaySelection } from '../../lib/habitDraft'
@@ -23,6 +22,8 @@ import { fieldClass } from '../ui/fieldClass'
 import { HINT_TEXT } from '../ui/textClass'
 import { effectiveHabitForm, formWeekdayTime, usesWeekdayTimes, type HabitFormState } from './habitFormState'
 import { buttonClass } from '../ui/buttonClass'
+import { DisclosureButton } from '../ui/Disclosure'
+import { PlusIcon } from '../icons'
 import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 
 const HABIT_WEEKDAY_ORDER: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
@@ -79,13 +80,6 @@ function RadioChoices<T extends string>({
     </div>
   )
 }
-
-/** 時間の選択肢（時間指定なし / 時刻を指定 / 時間帯を指定） */
-const TIME_MODE_OPTIONS: { value: HabitTimeMode; labelKey: string }[] = [
-  { value: 'none', labelKey: 'habits.timeModeNone' },
-  { value: 'fixed', labelKey: 'habits.timeModeFixed' },
-  { value: 'range', labelKey: 'habits.timeModeRange' },
-]
 
 function ColorPicker({ color, onPick }: { color: string; onPick: (hex: string) => void }) {
   const { t } = useTranslation()
@@ -214,66 +208,84 @@ function WeekdayTimeRows({ form, onChange }: { form: HabitFormState; onChange: (
   )
 }
 
-function HabitTimeFields({
-  form,
-  name,
-  onChange,
-}: {
-  form: HabitFormState
-  name: string
-  onChange: (patch: Partial<HabitFormState>) => void
-}) {
+/**
+ * 時間の欄。時間を決めていなければ「時間を決める」のボタンだけ（押すと開始〜終了の欄）。
+ * 終わりは外せる（時刻だけ）・あとから足せる。ルーティンは時間帯が要るので、最初から開始〜終了で外せない
+ */
+function HabitTimeFields({ form, onChange }: { form: HabitFormState; onChange: (patch: Partial<HabitFormState>) => void }) {
   const { t } = useTranslation()
   const routine = form.kind === 'routine'
   const mode = form.timeMode
-  const perWeekday = usesWeekdayTimes(form)
+  const linkClass = buttonClass({ variant: 'link', size: 'xs' })
+  if (mode === 'none') {
+    return (
+      <div>
+        <button type="button" onClick={() => onChange({ timeMode: 'range' })} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
+          <PlusIcon className="h-3.5 w-3.5" />
+          {t('habits.setTime')}
+        </button>
+      </div>
+    )
+  }
   return (
     <div className="space-y-2">
-      {/* ルーティンは時間帯だけ（タイムラインの枠にするため） */}
-      {routine ? (
-        <SectionLabel as="span" level="field">
-          {t('habits.time')}
-        </SectionLabel>
-      ) : (
-        <RadioChoices
-          heading={t('habits.time')}
-          name={`${name}-time-mode`}
-          options={TIME_MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-          value={mode}
-          onChange={(timeMode) => onChange({ timeMode })}
-        />
-      )}
-
-      {perWeekday ? (
+      <SectionLabel as="span" level="field">
+        {t('habits.time')}
+      </SectionLabel>
+      {usesWeekdayTimes(form) ? (
         <WeekdayTimeRows form={form} onChange={onChange} />
-      ) : mode === 'fixed' ? (
+      ) : (
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <SectionLabel as="span" level="field">
-            {t('habits.timeAt')}
-          </SectionLabel>
-          <TimeRangeInputs mode="fixed" startTime={form.startTime} endTime={form.endTime} onTimesChange={onChange} />
+          <TimeRangeInputs mode={mode} startTime={form.startTime} endTime={form.endTime} onTimesChange={onChange} />
         </div>
-      ) : mode === 'range' ? (
-        // 「時間」は上のまとまりの見出しにあるので、ここでは欄だけ並べる
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <TimeRangeInputs mode="range" startTime={form.startTime} endTime={form.endTime} onTimesChange={onChange} />
+      )}
+      {routine ? null : (
+        <div className="-ml-2.5 flex flex-wrap gap-x-2">
+          <button type="button" onClick={() => onChange({ timeMode: mode === 'range' ? 'fixed' : 'range' })} className={linkClass}>
+            {mode === 'range' ? t('habits.removeEndTime') : t('habits.addEndTime')}
+          </button>
+          <button type="button" onClick={() => onChange({ timeMode: 'none' })} className={linkClass}>
+            {t('habits.removeTime')}
+          </button>
+        </div>
+      )}
+      {routine ? null : <p className={HINT_TEXT}>{t('habits.onTimeHint', { min: HABIT_ON_TIME_TOLERANCE_MIN })}</p>}
+    </div>
+  )
+}
+
+/**
+ * 「詳しく設定」の中: 曜日ごとに時間を変える（曜日を指定して時間を決めたとき）・1 回の目標（習慣だけ）。
+ * どちらも出せないときは何も出さない。使っている習慣を編集するときは最初から開く
+ */
+function AdvancedFields({ form, onChange }: { form: HabitFormState; onChange: (patch: Partial<HabitFormState>) => void }) {
+  const { t } = useTranslation()
+  const routine = form.kind === 'routine'
+  const canPerWeekday = form.freq === 'weekly' && form.timeMode !== 'none'
+  const [open, setOpen] = useState(() => (canPerWeekday && form.perWeekday) || (!routine && form.goalMinutes.trim() !== ''))
+  if (!canPerWeekday && routine) return null
+  return (
+    <div className="space-y-2">
+      <DisclosureButton open={open} onToggle={() => setOpen((v) => !v)} className="-ml-3">
+        {t('habits.advanced')}
+      </DisclosureButton>
+      {open ? (
+        <div className="space-y-3">
+          {/* 押さなければ今までどおり 1 つの時間 */}
+          {canPerWeekday ? (
+            <button
+              type="button"
+              aria-pressed={form.perWeekday}
+              onClick={() => onChange({ perWeekday: !form.perWeekday })}
+              // 文字の頭を欄の頭にそろえる
+              className={buttonClass({ variant: 'link', size: 'xs' }, '-ml-2.5')}
+            >
+              {form.perWeekday ? t('habits.sameTimeEveryDay') : t('habits.timePerWeekday')}
+            </button>
+          ) : null}
+          {routine ? null : <GoalMinutesField value={form.goalMinutes} onChange={(goalMinutes) => onChange({ goalMinutes })} />}
         </div>
       ) : null}
-
-      {/* 曜日を指定して時間を決めたときだけ。押さなければ今までどおり 1 つの時間 */}
-      {form.freq === 'weekly' && mode !== 'none' ? (
-        <button
-          type="button"
-          aria-pressed={form.perWeekday}
-          onClick={() => onChange({ perWeekday: !form.perWeekday })}
-          // 文字の頭を欄の頭にそろえる
-          className={buttonClass({ variant: 'link', size: 'xs' }, '-ml-2.5')}
-        >
-          {form.perWeekday ? t('habits.sameTimeEveryDay') : t('habits.timePerWeekday')}
-        </button>
-      ) : null}
-
-      {mode !== 'none' && !routine ? <p className={HINT_TEXT}>{t('habits.onTimeHint', { min: HABIT_ON_TIME_TOLERANCE_MIN })}</p> : null}
     </div>
   )
 }
@@ -303,7 +315,8 @@ function GoalMinutesField({ value, onChange }: { value: string; onChange: (value
 }
 
 /**
- * 習慣の追加・編集で共通の欄: 種類（習慣 / ルーティン）・名前・色（＝ラベル）・頻度（毎日 / 曜日を指定と曜日 / 週に◯回と回数）・時刻。
+ * 習慣の追加・編集で共通の欄: 種類（習慣 / ルーティン）・名前・色（＝ラベル）・頻度（毎日 / 曜日を指定と曜日 / 週に◯回と回数）・時間（「時間を決める」）。
+ * 曜日ごとの時間・1 回の目標は「詳しく設定」の中。
  * ルーティンは時間帯だけ・週に◯回と時間の目標なし（`effectiveHabitForm`）。
  * Enter で `onSubmit`、Esc で `onEscape`。`name` はラジオのまとまりの名前（追加と編集で分ける）
  */
@@ -368,8 +381,8 @@ export function HabitFormFields({
       {shown.freq === 'timesPerWeek' ? (
         <TimesPerWeekPicker count={form.timesPerWeek} onChange={(timesPerWeek) => onChange({ timesPerWeek })} />
       ) : null}
-      <HabitTimeFields form={shown} name={name} onChange={onChange} />
-      {routine ? null : <GoalMinutesField value={form.goalMinutes} onChange={(goalMinutes) => onChange({ goalMinutes })} />}
+      <HabitTimeFields form={shown} onChange={onChange} />
+      <AdvancedFields form={shown} onChange={onChange} />
     </>
   )
 }

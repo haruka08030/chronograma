@@ -6,38 +6,32 @@ import { useTaskStore } from '../store/taskStore'
 import { appTodayKey } from '../lib/timeZone'
 
 describe('習慣の画面: 新しい習慣のフォーム', () => {
-  it('くり返しと時間のラジオは見出し付きの別のまとまりになる', async () => {
+  it('最初に見せるのは種類・名前・色・くり返し・「時間を決める」・「詳しく設定」だけ（#610）', async () => {
     const user = userEvent.setup()
     render(<HabitsView />)
     await user.click(screen.getByRole('button', { name: '+ Add habit' }))
 
-    const repeat = screen.getByRole('radiogroup', { name: 'Repeat' })
-    const time = screen.getByRole('radiogroup', { name: 'Time' })
-    expect(screen.getByText('Repeat')).toBeVisible()
-    expect(screen.getByText('Time')).toBeVisible()
-
     expect(
-      within(repeat)
+      within(screen.getByRole('radiogroup', { name: 'Repeat' }))
         .getAllByRole('radio')
         .map((r) => r.closest('label')?.textContent),
     ).toEqual(['Daily', 'Specific days', 'Times a week'])
-    expect(
-      within(time)
-        .getAllByRole('radio')
-        .map((r) => r.closest('label')?.textContent),
-    ).toEqual(['No time', 'Set time', 'Set time range'])
-    expect(within(repeat).getByRole('radio', { name: 'Daily' })).toBeChecked()
-    expect(within(time).getByRole('radio', { name: 'Set time range' })).toBeChecked()
-    // 時間帯の欄の前に「Time」を繰り返さない（見出しが 1 つだけ）
-    expect(screen.getAllByText('Time')).toHaveLength(1)
+    // 時間の 3 択・1 回の目標は最初は出さない
+    expect(screen.queryByRole('radiogroup', { name: 'Time' })).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(screen.getByRole('button', { name: 'More options' })).toBeInTheDocument()
 
-    // まとまりごとに 1 つ選ぶ（片方を選んでももう片方は変わらない）
-    await user.click(within(time).getByRole('radio', { name: 'No time' }))
-    expect(within(time).getByRole('radio', { name: 'No time' })).toBeChecked()
-    expect(within(repeat).getByRole('radio', { name: 'Daily' })).toBeChecked()
-    await user.click(within(repeat).getByRole('radio', { name: 'Times a week' }))
-    expect(within(repeat).getByRole('radio', { name: 'Times a week' })).toBeChecked()
-    expect(within(time).getByRole('radio', { name: 'No time' })).toBeChecked()
+    // 「時間を決める」で開始〜終了。終わりを外すと時刻だけ、時間を外すとボタンに戻る
+    await user.click(screen.getByRole('button', { name: 'Set a time' }))
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'Remove end time' }))
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Remove time' }))
+    expect(screen.getByRole('button', { name: 'Set a time' })).toBeInTheDocument()
+
+    // 1 回の目標は「詳しく設定」の中
+    await user.click(screen.getByRole('button', { name: 'More options' }))
+    expect(screen.getByRole('spinbutton')).toBeInTheDocument()
   })
 
   it('フォームを開いている間は「右上の＋習慣を追加」の案内を出さない', async () => {
@@ -113,12 +107,15 @@ describe('習慣の画面: 休み', () => {
 })
 
 describe('習慣の画面: 曜日ごとの時間', () => {
-  it('曜日を指定して時間を決めたときだけ「曜日ごとに時間を変える」が出て、押すと選んだ曜日の行が出る', async () => {
+  it('曜日を指定して時間を決めたときだけ「詳しく設定」に「曜日ごとに時間を変える」が出て、押すと選んだ曜日の行が出る', async () => {
     const user = userEvent.setup()
     render(<HabitsView />)
     await user.click(screen.getByRole('button', { name: '+ Add habit' }))
+    await user.click(screen.getByRole('button', { name: 'More options' }))
     expect(screen.queryByRole('button', { name: 'Different time per day' })).toBeNull()
     await user.click(screen.getByRole('radio', { name: 'Specific days' }))
+    expect(screen.queryByRole('button', { name: 'Different time per day' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Set a time' }))
     await user.click(screen.getByRole('button', { name: 'Different time per day' }))
     expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(
       expect.arrayContaining(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']),

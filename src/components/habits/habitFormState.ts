@@ -46,7 +46,8 @@ export const EMPTY_HABIT_FORM: HabitFormState = {
   freq: 'daily',
   weekdays: DEFAULT_WEEKDAYS,
   timesPerWeek: DEFAULT_TIMES_PER_WEEK,
-  timeMode: 'range',
+  // 時間は「時間を決める」を押してから（押すと 09:00〜10:00）
+  timeMode: 'none',
   startTime: '09:00',
   endTime: '10:00',
   perWeekday: false,
