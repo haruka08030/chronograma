@@ -61,6 +61,28 @@ describe('いつかの段（#221）', () => {
     expect(get('trip').somedayTier).toBe('dream')
   })
 
+  it('小タスクを段へ移すと親から外れ、親のすぐ後のルートの行になる。1 回の取り消しで戻る（#606）', () => {
+    useTaskStore.setState({ tasks: [row('trip', { order: 0 }), row('picnic', { order: 1 }), row('step', { parentId: 'trip' })] })
+    st().setSomedayTier(['step'], 'dream')
+    expect(get('step')).toMatchObject({ parentId: null, somedayTier: 'dream' })
+    const roots = st()
+      .tasks.filter((t) => t.listId === 'wish' && !t.parentId)
+      .sort((a, b) => a.order - b.order)
+      .map((t) => t.id)
+    expect(roots).toEqual(['trip', 'step', 'picnic'])
+    st().undoLastOperation()
+    expect(get('step').parentId).toBe('trip')
+    st().setSomedayTier(['step'], 'wish')
+    expect(get('step').parentId).toBeNull()
+    expect('somedayTier' in get('step')).toBe(false)
+  })
+
+  it('いつかでは右ドラッグで直前の行の子にしない（#606）', () => {
+    useTaskStore.setState({ tasks: [row('trip', { order: 0 }), row('picnic', { order: 1 })] })
+    expect(st().indentTaskUnderPrevSibling('picnic')).toBe(false)
+    expect(get('picnic').parentId).toBeNull()
+  })
+
   it('ほかのリストへ移す・予定にすると夢の段は外れる', () => {
     st().setSomedayTier(['trip', 'picnic'], 'dream')
     st().updateTask('picnic', { listId: '__inbox__' })

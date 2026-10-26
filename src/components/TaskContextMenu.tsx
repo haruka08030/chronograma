@@ -107,6 +107,8 @@ export function TaskContextMenu({
   // いつかの夢は本体を予定にしない（一歩＝子を予定にする、#221）。段を変えられるのはルートの行だけ
   const schedulableWishes = targets.filter((x) => !x.completed && !(x.somedayTier === 'dream' && !x.parentId)).map((x) => x.id)
   const tierRoots = targets.filter((x) => !x.parentId && !x.completed)
+  // 小タスクはどちらの段でもないので両方を出す（選ぶと親から外れてその段の行になる、#606）
+  const tierChildren = targets.filter((x) => x.parentId && !x.completed)
   const allDreams = tierRoots.length > 0 && tierRoots.every((x) => x.somedayTier === 'dream')
   const done = (fn: () => void) => () => {
     fn()
@@ -339,19 +341,20 @@ export function TaskContextMenu({
     run: done(() => bulk.remove(taskIds)),
   }
   // いつか: 予定する・かなえた・削除だけ（かなえたものは削除だけ）
+  const tierLeaf = (tier: 'dream' | 'wish'): ActionEntry => ({
+    kind: 'leaf',
+    id: `tier-${tier}`,
+    label: t(tier === 'dream' ? 'someday.moveToDream' : 'someday.moveToWish'),
+    detail: t(tier === 'dream' ? 'someday.moveToDreamDetail' : 'someday.moveToWishDetail'),
+    icon: <ArrowRightIcon className={ICON} />,
+    run: done(() => setSomedayTier(taskIds, tier)),
+  })
   const tierEntry: ActionEntry[] =
     tierRoots.length > 0 && tierRoots.length === targets.length
-      ? [
-          {
-            kind: 'leaf',
-            id: 'tier',
-            label: t(allDreams ? 'someday.moveToWish' : 'someday.moveToDream'),
-            detail: t(allDreams ? 'someday.moveToWishDetail' : 'someday.moveToDreamDetail'),
-            icon: <ArrowRightIcon className={ICON} />,
-            run: done(() => setSomedayTier(taskIds, allDreams ? 'wish' : 'dream')),
-          },
-        ]
-      : []
+      ? [tierLeaf(allDreams ? 'wish' : 'dream')]
+      : tierChildren.length > 0 && tierChildren.length === targets.length
+        ? [tierLeaf('dream'), tierLeaf('wish')]
+        : []
   const somedayEntries: ActionEntry[] = [
     ...(openWishes.length > 0
       ? [
