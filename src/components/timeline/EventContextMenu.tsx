@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { skippedEventById } from '../../hooks/useShownCalendarEvents'
 import { isEventTask, isLogTask, type Task } from '../../types/task'
-import { NEUTRAL_HEX, DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
+import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { recordHex, colorVars } from '../../lib/logCategoryColors'
 import { planTiming } from '../../lib/planTiming'
 import { startTimerForTask } from '../../lib/timerDrop'
@@ -191,9 +191,9 @@ function TaskEventMenuBody({
 }
 
 /**
- * Google の予定を右クリックしたときのメニュー（Google カレンダーの右クリックと同じく、色・コピー・削除）。
+ * Google の予定を右クリックしたときのメニュー（コピー・Google カレンダーで開く・削除。色はカードの色の四角で変える）。
  * タイムラインの右クリック・長押しは `brief` でコピーだけ（ほかはカード）。
- * 書き込めない予定は「Google カレンダーで開く」だけ。繰り返しの色はカードの既定と同じく「すべての予定」に付ける。
+ * 書き込めない予定は「Google カレンダーで開く」だけ。
  * やらなかった予定（#528）は削除だけ（予定していなかったものを消す）
  */
 export function GoogleEventMenu({
@@ -215,7 +215,6 @@ export function GoogleEventMenu({
   const skipped = useTaskStore((s) => !liveEvent && s.skippedEvents.some((e) => e.id === eventId && !e.removed))
   const event = liveEvent ?? (skipped ? skippedEventById(eventId) : null)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
-  const setGoogleEventColor = useTaskStore((s) => s.setGoogleEventColor)
   const removeSkippedEvent = useTaskStore((s) => s.removeSkippedEvent)
   if (!event) return null
   if (skipped) {
@@ -230,37 +229,7 @@ export function GoogleEventMenu({
     return <ActionMenu x={x} y={y} header={event.summary} entries={[remove]} onClose={onClose} searchable={false} />
   }
   const editable = canEditGoogleEvent(event, googleCanWrite)
-  const scope = event.recurringEventId ? 'series' : 'event'
   const entries: ActionEntry[] = [
-    ...(editable
-      ? [
-          {
-            kind: 'sub' as const,
-            id: 'color',
-            label: t('labels.pickerAria'),
-            icon: <Dot hex={event.color ?? DEFAULT_GOOGLE_EVENT_HEX} />,
-            leaves: [],
-            width: 'lg' as const,
-            extra: (close: () => void) => (
-              <ColorPalette
-                bare
-                fill
-                selectedHex={event.color ?? DEFAULT_GOOGLE_EVENT_HEX}
-                onChoose={(h) => {
-                  setGoogleEventColor(event, h, scope)
-                  close()
-                }}
-                onDefault={() => {
-                  setGoogleEventColor(event, null, scope)
-                  close()
-                }}
-                defaultLabel={t('eventCard.googleColor')}
-                defaultHex={event.baseColor ?? DEFAULT_GOOGLE_EVENT_HEX}
-              />
-            ),
-          },
-        ]
-      : []),
     // 同じ日・同じ時間にもう 1 つ（自分の予定の「コピー」と同じ）
     ...(editable
       ? [

@@ -5,6 +5,7 @@ import { normalizeAbsenceCourses } from './absenceCourses'
 import { mergeSchool, normalizeSchool, type School } from './schoolTerms'
 import { courseKey } from './courseLinks'
 import { merge3, merge3ById, merge3Record, merge3Set, type Side } from './settingMerge'
+import { normalizeEventColorChoices, type EventColorChoices } from './googleEventColors'
 
 /**
  * 追加機能（#453）。生活まわりの機能（学校・引き落とし …）は使う人だけがオンにし、オフの機能は普段の画面に出さない。
@@ -30,6 +31,11 @@ export type Addons = {
   absenceCourses: string[]
   /** 学校の学期と授業（#622、`lib/schoolTerms.ts`）。null はまだ決めていない（今までの時間割から見せる） */
   school: School | null
+  /**
+   * Google の予定にアプリで付けた色（#639、`lib/googleEventColors.ts`）。同期で送る値・届いた値にだけ入る
+   * （手元ではストアの `googleEventColors`。`addonsWithEventColors` / `splitEventColors`）。無いのは前の版のアプリが送った値
+   */
+  googleEventColors?: EventColorChoices
 }
 
 export const DEFAULT_ADDONS: Addons = { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null }
@@ -60,7 +66,19 @@ export function normalizeAddons(raw: unknown): Addons {
     googleSkip: normalizeGoogleSkip(x.googleSkip),
     absenceCourses: normalizeAbsenceCourses(x.absenceCourses),
     school: normalizeSchool(x.school),
+    ...('googleEventColors' in x ? { googleEventColors: normalizeEventColorChoices(x.googleEventColors) } : {}),
   }
+}
+
+/** 同期で送る値: 追加機能の設定に Google の予定に付けた色を入れる（無くても空で入れる。全部外したことも届ける） */
+export function addonsWithEventColors(addons: Addons, colors: EventColorChoices): Addons {
+  return { ...addons, googleEventColors: colors }
+}
+
+/** 届いた値を、追加機能の設定と Google の予定に付けた色に分ける。色が無い（前の版のアプリが送った）なら null（手元の色のまま） */
+export function splitEventColors(value: Addons): { addons: Addons; googleEventColors: EventColorChoices | null } {
+  const { googleEventColors, ...addons } = value
+  return { addons, googleEventColors: googleEventColors ?? null }
 }
 
 /** 時間割の授業を入れているか（毎週の予定がある。時間割が追加機能になる前から使っていた人はオンのまま） */
@@ -95,14 +113,16 @@ export type AddonsSyncPlan = {
 
 /**
  * 両方の端末で変えた追加機能の設定を中身ごとに合わせる（`base` は前回合わせた版。無ければ両方にあるものを残す）。
- * オン・オフは機能ごと、引き落とし・期限は id ごと、Google に送らない名前・欠席の一覧の授業は名前の集合、学校は学期ごと（`mergeSchool`）。
+ * オン・オフは機能ごと、引き落とし・期限は id ごと、Google に送らない名前・欠席の一覧の授業は名前の集合、学校は学期ごと（`mergeSchool`）、
+ * Google の予定に付けた色は予定・繰り返しごと。
  * 両方が別の値に変えたものだけ `prefer` の側（新しいほう）。知らない項目（後の版で足すもの）は `prefer` の側のまま
  */
 export function mergeAddons(base: Addons | null, l: Addons, r: Addons, prefer: Side, onConflict?: () => void): Addons {
   const [first, second] = prefer === 'l' ? [l, r] : [r, l]
   const extra: Record<string, unknown> = { ...second, ...first }
   for (const k of Object.keys(extra)) {
-    if (k === 'enabled' || k === 'dues' || k === 'googleSkip' || k === 'absenceCourses' || k === 'school') continue
+    if (k === 'enabled' || k === 'dues' || k === 'googleSkip' || k === 'absenceCourses' || k === 'school' || k === 'googleEventColors')
+      continue
     const bx = base as Record<string, unknown> | null
     extra[k] = merge3(bx?.[k], (l as Record<string, unknown>)[k], (r as Record<string, unknown>)[k], prefer)
   }
@@ -113,5 +133,16 @@ export function mergeAddons(base: Addons | null, l: Addons, r: Addons, prefer: S
     googleSkip: merge3Set(base?.googleSkip ?? null, l.googleSkip, r.googleSkip, prefer, googleSkipKey),
     absenceCourses: merge3Set(base?.absenceCourses ?? null, l.absenceCourses, r.absenceCourses, prefer, courseKey),
     school: mergeSchool(base?.school ?? null, l.school, r.school, prefer, onConflict),
+    ...(l.googleEventColors || r.googleEventColors
+      ? {
+          googleEventColors: merge3Record(
+            base?.googleEventColors ?? null,
+            l.googleEventColors ?? {},
+            r.googleEventColors ?? {},
+            prefer,
+            onConflict,
+          ),
+        }
+      : {}),
   })
 }

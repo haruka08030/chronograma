@@ -17,6 +17,7 @@ import { normalizeSleepTimer } from '../lib/sleepTimer'
 import { normalizeSleepPrefs } from '../lib/sleepPrefs'
 import { normalizeSkippedEvents } from '../lib/skippedEvents'
 import { normalizeMyEventTimes } from '../lib/myEventTimes'
+import { normalizeEventColorChoices } from '../lib/googleEventColors'
 import { normalizeStoredRows } from '../lib/backupFormat'
 import { withTaskDefaults } from '../lib/taskDefaults'
 import type { Task } from '../types/task'
@@ -47,7 +48,7 @@ export const STORED_SETTINGS: Record<SettingDataKey, StoredSetting> = {
   logLabelIds: { normalize: normalizeLabelIds, stamp: 'logLabelsUpdatedAt' },
   logLabelsUpdatedAt: {},
   logLabelPendingAdds: { normalize: strings },
-  googleEventColors: {},
+  googleEventColors: { normalize: normalizeEventColorChoices, stamp: 'addonsUpdatedAt' },
   activeTimer: { stamp: 'activeTimerUpdatedAt' },
   activeTimerUpdatedAt: {},
   dailyReminders: {},

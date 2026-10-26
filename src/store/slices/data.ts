@@ -96,7 +96,7 @@ export const BACKUP_EXCLUDED = {
   activeTimerUpdatedAt: '同期の版',
   sleepTimer: '寝ている間だけある睡眠のタイマー。起きたら睡眠の記録としてタスクに入る',
   sleepTimerUpdatedAt: '同期の版',
-  googleEventColors: 'Google の予定の id に付けた色。Google の予定そのものは書き出さない',
+  googleEventColors: 'Google の予定の id に付けた色。Google の予定そのものは書き出さない（同期で戻る）',
   skippedEvents: 'やらなかった予定は Google の予定の控え。Google の予定そのものは書き出さない（同期で戻る）',
   skippedEventsUpdatedAt: '同期の版',
   myEventTimes: 'Google の予定の id に付けた自分の時間。Google の予定そのものは書き出さない（同期で戻る）',

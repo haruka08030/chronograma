@@ -73,6 +73,7 @@ import { fetchSleepTimer, pushSleepTimer } from '../lib/sleepTimerSync'
 import { createDayMoodPullState, dayMoodSince, runDayMoodSync } from '../lib/dayMood'
 import { hasExistingData } from '../lib/onboarding'
 import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
+import { addonsWithEventColors, splitEventColors } from '../lib/addons'
 import { storeActiveTimerIo } from './activeTimerIo'
 import { isKnownChange, subscribeSyncWake, type WakeEvent } from '../lib/syncWake'
 import {
@@ -519,19 +520,26 @@ export function useSupabaseSync() {
         // 一度も変えていない既定の値は送らない（`planTimetableSync`）。サーバーにも行が無ければ取りに行かない
         emptyWhenUnset: true,
       })
-    /** 追加機能のオン・オフ（#453） */
+    /** 追加機能のオン・オフ（#453）。Google の予定に付けた色（#639）も同じ行で送る */
     const syncAddons = () =>
       syncSetting({
         key: 'addons',
         fetch: () => fetchAddons(supabase, userId),
         plan: (remote, syncedAt, offset, base) => {
           const st = useTaskStore.getState()
-          return planAddonsSync({ addons: st.addons, updatedAt: st.addonsUpdatedAt, syncedAt }, remote, undefined, offset, base)
+          const addons = addonsWithEventColors(st.addons, st.googleEventColors)
+          return planAddonsSync({ addons, updatedAt: st.addonsUpdatedAt, syncedAt }, remote, undefined, offset, base)
         },
-        // 合わせた版の中身を控える（両方で変えたとき、機能・支払い・名前ごとに合わせる）
+        // 合わせた版の中身を控える（両方で変えたとき、機能・支払い・名前・予定の色ごとに合わせる）
         baseOf: (synced) => synced.addons,
         localUpdatedAt: () => useTaskStore.getState().addonsUpdatedAt,
-        applyLocal: ({ addons, updatedAt }) => asIncomingChange(() => useTaskStore.setState({ addons, addonsUpdatedAt: updatedAt })),
+        applyLocal: ({ addons: value, updatedAt }) => {
+          // 色の無い値（前の版のアプリが送った）なら手元の色のまま
+          const { addons, googleEventColors } = splitEventColors(value)
+          asIncomingChange(() =>
+            useTaskStore.setState({ addons, addonsUpdatedAt: updatedAt, ...(googleEventColors ? { googleEventColors } : {}) }),
+          )
+        },
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ addonsUpdatedAt: at })),
         push: (p) => pushAddons(supabase, userId, p, p.base),
         // 一度も変えていなければ送らない（`planAddonsSync`）。サーバーにも行が無ければ取りに行かない
@@ -978,6 +986,7 @@ export function useSupabaseSync() {
         state.myEventTimes === prev.myEventTimes &&
         state.timetable === prev.timetable &&
         state.addons === prev.addons &&
+        state.googleEventColors === prev.googleEventColors &&
         state.sleepTimer === prev.sleepTimer &&
         state.dayMoods === prev.dayMoods
       )

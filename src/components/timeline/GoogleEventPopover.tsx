@@ -18,7 +18,9 @@ import { useHotkey } from '../../hooks/useHotkey'
 import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
 import { anchoredCardClass } from '../ui/surface'
 import { iconButtonClass } from '../ui/iconButtonClass'
-import { CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
+import { ChevronDownIcon, CloseIcon, OpenPanelIcon, TrashIcon } from '../icons'
+import { ColorPalette } from '../labels/ColorPalette'
+import { useLabeledSwatches } from '../../hooks/useLabeledSwatches'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { DateField } from '../DateField'
 import { shortcutTip, tip } from '../../lib/tooltip'
@@ -43,8 +45,9 @@ const WIDTH = 320
 
 /**
  * Google の予定を押したときのカード。書き込みを許可していれば、タイトルの変更と削除が Google に反映される（繰り返し予定はこの回だけ）。
- * 時刻つきの予定の日付・時刻は、Google を変えずに自分の時間にする（#625）。自分の時間のときは開催時間と「開催時間に戻す」を出す。色はアプリで付け直せる（API に出ない新しい色の代わり）。
- * 繰り返し予定は Google と同じく「この予定 / すべての繰り返し」を選べる。付けた色は似たタイトルの色なし予定にも広がる。
+ * 時刻つきの予定の日付・時刻は、Google を変えずに自分の時間にする（#625）。自分の時間のときは開催時間と「開催時間に戻す」を出す。
+ * 色は題名の左の色の四角を押して色の一覧から付け直す（#639。アプリだけの色で Google には送らない。書き込めない予定にも付けられる。
+ * 繰り返し予定はすべての回に付く）。付けた色は似たタイトルの色なし予定にも広がる。
  * やらなかった予定（#528、時間が過ぎてから消した予定）は、そう書いて削除だけできる（予定していなかったものを消す）。
  */
 export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: string; anchor: AnchorRect; onClose: () => void }) {
@@ -58,6 +61,9 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const now = useNow()
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
+  const setGoogleEventColor = useTaskStore((s) => s.setGoogleEventColor)
+  const swatches = useLabeledSwatches(true)
+  const [pickingColor, setPickingColor] = useState(false)
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   // 入力中に外側を押して閉じても、書いたタイトルは保存する
   const pendingTitleRef = useRef<string | null>(null)
@@ -104,6 +110,10 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const recurring = !!event.recurringEventId
   const skipped = event.skipped === true
   const hex = event.color ?? DEFAULT_GOOGLE_EVENT_HEX
+  const colorScope = recurring ? 'series' : 'event'
+  // 色の四角のヒントは色の一覧の丸と同じ「ラベル名（色名）」
+  const colorName = swatches.find((sw) => sw.hex.toUpperCase() === hex.toUpperCase())?.name ?? null
+  const colorButtonLabel = colorName ? t('common.withNote', { title: t('labels.changeColor'), note: colorName }) : t('labels.changeColor')
   const dateText = df.monthDayWeekdayLong(event.date)
   const editable = canEditGoogleEvent(event, googleCanWrite)
   const timeEditable = canSetMyEventTime(event)
@@ -113,7 +123,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const { style, sheet } = anchoredCardStyle(
     anchor,
     WIDTH,
-    (recurring ? 210 : 190) + (timeEditable ? 40 : 0) + (held ? 24 : 0) + 44 + memoHeightEstimate(memo),
+    (recurring ? 210 : 190) + (timeEditable ? 40 : 0) + (pickingColor ? 200 : 0) + (held ? 24 : 0) + 44 + memoHeightEstimate(memo),
   )
   const smallField = fieldClass({ size: 'sm' })
   const nowMs = now.getTime()
@@ -203,8 +213,23 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           <CloseIcon className="h-4 w-4" />
         </button>
       </div>
-      <div className="grid grid-cols-[20px_1fr] gap-x-3 gap-y-1 px-5 pb-3">
-        <span className="gc-dot mt-1.5 h-3.5 w-3.5 rounded" style={colorVars(hex)} aria-hidden />
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-5 pb-3">
+        {skipped ? (
+          <span className="gc-dot mx-1.5 mt-1.5 h-3.5 w-3.5 rounded" style={colorVars(hex)} aria-hidden />
+        ) : (
+          // 押すと色の一覧。枠と ▾ でボタンと分かる形にする（ホバーしなくても押せると分かる）
+          <button
+            type="button"
+            onClick={() => setPickingColor((v) => !v)}
+            aria-expanded={pickingColor}
+            aria-label={colorButtonLabel}
+            {...tip(colorName ?? t('labels.changeColor'))}
+            className="mt-0.5 flex h-7 items-center gap-0.5 self-start rounded-md border border-zinc-200 px-1 text-zinc-500 transition-colors touch-manipulation hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          >
+            <span className="gc-dot h-3.5 w-3.5 rounded" style={colorVars(hex)} aria-hidden />
+            <ChevronDownIcon className="h-3 w-3" strokeWidth={2} aria-hidden />
+          </button>
+        )}
         <div className="min-w-0">
           {editable ? (
             <input
@@ -225,6 +250,25 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
             <p className={`break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100 ${skipped ? SKIPPED_EVENT_CLASS : ''}`}>
               {event.summary}
             </p>
+          )}
+          {pickingColor && (
+            <div className="-mx-1 mt-1.5">
+              <ColorPalette
+                bare
+                fill
+                selectedHex={hex}
+                onChoose={(h) => {
+                  setGoogleEventColor(event, h, colorScope)
+                  setPickingColor(false)
+                }}
+                onDefault={() => {
+                  setGoogleEventColor(event, null, colorScope)
+                  setPickingColor(false)
+                }}
+                defaultLabel={t('eventCard.googleColor')}
+                defaultHex={event.baseColor ?? DEFAULT_GOOGLE_EVENT_HEX}
+              />
+            </div>
           )}
           {timeEditable ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

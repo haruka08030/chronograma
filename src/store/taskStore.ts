@@ -13,6 +13,7 @@ import type { EventTemplate } from '../lib/eventTemplates'
 import { withCourseLink, type CourseLink } from '../lib/courseLinks'
 import { withRemoved, withSkipped, withoutRestored, type SkippedEvent } from '../lib/skippedEvents'
 import { fitMyEventTimes, withMyEventTimes, withMyTime, withRemovedTime, type MyEventTime } from '../lib/myEventTimes'
+import { resolveEventColors } from '../lib/googleEventColors'
 import { shortDate } from '../lib/moveToast'
 import { appTimeZone, wallInZone } from '../lib/timeZone'
 import { sameValue } from '../lib/sameValue'
@@ -507,6 +508,12 @@ for (const [stamp, keys] of Object.entries(SETTING_STAMPS)) {
 }
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
+})
+// Google の予定に付けた色が変わったら（操作・同期・元に戻す・他のタブ）、出ている Google の予定に当て直す（入れるときは `setCalendarEvents`）
+useTaskStore.subscribe((s, prev) => {
+  if (s.googleEventColors === prev.googleEventColors) return
+  const calendarEvents = resolveEventColors(s.calendarEvents, s.googleEventColors)
+  if (calendarEvents !== s.calendarEvents) useTaskStore.setState({ calendarEvents })
 })
 // 自分の時間（#625）が変わったら（操作・同期・元に戻す・他のタブ）、出ている Google の予定に当て直す（入れるときは `setCalendarEvents`）
 useTaskStore.subscribe((s, prev) => {
