@@ -65,8 +65,8 @@ export function PlannerHeader({
       {/* 過ぎた日は、締めで付けた気分の記号を睡眠の横に小さく（今日の昼・これからの日には出さない） */}
       {(showSleep || !showFree) && (
         <div className="mt-2 flex flex-wrap items-start gap-x-2 md:mt-3">
-          {showSleep && <SleepRow key={dateKey} dateKey={dateKey} />}
-          {!showFree && <DayMoodBadge key={dateKey} dateKey={dateKey} />}
+          {showSleep && <SleepRow key={`sleep-${dateKey}`} dateKey={dateKey} />}
+          {!showFree && <DayMoodBadge key={`mood-${dateKey}`} dateKey={dateKey} />}
         </div>
       )}
       {/* 計画しているとき（今日・先の日）だけ、置いた To-Do と空き。過ぎた日・記録の合計の数字は出さない（記入漏れ・重なりで意味がぶれる） */}

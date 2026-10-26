@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../../store/taskStore'
@@ -117,5 +117,14 @@ describe('今日の計画での出し方', () => {
     openDay(yesterday)
     expect(screen.getByRole('img', { name: 'Mood: Okay' })).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: "Today's mood" })).not.toBeInTheDocument()
+  })
+
+  it('日を何度変えても睡眠の行は 1 つだけ（睡眠と気分の記号の key が重ならない）', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(new Date().setHours(9, 0, 0, 0)))
+    const today = appToday()
+    openDay(toDateKey(today))
+    for (let i = 1; i <= 3; i++) act(() => S().setSelectedCalendarDateKey(toDateKey(addDays(today, -i))))
+    expect(screen.getAllByText('Sleep')).toHaveLength(1)
   })
 })
