@@ -1,26 +1,30 @@
 ---
-description: アプリ変更時に doc/CURSOR_CONTEXT.md を同期する
+description: アプリ変更時に doc/RULES.md と doc/CURSOR_CONTEXT.md を同期する
 alwaysApply: true
 ---
 
 # プロジェクトドキュメントの同期
 
-`doc/CURSOR_CONTEXT.md` は Cursor / エージェント向けの**正確なプロジェクト概要**として扱う。
+- `doc/RULES.md`: 挙動の決まり。挙動はここを正とする
+- `doc/CURSOR_CONTEXT.md`: ファイルの地図と、保存・同期・DB・環境変数・npm scripts の技術的な事実。挙動は書かない
 
 ## いつ更新するか
 
-次のいずれかを変更したときは、**同じタスク内で** `doc/CURSOR_CONTEXT.md` を読み、差分があれば更新する。
+同じタスク内で、差分があれば更新する。
 
-- `src/` の挙動・アーキテクチャ（ストア、認証、同期、主要ビュー、ショートカット、DnD）
-- `supabase/migrations/` またはスキーマ・RLS
-- `.env.example`、永続化キー、npm scripts、`package.json` の意味のある依存関係
+- **挙動を変えたとき**（通知・操作・表示・言葉・同期と保存の決まり）: `doc/RULES.md`
+- **次を変えたときだけ** `doc/CURSOR_CONTEXT.md`:
+  - ファイル・ディレクトリの追加・削除・役割の変更（ファイルの地図）
+  - 保存の仕組み（IndexedDB・保存キー・`DATA_KEYS`）・同期の仕組み
+  - `supabase/migrations/`・スキーマ・RLS・Edge Function の構成
+  - `.env.example`・環境変数、npm scripts、CI、`package.json` の意味のある依存関係
 
 ## どう更新するか
 
-- 事実だけを短く追記・修正する（推測や長いチュートリアルは書かない）。
-- ファイル一覧の「地図」は、追加・削除・役割変更があれば該当セクションだけ直す。
-- 変更がドキュメントに影響しない（ typo 修正のみなど）なら触らない。
+- 事実だけを短く（推測・経緯・日付・長いチュートリアルは書かない）
+- 書く識別子・パスはコードに今あるものだけ
+- 該当するセクションだけ直す。typo 修正のみなど、ドキュメントに影響しない変更なら触らない
 
 ## 参照
 
-ルート `README.md` はユーザー向けの入口。実装のソース・オブ・トゥルースはコードと **本ドキュメント**。
+ルート `README.md` は利用者向けの入口。実装のソース・オブ・トゥルースはコード、挙動は `doc/RULES.md`。
