@@ -66,7 +66,7 @@ describe('記録の名前の候補', () => {
     const picker = screen.getByRole('button', { name: '色とラベル' })
     expect(picker).toHaveTextContent('課題')
     fireEvent.click(picker)
-    fireEvent.click(screen.getByRole('radio', { name: 'バイト' }))
+    fireEvent.click(screen.getByRole('radio', { name: /^バイト（/ }))
     fireEvent.change(input, { target: { value: 'STAT HW2' } })
     expect(picker).toHaveTextContent('バイト')
   })
@@ -76,8 +76,7 @@ describe('記録の名前の候補', () => {
     const input = openLater()
     fireEvent.change(input, { target: { value: '散歩' } })
     fireEvent.click(screen.getByRole('button', { name: '色とラベル' }))
-    // ラベル名はヒントに隠さずチップの文字で見せる（#596）
-    expect(screen.getByRole('radio', { name: '課題' })).toHaveTextContent('課題')
+    expect(screen.getByRole('radio', { name: /^課題（/ })).toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: /消したラベル/ })).toBeNull()
     fireEvent.click(screen.getByRole('radio', { name: 'セージ' }))
     expect(screen.getByRole('button', { name: '色とラベル' })).toHaveTextContent('セージ')
