@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDuration } from '../lib/timeGrid'
 import { useTaskStore } from '../store/taskStore'
@@ -23,24 +23,25 @@ const floorTo5 = (min: number) => {
 export const SleepMoonIcon = () => <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-sleep" />
 
 /**
- * 寝た時刻と起きた時刻の間に置く、睡眠の色の短い帯（「睡眠」「〜」の文字の代わり）。
- * `open` は寝ている途中（右端を点線にして、まだ続いていることを見せる）
+ * 寝た時刻と起きた時刻の間に置く、睡眠の色の細い線（「睡眠」「〜」の文字の代わり）。
+ * 中抜きの帯にすると空のバーや入力欄に見えるので、塗りの線 1 本にする（#624）。
+ * `open` は寝ている途中（続きを点線にして、まだ続いていることを見せる）
  */
 export function SleepBar({ open = false }: { open?: boolean }) {
   return (
     <span className="inline-flex shrink-0 items-center" aria-hidden>
-      <span
-        className={`gc-plan h-1.5 w-7 ${open ? 'rounded-l-full border-r-0' : 'rounded-full'}`}
-        style={{ '--c': 'var(--color-sleep)' } as CSSProperties}
-      />
-      {open && <span className="h-1.5 w-4 rounded-r-full border border-l-0 border-dashed border-sleep/60" />}
+      <span className={`h-0.5 bg-sleep ${open ? 'w-4 rounded-l-full' : 'w-7 rounded-full'}`} />
+      {open && <span className="w-3 border-t-2 border-dotted border-sleep/60" />}
     </span>
   )
 }
 
-/** 睡眠の行のアイコンだけのボタン（寝る ▶・起きた ☀・保存 ✓）。枠でボタンと分かる形にする。スマホは指で押せる大きさ（32px） */
+/**
+ * 睡眠の行のアイコンだけのボタン（寝る ▶・起きた ☀・保存 ✓）。枠でボタンと分かる形にする。
+ * 見える丸は 24px で 12px の行になじませ、スマホの押せる範囲だけ 32px にする（丸は ::before で描く）
+ */
 export const SLEEP_ICON_BUTTON =
-  'inline-flex h-8 w-8 shrink-0 md:h-6 md:w-6 items-center justify-center rounded-full border border-zinc-200 text-sleep transition-colors hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-700 dark:hover:bg-zinc-800'
+  'relative isolate inline-flex h-8 w-8 shrink-0 items-center justify-center text-sleep before:absolute before:inset-1 before:-z-10 before:rounded-full before:border before:border-zinc-200 before:transition-colors hover:before:bg-zinc-100 disabled:opacity-40 disabled:hover:before:bg-transparent md:h-6 md:w-6 md:before:inset-0 dark:before:border-zinc-700 dark:hover:before:bg-zinc-800'
 
 interface SleepTimesFieldProps {
   /** 起きた日（この日の朝に起きた睡眠を入れる・直す） */
