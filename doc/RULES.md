@@ -9,12 +9,14 @@
 
 ## デプロイ
 
-スキーマを変えたら `supabase db push --linked --dry-run` で流れるファイルを確かめ、`supabase db push --linked` で本番に流す（適用履歴に記録される）。Edge Function は `supabase functions deploy <名前>`。
+スキーマを変えたら `supabase db push --linked --dry-run` で流れるファイルを確かめ、`supabase db push --linked` で本番に流す（適用履歴に記録される）。migration は何度流しても同じ形に書き、前の版のアプリが動いたままでも壊れない形（足すだけ）にするので、作業の途中で流してよい。番号は並行の作業とぶつかりやすいので、流す直前に `supabase migration list --linked` と dev の最新を見て付け直す。コミット済みの番号のファイルは書き換えない。
+
+Edge Function は本番のアプリと同じ版でなければならないので、作業の途中では出さない。出すのは下の「main に出すとき」だけで、これから main に入れる dev の版から出す（`supabase functions deploy <名前>`）。
 
 main に出すとき（DB と Edge Function は main へのマージでは出ないので手で出す。順番は migration → Edge Function → main へのマージ。新しいアプリが新しい列・関数を読む前にそろえる）:
 
 1. 流れていない migration を出す: `supabase db push --linked --dry-run` で流れるファイルを確かめ、あれば `supabase db push --linked`。流したあと `--dry-run` で 0 件になったのを確かめる
-2. 前回 deploy した後に変わった Edge Function を全部出す: 関数ごとに最後に deploy した時刻を `supabase functions list` の `UPDATED_AT` で見て、`git log --since='<その時刻>' --format='%h %ad %s' --date=iso dev -- supabase/functions/<名前> supabase/functions/_shared supabase/functions/deno.json supabase/functions/deno.lock` に 1 件でも出れば `supabase functions deploy <名前>`（`_shared` が変わればそれを読む関数は全部）
+2. 前回 deploy した後に変わった Edge Function を全部出す: 関数ごとに最後に deploy した時刻を `supabase functions list` の `UPDATED_AT` で見て、`git log --since='<その時刻>' --format='%h %ad %s' --date=iso dev -- supabase/functions/<名前> supabase/functions/_shared supabase/functions/deno.json supabase/functions/deno.lock` に 1 件でも出れば、dev の最新（このあと main に入れる版）を取り出した作業ツリーで `supabase functions deploy <名前>`（`_shared` が変わればそれを読む関数は全部）
 3. 秘密や環境変数を足した・替えたら、先に入れる（Supabase の secrets・Vercel の環境変数。一覧は `doc/PUBLISHING.md` の 2）
 4. dev を main にマージする
 
