@@ -781,6 +781,7 @@ export default {
     restore: 'Restore',
     rest: 'Rest',
     restOneDay: 'This day only',
+    removeDay: 'Remove this day only',
     restUntil: 'Rest until',
     restClear: 'End rest',
     restDayAria: '{{date}} rest',
