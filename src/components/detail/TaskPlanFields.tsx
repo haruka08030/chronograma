@@ -10,7 +10,7 @@ import { TimeInput } from '../TimeInput'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from '../TaskTimeZoneField'
 import { TaskRemindersField } from '../TaskRemindersField'
 import { ClockIcon, DueIcon } from '../icons'
-import { fieldClass } from '../ui/fieldClass'
+import { fieldClass, TIME_FIELD_WIDTH } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { TaskRecurrenceField } from './TaskRecurrenceField'
 import { useTaskTimes } from './useTaskTimes'
@@ -85,7 +85,7 @@ export function TaskPlanFields({ task }: { task: Task }) {
                     : { startTime: null },
                 )
               }
-              className={fieldClass({}, 'w-[7rem]')}
+              className={fieldClass({}, TIME_FIELD_WIDTH)}
             />
             <span className="text-zinc-400 text-sm">{t('common.timeRangeSeparator')}</span>
             <TimeInput
@@ -93,7 +93,7 @@ export function TaskPlanFields({ task }: { task: Task }) {
               onChange={(v) => updateTimes({ endTime: v || null })}
               durationFrom={tv.startTime ?? undefined}
               pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, task.estimateMinutes ?? defaultBlockMinutes) : undefined}
-              className={fieldClass({}, 'w-[7rem]')}
+              className={fieldClass({}, TIME_FIELD_WIDTH)}
             />
             {tzOnScheduled && <TaskTimeZoneButton task={task} view={tv} />}
           </div>
@@ -132,7 +132,7 @@ export function TaskPlanFields({ task }: { task: Task }) {
                 <TimeInput
                   value={tv.dueTime ?? ''}
                   onChange={(v) => updateTimes({ dueTime: v || null })}
-                  className={fieldClass({}, 'w-[7rem]')}
+                  className={fieldClass({}, TIME_FIELD_WIDTH)}
                 />
               </div>
             )}

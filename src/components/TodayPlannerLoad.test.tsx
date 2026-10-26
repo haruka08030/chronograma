@@ -99,7 +99,7 @@ describe('今日の計画の「予定 / 空き」', () => {
     })
     const planner = plannerLine()
     expect(planner).toHaveAttribute('data-day-free', 'over')
-    expect(planner).toHaveTextContent('1h 30m planned / 1h free (over)')
+    expect(planner).toHaveTextContent('1h 30m placed / 1h free (over)')
     expect(planner).toHaveTextContent('To-Dos planned (1h 30m) are more than the free time (1h)')
 
     const week = weekLine()
@@ -113,7 +113,7 @@ describe('今日の計画の「予定 / 空き」', () => {
     })
     const planner = plannerLine()
     expect(planner).toHaveAttribute('data-day-free', 'ok')
-    expect(planner).toHaveTextContent('2h 45m planned / 8h free')
+    expect(planner).toHaveTextContent('2h 45m placed / 8h free')
     expect(planner).not.toHaveTextContent('(over)')
     expect(weekLine()).toHaveTextContent('8h free this day')
   })
@@ -123,18 +123,18 @@ describe('今日の計画の「予定 / 空き」', () => {
     useTaskStore.setState({ tasks: [todo('report', { estimateMinutes: 180 })] })
     const planner = plannerLine()
     expect(planner).toHaveAttribute('data-day-free', 'over')
-    expect(planner).toHaveTextContent('3h planned / 2h free (over)')
+    expect(planner).toHaveTextContent('3h placed / 2h free (over)')
     expect(weekLine()).toHaveTextContent('Free 2h / 3h')
   })
 
-  it('過ぎた日は空きを出さず、予定の時間だけ', () => {
+  it('過ぎた日は置いた時間も空きも出さない（計画しているときだけ）', () => {
     useTaskStore.getState().setSelectedCalendarDateKey('2026-10-07')
     useTaskStore.setState({
       tasks: [{ ...todo('done', { estimateMinutes: 60 }), scheduledDate: '2026-10-07' }],
     })
     const { container } = render(<TodayPlannerView />)
     const header = container.querySelector('header')!
-    expect(header).toHaveTextContent('1h planned')
+    expect(header).not.toHaveTextContent('placed')
     expect(header).not.toHaveTextContent('free')
     expect(header.querySelector('[data-day-free]')).toBeNull()
   })

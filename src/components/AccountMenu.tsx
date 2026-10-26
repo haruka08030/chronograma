@@ -17,6 +17,7 @@ import {
 import { isStandalone } from '../lib/pwa'
 import { isSupabaseConfigured, loadSupabase } from '../lib/supabase'
 import { flushPendingSync } from '../hooks/useSupabaseSync'
+import { flushIntegrationWrites, signOutWarning } from '../lib/integrationWrites'
 import { buttonClass } from './ui/buttonClass'
 import { fieldClass } from './ui/fieldClass'
 import { askConfirm } from '../lib/confirmDialog'
@@ -111,14 +112,15 @@ export function AccountMenu() {
   if (!isSupabaseConfigured) return null
 
   /**
-   * ログアウトするとこの端末のデータは消える（クラウドから戻る）。待っている変更を先に送り、
-   * 送れなかったときだけ確かめる
+   * ログアウトするとこの端末のデータと連携への送り待ちは消える（データはクラウドから戻る）。
+   * 待っている変更（クラウド・Google・Notion・Canvas）を先に送り、送れなかったときだけ確かめる
    */
   const handleSignOut = async () => {
     setPending(true)
-    const synced = await flushPendingSync()
+    const [synced, left] = await Promise.all([flushPendingSync(), flushIntegrationWrites()])
     setPending(false)
-    if (!synced && !(await askConfirm({ message: t('account.signOutUnsynced'), confirmLabel: t('account.signOut'), danger: true }))) return
+    const message = signOutWarning(synced, left)
+    if (message && !(await askConfirm({ message, confirmLabel: t('account.signOut'), danger: true }))) return
     await signOut()
   }
 

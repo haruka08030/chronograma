@@ -47,14 +47,14 @@ function seed() {
 }
 
 describe('WeekCalendarView: 移した予定の控え（#158）', () => {
-  it('過ぎた日には元の時間に点線の枠で移した先（→10/9）を出し、予定の見出しを「予定 n・できた n・持ち越し n」にする', () => {
+  it('過ぎた日には元の時間に点線の枠で移した先（→10/9）を出す。列の見出しは「予定」のまま（数は横の To-Do で見る）', () => {
     seed()
     const { container } = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
     const ghost = container.querySelector<HTMLElement>('[data-datekey="2026-10-07"] [data-moved-plan]')!
     expect(ghost.textContent).toContain('レポート')
     expect(ghost.textContent).toContain('→Oct 9')
     expect(ghost.style.top).toBe(`${13 * HOUR_HEIGHT + 1}px`)
-    expect(screen.getByText('Planned 3 · done 1 · moved 1')).toBeInTheDocument()
+    expect(screen.getByText('Plan')).toBeInTheDocument()
   })
 
   it('今日・これからの日には足さない', () => {

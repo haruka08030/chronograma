@@ -26,7 +26,7 @@ beforeEach(() => {
 })
 
 describe('設定のラベル: 直近 30 日でラベルなし（#390）', () => {
-  it('ラベル名も色も無い記録の時間（睡眠は除く）。押すと行で並べ、チップで付けられる', () => {
+  it('ラベル名も色も無い記録の時間（睡眠は除く）。押すと行で並べ、色の一覧で付けられる', () => {
     useTaskStore.setState({
       tasks: [
         log('読書', '09:00', '10:00'),
@@ -40,6 +40,7 @@ describe('設定のラベル: 直近 30 日でラベルなし（#390）', () => 
     act(() => toggle.click())
     const list = document.querySelector('[data-untagged-logs]') as HTMLElement
     expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+    act(() => within(list).getByRole('button', { name: 'Color and label' }).click())
     act(() => within(list).getByRole('radio', { name: '勉強' }).click())
     expect(useTaskStore.getState().tasks.find((x) => x.id === '読書')).toMatchObject({ category: '勉強' })
     expect(within(list).getAllByRole('listitem')).toHaveLength(1)

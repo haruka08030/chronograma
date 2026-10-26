@@ -2,6 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adoptOtherTabChanges, useTaskStore } from './taskStore'
 import { INBOX_LIST_ID, PERSIST_STORAGE_KEY, STORE_VERSION } from './storeConstants'
 import { loadImportRollback, saveImportRollback } from '../lib/importRollback'
+import { DEFAULT_TIMETABLE } from '../lib/timetable'
+import { DEFAULT_ADDONS } from '../lib/addons'
+import { DEFAULT_WEEK_STARTS_ON } from '../lib/weekStart'
+import * as page from '../lib/reloadPage'
 
 type Saved = { state: Record<string, unknown> & { tasks: { id: string; title: string }[] }; version: number }
 
@@ -95,8 +99,8 @@ describe('他のタブの変更の取り込み（adoptOtherTabChanges）', () =>
 
   it('新しい版のタブが書いたら読み込み直し、古い版・読めない中身は取り込まない', () => {
     useTaskStore.getState().addTask('A')
-    const reload = vi.fn()
-    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, reload } as Location)
+    // ストアはテストの準備（setup.ts）で読み込み済みなので、vi.mock ではなく差し替える
+    const reloadPage = vi.spyOn(page, 'reloadPage').mockImplementation(() => {})
 
     otherTabWrites((s) => {
       s.version = STORE_VERSION - 1
@@ -104,7 +108,7 @@ describe('他のタブの変更の取り込み（adoptOtherTabChanges）', () =>
     })
     adoptOtherTabChanges()
     expect(titles()).toEqual(['A'])
-    expect(reload).not.toHaveBeenCalled()
+    expect(reloadPage).not.toHaveBeenCalled()
 
     otherTabWrites((s) => {
       s.version = STORE_VERSION + 1
@@ -112,11 +116,33 @@ describe('他のタブの変更の取り込み（adoptOtherTabChanges）', () =>
     })
     adoptOtherTabChanges()
     expect(titles()).toEqual(['A'])
-    expect(reload).toHaveBeenCalledTimes(1)
+    expect(reloadPage).toHaveBeenCalledTimes(1)
 
     localStorage.setItem(PERSIST_STORAGE_KEY, '{not json')
     expect(() => adoptOtherTabChanges()).not.toThrow()
     expect(titles()).toEqual(['A'])
+  })
+
+  it('型の違う設定・項目の欠けたタスクは、読み込みと同じく既定値・直した値にして取り込む（画面が落ちない）', () => {
+    useTaskStore.getState().addTask('A')
+    otherTabWrites((s) => {
+      s.state.timetable = 'x'
+      s.state.addons = null
+      s.state.extraTimeZones = { broken: true }
+      s.state.weekStartsOn = 3
+      s.state.logLabelPendingAdds = [1, 'Gym']
+      const withoutKind: Record<string, unknown> = { ...s.state.tasks[0], id: 'b', title: 'B' }
+      delete withoutKind.kind
+      s.state.tasks = [withoutKind as never]
+    })
+    adoptOtherTabChanges()
+    const s = useTaskStore.getState()
+    expect(s.timetable).toEqual(DEFAULT_TIMETABLE)
+    expect(s.addons).toEqual(DEFAULT_ADDONS)
+    expect(s.extraTimeZones).toEqual([])
+    expect(s.weekStartsOn).toBe(DEFAULT_WEEK_STARTS_ON)
+    expect(s.logLabelPendingAdds).toEqual(['Gym'])
+    expect(s.tasks.find((t) => t.id === 'b')?.kind).toBe('todo')
   })
 
   it('裏から戻ったとき・ページごと復元されたときも読み直す', () => {

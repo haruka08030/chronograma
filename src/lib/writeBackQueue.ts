@@ -5,6 +5,8 @@
  */
 
 export const WRITE_BACK_PREFIX = 'chronograma-writeback-v1:'
+/** Google カレンダーに送るのを待っているアプリの予定（`googlePushQueue.ts`、利用者ごと）。片付け（`deviceCleanup.ts`）も同じ前置きで消す */
+export const GOOGLE_PUSH_PREFIX = 'chronograma.googlePush.'
 
 export type WriteBackEntry<P> = {
   payload: P

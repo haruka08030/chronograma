@@ -166,6 +166,32 @@ describe('他の端末の変更の通知（#410）', () => {
     expect(db.realtime.subscribed()).toBe(1)
   })
 
+  it('購読が切れてつながり直したら、待たずに 1 回取る（切れていた間の変更を取りこぼさない）', async () => {
+    await signIn()
+    act(() => db.realtime.drop())
+    db.advance(60_000)
+    // 切れている間の変更の通知は届かない
+    db.oldClientWrite('tasks', { ...serverRow('a')!, title: 'a while offline', updated_at: '2026-10-03T00:30:00.000000+00:00' })
+    await tick(2_000)
+    expect(title('a')).toBe('a')
+    act(() => db.realtime.reconnect())
+    await tick(2_000)
+    expect(title('a')).toBe('a while offline')
+    expect(pulls()).toBe(1)
+  })
+
+  it('購読できなかった回数は 1 日 1 回にまとめて記録に送る', async () => {
+    const { reportSyncError } = await import('../lib/errorReport')
+    await signIn()
+    vi.mocked(reportSyncError).mockClear()
+    act(() => db.realtime.drop())
+    act(() => db.realtime.reconnect())
+    act(() => db.realtime.drop())
+    await tick(2_000)
+    const calls = vi.mocked(reportSyncError).mock.calls.filter(([stage]) => stage === 'realtime')
+    expect(calls.length).toBeLessThanOrEqual(1)
+  })
+
   it('ログアウト（フックが外れる）で購読をやめる', async () => {
     const hook = await signIn()
     hook.unmount()

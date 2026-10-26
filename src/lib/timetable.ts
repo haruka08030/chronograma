@@ -2,7 +2,7 @@ import { isEventTask, type Task } from '../types/task'
 import { toMinutes } from './clockTime'
 import { isoWeekday } from './recurrence'
 import { fromDateKey } from './dateKey'
-import { settingSyncStep } from './settingSync'
+import { merge3, merge3Record, merge3Set, type Side } from './settingMerge'
 import { courseKey } from './courseLinks'
 import type { DateTone } from '../components/ui/dueTone'
 import type { Attendance } from './absenceCourses'
@@ -262,6 +262,11 @@ export function isAbsent(timetable: Timetable, title: string, date: string): boo
   return timetable.absences[courseKey(title)]?.includes(date) ?? false
 }
 
+/** その回を欠席にしたか、を予定の題名と日で聞く形（記録の無い時間で、欠席した回の時間を埋めない） */
+export function absentOnOf(timetable: Pick<Timetable, 'absences'>): (title: string, date: string) => boolean {
+  return (title, date) => timetable.absences[courseKey(title)]?.includes(date) ?? false
+}
+
 /** 欠席の印を付けた・外した時間割の設定（`normalizeTimetable` で学期の外の日付は落ちる） */
 export function withAbsence(timetable: Timetable, title: string, date: string, absent: boolean): Timetable {
   const key = courseKey(title)
@@ -321,8 +326,9 @@ export function attendanceTone(a: Pick<Attendance, 'remaining'>): DateTone {
 }
 
 /**
- * 時間割の設定の同期。サーバーには利用者ごとに 1 行（`user_timetable`、`027`）。全体を 1 つの値として扱い、
- * 手元とサーバーのどちらか新しいほうに合わせる（この端末でまだ一度も合わせていなければサーバーのものに）
+ * 時間割の設定の同期。サーバーには利用者ごとに 1 行（`user_timetable`、`027`）。
+ * 片方の端末だけが変えていればその側に、この端末でまだ一度も合わせていなければサーバーのものに合わせる。
+ * 両方の端末で前回合わせた後に変えていたら、丸ごと新しいほうにせず中身ごとに合わせる（`mergeTimetables`）
  */
 export type LocalTimetable = { timetable: Timetable; updatedAt: string | null; syncedAt?: string | null }
 export type RemoteTimetable = { timetable: Timetable; updatedAt: string }
@@ -330,37 +336,30 @@ export type TimetableSyncPlan = {
   apply?: { timetable: Timetable; updatedAt: string }
   push?: RemoteTimetable & { base: string | null }
   adopt?: string
+  /** 中身ごとに合わせたとき、両方が別の値に変えて新しいほうにした数 */
+  conflicts?: number
+}
+
+/**
+ * 両方の端末で変えた時間割を中身ごとに合わせる（`base` は前回合わせた版。無ければ両方にあるものを残す）。
+ * 欠席は授業ごとの日付の集合（2 台で別々の授業・別々の日に足した欠席をどちらも残す）、休める回数は授業ごと、
+ * 時限・学期・祝日は項目ごと。両方が別の値に変えた項目だけ `prefer` の側（新しいほう）
+ */
+export function mergeTimetables(base: Timetable | null, l: Timetable, r: Timetable, prefer: Side, onConflict?: () => void): Timetable {
+  // 時限・学期・祝日はどちらにも必ずある（無いのは控えだけ）ので、合わせた値も必ずある
+  const field = <K extends keyof Timetable>(k: K) => merge3(base?.[k], l[k], r[k], prefer, onConflict) as Timetable[K]
+  const absences = merge3Record(base?.absences ?? null, l.absences, r.absences, prefer, onConflict, (b, lv, rv, baseKnown) => {
+    const dates = merge3Set(baseKnown ? (b ?? []) : null, lv ?? [], rv ?? [], prefer)
+    return dates.length > 0 ? dates : undefined
+  })
+  return normalizeTimetable({
+    periods: field('periods'),
+    termStart: field('termStart'),
+    termEnd: field('termEnd'),
+    skipHolidays: field('skipHolidays'),
+    absences,
+    absenceLimits: merge3Record(base?.absenceLimits ?? null, l.absenceLimits, r.absenceLimits, prefer, onConflict),
+  })
 }
 
 export const sameTimetable = (a: Timetable, b: Timetable) => JSON.stringify(a) === JSON.stringify(b)
-
-export function planTimetableSync(
-  local: LocalTimetable,
-  remote: RemoteTimetable | null,
-  nowIso: string = new Date().toISOString(),
-  clockOffsetMs = 0,
-): TimetableSyncPlan {
-  if (!remote) {
-    // 一度も変えていない既定の値は送らない（ほかの端末で決めた時間割を既定で上書きしない）
-    if (local.updatedAt === null) return {}
-    return { push: { timetable: local.timetable, updatedAt: local.updatedAt, base: null } }
-  }
-  const remoteValue = normalizeTimetable(remote.timetable)
-  const step = settingSyncStep(
-    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
-    remote,
-    sameTimetable(local.timetable, remoteValue),
-    clockOffsetMs,
-  )
-  switch (step.kind) {
-    case 'initial':
-    case 'apply':
-      return { apply: { timetable: remoteValue, updatedAt: remote.updatedAt } }
-    case 'push':
-      return { push: { timetable: local.timetable, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
-    case 'adopt':
-      return { adopt: remote.updatedAt }
-    default:
-      return {}
-  }
-}

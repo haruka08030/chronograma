@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { saveAutoBackup, type AutoBackupKind } from '../lib/autoBackup'
 import { useTaskStore } from '../store/taskStore'
 import { appTodayKey } from '../lib/timeZone'
-import { backupJsonOf } from '../store/slices/data'
+import { backupJsonOf, hasSettingsData } from '../store/slices/data'
 import type { TaskState } from '../store/storeTypes'
 import { INBOX_LIST_ID } from '../store/storeConstants'
 import { DEFAULT_LIST_IDS } from '../lib/syncMerge'
@@ -21,9 +21,9 @@ export function onAutoBackupSaved(listener: () => void): () => void {
 /** 最初から作られるリスト（受信箱・いつか・買い物）。これだけなら控えるデータは無い */
 const INITIAL_LIST_IDS = new Set<string>([INBOX_LIST_ID, ...Object.values(DEFAULT_LIST_IDS)])
 
-/** To-Do 以外に控えるデータがあるか（習慣・セクション・自分で作ったリスト） */
-function hasOtherData(s: Pick<TaskState, 'lists' | 'habits' | 'sections'>): boolean {
-  return s.habits.length > 0 || s.sections.length > 0 || s.lists.some((l) => !INITIAL_LIST_IDS.has(l.id))
+/** To-Do 以外に控えるデータがあるか（習慣・セクション・自分で作ったリスト・気分・欠席・支払い …） */
+function hasOtherData(s: TaskState): boolean {
+  return s.habits.length > 0 || s.sections.length > 0 || s.lists.some((l) => !INITIAL_LIST_IDS.has(l.id)) || hasSettingsData(s)
 }
 
 /**

@@ -1,5 +1,6 @@
 import { googleWriteFailure } from './googleCalendar'
 import { reportFailure } from './errorReport'
+import { GOOGLE_PUSH_PREFIX } from './writeBackQueue'
 
 /**
  * Google に送るのを待っているアプリの予定（この端末の localStorage、利用者ごと）。`useGooglePush` が使う。
@@ -17,8 +18,7 @@ export const LEAVE_SEND_MAX = 20
 export type PushEntry = { at: number; tries: number; revive?: boolean }
 export type PushQueue = Record<string, PushEntry>
 
-const PREFIX = 'chronograma.googlePush.'
-export const pushQueueKey = (userId: string) => PREFIX + userId
+export const pushQueueKey = (userId: string) => GOOGLE_PUSH_PREFIX + userId
 
 export function loadPushQueue(userId: string): PushQueue {
   try {
@@ -121,7 +121,7 @@ export function clearPushQueues(): void {
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i)
-      if (key?.startsWith(PREFIX)) localStorage.removeItem(key)
+      if (key?.startsWith(GOOGLE_PUSH_PREFIX)) localStorage.removeItem(key)
     }
   } catch {
     /* 消せなくても、送るときに断られる */

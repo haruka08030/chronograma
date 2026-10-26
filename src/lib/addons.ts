@@ -1,9 +1,9 @@
 import { isEventTask, type Task } from '../types/task'
-import { sameValue } from './sameValue'
-import { settingSyncStep } from './settingSync'
 import { normalizeDues, type DueItem } from './dues'
-import { normalizeGoogleSkip } from './googleSkip'
+import { googleSkipKey, normalizeGoogleSkip } from './googleSkip'
 import { normalizeAbsenceCourses } from './absenceCourses'
+import { courseKey } from './courseLinks'
+import { merge3, merge3ById, merge3Record, merge3Set, type Side } from './settingMerge'
 
 /**
  * 追加機能（#453）。生活まわりの機能（時間割・学校・引き落とし …）は使う人だけがオンにし、オフの機能は普段の画面に出さない。
@@ -67,8 +67,9 @@ export function withAddonOn(addons: Addons, id: AddonId, on: boolean): Addons {
 }
 
 /**
- * 追加機能の設定の同期。サーバーには利用者ごとに 1 行（`user_addons`）。全体を 1 つの値として、手元とサーバーの新しいほうに合わせる
- * （時間割の設定と同じ。一度も変えていなければ送らず、この端末でまだ合わせていなければサーバーのものに）
+ * 追加機能の設定の同期。サーバーには利用者ごとに 1 行（`user_addons`）。時間割の設定と同じく、片方だけが変えていればその側、
+ * 一度も変えていなければ送らず、この端末でまだ合わせていなければサーバーのものに。
+ * 両方の端末で前回合わせた後に変えていたら、中身ごとに合わせる（`mergeAddons`）
  */
 export type LocalAddons = { addons: Addons; updatedAt: string | null; syncedAt?: string | null }
 export type RemoteAddons = { addons: Addons; updatedAt: string }
@@ -76,34 +77,28 @@ export type AddonsSyncPlan = {
   apply?: { addons: Addons; updatedAt: string }
   push?: RemoteAddons & { base: string | null }
   adopt?: string
+  /** 中身ごとに合わせたとき、両方が別の値に変えて新しいほうにした数 */
+  conflicts?: number
 }
 
-export function planAddonsSync(
-  local: LocalAddons,
-  remote: RemoteAddons | null,
-  nowIso: string = new Date().toISOString(),
-  clockOffsetMs = 0,
-): AddonsSyncPlan {
-  if (!remote) {
-    if (local.updatedAt === null) return {}
-    return { push: { addons: local.addons, updatedAt: local.updatedAt, base: null } }
+/**
+ * 両方の端末で変えた追加機能の設定を中身ごとに合わせる（`base` は前回合わせた版。無ければ両方にあるものを残す）。
+ * オン・オフは機能ごと、引き落とし・期限は id ごと、Google に送らない名前・欠席の一覧の授業は名前の集合。
+ * 両方が別の値に変えたものだけ `prefer` の側（新しいほう）。知らない項目（後の版で足すもの）は `prefer` の側のまま
+ */
+export function mergeAddons(base: Addons | null, l: Addons, r: Addons, prefer: Side, onConflict?: () => void): Addons {
+  const [first, second] = prefer === 'l' ? [l, r] : [r, l]
+  const extra: Record<string, unknown> = { ...second, ...first }
+  for (const k of Object.keys(extra)) {
+    if (k === 'enabled' || k === 'dues' || k === 'googleSkip' || k === 'absenceCourses') continue
+    const bx = base as Record<string, unknown> | null
+    extra[k] = merge3(bx?.[k], (l as Record<string, unknown>)[k], (r as Record<string, unknown>)[k], prefer)
   }
-  const remoteValue = normalizeAddons(remote.addons)
-  const step = settingSyncStep(
-    { updatedAt: local.updatedAt, syncedAt: local.syncedAt ?? null },
-    remote,
-    sameValue(local.addons, remoteValue),
-    clockOffsetMs,
-  )
-  switch (step.kind) {
-    case 'initial':
-    case 'apply':
-      return { apply: { addons: remoteValue, updatedAt: remote.updatedAt } }
-    case 'push':
-      return { push: { addons: local.addons, updatedAt: local.updatedAt ?? nowIso, base: step.base } }
-    case 'adopt':
-      return { adopt: remote.updatedAt }
-    default:
-      return {}
-  }
+  return normalizeAddons({
+    ...extra,
+    enabled: merge3Record(base?.enabled ?? null, l.enabled, r.enabled, prefer, onConflict),
+    dues: merge3ById(base?.dues ?? null, l.dues, r.dues, (d) => d.id, prefer, onConflict),
+    googleSkip: merge3Set(base?.googleSkip ?? null, l.googleSkip, r.googleSkip, prefer, googleSkipKey),
+    absenceCourses: merge3Set(base?.absenceCourses ?? null, l.absenceCourses, r.absenceCourses, prefer, courseKey),
+  })
 }

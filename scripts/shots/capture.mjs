@@ -21,6 +21,9 @@ import { addInsightHistory, buildSeedState, PERSIST_KEY } from './seed.mjs'
 /** ここから順に空いているポートを探す（5173 は普段の dev サーバー用に空けておく） */
 const FIRST_PORT = 5180
 
+/** 設定のトップから「データ」のページを開く（#541） */
+const OPEN_DATA_PAGE = 'button:has-text("バックアップ・取り込み・書き出し") >> visible=true'
+
 /**
  * 撮影するブラウザのタイムゾーン。種データの日付もこれで組み立てる
  * （ホストの時刻で作ると、日付が 1 日ずれて予定・記録がタイムラインから消える）
@@ -135,6 +138,8 @@ const ABSENCE_TIMETABLE = (() => {
 })()
 /** ラベルの週の目安（分、#291）。種データのラベル名 */
 const SEED_TARGETS = { 授業: 600, 課題: 480, 就活: 180 }
+/** スマホの今日の画面の「やること」のタブ（夜はタイムラインが開いているので、睡眠の行を撮るときに切り替える） */
+const PLANNER_LIST_TAB = 'button:has-text("やること") >> visible=true'
 /** ふりかえりのラベル別の時間の行（スマホでも行が見えるところまで送る） */
 const TARGET_ROWS = 'ul[aria-labelledby="review-by-label"]'
 /** 習慣の表の「朝に 10 分ストレッチ」の水曜のマス */
@@ -142,7 +147,7 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする。手の `select` は <select> の選択肢を選ぶ */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする、`lang` は表示の言語（既定は 'ja'）、`mobileWidth` はスマホ幅の横幅（既定 390）。手の `select` は <select> の選択肢を選ぶ */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -156,9 +161,32 @@ const SCREENS = [
   // ログインの欄（一文・説明・ボタン）。Supabase の設定（.env）があるビルドでだけ出る
   { name: 'first-run-signin', fresh: true, view: 'settings', click: 'button:has-text("ログイン") >> visible=true' },
   { name: 'planner', view: 'planner' },
-  // 睡眠のタイマー（#519）: 夜は睡眠の行に「寝る」、押すと「23:40 から寝ています」と「起きた」
-  { name: 'sleep-bedtime', view: 'planner', at: '22:30' },
-  { name: 'sleep-sleeping', view: 'planner', at: '23:40', click: 'button:has-text("寝る") >> visible=true' },
+  // 睡眠のタイマー（#519）: 夜は睡眠の行に寝る（▶）、押すと ☾ 23:40 ▬╌ と起きた（☀）
+  { name: 'sleep-bedtime', view: 'planner', at: '22:30', mobileClick: PLANNER_LIST_TAB },
+  {
+    name: 'sleep-sleeping',
+    view: 'planner',
+    at: '23:40',
+    mobileClick: PLANNER_LIST_TAB,
+    click: 'button[aria-label="寝る"] >> visible=true',
+  },
+  // 睡眠の行の残りの形: 朝まだ記録が無い（入力欄）・夜更かし中（月と ▶ だけ）・寝たまま 16 時間を過ぎた（起きた時刻を聞く）
+  {
+    name: 'sleep-morning-empty',
+    view: 'planner',
+    at: '08:00',
+    mobileClick: PLANNER_LIST_TAB,
+    taskPatch: { s10: { dueDate: '2000-01-01', endDate: '2000-01-02' } },
+  },
+  {
+    name: 'sleep-late-night',
+    view: 'planner',
+    at: '01:30',
+    mobileClick: PLANNER_LIST_TAB,
+    taskPatch: { s10: { dueDate: '2000-01-01', endDate: '2000-01-02' } },
+  },
+  { name: 'sleep-row-narrow', view: 'planner', at: '22:30', mobileOnly: true, mobileWidth: 320, mobileClick: PLANNER_LIST_TAB },
+  { name: 'sleep-row-en', view: 'planner', at: '22:30', lang: 'en', mobileClick: 'button:has-text("To do") >> visible=true' },
   // 浮いているタイマーの「あと何分」（#290）: 残り時間・長さを選ぶ並び・時間を過ぎた（`timer` は撮る瞬間からの分で動いているタイマーを置く）
   { name: 'timer-remaining', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 12.4, endsIn: 12.6 } },
   {
@@ -168,8 +196,11 @@ const SCREENS = [
     click: 'button:has-text("あと何分") >> visible=true',
   },
   { name: 'timer-time-up', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 52, endsIn: -2 } },
-  // 見出しの「記録なし」から後から記録を開いた所（#393）
-  { name: 'planner-unrecorded', view: 'planner', click: 'button:has-text("記録なし") >> visible=true' },
+  // 今日の「後から記録」を開いた所（直前の記録の終わり〜今、#393）
+  { name: 'planner-unrecorded', view: 'planner', click: 'button:has-text("後から記録") >> visible=true' },
+  // 振り返るとき（今日の締めの時刻から・前の日）はラベル別の時間だけ（#542）
+  { name: 'planner-evening-top', view: 'planner', at: '19:30' },
+  { name: 'planner-yesterday', view: 'planner', click: 'button[aria-label="前の日"] >> visible=true' },
   // 通知の「記録する」（#392）。記録パネルの「後から記録」と同じフォーム
   { name: 'record-prompt', view: 'planner', query: '?record=s6' },
   // 記録中に題名・ラベルを直す（#391）
@@ -178,6 +209,24 @@ const SCREENS = [
     view: 'planner',
     timer: { title: 'レポート', tags: ['課題'], startedAgo: 3 },
     click: ['[data-floating-timer] button:has-text("課題")', '[data-floating-timer] button:has-text("レポート")'],
+  },
+  // 後から記録のラベルを色の一覧で選ぶ所（#539）
+  {
+    name: 'record-label-palette',
+    view: 'planner',
+    click: ['button:has-text("後から記録") >> visible=true', 'button[aria-label="色とラベル"] >> visible=true'],
+  },
+  // 名前を付けた色はすぐパレットにラベル名のチップで出る（#596）
+  {
+    name: 'record-label-named',
+    view: 'planner',
+    click: ['button:has-text("後から記録") >> visible=true', 'button[aria-label="色とラベル"] >> visible=true'],
+    steps: [
+      { click: 'button[aria-label="ラベルを編集"] >> visible=true' },
+      { fill: { selector: '[role=dialog] input[placeholder="ラベルを追加"][value=""] >> nth=0', text: '趣味' } },
+      { click: '[role=dialog] button:has-text("保存")' },
+      { wait: 400 },
+    ],
   },
   // 記録の名前を打つと過去の記録が候補に出る（#415）。後から記録と、記録中に題名を直すところ
   {
@@ -381,6 +430,37 @@ const SCREENS = [
     click: 'button[aria-label="ラベルの名前と色"] >> visible=true >> nth=0',
   },
   { name: 'calendar', view: 'calendar' },
+  // 習慣が多い週（#578）: 種の 3 件に、毎日・平日・週 3 の習慣を足した 7 件。習慣の段が格子を押し下げないか
+  { name: 'calendar-habits-many', view: 'calendar', moreHabits: true },
+  // 習慣の段の左の「習慣 ▾」を押したところ（今日の習慣の一覧。‹ › で日を替える）
+  { name: 'calendar-habits-list', view: 'calendar', moreHabits: true, desktopOnly: true, click: '[data-habit-list-open] >> visible=true' },
+  // スマホの 1 日表示で「習慣 ▾」を押したところ（同じ一覧）
+  { name: 'calendar-habits-more', view: 'calendar', moreHabits: true, mobileOnly: true, click: '[data-habit-list-open] >> visible=true' },
+  // 今日の丸を押したところ（✓ になり、「元に戻す」のトーストが出る）
+  {
+    name: 'calendar-habits-check',
+    view: 'calendar',
+    moreHabits: true,
+    steps: [
+      {
+        click: '[data-habit-today] [data-dot]:not([aria-disabled]) >> nth=1',
+        mobileClick: '[data-dot]:not([aria-disabled]) >> visible=true >> nth=0',
+      },
+    ],
+  },
+  // 狭い画面（スマホ 320px・PC 1280px）でも習慣の段が崩れないか
+  { name: 'calendar-habits-narrow', view: 'calendar', moreHabits: true, mobileOnly: true, mobileWidth: 320 },
+  { name: 'calendar-habits-1280', view: 'calendar', moreHabits: true, desktopOnly: true, desktopWidth: 1280 },
+  // やらなかった予定（#528）: 時間が過ぎてから消した Google の予定を、薄く・取り消し線で残す。押すとカードで「やらなかった予定」と削除
+  { name: 'calendar-skipped', view: 'calendar', skipped: true },
+  {
+    name: 'calendar-skipped-card',
+    view: 'calendar',
+    skipped: true,
+    desktopOnly: true,
+    click: '[data-block-id="event-sk-class"] >> visible=true',
+  },
+  { name: 'calendar-skipped-month', view: 'calendar', calendarMode: 'month', skipped: true, desktopOnly: true },
   // 過ぎた日（昨日）: 移した予定の点線の枠と、予定の見出しの「予定 n・できた n・持ち越し n」（#158。1 日だけ描くのはスマホ）
   {
     name: 'calendar-yesterday',
@@ -466,7 +546,6 @@ const SCREENS = [
   },
   { name: 'addons', view: 'addons' },
   { name: 'addons-on', view: 'addons', state: TIMETABLE_ON },
-  { name: 'settings-addons', view: 'settings', state: TIMETABLE_ON },
   // 欠席の数（#452）: 休んだ授業のマスに数・使い切った授業は赤、マスの授業の休める回数、授業の予定のカード（今日の 4 限に入れて押す）
   {
     name: 'calendar-timetable-absence',
@@ -633,6 +712,13 @@ const SCREENS = [
       { click: '[role=menuitem]:has-text("この日だけ") >> visible=true' },
     ],
   },
+  // ルーティンを作るフォーム（時間帯だけ・回数を指定なし・目標なし）と、ルーティンの詳細（いつもの時間からのずれ、#601）
+  {
+    name: 'habits-new-routine',
+    view: 'habits',
+    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("ルーティン")'],
+  },
+  { name: 'habits-routine-detail', view: 'habits', click: 'li[data-habit-row]:has-text("お風呂") button >> nth=0' },
   // 下の「アーカイブ」を開いた状態（戻すボタン）と、その行の右クリック（戻す・削除）
   { name: 'habits-archived', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true },
   {
@@ -677,6 +763,17 @@ const SCREENS = [
   },
   // 統計の睡眠の下の段「日の違い」（#326）: 過去 2 週間の睡眠・記録・気分を足して、睡眠の長さ・寝た時刻・気分で分けた差
   { name: 'stats-day-insights', view: 'stats', insightHistory: true, scrollTo: 'section[aria-labelledby="day-insights-title"]' },
+  // 統計の睡眠（#577）: 2 週間ぶんの睡眠で、上の小さい時計・平均と夜ごとの横の帯
+  { name: 'stats-sleep', view: 'stats', insightHistory: true, scrollTo: 'section:has(> figure)' },
+  {
+    name: 'stats-sleep-narrow',
+    view: 'stats',
+    insightHistory: true,
+    mobileOnly: true,
+    mobileWidth: 320,
+    scrollTo: 'section:has(> figure)',
+  },
+  { name: 'stats-sleep-en', view: 'stats', insightHistory: true, lang: 'en', scrollTo: 'section:has(> figure)' },
   { name: 'settings', view: 'settings' },
   // 設定の一番下の「お問い合わせ・フィードバック」を開いたところ（ログインしていない人。Supabase の設定（.env）があるビルドでだけ出る）
   { name: 'settings-feedback', view: 'settings', click: 'button:has-text("お問い合わせ・フィードバック") >> visible=true' },
@@ -697,13 +794,15 @@ const SCREENS = [
   },
   // 設定の下の方（データ・アプリ・規約）
   { name: 'settings-bottom', view: 'settings', scrollToBottom: true },
-  // 「データ」の記録の書き出し（期間・予定も入れるスイッチ・件数と CSV / ICS、#281）
-  { name: 'settings-data', view: 'settings', scrollTo: '#settings-data' },
+  // 設定のトップの「データ」は 1 行（#541）
+  { name: 'settings-data-row', view: 'settings', scrollTo: '#settings-data' },
+  // 「データ」のページ（バックアップ・取り込み・記録の書き出し（期間・予定も入れるスイッチ・件数と CSV / ICS、#281））
+  { name: 'settings-data', view: 'settings', click: OPEN_DATA_PAGE },
   {
     // TickTick の CSV を選んで、ラベルの無いリスト名をどうするかを聞くところ（#306）
     name: 'settings-csv-import',
     view: 'settings',
-    scrollTo: '#settings-data',
+    click: OPEN_DATA_PAGE,
     steps: [
       {
         upload: {
@@ -987,7 +1086,7 @@ async function main() {
           // 画面ごとに context を作り直す。addInitScript は context に積み上がるので、
           // 使い回すと前の画面の種データが後から上書きしてしまう
           const context = await browser.newContext({
-            viewport: { width: vp.width, height: vp.height },
+            viewport: { width: (vp.hasTouch ? screen.mobileWidth : screen.desktopWidth) || vp.width, height: vp.height },
             isMobile: vp.isMobile ?? false,
             hasTouch: vp.hasTouch ?? false,
             // 2x は文字が読みやすい反面、固定サイドバーの左端に描画の切れ端が
@@ -1041,6 +1140,78 @@ async function main() {
           if (screen.calendarMode) seed.state.calendarMode = screen.calendarMode
           if (screen.weekStartsOn !== undefined) seed.state.weekStartsOn = screen.weekStartsOn
           if (screen.state) Object.assign(seed.state, screen.state)
+          if (screen.moreHabits) {
+            const base = {
+              endTime: null,
+              createdAt: new Date(seedInstant.getTime() - 30 * 864e5).toISOString(),
+              updatedAt: seedInstant.toISOString(),
+              archivedAt: null,
+            }
+            const ago = (n) => dayKeyOf(new Date(seedNow.getFullYear(), seedNow.getMonth(), seedNow.getDate() - n))
+            seed.state.habits.push(
+              {
+                ...base,
+                id: 'hm1',
+                title: '水を 2L 飲む',
+                color: '#039BE5',
+                timeMode: 'none',
+                startTime: null,
+                frequency: { type: 'daily' },
+                completedDates: [ago(1), ago(2), ago(4)],
+              },
+              {
+                ...base,
+                id: 'hm2',
+                title: '読書 30 分',
+                color: '#8E24AA',
+                timeMode: 'fixed',
+                startTime: '22:30',
+                frequency: { type: 'daily' },
+                completedDates: [ago(1), ago(3)],
+              },
+              {
+                ...base,
+                id: 'hm3',
+                title: 'SPI の問題集',
+                color: '#F6BF26',
+                timeMode: 'none',
+                startTime: null,
+                frequency: { type: 'weekly', weekdays: [1, 2, 3, 4, 5] },
+                completedDates: [ago(1), ago(2)],
+              },
+              {
+                ...base,
+                id: 'hm4',
+                title: 'ランニング',
+                color: '#0B8043',
+                timeMode: 'fixed',
+                startTime: '06:30',
+                frequency: { type: 'weekly', weekdays: [2, 4, 6] },
+                completedDates: [ago(1)],
+              },
+            )
+          }
+          if (screen.skipped) {
+            // やらなかった予定（#528）: 昨日の gym（時刻あり）と今日の 1 限（もう過ぎた時刻）。どちらも時間が過ぎてから消した Google の予定
+            const tKey = dayKeyOf(seedNow)
+            const iso = (key, hm) => `${key}T${hm}:00+09:00`
+            const skipped = (id, summary, key, start, end) => ({
+              id,
+              summary,
+              start: iso(key, start),
+              end: iso(key, end),
+              startTime: start,
+              endTime: end,
+              date: key,
+              isAllDay: false,
+              baseColor: '#039BE5',
+              skippedAt: seedInstant.toISOString(),
+            })
+            seed.state.skippedEvents = [
+              skipped('sk-gym', 'gym', yesterdayKey, '18:00', '19:30'),
+              skipped('sk-class', '英語コミュニケーション', tKey, '09:00', '10:30'),
+            ]
+          }
           if (screen.timer) {
             const ms = instant.getTime()
             const { title, tags = [], startedAgo, endsIn } = screen.timer
@@ -1088,10 +1259,10 @@ async function main() {
           // アプリが動き出す前に仕込む。goto してから書くと、起動した store が
           // 作りたての state を先に保存してしまい、種データが上書きされる
           await context.addInitScript(
-            ([key, value]) => {
+            ([key, value, lang]) => {
               try {
                 if (value) window.localStorage.setItem(key, value)
-                window.localStorage.setItem('chronograma-lang', 'ja')
+                window.localStorage.setItem('chronograma-lang', lang)
               } catch {
                 /* 読めない環境ではそのまま進む */
               }
@@ -1106,6 +1277,7 @@ async function main() {
                     ? JSON.stringify({ state: { selectedView: screen.view, selectedListId: null }, version: seed.version })
                     : null
                   : JSON.stringify(seed),
+              screen.lang ?? 'ja',
             ],
           )
 

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addMonths, isSameMonth, startOfMonth } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
-import { isHabitRestOn, type Habit } from '../../types/habit'
+import { isHabitRestOn, isRoutine, type Habit } from '../../types/habit'
 import {
   HABIT_RATE_WEEKS,
   habitLongestStreak,
@@ -28,9 +28,11 @@ import { canSubmitHabitForm, habitFormFrom, habitFromForm, useHabitFormDraft } f
 import { useHabitGoalText } from './useHabitGoalText'
 import { useWeekStartsOn } from '../../hooks/useWeekStartsOn'
 import { monthGridDays, weekdayLabelsFrom } from '../../lib/weekStart'
+import { ROUTINE_DRIFT_DAYS, averageRoutineDrift, routineDriftDays } from '../../lib/routineDrift'
 
 /**
  * 習慣の詳細（右から出るシート）: 連続・最長・直近 4 週の達成率、月のカレンダー（押すと達成を付ける / 外す）、編集・アーカイブ・削除。
+ * ルーティンは連続・達成率・月のカレンダーの代わりに、いつもの時間からのずれ（`RoutineDrift`）。
  * 編集を押すとシートの中身がフォームに入れ替わる
  */
 export function HabitDetailSheet({
@@ -98,13 +100,19 @@ function HabitDetailView({
         </div>
       </div>
 
-      <dl className="grid grid-cols-3 gap-2">
-        <Stat label={t('habits.statStreak')} value={streakText(streak)} />
-        <Stat label={t('habits.statLongest')} value={streakText(longest)} />
-        <Stat label={t('habits.statRate', { weeks: HABIT_RATE_WEEKS })} value={rate === null ? '—' : `${rate}%`} />
-      </dl>
+      {isRoutine(h) ? (
+        <RoutineDrift habit={h} habitRecords={habitRecords} todayKey={todayKey} />
+      ) : (
+        <>
+          <dl className="grid grid-cols-3 gap-2">
+            <Stat label={t('habits.statStreak')} value={streakText(streak)} />
+            <Stat label={t('habits.statLongest')} value={streakText(longest)} />
+            <Stat label={t('habits.statRate', { weeks: HABIT_RATE_WEEKS })} value={rate === null ? '—' : `${rate}%`} />
+          </dl>
 
-      <HabitMonth habit={h} habitRecords={habitRecords} todayKey={todayKey} />
+          <HabitMonth habit={h} habitRecords={habitRecords} todayKey={todayKey} />
+        </>
+      )}
 
       <div className="flex flex-wrap gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
         <button type="button" onClick={onEdit} className={buttonClass({ variant: 'secondary', size: 'md' })}>
@@ -145,6 +153,39 @@ function Stat({ label, value }: { label: string; value: string }) {
       <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{label}</dt>
       <dd className="text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{value}</dd>
     </div>
+  )
+}
+
+/**
+ * ルーティンのいつもの時間からのずれ: 直近 4 週の平均と、記録した日ごとの始めた時刻とずれ（新しい日から 7 日分）。
+ * 記録が 1 日も無ければ一言だけ
+ */
+function RoutineDrift({ habit, habitRecords, todayKey }: { habit: Habit; habitRecords: HabitRecordIndex; todayKey: string }) {
+  const { t } = useTranslation()
+  const df = useDateFormat()
+  const days = useMemo(() => routineDriftDays(habit, habitRecords, todayKey), [habit, habitRecords, todayKey])
+  const average = averageRoutineDrift(days)
+  const driftText = (min: number) =>
+    min === 0 ? t('habits.driftOnTime') : t(min > 0 ? 'habits.driftLate' : 'habits.driftEarly', { count: Math.abs(min) })
+  if (average === null) return <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('habits.driftNone')}</p>
+  return (
+    <section className="space-y-3">
+      <dl className="grid grid-cols-2 gap-2">
+        <Stat label={t('habits.driftAverage', { weeks: ROUTINE_DRIFT_DAYS / 7 })} value={driftText(average)} />
+        <Stat label={t('habits.driftDays')} value={t('habits.streakCountDay', { count: days.length })} />
+      </dl>
+      <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+        {days.slice(0, 7).map((d) => (
+          <li key={d.dateKey} className="flex items-center justify-between gap-3 py-1.5 tabular-nums">
+            <span className="text-zinc-500 dark:text-zinc-400">{df.monthDayWeekday(fromDateKey(d.dateKey))}</span>
+            <span className="text-zinc-700 dark:text-zinc-300">
+              {d.startTime}
+              <span className="ml-3 inline-block min-w-[4.5rem] text-right text-zinc-500 dark:text-zinc-400">{driftText(d.minutes)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

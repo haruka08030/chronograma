@@ -2,7 +2,7 @@
  * 習慣の達成と記録（純粋な関数。localStorage・i18n を読まない）。
  * 時間を決めた習慣は、達成にすると予定どおりの時刻の記録（完了した時間ログ）を作り、外すとその日の記録をゴミ箱へ入れる
  */
-import { buildHabitRecordIndex, habitRecordFor, habitRecordsFor, isTimedHabit, plannedRecordTimes } from '../lib/habitTiming'
+import { buildHabitRecordIndex, habitAsOf, habitRecordFor, habitRecordsFor, isTimedHabit, plannedRecordTimes } from '../lib/habitTiming'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { completedRecordPatch, type CategoryInferenceState } from './taskHelpers'
 import type { TaskState } from './storeTypes'
@@ -58,7 +58,7 @@ export function recordHabitAtPatch(
   const habit = s.habits.find((h) => h.id === habitId)
   if (!habit) return null
   const habits =
-    isTimedHabit(habit) || habit.completedDates.includes(dateKey)
+    isTimedHabit(habitAsOf(habit, dateKey)) || habit.completedDates.includes(dateKey)
       ? s.habits
       : s.habits.map((h) => (h.id === habitId ? { ...h, completedDates: [...h.completedDates, dateKey].sort(), updatedAt: env.now } : h))
   return {

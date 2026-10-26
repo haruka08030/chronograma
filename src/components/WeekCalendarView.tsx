@@ -3,6 +3,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
+import { useShownCalendarEvents } from '../hooks/useShownCalendarEvents'
 import { timeToMinutes } from '../lib/timeGrid'
 import { durationMinutesForTaskId } from '../lib/taskTimeRange'
 import {
@@ -49,8 +50,6 @@ import { WeekAllDayRow } from './calendar/WeekAllDayRow'
 import { WeekDayColumn } from './calendar/WeekDayColumn'
 import { WeekHabitRow } from './calendar/WeekHabitRow'
 import { useWeekBuckets } from '../hooks/useWeekBuckets'
-import { dayPlanTally } from '../lib/movedPlans'
-import { unplannedListIds } from '../lib/listKind'
 import { useStableRows } from '../hooks/useStableRows'
 import { useHolidayName } from '../hooks/useHolidayName'
 import { useWeekScrollPosition } from '../hooks/useWeekScrollPosition'
@@ -63,6 +62,7 @@ import { useHourHeight, usePinchHourHeight } from '../hooks/useHourHeight'
 import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
 import { calendarWeekDays } from '../lib/weekStart'
 import { useDayLoads } from '../hooks/useDayLoads'
+import { canEditGoogleEvent } from '../lib/googleEventEdit'
 
 const NO_TASKS: Task[] = []
 const NO_EVENTS: CalendarEvent[] = []
@@ -91,7 +91,8 @@ export function WeekCalendarView({
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
   const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
-  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  // やらなかった予定（#528）も薄く出す
+  const calendarEvents = useShownCalendarEvents()
   /** つかんでいる Google の予定（週をめくって一覧から消えても動かせるよう、つかんだ時点のものを持つ） */
   const googleDragRef = useRef<CalendarEvent | null>(null)
   const updateTask = useTaskStore((s) => s.updateTask)
@@ -170,13 +171,6 @@ export function WeekCalendarView({
     calendarEvents,
     days,
   )
-  /** 1 日だけ描く過ぎた日の「予定 n・できた n・持ち越し n」。予定の無い日は出さない */
-  const planTally = useMemo(() => {
-    if (gridDays.length !== 1 || gridKey0 >= todayKey) return null
-    const tally = dayPlanTally(tasks, gridKey0, unplannedListIds(lists))
-    return tally.planned > 0 ? tally : null
-  }, [gridDays.length, gridKey0, todayKey, tasks, lists])
-
   const fetchRange = useMemo(() => {
     const ws = new Date(days[0]!)
     const we = new Date(days[days.length - 1]!)
@@ -214,26 +208,14 @@ export function WeekCalendarView({
   const cards = useCalendarCards(gridRef)
   const { setEventCard, openCard, setGoogleCard, openGoogleCard, openHabitCard, openHabitMenu, createAnchor, setCreateAnchorFromEl } = cards
 
-  /**
-   * 予定・記録・Google の予定のメニュー（右クリック・タッチの長押し）。
-   * 習慣の枠は習慣の画面と同じメニュー。メニューを出せるもの（タスク・Google の予定・習慣の枠）のときだけ開いて true
-   */
-  const openBlockMenu = useCallback(
-    (id: string, x: number, y: number): boolean => {
-      if (openHabitMenu(id, x, y)) return true
-      const { tasks, calendarEvents } = useTaskStore.getState()
-      const known = id.startsWith('event-')
-        ? calendarEvents.some((ev) => ev.id === id.slice('event-'.length))
-        : tasks.some((t) => t.id === id)
-      if (!known) return false
-      setEventCard(null)
-      setGoogleCard(null)
-      openTaskMenu(
-        id.startsWith('event-') ? { kind: 'google', x, y, eventId: id.slice('event-'.length) } : { kind: 'event', x, y, taskId: id },
-      )
-      return true
+  /** ブロックを押したとき: 習慣の枠・Google の予定・予定と記録のカード */
+  const openBlockCard = useCallback(
+    (id: string) => {
+      if (parseHabitSlotId(id)) openHabitCard(id)
+      else if (id.startsWith('event-')) openGoogleCard(id.slice('event-'.length))
+      else openCard(id)
     },
-    [setEventCard, setGoogleCard, openHabitMenu],
+    [openCard, openGoogleCard, openHabitCard],
   )
 
   // ref だけを読むので作り直さない（フックの中の useCallback が描くたびに作り直されないように）
@@ -247,25 +229,44 @@ export function WeekCalendarView({
   const onResizeDone = useCallback((taskId: string, startTime: string, endTime: string, dateKey: string) => {
     applyBlockResize(taskId, startTime, endTime, dateKey, { logLimit: logLimitRef.current, googleEvent: googleDragRef.current })
   }, [])
+  /**
+   * 右クリック・タッチの長押しのメニュー。習慣の枠は習慣の画面と同じメニュー、予定・To-Do は完了 / 未完了・コピーだけ、
+   * 書き込める Google の予定はコピーだけ（ほかはカードと編集画面）。記録・書き込めない Google の予定には出さない。出したときだけ true
+   */
+  const openBlockMenu = useCallback(
+    (id: string, x: number, y: number): boolean => {
+      if (openHabitMenu(id, x, y)) return true
+      if (id.startsWith('event-')) {
+        const s = useTaskStore.getState()
+        const event = s.calendarEvents.find((e) => e.id === id.slice('event-'.length))
+        if (!event || !canEditGoogleEvent(event, s.googleCanWrite)) return false
+        setEventCard(null)
+        setGoogleCard(null)
+        openTaskMenu({ kind: 'google', x, y, eventId: event.id, brief: true })
+        return true
+      }
+      const task = useTaskStore.getState().tasks.find((t) => t.id === id)
+      if (!task || isLogTask(task)) return false
+      setEventCard(null)
+      setGoogleCard(null)
+      openTaskMenu({ kind: 'event', x, y, taskId: id, brief: true })
+      return true
+    },
+    [openHabitMenu, setEventCard, setGoogleCard],
+  )
+  // タッチの長押し: メニューを出せないもの（記録・書き込めない Google の予定）は押したときと同じカード
   const onBlockLongPress = useCallback(
     (id: string, x: number, y: number) => {
-      openBlockMenu(id, x, y)
+      if (!openBlockMenu(id, x, y)) openBlockCard(id)
     },
-    [openBlockMenu],
+    [openBlockMenu, openBlockCard],
   )
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
     onMoveDone,
     onResizeDone,
-    onBlockTap: useCallback(
-      (taskId: string) => {
-        if (parseHabitSlotId(taskId)) openHabitCard(taskId)
-        else if (taskId.startsWith('event-')) openGoogleCard(taskId.slice('event-'.length))
-        else openCard(taskId)
-      },
-      [openCard, openGoogleCard, openHabitCard],
-    ),
+    onBlockTap: openBlockCard,
     clickCreateMinutes: defaultBlockMinutes,
     onBlockLongPress,
   })
@@ -535,7 +536,6 @@ export function WeekCalendarView({
     <div
       ref={rootRef}
       className="flex min-h-0 min-w-0 flex-1 flex-row"
-      // 予定・記録・Google の予定を右クリック: カードを開かずに操作するメニュー（Google カレンダーと同じ）
       onContextMenu={(e) => {
         const id = (e.target as Element).closest?.('[data-block-id]')?.getAttribute('data-block-id')
         if (id && openBlockMenu(id, e.clientX, e.clientY)) e.preventDefault()
@@ -553,7 +553,6 @@ export function WeekCalendarView({
             onSelectDate={onSelectDate}
             setAllDayAddDate={setAllDayAddDate}
             dayLoads={dayLoads}
-            planTally={planTally}
           />
         </div>
 

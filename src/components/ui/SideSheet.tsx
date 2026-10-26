@@ -5,7 +5,7 @@ import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { ChevronLeftIcon } from '../icons'
 
 /**
- * 右から出るシート（タスクの詳細・習慣の詳細）。背景を押す（閉じるだけで下には届けない、`useDismiss`。`onBackdropPress` で下を読んで別の動きにもできる）・Esc で閉じる。スマホは全画面で、上に戻るボタンを固定する（Google Tasks と同じ）。
+ * 右から出るシート（タスクの詳細・習慣の詳細）。背景を押す（閉じるだけで下には届けない、`useDismiss`）・Esc で閉じる。スマホは全画面で、上に戻るボタンを固定する（Google Tasks と同じ）。
  * Tab はシートの中だけを巡回し、閉じたら `returnFocus` の要素へフォーカスを戻す
  */
 export function SideSheet({
@@ -13,7 +13,7 @@ export function SideSheet({
   closing = false,
   onClose,
   returnFocus,
-  onBackdropPress,
+  mobileActions,
   children,
 }: {
   /** 読み上げのシート名 */
@@ -22,8 +22,8 @@ export function SideSheet({
   closing?: boolean
   onClose: () => void
   returnFocus?: () => HTMLElement | null | undefined
-  /** 背景を押したとき、閉じる前に呼ぶ（押した所の下を読む。true なら閉じない）。押下は下に届けない */
-  onBackdropPress?: (e: PointerEvent, root: HTMLElement | null) => boolean
+  /** スマホの上の帯の右に出すボタン（詳細の 🗑 など） */
+  mobileActions?: ReactNode
   children: ReactNode
 }) {
   const { t } = useTranslation()
@@ -35,7 +35,6 @@ export function SideSheet({
     onClose,
     inside: [panelRef],
     backdrop: rootRef,
-    onOutsidePress: onBackdropPress && ((e) => onBackdropPress(e, rootRef.current)),
   })
   const trapTab = useFocusTrap(panelRef, { active: !closing, returnFocus })
 
@@ -63,6 +62,7 @@ export function SideSheet({
           >
             <ChevronLeftIcon className="h-6 w-6" />
           </button>
+          {mobileActions && <div className="ml-auto flex items-center">{mobileActions}</div>}
         </div>
         {children}
       </div>

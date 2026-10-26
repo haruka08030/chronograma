@@ -11,7 +11,7 @@ const textButton = buttonClass({ variant: 'link', size: 'xs' })
 /**
  * 今日の計画の下: その日の気分の記号（締めの時刻から）と、通知をすすめる 1 行。
  * 残りを明日へ・ラベルなしの記録・記録の無い時間は、ここでは並べない（次の日の「やり残し」、記録の帯の凡例の「ラベルなし」、
- * タイムラインの「＋ 記録なし」で同じことができる）。夜の締めの通知から開いたとき（`focusKey` が 1 以上）はここまでスクロールする
+ * タイムラインの「＋ 記録なし」で同じことができる）。夜のまとめの通知から開いたとき（`focusKey` が 1 以上）はここまでスクロールする
  */
 export function PlannerWrapUp({
   showMood = false,
@@ -23,7 +23,7 @@ export function PlannerWrapUp({
   showMood?: boolean
   /** 見ている日（気分を付ける日） */
   dateKey: string
-  /** 夜の締めの通知から開いた回数（増えるたびにここまでスクロールする） */
+  /** 夜のまとめの通知から開いた回数（増えるたびにここまでスクロールする） */
   focusKey?: number
   totalCount: number
 }) {

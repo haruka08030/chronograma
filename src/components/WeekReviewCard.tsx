@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { differenceInCalendarDays, format } from 'date-fns'
+import { useAbsentOn } from '../hooks/useAbsentOn'
 import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import {
   compareReviews,
+  dayTooltipText,
   foldLabelMinutes,
   getPrevReview,
   getReview,
@@ -68,6 +70,9 @@ const PERIOD_KEYS = {
   },
 } as const
 
+/** 数字の枠の数ごとの、広い画面の列（1 行に並べる） */
+const TILE_COLUMNS: Record<number, string> = { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4' }
+
 /** 差の符号つきの書き方（「+1時間20分」「−45分」）。減っても色は付けない（事実だけ） */
 const signed = (diff: number, fmt: (m: number) => string) => `${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff))}`
 
@@ -118,18 +123,19 @@ export function WeekReviewCard() {
   const labelPresets = useTaskStore((s) => s.timeLogTagPresets)
   const labelTargets = useTaskStore((s) => s.logLabelTargets)
   const excluded = useMemo(() => unplannedListIds(lists), [lists])
+  const absentOn = useAbsentOn()
   const labelOf = useMemo(
     () => (log: LabelSource) => recordLabelKey(log, labelPresets, logCategoryColors),
     [labelPresets, logCategoryColors],
   )
   const review = useMemo(
-    () => getReview(tasks, habits, period, anchor, excluded, undefined, labelOf),
-    [tasks, habits, period, anchor, excluded, labelOf],
+    () => getReview(tasks, habits, period, anchor, excluded, undefined, labelOf, absentOn),
+    [tasks, habits, period, anchor, excluded, labelOf, absentOn],
   )
   // 前の期間との差（記録した時間・ラベル別）。前の期間も同じ日までで比べる
   const comparison = useMemo(
-    () => compareReviews(review, getPrevReview(tasks, habits, period, anchor, excluded, undefined, labelOf)),
-    [review, tasks, habits, period, anchor, excluded, labelOf],
+    () => compareReviews(review, getPrevReview(tasks, habits, period, anchor, excluded, undefined, labelOf, absentOn)),
+    [review, tasks, habits, period, anchor, excluded, labelOf, absentOn],
   )
   const loggedDiff = comparison.loggedDiff
   // 見積もりと記録（#297）: この期間に終えた To-Do だけ（決めた後に見る）。大きく超えたものが先頭
@@ -195,13 +201,15 @@ export function WeekReviewCard() {
   const [sharing, setSharing] = useState(false)
   const shareTip = review.loggedMinutes > 0 ? t('weekReview.shareImage') : t('weekReview.shareImageEmpty')
 
+  // 使っていないものの枠は出さない: 時間に置いた予定が無い期間は「計画どおり実行」（一言が予定の立て方を言う）、
+  // 習慣の予定が 1 日も無い期間は習慣の達成。並び・形は同じ
   const tiles = [
     { label: t('weekReview.done'), value: `${review.done}/${review.total}`, sub: null },
-    {
+    review.timedPlanned > 0 && {
       label: t('weekReview.followRate'),
       value: pct(review.followRate),
       // 割合だけだと 1 件中 1 件か 10 件中 10 件か分からないので、分母を添える
-      sub: review.timedPlanned > 0 ? t('weekReview.followCount', { followed: review.followed, total: review.timedPlanned }) : null,
+      sub: t('weekReview.followCount', { followed: review.followed, total: review.timedPlanned }),
     },
     {
       label: t('weekReview.logged'),
@@ -212,11 +220,11 @@ export function WeekReviewCard() {
       note: review.unrecordedMinutes > 0 ? t('weekReview.unrecorded', { time: formatDuration(review.unrecordedMinutes) }) : null,
       noteTitle: t('weekReview.unrecordedHint'),
     },
-    { label: t(atCurrent ? keys.habitsCurrent : keys.habits), value: pct(review.habitRate), sub: null },
-  ]
+    review.habitRate != null && { label: t(atCurrent ? keys.habitsCurrent : keys.habits), value: pct(review.habitRate), sub: null },
+  ].filter((tile) => tile !== false)
 
-  return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
+  const head = (
+    <>
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-3">
         {/* スマホは見出しと切り替えを 2 行に分ける（週の範囲の文が長く、週 ↔ 月で並びが変わらないように） */}
         <div className="min-w-0 basis-full sm:basis-auto">
@@ -272,8 +280,30 @@ export function WeekReviewCard() {
           onClose={() => setSharing(false)}
         />
       )}
+    </>
+  )
+  const insightLine = (
+    <p className="mt-4 rounded-lg bg-accent-50/70 px-3 py-2 text-xs leading-relaxed text-accent-800 dark:bg-accent-500/10 dark:text-accent-300">
+      {insight}
+    </p>
+  )
+  const sectionClass = 'rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50'
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+  // まだ一度も記録していない人には、数字・棒・ラベル別を出さず一言（はじめの案内）だけ
+  if (!everRecorded) {
+    return (
+      <section className={sectionClass}>
+        {head}
+        {insightLine}
+      </section>
+    )
+  }
+
+  return (
+    <section className={sectionClass}>
+      {head}
+
+      <dl className={`mt-4 grid grid-cols-2 gap-3 ${TILE_COLUMNS[tiles.length]}`}>
         {tiles.map((tile) => (
           <div key={tile.label} className="rounded-lg bg-zinc-50 px-3 py-2.5 dark:bg-zinc-800/60">
             <dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{tile.label}</dt>
@@ -288,9 +318,7 @@ export function WeekReviewCard() {
         ))}
       </dl>
 
-      <p className="mt-4 rounded-lg bg-accent-50/70 px-3 py-2 text-xs leading-relaxed text-accent-800 dark:bg-accent-500/10 dark:text-accent-300">
-        {insight}
-      </p>
+      {insightLine}
 
       <div className={`mt-4 grid gap-5 ${showLabelDiff ? 'sm:grid-cols-[1fr_15rem]' : 'sm:grid-cols-[1fr_12rem]'}`}>
         <figure>
@@ -318,13 +346,7 @@ export function WeekReviewCard() {
                   const h = Math.round((dayBar / maxMinutes) * 100)
                   const plannedH = day ? Math.round((day.plannedMinutes / maxMinutes) * 100) : 0
                   const dayTip = day
-                    ? t('weekReview.dayTooltip', {
-                        day: label,
-                        logged: formatDuration(day.loggedMinutes),
-                        planned: formatDuration(day.plannedMinutes),
-                        done: day.done,
-                        total: day.total,
-                      }) +
+                    ? dayTooltipText(t, label, day) +
                       (hasPlanned && day.unplannedMinutes > 0
                         ? t('weekReview.dayTooltipUnplanned', { time: formatDuration(day.unplannedMinutes) })
                         : '')

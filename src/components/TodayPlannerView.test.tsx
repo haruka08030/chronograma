@@ -1,6 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { toDateKey } from '../lib/dateKey'
 import { appToday } from '../lib/timeZone'
@@ -74,7 +74,7 @@ describe('TodayPlannerView（読み上げ）', () => {
   })
 })
 
-describe('TodayPlannerView: 過ぎた日のその日の結果（#282）', () => {
+describe('TodayPlannerView: 見出しは振り返るときだけラベル別の時間（#542）', () => {
   const task = (id: string, over: Partial<Task>): Task =>
     ({
       ...TASK_DEFAULTS,
@@ -98,37 +98,40 @@ describe('TodayPlannerView: 過ぎた日のその日の結果（#282）', () => 
       ...over,
     }) as Task
 
-  it('予定 / 空きの代わりに「予定 2 件中 1 件・予定外」を出し、押すと週のふりかえりを開く', async () => {
+  it('過ぎた日はラベル別の時間だけ。記録の合計・予定の数・予定外・後から記録のボタンは出さない', () => {
     const day = toDateKey(addDays(appToday(), -1))
     useTaskStore.setState({
       tasks: [
-        task('seminar', { title: 'Seminar', scheduledDate: day, startTime: '09:00', endTime: '10:00' }),
         task('essay', { title: 'Essay', scheduledDate: day, startTime: '13:00', endTime: '14:00' }),
-        task('seminarLog', { kind: 'log', title: 'Seminar', dueDate: day, startTime: '09:00', endTime: '10:00', completed: true }),
         task('yt', { kind: 'log', title: 'YouTube', dueDate: day, startTime: '20:00', endTime: '21:00', completed: true }),
       ],
     })
     useTaskStore.getState().setSelectedCalendarDateKey(day)
-    const user = userEvent.setup()
-    render(<TodayPlannerView />)
-    const result = document.querySelector('[data-day-result]')!
-    expect(result.textContent).toMatch(/^1 of 2 plans · 1h unplanned/)
-    // 記録の時間は左の 1 か所だけ（結果の行に重ねない）
-    expect(screen.getAllByText('2h logged')).toHaveLength(1)
-    expect(document.querySelector('[data-day-free]')).toBeNull()
-    await user.click(result)
-    expect(useTaskStore.getState().selectedView).toBe('stats')
+    const { container } = render(<TodayPlannerView />)
+    const header = container.querySelector('header')!
+    expect(within(header).getByRole('button', { name: 'Time by label' })).toBeInTheDocument()
+    expect(header).not.toHaveTextContent(/logged|unplanned|unrecorded|of 1 plan/)
+    expect(within(header).queryByRole('button', { name: 'Log past time' })).toBeNull()
   })
 
-  it('時間に置いた予定が無い過ぎた日は今のまま（結果の行を出さない）', () => {
-    const day = toDateKey(addDays(appToday(), -1))
-    useTaskStore.setState({
-      tasks: [task('yt', { kind: 'log', title: 'YouTube', dueDate: day, startTime: '20:00', endTime: '21:00', completed: true })],
-    })
-    useTaskStore.getState().setSelectedCalendarDateKey(day)
-    render(<TodayPlannerView />)
-    expect(document.querySelector('[data-day-result]')).toBeNull()
-    expect(screen.getByText('1h logged')).toBeInTheDocument()
+  it('今日の昼（締めの時刻の前）はラベル別の時間を出さない', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const now = new Date()
+      now.setHours(13, 0, 0, 0)
+      vi.setSystemTime(now)
+      const day = toDateKey(appToday())
+      useTaskStore.setState({
+        tasks: [task('yt', { kind: 'log', title: 'YouTube', dueDate: day, startTime: '09:00', endTime: '10:00', completed: true })],
+      })
+      useTaskStore.getState().setSelectedCalendarDateKey(day)
+      const { container } = render(<TodayPlannerView />)
+      const header = container.querySelector('header')!
+      expect(within(header).queryByRole('button', { name: 'Time by label' })).toBeNull()
+      expect(within(header).getByRole('button', { name: 'Log past time' })).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -387,5 +390,45 @@ describe('TodayPlannerView: 完了の行もキーで（#377）', () => {
     expect(cursor?.getAttribute('data-task-row')).toBe(done)
     await user.keyboard(' ')
     expect(useTaskStore.getState().tasks.find((x) => x.id === done)!.completed).toBe(false)
+  })
+})
+
+describe('TodayPlannerView: 記録中の枠（#530）', () => {
+  it('記録中は記録の列に始めた時刻からの枠を出し、止めたら記録の枠に置き換わる', () => {
+    // 0 時すぎに流すと 1 時間前が前の日になる。昼に固定する
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(new Date().setHours(13, 0, 0, 0)))
+    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    useTaskStore.setState({ onboardingDone: true })
+    useTaskStore.getState().startTimer('Essay', [])
+    // 始めた時刻を 1 時間前にする（短い枠は 1 行で、終わりの「記録中」を出さない）
+    useTaskStore.setState((s) => ({
+      activeTimer: s.activeTimer && { ...s.activeTimer, startedAt: new Date(Date.now() - 60 * 60_000).toISOString() },
+    }))
+    const { container } = render(<TodayPlannerView />)
+    const running = container.querySelector('[data-running-log]')
+    expect(running).toHaveTextContent('Essay')
+    expect(running).toHaveTextContent('Logging…')
+
+    act(() => useTaskStore.getState().stopTimer())
+    expect(container.querySelector('[data-running-log]')).toBeNull()
+    const log = useTaskStore.getState().tasks.find((t) => t.kind === 'log' && t.title === 'Essay')!
+    expect(container.querySelector(`[data-block-id="${log.id}"]`)).not.toBeNull()
+    vi.useRealTimers()
+  })
+})
+
+describe('TodayPlannerView: 足したばかりの行の締切（#533）', () => {
+  it('追加欄から足した行は先の締切も出し、画面を開き直すと今日やる行の決まり（先の締切は出さない）に戻る', async () => {
+    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    useTaskStore.setState({ onboardingDone: true })
+    const user = userEvent.setup()
+    const { unmount } = render(<TodayPlannerView />)
+    await user.type(screen.getByPlaceholderText(/^Add/), 'essay by tomorrow{Enter}')
+    const row = () => document.querySelector('[data-task-row]')!
+    expect(row()).toHaveTextContent(/Due /)
+    unmount()
+    render(<TodayPlannerView />)
+    expect(row()).not.toHaveTextContent(/Due /)
   })
 })

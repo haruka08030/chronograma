@@ -8,6 +8,8 @@ import {
   readHabitTimeOverrides,
   readHabitWeekdayTimes,
   readHabitGoalMinutes,
+  readHabitPastRules,
+  readHabitKind,
   type Habit,
 } from '../types/habit'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
@@ -22,9 +24,33 @@ import { readDreamId, readSomedayTier } from './somedayTier'
 import { isLabelId, normalizeLabelIds } from './labelIds'
 import { normalizeLabelTargets } from './labelTargets'
 import { readTimeZone } from './timeZone'
+import { normalizeDayMoods, type DayMoods } from './dayMood'
+import { normalizeTimetable, type Timetable } from './timetable'
+import { normalizeAddons, type Addons } from './addons'
+import { normalizeEventTemplates, type EventTemplate } from './eventTemplates'
+import { normalizeCourseLinks, type CourseLink } from './courseLinks'
+import { normalizeExtraTimeZones, type ExtraTimeZone } from './extraTimeZones'
+import { normalizeWeekStart, type WeekStartDay } from './weekStart'
 
-/** Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。 */
-export const BACKUP_SCHEMA_VERSION = 3
+/**
+ * Web / モバイル共通の JSON バックアップ版。エクスポートは常にこの版。
+ * 4: 1 日の気分・時間割・追加機能・よく入れる予定・授業と科目のつながり・他のタイムゾーン・端末の設定（`prefs`）を足した。
+ * 前の版のファイルにはこれらが無く、取り込んでも今の値のまま
+ */
+export const BACKUP_SCHEMA_VERSION = 4
+
+/**
+ * 端末ごとの設定（同期しない）。書き出しには入れるが、取り込みでは今の端末の値のまま（取り込みはデータの置き換え。
+ * 読んだ値は `BackupImportResult.prefs` に入る）
+ */
+export type BackupPrefs = {
+  theme: 'light' | 'dark' | 'system'
+  weekStartsOn: WeekStartDay
+  dailyCapacityMinutes: number
+  defaultBlockMinutes: number
+  eventReminderMinutes: number | null
+  appTimeZone: string | null
+}
 
 /**
  * 取り込むファイル（JSON バックアップ・CSV）の大きさの上限。読む前に確かめる（大きなファイルを丸ごと読んで固まらない）。
@@ -48,9 +74,34 @@ export interface BackupExportInput {
   logLabelIds?: Record<string, string>
   /** ラベルの週の目安（名前 → 分） */
   logLabelTargets?: Record<string, number>
+  /** 1 日の気分とひとこと（版 4 から。以下も同じ） */
+  dayMoods?: DayMoods
+  /** 時間割（時限・学期・欠席の日付・休める回数） */
+  timetable?: Timetable
+  /** 追加機能（オン・オフ・引き落とし・期限の日・欠席の一覧の授業・Google に送らない名前） */
+  addons?: Addons
+  eventTemplates?: EventTemplate[]
+  courseLinks?: CourseLink[]
+  extraTimeZones?: ExtraTimeZone[]
+  prefs?: BackupPrefs
 }
 
-export interface BackupImportResult {
+/**
+ * ラベル表のほかに書き出す値（版 4 から）。前の版のファイルには無く、無い値は取り込んでも今の値のまま
+ * （取り込みの控え・ラベルの週の目安と同じ）
+ */
+export type BackupExtras = {
+  dayMoods?: DayMoods
+  timetable?: Timetable
+  addons?: Addons
+  eventTemplates?: EventTemplate[]
+  courseLinks?: CourseLink[]
+  extraTimeZones?: ExtraTimeZone[]
+  /** 端末の設定。ファイルにあった項目だけ */
+  prefs?: Partial<BackupPrefs>
+}
+
+export interface BackupImportResult extends BackupExtras {
   tasks: Task[]
   lists: TaskList[]
   habits: Habit[]
@@ -328,6 +379,7 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
   const restDates = readHabitRestDates(rec.restDates)
   const weekdayTimes = readHabitWeekdayTimes(rec.weekdayTimes)
   const goalMinutes = readHabitGoalMinutes(rec.goalMinutes)
+  const pastRules = readHabitPastRules(rec.pastRules)
   const deletedAt = typeof rec.deletedAt === 'string' && !Number.isNaN(Date.parse(rec.deletedAt)) ? rec.deletedAt : null
   // 知っている項目だけを取り出す（知らない項目をストアに残さない）
   return {
@@ -348,6 +400,9 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
     ...(restDates ? { restDates } : {}),
     ...(weekdayTimes ? { weekdayTimes } : {}),
     ...(goalMinutes ? { goalMinutes } : {}),
+    ...(pastRules ? { pastRules } : {}),
+    // 習慣（ルーティンでない）には無い
+    ...(readHabitKind(rec.kind) ? { kind: 'routine' as const } : {}),
     // ゴミ箱に無い習慣には無い
     ...(deletedAt ? { deletedAt } : {}),
   }
@@ -371,7 +426,70 @@ export function buildBackupPayload(input: BackupExportInput): Record<string, unk
     logCategoryColors: input.logCategoryColors,
     logLabelIds: input.logLabelIds ?? {},
     ...(input.logLabelTargets ? { logLabelTargets: input.logLabelTargets } : {}),
+    // 気分のもとにしたサーバーの版（`syncedAt`）は端末ごとのものなので書かない
+    ...(input.dayMoods
+      ? {
+          dayMoods: Object.fromEntries(
+            Object.entries(input.dayMoods).map(([day, m]) => [day, { mood: m.mood, note: m.note, updatedAt: m.updatedAt }]),
+          ),
+        }
+      : {}),
+    ...(input.timetable ? { timetable: input.timetable } : {}),
+    ...(input.addons ? { addons: input.addons } : {}),
+    ...(input.eventTemplates ? { eventTemplates: input.eventTemplates } : {}),
+    ...(input.courseLinks ? { courseLinks: input.courseLinks } : {}),
+    ...(input.extraTimeZones ? { extraTimeZones: input.extraTimeZones } : {}),
+    ...(input.prefs ? { prefs: input.prefs } : {}),
   }
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+
+/** 端末の設定のうち、読める項目だけ */
+function readPrefs(raw: unknown): Partial<BackupPrefs> | undefined {
+  if (!isRecord(raw)) return undefined
+  const out: Partial<BackupPrefs> = {}
+  if (raw.theme === 'light' || raw.theme === 'dark' || raw.theme === 'system') out.theme = raw.theme
+  if (raw.weekStartsOn !== undefined) out.weekStartsOn = normalizeWeekStart(raw.weekStartsOn)
+  const minutes = (v: unknown, min: number, max: number) =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : undefined
+  const capacity = minutes(raw.dailyCapacityMinutes, 60, 24 * 60)
+  if (capacity !== undefined) out.dailyCapacityMinutes = capacity
+  const block = minutes(raw.defaultBlockMinutes, 15, 24 * 60)
+  if (block !== undefined) out.defaultBlockMinutes = block
+  if (raw.eventReminderMinutes === null) out.eventReminderMinutes = null
+  else {
+    const before = minutes(raw.eventReminderMinutes, 0, 7 * 24 * 60)
+    if (before !== undefined) out.eventReminderMinutes = before
+  }
+  if (raw.appTimeZone === null || readTimeZone(raw.appTimeZone)) out.appTimeZone = readTimeZone(raw.appTimeZone)
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+/** ラベル表のほかの値（版 4 から）。ファイルにあるものだけ */
+function readExtras(data: Record<string, unknown>): BackupExtras {
+  const out: BackupExtras = {}
+  // 気分は日ごとに更新時刻が要る。前の版の形（時刻なし）でも読めるよう、無ければ書き出した時刻にする
+  if (isRecord(data.dayMoods)) {
+    const at =
+      typeof data.exportedAt === 'string' && Number.isFinite(Date.parse(data.exportedAt)) ? data.exportedAt : new Date().toISOString()
+    out.dayMoods = normalizeDayMoods(
+      Object.fromEntries(
+        Object.entries(data.dayMoods).map(([day, m]) => [
+          day,
+          isRecord(m) ? { ...m, updatedAt: typeof m.updatedAt === 'string' ? m.updatedAt : at, syncedAt: null } : m,
+        ]),
+      ),
+    )
+  }
+  if (isRecord(data.timetable)) out.timetable = normalizeTimetable(data.timetable)
+  if (isRecord(data.addons)) out.addons = normalizeAddons(data.addons)
+  if (Array.isArray(data.eventTemplates)) out.eventTemplates = normalizeEventTemplates(data.eventTemplates)
+  if (Array.isArray(data.courseLinks)) out.courseLinks = normalizeCourseLinks(data.courseLinks)
+  if (Array.isArray(data.extraTimeZones)) out.extraTimeZones = normalizeExtraTimeZones(data.extraTimeZones)
+  const prefs = readPrefs(data.prefs)
+  if (prefs) out.prefs = prefs
+  return out
 }
 
 /** 取り込めるか確かめて読む。取り込めないときは理由を返す */
@@ -470,6 +588,7 @@ export function readBackupJson(json: string): BackupReadResult {
       logCategoryColors,
       logLabelIds,
       ...(logLabelTargets ? { logLabelTargets } : {}),
+      ...readExtras(data),
     },
   }
 }

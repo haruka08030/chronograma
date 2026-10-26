@@ -6,6 +6,7 @@ import { toSmartView } from './viewUrl'
 import { parseStartParam, type QuickStartRequest } from './quickStart'
 import { sharedQuickAdd, type QuickAddPrefill } from './shareTarget'
 import { flushPendingEdits, hasTypingInProgress } from './pendingEdits'
+import { reloadWhenSaved } from './dataStore'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -81,7 +82,7 @@ export interface LaunchHandlers {
   stopTimer: (launch: TimerStopLaunch) => void
   /** 開始の通知の「記録を始める」から: その予定のタイマーを始める（#419。通知から開いたときだけ） */
   startTimer: (launch: TaskLaunch) => void
-  /** 夜の締めの通知から: 今日の計画の「1 日を締める」の所を見せる（`?wrap-up=1`） */
+  /** 夜のまとめの通知から: 今日の計画（スマホはタイムラインの面）と気分の記号を見せる（`?wrap-up=1`） */
   wrapUp: () => void
   /**
    * ホーム画面のアイコンを長押しした「追加」（`?add=1`）と、ほかのアプリの「共有」（`?add=1&title=…&text=…&url=…`、manifest の `share_target`）。
@@ -234,11 +235,11 @@ function watchForUpdates(reg: ServiceWorkerRegistration) {
   let hadController = navigator.serviceWorker.controller !== null
   let reloadPending = false
 
-  // 欄に打っている途中なら見送り、次に隠れたときにする。読み込み直す前に書きかけをストアに入れる
+  // 欄に打っている途中なら見送り、次に隠れたときにする。読み込み直す前に書きかけをストアに入れ、保存し終えるのを待つ
   const reloadIfHidden = () => {
     if (!reloadPending || document.visibilityState !== 'hidden' || hasTypingInProgress()) return
     flushPendingEdits()
-    window.location.reload()
+    reloadWhenSaved()
   }
 
   navigator.serviceWorker.addEventListener('controllerchange', () => {

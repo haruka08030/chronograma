@@ -6,7 +6,7 @@ import { INBOX_LIST_ID } from '../../store/storeConstants'
 import type { Task } from '../../types/task'
 import { TodayPlannerView } from '../TodayPlannerView'
 
-/** 見出しの「記録なし」を押すと「後から記録」を直前の記録の終わり〜今で開く（#393） */
+/** 今日の「後から記録」は直前の記録の終わり〜今で開く（#393）。過ぎた日はタイムラインの「記録なし」から入れるのでボタンを出さない（#542） */
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {}
@@ -45,11 +45,11 @@ const log = (id: string, startTime: string, endTime: string, over: Partial<Task>
   ...over,
 })
 
-describe('見出しの「記録なし」', () => {
-  it('押すと後から記録を直前の記録の終わり〜今で開く', () => {
+describe('後から記録', () => {
+  it('直前の記録の終わり〜今で開く', () => {
     useTaskStore.setState({ tasks: [log('読書', '09:00', '10:30')], activeTimer: null })
     render(<TodayPlannerView />)
-    const button = screen.getByRole('button', { name: /unrecorded/ })
+    const button = screen.getByRole('button', { name: 'Log past time' })
     act(() => button.click())
     expect(screen.getByDisplayValue('10:30')).toBeInTheDocument()
     expect(screen.getByDisplayValue('13:00')).toBeInTheDocument()
@@ -64,8 +64,15 @@ describe('見出しの「記録なし」', () => {
       onboardingDone: true,
     })
     render(<TodayPlannerView />)
-    act(() => screen.getByRole('button', { name: /unrecorded/ }).click())
+    act(() => screen.getByRole('button', { name: 'Log past time' }).click())
     expect(screen.getByDisplayValue('07:00')).toBeInTheDocument()
     expect(screen.getByDisplayValue('09:00')).toBeInTheDocument()
+  })
+
+  it('過ぎた日はボタンを出さない', () => {
+    useTaskStore.setState({ tasks: [log('読書', '09:00', '10:30', { dueDate: '2026-10-07' })], activeTimer: null })
+    useTaskStore.getState().setSelectedCalendarDateKey('2026-10-07')
+    render(<TodayPlannerView />)
+    expect(screen.queryByRole('button', { name: 'Log past time' })).toBeNull()
   })
 })

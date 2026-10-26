@@ -14,8 +14,8 @@ export const MERGE_CONFLICTS_KEY = 'chronograma-merge-conflicts-v1'
 export const MERGE_CONFLICT_REPORT_INTERVAL_MS = 24 * 60 * 60_000
 /** 送る項目の数の上限（記録の大きさの上限に収める） */
 const MAX_KEYS = 40
-/** 項目の名前として送ってよい形（表名.項目名。コードの名前だけ） */
-const KEY_SHAPE = /^(lists|sections|tasks|habits)\.[A-Za-z_][A-Za-z0-9_]{0,39}$/
+/** 項目の名前として送ってよい形（表名.項目名。コードの名前だけ。利用者ごとに 1 行の設定は `settings.<設定の名前>`） */
+const KEY_SHAPE = /^(lists|sections|tasks|habits|settings)\.[A-Za-z_][A-Za-z0-9_]{0,39}$/
 
 type Stored = { counts: MergeConflictCounts; since: string | null; lastSentAt: number }
 

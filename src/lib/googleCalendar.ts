@@ -317,8 +317,20 @@ export function googleWriteGeneration(): number {
 /** Google で消されたアプリの予定（Google の ID と、消された時刻） */
 export type DeletedPushedEvent = { id: string; updated: string | null }
 
-/** `deletedPushed` は前の版の関数は返さない（空） */
-type FetchedEvents = { events: CalendarEvent[]; canWrite: boolean; deletedPushed: DeletedPushedEvent[] }
+/** やらなかった予定（開始を過ぎてから消された予定、#528）と、消された時刻 */
+export type SkippedGoogleEvent = CalendarEvent & { skippedAt: string }
+
+/** `deletedPushed`・`skipped` は前の版の関数は返さない（空） */
+type FetchedEvents = { events: CalendarEvent[]; canWrite: boolean; deletedPushed: DeletedPushedEvent[]; skipped: SkippedGoogleEvent[] }
+
+function readSkipped(raw: unknown): SkippedGoogleEvent[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter(
+      (x): x is SkippedGoogleEvent => !!x && typeof x.id === 'string' && typeof x.start === 'string' && typeof x.skippedAt === 'string',
+    )
+    .map((x) => ({ ...withColors(normalizeCalendarEventTimes(x)), skippedAt: x.skippedAt }))
+}
 
 function readDeletedPushed(raw: unknown): DeletedPushedEvent[] {
   if (!Array.isArray(raw)) return []
@@ -353,6 +365,7 @@ async function loadCalendarEvents(timeMin: Date, timeMax: Date): Promise<Fetched
     connected?: boolean
     canWrite?: boolean
     deletedPushed?: unknown
+    skipped?: unknown
     /** 範囲の予定が多すぎて、関数がページ送りの上限で止めた（後ろの予定が欠けている） */
     truncated?: boolean
     error?: string
@@ -374,6 +387,7 @@ async function loadCalendarEvents(timeMin: Date, timeMax: Date): Promise<Fetched
     events: (payload.events ?? []).map(normalizeCalendarEventTimes).map(withColors),
     canWrite: payload.canWrite === true,
     deletedPushed: readDeletedPushed(payload.deletedPushed),
+    skipped: readSkipped(payload.skipped),
   }
 }
 
@@ -477,8 +491,13 @@ async function writeGoogle(body: Record<string, unknown>): Promise<CalendarEvent
   }
 }
 
-export async function createGoogleEvent(summary: string, timing: GoogleEventTiming): Promise<CalendarEvent | null> {
-  return writeGoogle({ action: 'create', fields: { summary, ...toGoogleTimes(timing) } })
+/** `extra`: コピーのときに写すメモ・予定の色 */
+export async function createGoogleEvent(
+  summary: string,
+  timing: GoogleEventTiming,
+  extra: { description?: string; colorId?: string } = {},
+): Promise<CalendarEvent | null> {
+  return writeGoogle({ action: 'create', fields: { summary, ...extra, ...toGoogleTimes(timing) } })
 }
 
 export async function updateGoogleEvent(

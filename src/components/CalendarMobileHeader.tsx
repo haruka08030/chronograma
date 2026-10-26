@@ -8,6 +8,7 @@ import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 import { CaretDownIcon } from './icons'
 import { dateFnsLocale, fromDateKey } from '../lib/dateKey'
 import { zonedNow } from '../lib/timeZone'
+import { formatDate } from '../lib/dateFormat'
 
 /** スマホ幅で選べる表示（Google カレンダーと同じ並び） */
 const MOBILE_MODES: CalendarMode[] = ['schedule', 'week', 'threeDay', 'month']
@@ -45,11 +46,10 @@ export function CalendarMobileHeader({
 
   const shownMonth = mode === 'month' ? monthCursor : fromDateKey(selectedDateKey)
   // 今年なら「10月」、他の年は年も付ける
-  const monthLabel = format(
-    shownMonth,
-    shownMonth.getFullYear() === zonedNow().getFullYear() ? 'LLLL' : i18n.resolvedLanguage?.startsWith('ja') ? 'y年 LLLL' : 'LLLL y',
-    { locale: dateLocale },
-  )
+  const monthLabel =
+    shownMonth.getFullYear() === zonedNow().getFullYear()
+      ? format(shownMonth, 'LLLL', { locale: dateLocale })
+      : formatDate(shownMonth, 'yearMonth', i18n.resolvedLanguage)
   const modeLabel = (m: CalendarMode) =>
     m === 'schedule'
       ? t('calendarHub.modeSchedule')

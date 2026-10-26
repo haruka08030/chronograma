@@ -1,4 +1,4 @@
-/** 1 日の気分とひとこと（#324）。「1 日を締める」で記号を押す・一言を書く */
+/** 1 日の気分とひとこと（#324）。今日の計画の下で記号を押す・一言を書く */
 import { cleanMoodNote, isEmptyDayMood } from '../../lib/dayMood'
 import type { TaskState } from '../storeTypes'
 import type { SliceContext } from './sliceTypes'

@@ -3,16 +3,17 @@ import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
+import { isRoutine } from '../types/habit'
 import { getDayLeftBehind, getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
-import { getDayReviews } from '../lib/weekReview'
 import { useNavShortcut } from '../lib/shortcuts'
 import { onWrapUpRequest } from '../lib/notificationLaunch'
+import { choosePlannerPane, openedPlannerPane } from '../lib/plannerPane'
 import { minutesOfClock } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { unplannedListIds } from '../lib/listKind'
 import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
-import { isAppToday, appToday } from '../lib/timeZone'
+import { isAppToday, appToday, appTodayKey } from '../lib/timeZone'
 import { CalendarArrowIcon, CheckIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { DayNav } from './ui/DayNav'
@@ -43,8 +44,9 @@ import { useCalendarCards } from '../hooks/useCalendarCards'
 import { useRememberScroll } from '../hooks/useRememberScroll'
 import { CalendarCards } from './calendar/CalendarCards'
 import { OverlaySuspense } from './ui/OverlaySuspense'
+import { minutesOfDay } from '../lib/clockTime'
 
-/** 「1 日を締める」を出し始める時刻（朝から締めの話をしない）。設定の夜の締めの時刻があればその時刻から */
+/** 気分の記号と見出しのその日の結果を出し始める時刻（朝から出さない）。設定の夜のまとめの時刻があればその時刻から */
 const WRAP_UP_FROM_HOUR = 17
 
 /** スマホ幅で最初から出す締切切れの行の数 */
@@ -98,16 +100,16 @@ export function TodayPlannerView() {
   const [showDone, setShowDone] = useState(false)
   const [showLeftOver, setShowLeftOver] = useState(false)
   const [showAllOverdue, setShowAllOverdue] = useState(false)
-  /** スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える */
-  const [mobilePane, setMobilePane] = useState<PlannerPane>('list')
   const listScrollRef = useRef<HTMLElement>(null)
   useRememberScroll(listScrollRef, 'planner')
-  /** 夜の締めの通知から開いた回数。1 以上なら時刻・件数に関係なく締めを出し、そこまでスクロールする */
+  /** 夜のまとめの通知から開いた回数。1 以上なら時刻に関係なく気分の記号を出す（PC はそこまでスクロールする）。スマホはその日のタイムラインの面を出す */
   const [wrapUpFocus, setWrapUpFocus] = useState(0)
   useEffect(
     () =>
       onWrapUpRequest(() => {
-        setMobilePane('list')
+        // その日の予定と記録のずれを見せる（スマホはタイムラインの面。気分の印は「やること」の一番下のまま）
+        choosePlannerPane('timeline', appTodayKey())
+        setPaneOf((p) => ({ ...p, dateKey: appTodayKey(), pane: 'timeline' }))
         setWrapUpFocus((n) => n + 1)
       }),
     [],
@@ -129,20 +131,33 @@ export function TodayPlannerView() {
     dueSoon,
     open,
     done,
-    loggedMinutes,
   } = useMemo(() => getDayPlan(tasks, dateKey, excludedListIds), [tasks, dateKey, excludedListIds])
-  // 過ぎた日（と今日の締めの時刻から）は、見出しの予定の代わりにその日の結果（ふりかえりの 1 日分と同じ数え方）
+  // 過ぎた日と今日の締めの時刻からは振り返り（見出しにラベル別の時間を出し、スマホはタイムラインの面から開く）
   const wrapUpFrom = minutesOfClock(wrapUpTime) ?? WRAP_UP_FROM_HOUR * 60
-  const nowMinutes = now.getHours() * 60 + now.getMinutes()
-  const showResult = showsDayResult(dateKey, toDateKey(appToday()), nowMinutes, wrapUpFrom)
-  // 今日は時間が進むと終わった予定が増えるので、今日を見ている間は分ごとに数え直す
-  const resultMinute = viewingToday ? nowMinutes : 0
-  const dayResult = useMemo(
-    () => (showResult ? (getDayReviews(tasks, habits, [fromDateKey(dateKey)], excludedListIds)[0] ?? null) : null),
-    // resultMinute は数え直す合図（getDayReviews は今の時刻を自分で読む）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [showResult, tasks, habits, dateKey, excludedListIds, resultMinute],
-  )
+  const nowMinutes = minutesOfDay(now)
+  const todayKey = toDateKey(appToday())
+  const showResult = showsDayResult(dateKey, todayKey, nowMinutes, wrapUpFrom)
+  /**
+   * スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える。
+   * 開いたとき（見る日を変えた・アプリに戻った）の面は、選ぶ前か決めた後かで決める（`openedPlannerPane`）。
+   * 見ている間に締めの時刻を過ぎても勝手に替えない
+   */
+  const [opened, setOpened] = useState(0)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') setOpened((n) => n + 1)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+  const [paneOf, setPaneOf] = useState(() => ({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom) }))
+  const paneCurrent = paneOf.dateKey === dateKey && paneOf.opened === opened
+  if (!paneCurrent) setPaneOf({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom) })
+  const mobilePane = paneCurrent ? paneOf.pane : openedPlannerPane(dateKey, wrapUpFrom)
+  const setMobilePane = (pane: PlannerPane) => {
+    choosePlannerPane(pane, todayKey)
+    setPaneOf({ dateKey, opened, pane })
+  }
   /** 見出しの「予定 / 空き」。週の見出しと同じ計算（授業・バイト・Google の予定を引いた空きと、置いた To-Do の時間・見積もり） */
   const dayLoad = useDayLoads([dateKey]).get(dateKey)!
   // 今日やる行を、時間を決めたもの（時刻順）と時間未定に分ける
@@ -195,8 +210,9 @@ export function TodayPlannerView() {
   })
   const candidatePool = useMemo(() => [...suggestions, ...moreSuggestions], [suggestions, moreSuggestions])
 
+  // ルーティンは毎日の予定なので行に出さない（タイムラインの枠だけ）
   const dayHabits = useMemo(
-    () => habits.filter((h) => isHabitScheduledOnDate(h, date)),
+    () => habits.filter((h) => !isRoutine(h) && isHabitScheduledOnDate(h, date)),
     // date は dateKey から毎回作り直すので key で依存を取る
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [habits, dateKey],
@@ -329,15 +345,7 @@ export function TodayPlannerView() {
         className={`${mobilePane === 'list' ? 'flex' : 'hidden'} timer-safe min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
                     md:flex md:w-[380px] md:flex-none md:shrink-0 md:border-r`}
       >
-        <PlannerHeader
-          date={date}
-          dateKey={dateKey}
-          viewingToday={viewingToday}
-          dayNav={dayNav}
-          load={dayLoad}
-          loggedMinutes={loggedMinutes}
-          dayResult={dayResult}
-        />
+        <PlannerHeader date={date} dateKey={dateKey} viewingToday={viewingToday} dayNav={dayNav} load={dayLoad} reviewing={showResult} />
 
         <PlannerDues dateKey={dateKey} />
 

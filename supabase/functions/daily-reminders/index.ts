@@ -34,7 +34,7 @@ import {
   type Payload,
 } from './payload.ts'
 import { DUES_DEFAULT_TIME, duesSentKey, duesToNotify, normalizeDues, type DueItem } from './dues.ts'
-import { previousDay, wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpRow } from './wrapUp.ts'
+import { previousDay, wrapUpDigest, wrapUpRowFilter, type WrapUpDigest, type WrapUpHabitRow, type WrapUpRow } from './wrapUp.ts'
 import { isKnownPushEndpoint } from '../_shared/pushEndpoint.ts'
 import { keyRing } from '../_shared/secretBox.ts'
 import { resealStaleTokens, type SweepDb } from '../_shared/tokenSweep.ts'
@@ -45,6 +45,7 @@ import {
   groupBy,
   runFinishPatch,
   runPool,
+  runKeyMismatchPatch,
   runStatsPatch,
   runStatus,
   runWindowStart,
@@ -62,7 +63,7 @@ type Sub = {
   lang: string
   plan_time: string | null
   last_plan_sent: string | null
-  /** 夜の締め（'HH:mm'、null = オフ）と、最後に送った日（1 日 1 回） */
+  /** 夜のまとめ（'HH:mm'、null = オフ）と、最後に送った日（1 日 1 回） */
   wrap_up_time?: string | null
   last_wrap_up_sent?: string | null
   event_reminder_minutes?: number | null
@@ -175,6 +176,11 @@ Deno.serve(async (req) => {
     // 数は別に書く（列が無い DB（`021` の前）でも、上の目印の外しと last_ok_at は止めない）
     const stat = await admin.from('reminder_runs').update(runStatsPatch(stats, nowIso)).eq('id', 1)
     if (stat.error) console.error('[daily-reminders] save run stats failed', stat.error)
+    const mismatch = await admin.from('reminder_runs').update(runKeyMismatchPatch(stats)).eq('id', 1)
+    if (mismatch.error) console.error('[daily-reminders] save key mismatch count failed', mismatch.error)
+    if (stats.keyMismatch > 0) {
+      console.warn('[daily-reminders] removed subscriptions made with another VAPID key (403)', stats.keyMismatch)
+    }
   }
 
   // 1 回に返るのは 1000 行まで。主キーの順に、前のページの最後のキーより後ろを読み切る（読み終えてから送るので、途中で消しても行はずれない）
@@ -197,7 +203,7 @@ Deno.serve(async (req) => {
     )
   } catch (err) {
     console.error('[daily-reminders] load subscriptions failed', err)
-    await finishRun({ checked: 0, sent: 0, removed: 0, failed: 1 })
+    await finishRun({ checked: 0, sent: 0, removed: 0, keyMismatch: 0, failed: 1 })
     return new Response(err instanceof Error ? err.message : 'load failed', { status: 500 })
   }
 
@@ -275,33 +281,55 @@ Deno.serve(async (req) => {
   }
 
   /**
-   * その日の数字（To-Do・完了・記録）。夜の締めは今日、朝のまとめは昨日（#278）。アプリの今日の計画と同じ数え方（`wrapUp.ts`）。
-   * 完了したもの・記録も要るので、通知用の未完了のタスクとは別に読む
+   * その日の数字（予定 N 件中 M 件・予定外・記録）。夜のまとめは今日、朝のまとめは昨日（#278）。
+   * アプリの今日の計画の見出し・週のふりかえりと同じ数え方（`wrapUp.ts` → `_shared/dayResult.ts`）。
+   * 習慣の判定にゴミ箱の記録も使うので、消した・アーカイブした行も読む（数えるときに外す）
    */
   const dayDigest = async (userId: string, date: string, timeZone: string, excluded: ReadonlySet<string>): Promise<WrapUpDigest> => {
-    const rows = await fetchAllAfter(
-      async (after: string | null, limit) => {
-        let query = admin
-          .from('tasks')
-          .select(
-            'id,list_id,parent_id,is_time_log,is_sleep,is_event,completed,completed_at,updated_at,scheduled_date,due_date,start_time,end_time,end_date',
-          )
-          .eq('user_id', userId)
-          .is('deleted_at', null)
-          .is('archived_at', null)
-          .or(wrapUpRowFilter(date))
-        if (after !== null) query = query.gt('id', after)
-        const { data, error } = await query.order('id').limit(limit)
-        if (error) throw new Error(error.message)
-        return (data ?? []) as WrapUpRow[]
-      },
-      (t) => t.id,
-    )
-    return wrapUpDigest(rows, date, timeZone, excluded)
+    const columns =
+      'id,list_id,title,parent_id,is_time_log,is_sleep,is_event,completed,scheduled_date,due_date,start_time,end_time,end_date,source_task_id,habit_id,moved_plans,deleted_at,archived_at'
+    /** `day`: その日のあたりの行（`wrapUpRowFilter`）、`moved`: その日から移した予定のある行 */
+    const readRows = (which: 'day' | 'moved') =>
+      fetchAllAfter(
+        async (after: string | null, limit) => {
+          let query = admin.from('tasks').select(columns).eq('user_id', userId)
+          query = which === 'day' ? query.or(wrapUpRowFilter(date)) : query.contains('moved_plans', [{ date }])
+          if (after !== null) query = query.gt('id', after)
+          const { data, error } = await query.order('id').limit(limit)
+          if (error) throw new Error(error.message)
+          return (data ?? []) as unknown as WrapUpRow[]
+        },
+        (t) => t.id,
+      )
+    const [rows, moved, habits] = await Promise.all([
+      readRows('day'),
+      // その日から別の日へ移した予定（やらなかった予定として数える）
+      readRows('moved'),
+      fetchAllAfter(
+        async (after: string | null, limit) => {
+          let query = admin
+            .from('habits')
+            .select(
+              'id,title,time_mode,start_time,end_time,frequency,completed_dates,time_overrides,weekday_times,rest_dates,goal_minutes,past_rules,kind,archived_at,deleted_at',
+            )
+            .eq('user_id', userId)
+            .is('deleted_at', null)
+            .is('archived_at', null)
+          if (after !== null) query = query.gt('id', after)
+          const { data, error } = await query.order('id').limit(limit)
+          if (error) throw new Error(error.message)
+          return (data ?? []) as WrapUpHabitRow[]
+        },
+        (h) => h.id,
+      ),
+    ])
+    const seen = new Set(rows.map((r) => r.id))
+    return wrapUpDigest([...rows, ...moved.filter((r) => !seen.has(r.id))], habits, date, localNow(timeZone, now), excluded)
   }
 
   let sent = 0
   let removed = 0
+  let keyMismatch = 0
   let failed = 0
 
   const removeSub = async (endpoint: string) => {
@@ -312,7 +340,7 @@ Deno.serve(async (req) => {
 
   const needsTasks = (sub: Sub) => Boolean(sub.plan_time || sub.event_reminder_minutes != null || sub.due_reminders || sub.record_prompts)
 
-  /** 夜の締めの時刻に入っているか（記録の数は見ない。数字を読むかどうかを決める） */
+  /** 夜のまとめの時刻に入っているか（記録の数は見ない。数字を読むかどうかを決める） */
   const wrapUpWindow = (sub: Sub) => {
     const local = localNow(sub.timezone, now)
     return dailyDue(sub.wrap_up_time, sub.last_wrap_up_sent, local.date, local.minutes)
@@ -375,7 +403,7 @@ Deno.serve(async (req) => {
     }
 
     if (wrapUpWindow(sub)) {
-      // 読めなかったら夜の締めだけを送らない（印を残さないので次の回にやり直す）
+      // 読めなかったら夜のまとめだけを送らない（印を残さないので次の回にやり直す）
       const d = await digestOf(sub, local.date)
       if (d && wrapUpDue(sub.wrap_up_time, sub.last_wrap_up_sent, local.date, local.minutes, d.loggedMinutes)) {
         jobs.push({ payload: wrapUpPayload(msg, d), patch: { last_wrap_up_sent: local.date } })
@@ -451,6 +479,7 @@ Deno.serve(async (req) => {
     // 購読が失効した・受け付けられない（`isGoneStatus`）なら消す。アプリを開けば端末が付け直す
     if (outcome.gone) {
       await removeSub(sub.endpoint)
+      if (outcome.keyMismatch) keyMismatch++
       return
     }
     // 送れたものの印だけを残す（送れなかったものは次の回にもう一度）
@@ -480,7 +509,7 @@ Deno.serve(async (req) => {
     if ((valid.some(needsTasks) || wantsDigest) && !excludedByUser) throw new Error('lists not loaded')
     const excluded = excludedByUser?.get(userId) ?? new Set<string>()
     const tasks = valid.some(needsTasks) ? await openTasks(userId, excluded) : []
-    // その日の数字（夜の締めは今日、朝のまとめは昨日）は、日とタイムゾーン（端末）の組ごとに 1 回だけ読む。
+    // その日の数字（夜のまとめは今日、朝のまとめは昨日）は、日とタイムゾーン（端末）の組ごとに 1 回だけ読む。
     // 読めなかったら null（その数字を使う部分だけを出さない。ほかの通知は送る）
     const digests = new Map<string, Promise<WrapUpDigest | null>>()
     const digestOf = (sub: Sub, date: string): Promise<WrapUpDigest | null> => {
@@ -506,7 +535,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  // いつか / チェックリストのリストは、予定・締切・夜の締めの数字を使う人の分だけ、回の初めにまとめて読む。
+  // いつか / チェックリストのリストは、予定・締切・夜のまとめの数字を使う人の分だけ、回の初めにまとめて読む。
   // 読めなければその人たちの分は送らずに失敗に数える（last_ok_at を進めないので、次の回にやり直す）
   let excludedByUser: Map<string, Set<string>> | null = null
   try {
@@ -537,7 +566,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  await finishRun({ checked: subs.length, sent, removed, failed })
+  await finishRun({ checked: subs.length, sent, removed, keyMismatch, failed })
 
   // 連携のトークンの閉じ直し。通知の回の成否には数えない（失敗はログだけ。次の回にまた試す）
   let resealed = 0
@@ -550,7 +579,7 @@ Deno.serve(async (req) => {
   }
 
   // 失敗があれば 500（cron の実行の記録で気づけるように）。中身は同じ
-  return new Response(JSON.stringify({ checked: subs.length, sent, removed, failed, resealed }), {
+  return new Response(JSON.stringify({ checked: subs.length, sent, removed, keyMismatch, failed, resealed }), {
     status: runStatus(failed),
     headers: { 'Content-Type': 'application/json' },
   })

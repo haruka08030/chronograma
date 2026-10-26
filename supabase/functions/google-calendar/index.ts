@@ -7,7 +7,15 @@ import { runInBackground } from '../_shared/background.ts'
 import { collectEventPages, type EventPage } from './pages.ts'
 import { withAccessToken, type AccessTokenDeps } from './accessToken.ts'
 import { classifyGoogleError, GoogleApiError, isRetryableGoogleError, parseGoogleErrorReasons } from './googleError.ts'
-import { type DeletedPushed, GoogleEventDeletedError, patchExisting, splitDeleted, upsertEvent } from './deleted.ts'
+import {
+  type DeletedPushed,
+  GoogleEventDeletedError,
+  type ParentItem,
+  patchExisting,
+  skippedCandidates,
+  splitDeleted,
+  upsertEvent,
+} from './deleted.ts'
 import { needsReseal, openSecret, requireSecretKey, sealSecret, SecretKeyMissingError, secretContext } from '../_shared/secretBox.ts'
 
 // 自分のカレンダーの予定の読み書き（events.owned）＋カレンダーの色の取得（calendarlist.readonly）。
@@ -48,6 +56,8 @@ type GoogleEventItem = {
   description?: string
   start: { dateTime?: string; date?: string }
   end: { dateTime?: string; date?: string }
+  /** 繰り返しの回の元の開始（取り消された回はこれだけが確かに入っている） */
+  originalStartTime?: { dateTime?: string; date?: string }
   colorId?: string
   recurringEventId?: string
   htmlLink?: string
@@ -167,7 +177,7 @@ async function fetchGoogleEvents(
   timeMin: string,
   timeMax: string,
   timeZone: string,
-): Promise<{ events: CalendarEvent[]; deletedPushed: DeletedPushed[]; truncated: boolean }> {
+): Promise<{ events: CalendarEvent[]; deletedPushed: DeletedPushed[]; skipped: SkippedEvent[]; truncated: boolean }> {
   const load = async (pageToken: string | undefined) => {
     const params = new URLSearchParams({
       timeMin,
@@ -199,8 +209,50 @@ async function fetchGoogleEvents(
     }
   })
 
-  const { live, deletedPushed } = splitDeleted(items)
-  return { events: normalizeEvents(live, timeZone), deletedPushed, truncated }
+  const { live, deletedPushed, deletedOthers } = splitDeleted(items)
+  const skipped = await findSkipped(accessToken, deletedOthers, timeZone)
+  return { events: normalizeEvents(live, timeZone), deletedPushed, skipped, truncated }
+}
+
+/** やらなかった予定（`skippedEvents` の 1 件。`skippedAt` は消された時刻、#528） */
+type SkippedEvent = CalendarEvent & { skippedAt: string }
+
+/** 1 回の取得で親を読みに行く繰り返しの数（多くても数件。読めなかった回は数えない） */
+const SKIP_PARENT_MAX = 10
+
+/** 消された予定から、やらなかった予定を探す。繰り返しの回は親を読んで題名・長さを補い、まるごと消したかを見る */
+async function findSkipped(accessToken: string, deleted: GoogleEventItem[], timeZone: string): Promise<SkippedEvent[]> {
+  // 親を読みに行くのは、時刻でやらなかった予定になりうる回の繰り返しだけ
+  const seriesIds = [
+    ...new Set(deleted.filter((d) => d.recurringEventId && d.updated && withinSkipWindow(d, timeZone)).map((d) => d.recurringEventId!)),
+  ].slice(0, SKIP_PARENT_MAX)
+  const parents = new Map<string, ParentItem>()
+  await Promise.all(
+    seriesIds.map(async (id) => {
+      try {
+        const res = await fetch(`${CALENDAR_API}/calendars/primary/events/${encodeURIComponent(id)}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        if (res.status === 404 || res.status === 410) parents.set(id, { id, status: 'cancelled' })
+        else if (res.ok) parents.set(id, (await res.json()) as ParentItem)
+      } catch {
+        /* 読めなかった繰り返しは数えない */
+      }
+    }),
+  )
+  return skippedCandidates(deleted, parents, timeZone).map((s) => ({
+    ...normalizeEvents(
+      [{ id: s.id, summary: s.summary, start: s.start, end: s.end, colorId: s.colorId, recurringEventId: s.recurringEventId }],
+      timeZone,
+    )[0],
+    editable: false,
+    skippedAt: s.skippedAt,
+  }))
+}
+
+/** 親が消えていないとしたら、やらなかった予定になる時刻か（親を読みに行く回を絞る） */
+function withinSkipWindow(item: GoogleEventItem, timeZone: string): boolean {
+  return skippedCandidates([item], new Map([[item.recurringEventId!, { id: item.recurringEventId! }]]), timeZone).length > 0
 }
 
 type EventTime = { date?: string; dateTime?: string; timeZone?: string }
@@ -524,7 +576,7 @@ Deno.serve(
             const timeZone = (body.timeZone as string | undefined)?.trim() || 'UTC'
             // 予定に個別の色が無いときはカレンダー自体の色になるので、それも返す（colorId の方が確実に色を特定できるので両方）。
             // 予定と色は互いに関係しないので同時に聞く
-            const [{ events, deletedPushed, truncated }, { calendarColor, calendarColorId }] = await withAccessToken(
+            const [{ events, deletedPushed, skipped, truncated }, { calendarColor, calendarColorId }] = await withAccessToken(
               accessDeps(row),
               (accessToken) =>
                 Promise.all([
@@ -534,9 +586,11 @@ Deno.serve(
             )
             // truncated: 上限までページをたどっても続きがあった（範囲の後ろの予定が欠けている）
             // deletedPushed: Google で消されたアプリの予定の ID（アプリでもゴミ箱に入れる）
+            // skipped: 開始を過ぎてから消された予定（アプリにやらなかった予定として残す、#528）
             return jsonResponse({
               events,
               deletedPushed,
+              skipped,
               truncated,
               calendarColor,
               calendarColorId,

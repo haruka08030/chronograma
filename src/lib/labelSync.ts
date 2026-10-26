@@ -219,11 +219,8 @@ export function settledLabelAdds(
   return pending.filter((n) => !presets.includes(n) || !!remote?.labels.some((r) => r.name === n))
 }
 
-/** 取り込みで表を変えたあとの覚えておく名前（前から覚えている名前と、新しく足した名前） */
-export function pendingAddsAfterImport(pending: readonly string[], before: readonly string[], after: readonly string[]): string[] {
-  const added = after.filter((n) => !before.includes(n) && !pending.includes(n))
-  return added.length === 0 ? [...pending] : [...pending, ...added]
-}
+/** 取り込みで表を変えたあとの覚えておく名前（ストアが読むので別のファイル。同期のこのファイルは起動時に読まない） */
+export { pendingAddsAfterImport } from './labelPendingAdds'
 
 function planLabelTable(local: LocalLabels, remote: RemoteLabels | null, nowIso: string, clockOffsetMs: number): LabelSyncPlan {
   const mine = localTable(local)

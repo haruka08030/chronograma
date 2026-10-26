@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore, selectLiveHabits } from '../store/taskStore'
 import { useNavShortcut } from '../lib/shortcuts'
-import { isHabitActive } from '../types/habit'
+import { isHabitActive, isRoutine } from '../types/habit'
 import { HABIT_WEEK_STARTS_ON, habitWeekDates } from '../lib/habitSchedule'
 import { buildHabitRecordIndex } from '../lib/habitTiming'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
@@ -22,6 +22,7 @@ import { HabitWeekTable } from './habits/HabitWeekTable'
 import { HabitTrend } from './habits/HabitTrend'
 import { HabitDetailSheet } from './habits/HabitDetailSheet'
 import { ArchivedHabits } from './habits/ArchivedHabits'
+import { RoutineList } from './habits/RoutineList'
 import { useHabitMenu } from './habits/useHabitMenu'
 import { EMPTY_HABIT_FORM, useHabitFormDraft } from './habits/habitFormState'
 import { useAppTodayKey } from '../hooks/useAppClock'
@@ -29,8 +30,8 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { usePresence } from '../hooks/usePresence'
 
 /**
- * 習慣の画面: 追加（`HabitComposer`）→ 見ている週の表（`HabitWeekTable`）→ 直近 4 週（`HabitTrend`）→ アーカイブ。
- * 表の名前を押すと右から詳細（`HabitDetailSheet`: 連続・達成率・月のカレンダー・編集）
+ * 習慣の画面: 追加（`HabitComposer`）→ 見ている週の表（`HabitWeekTable`）→ 直近 4 週（`HabitTrend`）→ ルーティン（`RoutineList`）→ アーカイブ。
+ * 表の名前を押すと右から詳細（`HabitDetailSheet`: 連続・達成率・月のカレンダー・編集。ルーティンはいつもの時間からのずれ）
  */
 export function HabitsView() {
   const { t } = useTranslation()
@@ -38,8 +39,10 @@ export function HabitsView() {
   useRememberScroll(scrollRef, 'habits')
   const df = useDateFormat()
   const allHabits = useTaskStore(selectLiveHabits)
-  // アーカイブした習慣は表に入れず、下の「アーカイブ」にだけ出す
-  const habits = useMemo(() => allHabits.filter(isHabitActive), [allHabits])
+  // アーカイブした習慣は表に入れず、下の「アーカイブ」にだけ出す。ルーティンは達成を数えないので表に入れず、下の「ルーティン」に出す
+  const activeHabits = useMemo(() => allHabits.filter(isHabitActive), [allHabits])
+  const habits = useMemo(() => activeHabits.filter((h) => !isRoutine(h)), [activeHabits])
+  const routines = useMemo(() => activeHabits.filter(isRoutine), [activeHabits])
   const archivedHabits = useMemo(() => allHabits.filter((h) => !isHabitActive(h)), [allHabits])
   const tasks = useTaskStore((s) => s.tasks)
   const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
@@ -62,7 +65,7 @@ export function HabitsView() {
   // タイムラインの習慣のカード・メニューの「編集」
   useHabitEditRequest((habitId) => openDetail(habitId, true))
   // 消した・アーカイブした習慣の詳細は閉じる。閉じたあとも右へ引っ込む動きのあいだは残す
-  const detailHabit = detail ? (habits.find((h) => h.id === detail.habitId) ?? null) : null
+  const detailHabit = detail ? (activeHabits.find((h) => h.id === detail.habitId) ?? null) : null
   const sheetValue = useMemo(() => (detail && detailHabit ? { ...detail, habit: detailHabit } : null), [detail, detailHabit])
   const sheet = usePresence(sheetValue)
 
@@ -124,7 +127,7 @@ export function HabitsView() {
       <div className="space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:max-w-3xl md:px-6 md:pb-8">
         {showComposer ? <HabitComposer form={newForm} onChange={patchNewForm} onClose={closeComposer} onAdded={onAdded} /> : null}
 
-        {habits.length === 0 ? (
+        {activeHabits.length === 0 ? (
           // 例を押すとその名前で追加のカードが開く（中身を確かめて足す）。カードを開いている間は出さない
           showComposer ? null : (
             <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty')}>
@@ -138,7 +141,7 @@ export function HabitsView() {
               />
             </EmptyState>
           )
-        ) : (
+        ) : habits.length === 0 ? null : (
           <section className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
@@ -168,6 +171,10 @@ export function HabitsView() {
 
         {habits.length > 0 && (
           <HabitTrend habits={habits} todayKey={todayKey} habitRecords={habitRecords} onOpen={(h) => openDetail(h.id)} />
+        )}
+
+        {routines.length > 0 && (
+          <RoutineList routines={routines} menuProps={menuProps} onOpen={(h) => openDetail(h.id)} addedId={addedId} />
         )}
 
         {archivedHabits.length > 0 && (

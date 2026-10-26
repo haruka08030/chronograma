@@ -148,3 +148,29 @@ describe('ラベルの id（版 42、#365）', () => {
     ])
   })
 })
+
+describe('いつかのリストの名前（版 43、#526）', () => {
+  it('前の初期の名前のままのいつかのリストだけ、同じ言語の今の名前にする（updatedAt は変えない）', () => {
+    const list = (id: string, name: string, kind: 'someday' | 'checklist') => ({ id, name, color: '#000', order: 0, kind, updatedAt: OLD })
+    const out = migrateTaskState(
+      {
+        tasks: [],
+        lists: [
+          list('a', 'いつか', 'someday'),
+          list('b', 'Someday', 'someday'),
+          list('c', '旅行', 'someday'),
+          list('d', 'いつか', 'checklist'),
+        ],
+        sections: [],
+        habits: [],
+      },
+      42,
+    )
+    expect(out.lists.map((l) => [l.name, l.updatedAt])).toEqual([
+      ['やりたいこと', OLD],
+      ['Bucket list', OLD],
+      ['旅行', OLD],
+      ['いつか', OLD],
+    ])
+  })
+})

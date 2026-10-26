@@ -10,6 +10,7 @@ import type { SyncRejectedRow } from '../lib/supabaseData'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
 import type { CourseLink } from '../lib/courseLinks'
+import type { SkippedEvent } from '../lib/skippedEvents'
 import type { Timetable } from '../lib/timetable'
 import type { AddonId, Addons } from '../lib/addons'
 import type { SleepTimer } from '../lib/sleepTimer'
@@ -81,7 +82,7 @@ export interface ActiveTimer {
 export interface DailyReminders {
   /** 朝のまとめ */
   planTime: string | null
-  /** 夜の締め（その日の数字つきで「1 日を締める」へ誘う、#299）。無い（前の版の保存）は null と同じ */
+  /** 夜のまとめ（その日の数字つき、#299）。無い（前の版の保存）は null と同じ */
   wrapUpTime?: string | null
 }
 
@@ -182,6 +183,11 @@ export interface TaskState {
    * （iPhone の Safari ならホーム画面への追加）を出してよい（端末に保存）
    */
   onboardingCompleted: boolean
+  /**
+   * はじめの案内を終えた日（3 つ済んだ・× で閉じた、`yyyy-MM-dd`）。その日の間は睡眠の行と案内のあとの誘いを出さない
+   * （最初の成功の場面に新しいものを重ねない）。前の版から引き継いだ人は null（すぐ出す）。端末に保存
+   */
+  onboardingFinishedOn: string | null
   /** iPhone の Safari でのホーム画面への追加の誘いを閉じたか（端末に保存） */
   installNudgeDismissed: boolean
   /** ログインしていない人へのログインの誘い（2 台目・ホーム画面のアプリでは空になる）を閉じたか（端末に保存） */
@@ -208,6 +214,10 @@ export interface TaskState {
   courseLinks: CourseLink[]
   /** つながりをこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
   courseLinksUpdatedAt: string | null
+  /** やらなかった予定（#528、開始を過ぎてから消した Google の予定）。その日の予定の列に薄く・取り消し線で出す（`lib/skippedEvents.ts`） */
+  skippedEvents: SkippedEvent[]
+  /** やらなかった予定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  skippedEventsUpdatedAt: string | null
   /** 1 日の気分とひとこと（#324、日付 → 気分）。日ごとに変えた時刻ともとにしたサーバーの版を持ち、日ごとに同期する（`lib/dayMood.ts`） */
   dayMoods: DayMoods
   /** 授業の時間割の設定（#279、時限・学期・祝日を除くか）。マスの中身は予定の行（毎週の印）から出す（`lib/timetable.ts`） */
@@ -318,12 +328,14 @@ export interface TaskState {
 
   /** 足した習慣の id を返す */
   addHabit: (
-    fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency' | 'weekdayTimes' | 'goalMinutes'>,
+    fields: Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency' | 'weekdayTimes' | 'goalMinutes' | 'kind'>,
   ) => string
-  /** `weekdayTimes: undefined` は曜日ごとの時間、`goalMinutes: undefined` は時間の目標を外す */
+  /** `weekdayTimes: undefined` は曜日ごとの時間、`goalMinutes: undefined` は時間の目標、`kind: undefined` はルーティンを外す */
   updateHabit: (
     id: string,
-    patch: Partial<Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency' | 'weekdayTimes' | 'goalMinutes'>>,
+    patch: Partial<
+      Pick<Habit, 'title' | 'color' | 'timeMode' | 'startTime' | 'endTime' | 'frequency' | 'weekdayTimes' | 'goalMinutes' | 'kind'>
+    >,
   ) => void
   /**
    * その日だけ習慣の時間を変える（タイムラインで枠を動かした・習慣の段のチップを格子に置いた）。習慣の時間と同じにしたらその日の分は消す
@@ -379,6 +391,8 @@ export interface TaskState {
     color?: string | null,
     /** 元の To-Do（記録の候補から To-Do を選んだとき）。統計の「見積もりと記録」に入る */
     sourceTaskId?: string | null,
+    /** 後から記録（記録パネル・タイムラインの記録の列）: 題名かラベルが「睡眠」「sleep」などなら睡眠にする（`looksLikeSleep`） */
+    sleepByName?: boolean,
   ) => string
   /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
   logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void
@@ -398,7 +412,7 @@ export interface TaskState {
   /** 動いているタイマーの「あと何分」の終わり（ISO）を付ける・選び直す。null で外す（数え上げに戻す）。#290 */
   setTimerEnd: (endsAt: string | null) => void
   /** 動いているタイマーの題名・ラベルを直す（止めた記録にそのまま入る）。空の題名は無視。ラベルを選び直したら元の To-Do の色は外す */
-  editActiveTimer: (patch: { taskTitle?: string; tags?: string[] }) => void
+  editActiveTimer: (patch: { taskTitle?: string; tags?: string[]; color?: string | null }) => void
   stopTimer: () => void
   /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
   resolveStaleTimer: (endedAt: string) => void
@@ -442,6 +456,12 @@ export interface TaskState {
   ) => { kind: 'added' | 'removed'; taskId: string } | null
   /** 予定の名前と科目をつなぐ（同じ名前の予定はみな同じ科目）。`course` が '' なら「つながない」 */
   setCourseLink: (eventTitle: string, course: string) => void
+  /** やらなかった予定を足す（もう持っている予定はそのまま） */
+  addSkippedEvents: (events: SkippedEvent[]) => void
+  /** 予定に戻った（Google にまたある・消すのを取り消した）予定を、やらなかった予定から外す */
+  dropRestoredSkipped: (liveIds: ReadonlySet<string>) => void
+  /** 「消す」: やらなかった予定からも消す */
+  removeSkippedEvent: (id: string) => void
   /**
    * 予定に毎週の繰り返しを付ける・変える・やめる（`rule` が null）。その回から後に当てはまる（`changeSeriesRule`）。
    * 変わったら true
@@ -654,11 +674,11 @@ export interface TaskState {
   /** 自動バックアップにあって今は無いものだけを戻す。戻したタスク数（読めなければ null） */
   restoreMissingFromBackup: (json: string) => number | null
   /**
-   * CSV からタスクを追加（既存データは保持）。TickTick のバックアップ・Todoist のプロジェクトの CSV もそのまま読む。
+   * CSV からタスクを追加（既存データは保持）。読み取りの部品は呼んだときに読む（起動時に読まない）。TickTick のバックアップ・Todoist のプロジェクトの CSV もそのまま読む。
    * 一致するリスト・ラベルの無いリスト名は、`unknownLists: 'label'` ならその名前のラベルを作って付け、`'inbox'`（既定）ならラベルなし
    */
   importTasksFromCsv: (
     csv: string,
     options?: { fileName?: string; unknownLists?: 'label' | 'inbox' },
-  ) => { imported: number; skipped: number; errors: string[] }
+  ) => Promise<{ imported: number; skipped: number; errors: string[] }>
 }

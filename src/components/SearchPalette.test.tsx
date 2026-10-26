@@ -131,7 +131,7 @@ describe('SearchPalette（⌘K）', () => {
     await user.type(screen.getByRole('combobox'), 'paper')
     expect(screen.queryByRole('button', { name: /Do today/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Start logging/ })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /Details/ }))
+    await user.click(screen.getByRole('button', { name: /Edit/ }))
     expect(useOverlays.getState().detailTaskId).toBe(id)
   })
 

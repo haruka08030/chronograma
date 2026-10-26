@@ -3,7 +3,7 @@ import { useTaskStore } from '../store/taskStore'
 import { isEventTask, isLogTask, type Task } from '../types/task'
 import { ColorLabelPicker } from './labels/ColorLabelPicker'
 import { SideSheet } from './ui/SideSheet'
-import { buttonClass } from './ui/buttonClass'
+import { TrashIcon } from './icons'
 import { TaskTitleField } from './detail/TaskTitleField'
 import { TaskMemoField } from './detail/TaskMemoField'
 import { TaskLocationField } from './detail/TaskLocationField'
@@ -14,13 +14,11 @@ import { TaskColorSectionFields } from './detail/TaskColorSectionFields'
 import { SubtasksField } from './detail/SubtasksField'
 import { SeriesScopeField } from './detail/SeriesScopeField'
 import { deleteTaskAsking } from '../lib/seriesScope'
-import { openTaskDetail } from '../lib/overlays'
-import { rowIdOfTarget } from '../lib/touchLift'
 
 /**
  * 詳細は常に右からのオーバーレイシート（行のタップで開き、外側タップ / ✕ で閉じる）。
  * 上から 題名 → 予定の欄（`TaskPlanFields`、予定を立てるタスクだけ）か記録の時刻（`LogTimeFields`）→ 場所 → メモ →
- * タグ（記録は色＝ラベル）→ 色・セクション → サブタスク → 削除
+ * タグ（記録は色＝ラベル）→ 色・セクション → サブタスク。削除は右上の 🗑（スマホは上の帯の右）
  */
 export function TaskDetail({
   task,
@@ -44,11 +42,13 @@ export function TaskDetail({
     void deleteTaskAsking(task.id).then((ok) => ok && onClose())
   }
 
+  const deleteLabel = t(isLog ? 'taskDetail.deleteLog' : 'taskDetail.deleteTask')
+
   const detailBody = (
     <div className="p-6 space-y-6">
       {/* 毎週の予定: ここで選んだ範囲（この予定のみ / 以降すべて / すべて）に、下の欄の変更を当てる */}
       <SeriesScopeField task={task} />
-      <TaskTitleField task={task} onClose={onClose} />
+      <TaskTitleField task={task} onClose={onClose} onDelete={handleDelete} deleteLabel={deleteLabel} />
       {/* 日時は題名のすぐ下（Google カレンダー・右クリックのメニュー・追加欄のチップと同じ順） */}
       {!isLog && plannable && <TaskPlanFields task={task} />}
       {isLog && <LogTimeFields task={task} />}
@@ -69,12 +69,6 @@ export function TaskDetail({
           {!isEventTask(task) && <SubtasksField task={task} />}
         </>
       )}
-
-      <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
-        <button type="button" onClick={handleDelete} className={buttonClass({ variant: 'danger', size: 'md' }, 'w-full')}>
-          {t(isLog ? 'taskDetail.deleteLog' : 'taskDetail.deleteTask')}
-        </button>
-      </div>
     </div>
   )
 
@@ -83,19 +77,21 @@ export function TaskDetail({
       label={task.title}
       closing={closing}
       onClose={onClose}
+      mobileActions={
+        <button
+          type="button"
+          onClick={handleDelete}
+          aria-label={deleteLabel}
+          className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-500 touch-manipulation active:bg-zinc-100 dark:text-zinc-400 dark:active:bg-zinc-800"
+        >
+          <TrashIcon className="h-5 w-5" strokeWidth={1.75} />
+        </button>
+      }
       returnFocus={() =>
         Array.from(document.querySelectorAll<HTMLElement>(`[data-task-row="${CSS.escape(task.id)}"] [data-task-title]`)).find(
           (el) => el.getClientRects().length > 0,
         )
       }
-      onBackdropPress={(e, root) => {
-        // 幕の下の別の行を押したら、閉じずにその行の詳細へ替える（PC で 1 件ずつ見ていくとき。下のボタンは押さない）
-        const under = document.elementsFromPoint(e.clientX, e.clientY).find((el) => !root?.contains(el))
-        const id = rowIdOfTarget(under ?? null)
-        if (!id || id === task.id) return false
-        openTaskDetail(id)
-        return true
-      }}
     >
       {detailBody}
     </SideSheet>

@@ -36,3 +36,6 @@ const ACTIVE = 'ring-2 ring-accent-500/40'
 export function fieldClass({ size = 'md', active = false }: { size?: FieldSize; active?: boolean } = {}, extra = ''): string {
   return `${BASE} ${SIZE[size]}${active ? ` ${ACTIVE}` : ''}${extra ? ` ${extra}` : ''}`
 }
+
+/** 詳細の時刻の欄の幅（To-Do・予定・記録で共通）。スマホ幅は「開始 〜 終了・🌐・長さ」が 1 段に入るように細く */
+export const TIME_FIELD_WIDTH = 'w-[5.5rem] sm:w-[7rem]'

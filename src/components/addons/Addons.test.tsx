@@ -35,13 +35,11 @@ describe('追加機能の画面と設定（#453）', () => {
     expect(screen.getByRole('dialog', { name: '時間割' })).toBeTruthy()
   })
 
-  it('設定でも同じオン・オフで、最後の行から追加機能の画面へ', async () => {
+  it('設定には追加機能の画面へ進む 1 行だけ（オン・オフは無い）', async () => {
     const user = userEvent.setup()
-    useTaskStore.setState({ addons: { enabled: { timetable: true }, dues: [], googleSkip: [], absenceCourses: [] } })
     render(<AddonsSettingsGroup />)
-    await user.click(screen.getByRole('switch', { name: '時間割・欠席を使う' }))
-    expect(useTaskStore.getState().addons.enabled).toEqual({ timetable: false })
-    await user.click(screen.getByRole('button', { name: '追加機能の画面を開く' }))
+    expect(screen.queryByRole('switch')).toBeNull()
+    await user.click(screen.getByRole('button', { name: '追加機能' }))
     expect(useTaskStore.getState().selectedView).toBe('addons')
   })
 })
@@ -59,7 +57,7 @@ describe('引き落とし・期限の日（#454）', () => {
       </>,
     )
     await user.click(screen.getAllByRole('button', { name: '開く' })[0]!)
-    await user.click(screen.getByRole('button', { name: '足す' }))
+    await user.click(screen.getByRole('button', { name: '追加' }))
     await user.type(screen.getByLabelText('名前'), '家賃の引き落とし')
     await user.click(screen.getByRole('button', { name: '保存' }))
     expect(useTaskStore.getState().addons.dues).toMatchObject([{ title: '家賃の引き落とし', date: today, repeat: 'none', notifyDays: 1 }])

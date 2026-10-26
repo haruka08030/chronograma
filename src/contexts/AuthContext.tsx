@@ -46,15 +46,18 @@ export type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+/** Supabase の設定が無い（開発用の環境）ときのエラー */
+const notConfigured = () => ({ error: i18n.t('account.notConfigured') })
+
 const noopAuth: AuthContextValue = {
   session: null,
   user: null,
   loading: false,
-  signInWithOtp: async () => ({ error: 'Supabase が設定されていません' }),
-  verifyEmailOtp: async () => ({ error: 'Supabase が設定されていません' }),
-  signInWithGoogle: async () => ({ error: 'Supabase が設定されていません' }),
+  signInWithOtp: async () => notConfigured(),
+  verifyEmailOtp: async () => notConfigured(),
+  signInWithGoogle: async () => notConfigured(),
   signOut: async () => {},
-  deleteAccount: async () => ({ error: 'Supabase が設定されていません' }),
+  deleteAccount: async () => notConfigured(),
 }
 
 const GOOGLE_AUTH_EVENTS = new Set<AuthChangeEvent>(['SIGNED_IN', 'USER_UPDATED', 'TOKEN_REFRESHED', 'INITIAL_SESSION'])
@@ -164,7 +167,7 @@ async function onSignedOut(sb: SupabaseClient): Promise<void> {
 async function loadClient(): Promise<SupabaseClient | { error: string }> {
   try {
     const sb = getSupabase() ?? (await loadSupabase())
-    return sb ?? { error: 'Supabase が設定されていません' }
+    return sb ?? notConfigured()
   } catch (err) {
     console.error('Failed to load Supabase:', err)
     return { error: i18n.t('account.networkError') }

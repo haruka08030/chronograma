@@ -17,14 +17,14 @@ describe('sw.js notificationclick', () => {
     expect(sw.opened).toEqual([])
   })
 
-  it('夜の締め: 開いているアプリへ wrap-up を送って前に出す', async () => {
+  it('夜のまとめ: 開いているアプリへ wrap-up を送って前に出す', async () => {
     const sw = loadServiceWorker({ windows: ['https://app.test/?view=all'] })
     await sw.click({ url: '/?view=planner&wrap-up=1' })
     expect(sw.windows[0].messages).toEqual([{ type: 'wrap-up' }])
     expect(sw.windows[0].focused).toBe(true)
   })
 
-  it('夜の締め: アプリが閉じていれば ?wrap-up=1 の URL を開く', async () => {
+  it('夜のまとめ: アプリが閉じていれば ?wrap-up=1 の URL を開く', async () => {
     const sw = loadServiceWorker()
     await sw.click({ url: '/?view=planner&wrap-up=1' })
     expect(sw.opened).toEqual(['https://app.test/?view=planner&wrap-up=1'])

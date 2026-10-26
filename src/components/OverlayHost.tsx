@@ -42,7 +42,7 @@ export function OverlayHost() {
             <TaskEventMenu
               x={menu.x}
               y={menu.y}
-              alignRight={menu.alignRight}
+              brief={menu.brief}
               taskId={menu.taskId}
               onClose={closeTaskMenu}
               onOpenDetail={openTaskDetail}
@@ -55,7 +55,7 @@ export function OverlayHost() {
             <DueDateTimeMenu x={menu.x} y={menu.y} taskIds={menu.taskIds} onClose={closeTaskMenu} onDone={menu.onDone} />
           )}
           {menu?.kind === 'google' && (
-            <GoogleEventMenu x={menu.x} y={menu.y} alignRight={menu.alignRight} eventId={menu.eventId} onClose={closeTaskMenu} />
+            <GoogleEventMenu x={menu.x} y={menu.y} brief={menu.brief} eventId={menu.eventId} onClose={closeTaskMenu} />
           )}
         </OverlaySuspense>
       </PartBoundary>

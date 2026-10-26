@@ -42,7 +42,7 @@ export function HabitComposer({
           form={form}
           onChange={onChange}
           name="new-habit"
-          placeholder={t('habits.placeholderName')}
+          placeholder={t(form.kind === 'routine' ? 'habits.placeholderRoutineName' : 'habits.placeholderName')}
           onSubmit={submit}
           onEscape={onClose}
           titleRef={titleRef}

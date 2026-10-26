@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
 import { useTaskStore } from '../store/taskStore'
+import { useShownCalendarEvents } from '../hooks/useShownCalendarEvents'
 import { TaskItem } from './TaskItem'
 import { formatDuration, timeToMinutes } from '../lib/timeGrid'
 import { logOverlapsDateKey, minutesOfLogOnCalendarDay, taskPlacementDate } from '../lib/taskTimeRange'
@@ -44,7 +45,8 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
   const { t } = useTranslation()
   // To‑Do の一覧と同じく、時間を決めた予定の ✓ は「完了＋記録」
   const tasks = useTaskStore((s) => s.tasks)
-  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  // やらなかった予定（#528）も薄く出す
+  const calendarEvents = useShownCalendarEvents()
   // 過ぎた日はやったこと（記録）が主役なので記録から開く。日を変えたら既定に戻す
   const defaultTab: DayPanelTab = selectedDateKey < appTodayKey() ? 'log' : 'planned'
   const [tabChoice, setTabChoice] = useState<{ dateKey: string; tab: DayPanelTab } | null>(null)
@@ -233,6 +235,7 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
                       time={row.event.startTime ?? t('weekCalendar.allDay')}
                       dotStyle={colorVars(row.event.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
                       title={row.event.summary}
+                      skipped={row.event.skipped}
                       onClick={(e) => setGoogleCard({ eventId: row.event.id, anchor: rectOf(e.currentTarget)! })}
                       onContextMenu={(e) => {
                         e.preventDefault()

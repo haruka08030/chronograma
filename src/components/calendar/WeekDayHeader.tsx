@@ -19,7 +19,6 @@ export function WeekDayHeader({
   onSelectDate,
   setAllDayAddDate,
   dayLoads,
-  planTally,
 }: {
   singleDay: boolean
   days: Date[]
@@ -31,8 +30,6 @@ export function WeekDayHeader({
   setAllDayAddDate: (dateKey: string) => void
   /** 日ごとの空きと置いた To-Do（今日から先の日だけ入れる。無い日は出さない） */
   dayLoads?: ReadonlyMap<string, DayLoad>
-  /** 1 日だけ描く過ぎた日の「予定 n・できた n・持ち越し n」（予定の無い日・今日から先は無い） */
-  planTally?: { planned: number; done: number; carried: number } | null
 }) {
   const { t, i18n } = useTranslation()
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
@@ -92,8 +89,7 @@ export function WeekDayHeader({
         <div className="flex flex-shrink-0 border-b border-zinc-100 px-2 dark:border-zinc-800">
           <TimeGutterHeader dateKey={gridKey0} />
           <div className="grid flex-1 grid-cols-2 py-1.5 text-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
-            {/* 過ぎた日は予定の見出しを、その日の予定がどうなったかの一行にする（振り返りは 1 日が終わってから、#158） */}
-            <span className="truncate tabular-nums">{planTally ? t('weekCalendar.planTally', planTally) : t('weekCalendar.lanePlan')}</span>
+            <span>{t('weekCalendar.lanePlan')}</span>
             <span>{t('weekCalendar.laneLog')}</span>
           </div>
         </div>

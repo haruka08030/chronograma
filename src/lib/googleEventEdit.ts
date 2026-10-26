@@ -8,9 +8,11 @@ import {
   googleWriteFailure,
   localizeGoogleError,
   updateGoogleEvent,
+  googleEventTiming,
   type GoogleEventTiming,
 } from './googleCalendar'
 import { UNDO_WINDOW_MS } from './undoWindow'
+import { isSkippedDeletion, toSkippedEvent } from './skippedEvents'
 
 /**
  * Google の予定をアプリから書き換える操作。画面は先に変え（楽観的）、Google に送って返ってきた形で置き換える。
@@ -98,8 +100,12 @@ export function withoutPendingDeletes(events: CalendarEvent[]): CalendarEvent[] 
   return pendingDeletes.size === 0 ? events : events.filter((e) => !pendingDeletes.has(e.id))
 }
 
+/**
+ * 消す。始まった予定（行かなかった gym・休んだ授業など）は、やらなかった予定としてその日に薄く残す（#528、`lib/skippedEvents.ts`）
+ */
 export function removeGoogleEvent(event: CalendarEvent) {
   remove(event.id)
+  if (isSkippedDeletion(event)) useTaskStore.getState().addSkippedEvents([toSkippedEvent(event, new Date().toISOString())])
   const timer = setTimeout(() => void sendDelete(event.id), UNDO_WINDOW_MS)
   pendingDeletes.set(event.id, { event, timer })
   useTaskStore.getState().setGoogleUndo({
@@ -119,6 +125,7 @@ export function undoGoogleDelete(): boolean {
   clearTimeout(pending.timer)
   pendingDeletes.delete(id)
   upsert(pending.event)
+  s.dropRestoredSkipped(new Set([id]))
   return true
 }
 
@@ -133,6 +140,7 @@ async function sendDelete(id: string) {
     await deleteGoogleEvent(id)
   } catch (e) {
     upsert(pending.event)
+    useTaskStore.getState().dropRestoredSkipped(new Set([id]))
     report(e)
   }
 }
@@ -147,19 +155,41 @@ function ensureFlushOnLeave() {
   })
 }
 
-export async function addGoogleEvent(summary: string, timing: GoogleEventTiming) {
+export async function addGoogleEvent(summary: string, timing: GoogleEventTiming, from?: CalendarEvent) {
   const tempId = `pending-${crypto.randomUUID()}`
+  // コピーは返ってくるまでも元と同じ色で出す
+  const look = from ? { color: from.color, baseColor: from.baseColor, ownColor: from.ownColor, colorId: from.colorId } : {}
   const draft = applyTimingLocally(
-    { id: tempId, summary, start: '', end: '', startTime: null, endTime: null, date: timing.date, isAllDay: false, editable: false },
+    {
+      id: tempId,
+      summary,
+      start: '',
+      end: '',
+      startTime: null,
+      endTime: null,
+      date: timing.date,
+      isAllDay: false,
+      editable: false,
+      ...look,
+    },
     timing,
   )
   upsert(draft)
   try {
-    const saved = await createGoogleEvent(summary, timing)
+    const saved = await createGoogleEvent(
+      summary,
+      timing,
+      from ? { description: from.description || undefined, colorId: from.ownColor ? from.colorId : undefined } : {},
+    )
     if (saved) upsert(saved, tempId)
     else remove(tempId)
   } catch (e) {
     remove(tempId)
     report(e)
   }
+}
+
+/** 同じ日・同じ時間にもう 1 つ作る（題名・メモ・予定の色を写す。繰り返しはその回だけの 1 件） */
+export function duplicateGoogleEvent(event: CalendarEvent) {
+  return addGoogleEvent(event.summary, googleEventTiming(event), event)
 }

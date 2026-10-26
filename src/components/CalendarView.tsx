@@ -8,6 +8,8 @@ import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategory
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { useTaskStore } from '../store/taskStore'
+import { useShownCalendarEvents } from '../hooks/useShownCalendarEvents'
+import { SKIPPED_EVENT_CLASS } from './ui/rowStateClass'
 import { CalendarCheck, CalendarDot } from './timeline/CalendarCheck'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import { beginCalendarItemNativeDrag } from '../lib/calendarItemDrag'
@@ -101,7 +103,8 @@ export function CalendarView({
   const holidayName = useHolidayName()
   const dues = useDues()
   const tasks = useTaskStore((s) => s.tasks)
-  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  // やらなかった予定（#528）も薄く出す
+  const calendarEvents = useShownCalendarEvents()
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const updateTask = useTaskStore((s) => s.updateTask)
   const toggleTask = useTaskStore((s) => s.toggleTask)
@@ -396,6 +399,7 @@ export function CalendarView({
                       }}
                       className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight
                         ${itemClass(!e.startTime, eventState(e, key))}
+                        ${e.skipped ? SKIPPED_EVENT_CLASS : ''}
                         ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : ''}`}
                       style={colorVars(eventState(e, key) === 'upcoming' ? (e.color ?? DEFAULT_GOOGLE_EVENT_HEX) : '#BDBDBD')}
                     >

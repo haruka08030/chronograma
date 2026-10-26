@@ -8,7 +8,6 @@ import {
   classStartDate,
   normalizeTimetable,
   periodIndexOf,
-  planTimetableSync,
   suggestTerm,
   timetableClasses,
   attendanceTone,
@@ -20,6 +19,7 @@ import {
   withAbsenceLimit,
   type Timetable,
 } from './timetable'
+import { planTimetableSync } from './settingPlans'
 
 const NOW = '2026-10-08T00:00:00.000Z'
 const tt: Timetable = {

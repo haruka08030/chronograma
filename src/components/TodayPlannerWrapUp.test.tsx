@@ -8,8 +8,8 @@ import { openWrapUpFromNotification } from '../lib/notificationLaunch'
 import { TodayPlannerView } from './TodayPlannerView'
 
 /**
- * 今日の計画の下の締め（#299・#501）: 気分の記号を出し始める時刻は設定の夜の締めの時刻（未設定なら 17 時）。
- * 夜の締めの通知から開くと、時刻に関係なく出してそこまでスクロールする。
+ * 今日の計画の下の締め（#299・#501）: 気分の記号を出し始める時刻は設定の夜のまとめの時刻（未設定なら 17 時）。
+ * 夜のまとめの通知から開くと、時刻に関係なく出してそこまでスクロールする。
  * 残りを明日へ・記録の無い時間は並べない。ラベルなしの記録は記録の帯の凡例の「ラベルなし」から付ける
  */
 
@@ -56,7 +56,7 @@ const MOOD = "Today's mood"
 const mood = () => screen.queryByRole('group', { name: MOOD })
 
 describe('締めを出す時刻', () => {
-  it('夜の締めの時刻が無ければ今までどおり 17 時から気分の記号を出す', () => {
+  it('夜のまとめの時刻が無ければ今までどおり 17 時から気分の記号を出す', () => {
     useTaskStore.setState({ tasks: [todo('a'), todo('b')] })
     at(16, 59)
     const { unmount } = render(<TodayPlannerView />)
@@ -67,7 +67,7 @@ describe('締めを出す時刻', () => {
     expect(mood()).toBeInTheDocument()
   })
 
-  it('夜の締めの時刻を決めていれば、その時刻から', () => {
+  it('夜のまとめの時刻を決めていれば、その時刻から', () => {
     useTaskStore.setState({ tasks: [todo('a'), todo('b')], dailyReminders: { planTime: null, wrapUpTime: '21:30' } })
     at(21, 29)
     const { unmount } = render(<TodayPlannerView />)
@@ -88,8 +88,8 @@ describe('締めを出す時刻', () => {
   })
 })
 
-describe('夜の締めの通知から開いたとき', () => {
-  it('時刻の前でも気分の記号を出し、そこまでスクロールする', () => {
+describe('夜のまとめの通知から開いたとき', () => {
+  it('時刻の前でも気分の記号を出し、そこまでスクロールする。スマホはタイムラインの面を出す', () => {
     const scroll = vi.spyOn(Element.prototype, 'scrollIntoView')
     useTaskStore.setState({ tasks: [todo('a'), todo('b')], dailyReminders: { planTime: null, wrapUpTime: '22:00' } })
     render(<TodayPlannerView />)
@@ -97,6 +97,7 @@ describe('夜の締めの通知から開いたとき', () => {
     act(() => openWrapUpFromNotification())
     expect(mood()).toBeInTheDocument()
     expect(scroll.mock.contexts).toContain(document.querySelector('[data-wrap-up]'))
+    expect(screen.getByRole('tab', { name: 'Timeline' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('通知を押してから今日の計画を描いても受け取る（起動したとき）', () => {
@@ -112,7 +113,7 @@ describe('夜の締めの通知から開いたとき', () => {
 })
 
 describe('ラベルなしの記録（#390・#501）', () => {
-  it('記録の帯の凡例の「ラベルなし」を押すとラベルなしの記録を行で並べ、行のチップでその場で付ける（付けた行は残る）', async () => {
+  it('記録の帯の凡例の「ラベルなし」を押すとラベルなしの記録を行で並べ、行の色の一覧でその場で付ける（付けた行は残る）', async () => {
     vi.useRealTimers()
     vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })
     at(18)
@@ -134,10 +135,11 @@ describe('ラベルなしの記録（#390・#501）', () => {
     const list = document.querySelector('[data-untagged-logs]') as HTMLElement
     const rows = within(list).getAllByRole('listitem')
     expect(rows.map((r) => within(r).getAllByRole('button')[0]!.textContent)).toEqual(['読書09:00–10:00', '数学11:00–12:00'])
+    act(() => within(rows[0]!).getByRole('button', { name: 'Color and label' }).click())
     act(() => within(rows[0]!).getByRole('radio', { name: 'バイト' }).click())
     expect(useTaskStore.getState().tasks.find((x) => x.id === '読書')).toMatchObject({ category: 'バイト' })
-    // 付けた行も残り、選んだチップが見える
+    // 付けた行も残り、選んだラベルが見える
     expect(within(list).getAllByRole('listitem')).toHaveLength(2)
-    expect(within(list).getByRole('radio', { name: 'バイト', checked: true })).toBeInTheDocument()
+    expect(within(rows[0]!).getByRole('button', { name: 'Color and label' })).toHaveTextContent('バイト')
   })
 })

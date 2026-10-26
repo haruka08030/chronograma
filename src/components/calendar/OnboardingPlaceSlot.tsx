@@ -9,7 +9,8 @@ import { onboardingSteps } from '../../lib/onboarding'
 import { busySpans, findFreeSlots } from '../../lib/freeSlots'
 import { minutesToTime } from '../../lib/clockTime'
 import { fromDateKey } from '../../lib/dateKey'
-import { isAppToday, zonedNow } from '../../lib/timeZone'
+import { isAppToday } from '../../lib/timeZone'
+import { useNowMinutes } from '../../hooks/useAppClock'
 import { toastTitle } from '../../lib/undoWindow'
 import { HOUR_HEIGHT } from '../../lib/timeGrid'
 
@@ -27,16 +28,17 @@ export function OnboardingPlaceSlot({ dateKey, splitLanes }: { dateKey: string; 
   const timerRunning = useTaskStore((s) => s.activeTimer !== null)
   const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   const updateTask = useTaskStore((s) => s.updateTask)
+  // 今より後の最初の空き。時間がたったら過ぎた時刻の枠を残さない
+  const nowMinutes = useNowMinutes()
 
   const slot = useMemo(() => {
     if (!showsOnboarding || !isDesktop || onboardingSteps(tasks, timerRunning).placed) return null
     const task = getDayPlan(tasks, dateKey, unplannedListIds(lists)).open.find((x) => !(x.startTime && x.endTime))
     if (!task) return null
     const duration = task.estimateMinutes ?? defaultBlockMinutes
-    const now = zonedNow()
-    const [start] = findFreeSlots(busySpans(tasks, events, dateKey), { from: now.getHours() * 60 + now.getMinutes(), duration, count: 1 })
+    const [start] = findFreeSlots(busySpans(tasks, events, dateKey), { from: nowMinutes, duration, count: 1 })
     return start === undefined ? null : { task, start, end: Math.min(start + duration, 24 * 60) }
-  }, [showsOnboarding, isDesktop, tasks, timerRunning, events, lists, dateKey, defaultBlockMinutes])
+  }, [showsOnboarding, isDesktop, tasks, timerRunning, events, lists, dateKey, defaultBlockMinutes, nowMinutes])
 
   if (!slot) return null
   const startTime = minutesToTime(slot.start)

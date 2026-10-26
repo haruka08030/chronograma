@@ -1,24 +1,15 @@
 import type { Habit } from '../types/habit'
 import { isHabitDueOnDate } from './habitSchedule'
-import { habitDayStatus, habitTimesOn, habitUsualTimesOn, plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
+import { habitAsOf, habitDayStatus, habitTimesOn, habitUsualTimesOn, plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
 import type { PlannedItem } from '../types/plannedItem'
 import { fromDateKey } from './dateKey'
 import { timeToMinutes } from './clockTime'
+import { intervalSegmentClockOnDay } from './taskTimeRange'
+import { dateKeyOfDayIndex, dayIndexOf, wallMinutes } from './wallTime'
+import { habitSlotId } from '../../supabase/functions/_shared/dayResult.ts'
 
-const SLOT_PREFIX = 'habit-slot::'
-
-/** タイムラインの習慣の枠の id（`habit-slot::<習慣の id>::<yyyy-MM-dd>`） */
-export function habitSlotId(habitId: string, dateKey: string): string {
-  return `${SLOT_PREFIX}${habitId}::${dateKey}`
-}
-
-/** 習慣の枠の id なら習慣の id と日。ほかの id は null */
-export function parseHabitSlotId(id: string): { habitId: string; dateKey: string } | null {
-  if (!id.startsWith(SLOT_PREFIX)) return null
-  const rest = id.slice(SLOT_PREFIX.length)
-  const at = rest.lastIndexOf('::')
-  return at > 0 ? { habitId: rest.slice(0, at), dateKey: rest.slice(at + 2) } : null
-}
+/** タイムラインの習慣の枠の id（`habit-slot::<習慣の id>::<yyyy-MM-dd>`）。通知の数え方（`dayResult.ts`）と同じ */
+export { habitSlotId, parseHabitSlotId } from '../../supabase/functions/_shared/dayResult.ts'
 
 /**
  * タイムライン用。時間を決めた習慣だけ。枠は ✓ で作る記録と同じ（時刻ひとつは許容幅ぶん）。
@@ -33,8 +24,34 @@ export function habitToPlannedItem(habit: Habit, dateKey: string, records?: Habi
     summary: habit.title,
     startTime: times.startTime,
     endTime: times.endTime,
-    source: 'habit',
+    source: habit.kind === 'routine' ? 'routine' : 'habit',
   }
+}
+
+/**
+ * その日の列に描く、始まりと終わりを決めた習慣の枠（時刻ひとつの習慣は習慣の段なので除く）。
+ * 日をまたぐ枠（睡眠の 23:00–7:00 など）は、始まった日は 24:00 まで、次の日は 0:00 から終わりまでを `seg` に入れる。
+ * `slotDate` は枠の習慣の日（達成・記録はこの日のもの）、`crossesDay` は次の日までかかるか
+ */
+export function habitSlotsOnDay(
+  habits: Habit[],
+  dateKey: string,
+  records?: HabitRecordIndex,
+): { habit: Habit; slot: PlannedItem; slotDate: string; seg: { startTime: string; endTime: string }; crossesDay: boolean }[] {
+  const prevKey = dateKeyOfDayIndex(dayIndexOf(dateKey) - 1)
+  return habits.flatMap((habit) =>
+    [prevKey, dateKey].flatMap((slotDate) => {
+      if (isPointHabitOn(habit, slotDate)) return []
+      const slot = habitToPlannedItem(habit, slotDate, records)
+      if (!slot) return []
+      const start = wallMinutes(slotDate, slot.startTime)
+      let end = wallMinutes(slotDate, slot.endTime)
+      if (end <= start) end += 24 * 60
+      const seg = intervalSegmentClockOnDay({ start, end }, dateKey)
+      if (!seg) return []
+      return [{ habit, slot, slotDate, seg, crossesDay: end > wallMinutes(slotDate, '24:00') }]
+    }),
+  )
 }
 
 /**
@@ -42,7 +59,7 @@ export function habitToPlannedItem(habit: Habit, dateKey: string, records?: Habi
  * 「1 回の目標」があれば長さが決まるので、最初から格子の枠（開始〜開始＋目標）にする
  */
 export function isPointHabitOn(habit: Habit, dateKey: string): boolean {
-  return !habit.goalMinutes && habitTimesOn(habit, dateKey)?.endTime === null
+  return !habitAsOf(habit, dateKey).goalMinutes && habitTimesOn(habit, dateKey)?.endTime === null
 }
 
 /** 習慣の段に出す、その日の時刻ひとつの習慣（時刻順） */
@@ -63,7 +80,8 @@ export function pointHabitsOn(
 /**
  * 時刻ひとつの習慣（目標なし）・時間を決めていない習慣を、その日だけ格子に置いた（終わりのある枠にした）か。習慣の段のチップに戻せる
  */
-export function isPlacedPointHabitOn(habit: Habit, dateKey: string): boolean {
+export function isPlacedPointHabitOn(h: Habit, dateKey: string): boolean {
+  const habit = habitAsOf(h, dateKey)
   if (habit.timeMode === 'none') return isUntimedPlacedOn(habit, dateKey)
   return !habit.goalMinutes && habitUsualTimesOn(habit, dateKey)?.endTime === null && habitTimesOn(habit, dateKey)?.endTime != null
 }
@@ -80,7 +98,12 @@ export function untimedHabitsOn(
   records: HabitRecordIndex,
 ): { habit: Habit; id: string; done: boolean }[] {
   return habits.flatMap((habit) => {
-    if (habit.timeMode !== 'none' || isUntimedPlacedOn(habit, dateKey) || !isHabitDueOnDate(habit, fromDateKey(dateKey), records)) return []
+    if (
+      habitAsOf(habit, dateKey).timeMode !== 'none' ||
+      isUntimedPlacedOn(habit, dateKey) ||
+      !isHabitDueOnDate(habit, fromDateKey(dateKey), records)
+    )
+      return []
     return [{ habit, id: habitSlotId(habit.id, dateKey), done: habitDayStatus(habit, dateKey, records) !== 'missed' }]
   })
 }
@@ -92,5 +115,5 @@ export function untimedHabitsOn(
 export function habitDurationMinutes(habit: Habit, dateKey: string): number | null {
   const times = habitTimesOn(habit, dateKey)
   if (times?.endTime) return (timeToMinutes(times.endTime) - timeToMinutes(times.startTime) + 1440) % 1440 || null
-  return habit.goalMinutes ?? null
+  return habitAsOf(habit, dateKey).goalMinutes ?? null
 }

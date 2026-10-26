@@ -28,11 +28,11 @@ export const MESSAGES = {
     startTimer: '記録を始める',
     timerEndTitle: (title: string) => `「${title}」の時間です`,
     timerEndBody: '記録は止めずに続けています',
-    wrapUpTitle: '1 日を締める',
+    wrapUpTitle: '夜のまとめ',
     wrapUpToday: (parts: string) => `今日: ${parts}`,
-    wrapUpDone: (done: number, total: number) => `予定 ${total} 件中 ${done} 件完了`,
+    dayResult: (followed: number, planned: number) => `予定 ${planned} 件中 ${followed} 件`,
+    dayResultUnplanned: (followed: number, planned: number, time: string) => `予定 ${planned} 件中 ${followed} 件・予定外 ${time}`,
     wrapUpLogged: (time: string) => `記録 ${time}`,
-    wrapUpLeft: (n: number) => `残り ${n} 件`,
     yesterday: (parts: string) => `昨日: ${parts}`,
     duration: (h: number, m: number) => (h === 0 ? `${m}分` : m === 0 ? `${h}時間` : `${h}時間${m}分`),
     duesTitle: '引き落とし・期限',
@@ -63,11 +63,11 @@ export const MESSAGES = {
     startTimer: 'Start recording',
     timerEndTitle: (title: string) => `Time's up: "${title}"`,
     timerEndBody: 'The timer keeps running until you stop it.',
-    wrapUpTitle: 'Wrap up the day',
+    wrapUpTitle: 'Evening summary',
     wrapUpToday: (parts: string) => `Today: ${parts}`,
-    wrapUpDone: (done: number, total: number) => `${done} of ${total} done`,
+    dayResult: (followed: number, planned: number) => `${followed} of ${planned} plans`,
+    dayResultUnplanned: (followed: number, planned: number, time: string) => `${followed} of ${planned} plans · ${time} unplanned`,
     wrapUpLogged: (time: string) => `${time} logged`,
-    wrapUpLeft: (n: number) => `${n} left`,
     yesterday: (parts: string) => `Yesterday: ${parts}`,
     duration: (h: number, m: number) => (h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h ${m}m`),
     duesTitle: 'Payments & expiry dates',
@@ -92,16 +92,26 @@ export function dayLabel(msg: Msg, date: string, today: string): string {
 /** 朝のまとめを押したときに開く URL。今日の計画 */
 export const MORNING_URL = '/?view=planner'
 
+/** 分 → 「4時間10分」 */
+const durationOf = (msg: Msg, minutes: number) => msg.duration(Math.floor(minutes / 60), minutes % 60)
+
 /**
- * 朝のまとめの「昨日」の行（#278）: 「昨日: 予定 5 件中 3 件完了 ・ 記録 4時間10分」。夜の締めと同じ言葉で、数字だけ（残り・責める言葉は出さない）。
- * To-Do が無い日は予定の部分を、記録が無い日は記録の部分を出さない。どちらも無ければ null（行ごと出さない）
+ * その日の結果「予定 4 件中 3 件・予定外 1時間」（今日の計画の見出しと同じ言葉・同じ数え方）。数えた予定が無い日は null
+ */
+export function dayResultText(msg: Msg, d: WrapUpDigest): string | null {
+  if (d.planned === 0) return null
+  return d.unplannedMinutes > 0
+    ? msg.dayResultUnplanned(d.followed, d.planned, durationOf(msg, d.unplannedMinutes))
+    : msg.dayResult(d.followed, d.planned)
+}
+
+/**
+ * 朝のまとめの「昨日」の行（#278）: 「昨日: 予定 4 件中 3 件・予定外 1時間 ・ 記録 4時間10分」。夜のまとめと同じ言葉で、数字だけ。
+ * 数えた予定が無い日は予定の部分を、記録が無い日は記録の部分を出さない。どちらも無ければ null（行ごと出さない）
  */
 export function yesterdayLine(msg: Msg, d: WrapUpDigest | null): string | null {
   if (!d || !hasDayNumbers(d)) return null
-  const parts = [
-    d.total > 0 ? msg.wrapUpDone(d.done, d.total) : null,
-    d.loggedMinutes > 0 ? msg.wrapUpLogged(msg.duration(Math.floor(d.loggedMinutes / 60), d.loggedMinutes % 60)) : null,
-  ].filter(Boolean)
+  const parts = [dayResultText(msg, d), d.loggedMinutes > 0 ? msg.wrapUpLogged(durationOf(msg, d.loggedMinutes)) : null].filter(Boolean)
   return msg.yesterday(parts.join(msg.sep))
 }
 
@@ -206,19 +216,15 @@ export function timerEndPayload(msg: Msg, title: string, startedAt: string): Pay
   }
 }
 
-/** 夜の締めの通知を押したときに開く URL。今日の計画の「1 日を締める」へ */
+/** 夜のまとめの通知を押したときに開く URL。今日の計画（スマホはタイムラインの面）。気分の記号を出す */
 export const WRAP_UP_URL = '/?view=planner&wrap-up=1'
 
 /**
- * 夜の締め（#299）。数字だけを並べる（責める言葉は入れない）: 「今日: 予定 5 件中 3 件完了 ・ 記録 2時間30分 ・ 残り 2 件」。
- * To-Do が無い日は予定の部分を、残りが無ければ残りを出さない。記録が 0 の日は送らない（呼び出し側で `wrapUpDue`）
+ * 夜のまとめ（#299）。その日のずれを数字だけで見せる（責める言葉・残りの件数は入れない）: 「今日: 予定 4 件中 3 件・予定外 1時間 ・ 記録 5時間」。
+ * 数えた予定が無い日は予定の部分を出さない。記録が 0 の日は送らない（呼び出し側で `wrapUpDue`）
  */
 export function wrapUpPayload(msg: Msg, d: WrapUpDigest): Payload {
-  const parts = [
-    d.total > 0 ? msg.wrapUpDone(d.done, d.total) : null,
-    msg.wrapUpLogged(msg.duration(Math.floor(d.loggedMinutes / 60), d.loggedMinutes % 60)),
-    d.open > 0 ? msg.wrapUpLeft(d.open) : null,
-  ].filter(Boolean)
+  const parts = [dayResultText(msg, d), msg.wrapUpLogged(durationOf(msg, d.loggedMinutes))].filter(Boolean)
   return {
     title: msg.wrapUpTitle,
     body: msg.wrapUpToday(parts.join(msg.sep)),

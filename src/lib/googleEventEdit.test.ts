@@ -14,11 +14,14 @@ const store = vi.hoisted(() => {
     },
     showMoveBanner: vi.fn(),
     setGoogleCanWrite: vi.fn(),
+    addSkippedEvents: vi.fn(),
+    dropRestoredSkipped: vi.fn(),
   }
   return s
 })
 const deleteGoogleEvent = vi.hoisted(() => vi.fn(async () => {}))
 const updateGoogleEvent = vi.hoisted(() => vi.fn(async () => null))
+const createGoogleEvent = vi.hoisted(() => vi.fn(async (): Promise<CalendarEvent | null> => null))
 
 vi.mock('../store/taskStore', () => ({ useTaskStore: { getState: () => store } }))
 vi.mock('../i18n/config', () => ({ default: { t: (k: string) => k } }))
@@ -26,13 +29,15 @@ vi.mock('./useTimelineDrop', () => ({ GOOGLE_EVENT_DND_TYPE: 'x' }))
 vi.mock('./googleCalendar', () => ({
   deleteGoogleEvent,
   applyTimingLocally: vi.fn((e: CalendarEvent) => e),
-  createGoogleEvent: vi.fn(),
+  createGoogleEvent,
+  googleEventTiming: (e: CalendarEvent) => ({ date: e.date, startTime: e.startTime, endTime: e.endTime }),
   updateGoogleEvent,
   localizeGoogleError: (raw: string) => raw,
   googleWriteFailure: (e: unknown) => (e instanceof Error && e.message === 'deleted' ? 'deleted' : 'failed'),
 }))
 
-const { moveGoogleEvent, removeGoogleEvent, renameGoogleEvent, undoGoogleDelete, withoutPendingDeletes } = await import('./googleEventEdit')
+const { duplicateGoogleEvent, moveGoogleEvent, removeGoogleEvent, renameGoogleEvent, undoGoogleDelete, withoutPendingDeletes } =
+  await import('./googleEventEdit')
 const { UNDO_WINDOW_MS } = await import('./undoWindow')
 
 const event = (id: string): CalendarEvent =>
@@ -65,6 +70,21 @@ describe('Google の予定の削除（「元に戻す」の間は Google に送�
     await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS)
     expect(deleteGoogleEvent).toHaveBeenCalledWith('a')
     expect(store.googleUndo).toBeNull()
+  })
+
+  it('始まった予定を消したら、やらなかった予定として残す。元に戻したら外す（#528）', async () => {
+    vi.setSystemTime(new Date('2026-10-02T12:00:00Z'))
+    store.addSkippedEvents.mockClear()
+    store.dropRestoredSkipped.mockClear()
+    removeGoogleEvent(event('b'))
+    expect(store.addSkippedEvents).not.toHaveBeenCalled()
+    const started = { ...event('a'), start: '2026-10-02T10:00:00Z', end: '2026-10-02T11:00:00Z' }
+    removeGoogleEvent(started)
+    expect(store.addSkippedEvents).toHaveBeenCalledWith([expect.objectContaining({ id: 'a', skippedAt: '2026-10-02T12:00:00.000Z' })])
+    expect(undoGoogleDelete()).toBe(true)
+    expect(store.dropRestoredSkipped).toHaveBeenCalledWith(new Set(['a']))
+    // 始まる前の予定（b）の削除は送っておく（ほかのテストに残さない）
+    await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS)
   })
 
   it('元に戻すと予定が戻り、Google には送らない', async () => {
@@ -108,5 +128,30 @@ describe('Google で消されていた予定を直した（#494）', () => {
     updateGoogleEvent.mockRejectedValueOnce(new Error('boom'))
     await moveGoogleEvent(event('a'), { date: '2026-10-03', startTime: null, endTime: null })
     expect(store.calendarEvents.map((e) => e.id).sort()).toEqual(['a', 'b'])
+  })
+})
+
+describe('Google の予定のコピー', () => {
+  it('同じ日・同じ時間に、題名・メモ・自分で付けた色を写して作り、返ってきた予定に置き換える', async () => {
+    const src = { ...event('a'), startTime: '13:00', endTime: '16:00', description: 'メモ', colorId: '5', ownColor: true, color: '#F6BF26' }
+    store.calendarEvents = [src]
+    createGoogleEvent.mockResolvedValueOnce({ ...src, id: 'copy' })
+    const done = duplicateGoogleEvent(src)
+    // 返ってくるまでも元と同じ色で出す
+    expect(store.calendarEvents).toHaveLength(2)
+    expect(store.calendarEvents[1]).toMatchObject({ summary: 'a', color: '#F6BF26' })
+    await done
+    expect(createGoogleEvent).toHaveBeenCalledWith(
+      'a',
+      { date: '2026-10-02', startTime: '13:00', endTime: '16:00' },
+      { description: 'メモ', colorId: '5' },
+    )
+    expect(store.calendarEvents.map((e) => e.id)).toEqual(['a', 'copy'])
+  })
+
+  it('カレンダーの色のままの予定は色を付けずに作る', async () => {
+    createGoogleEvent.mockClear()
+    await duplicateGoogleEvent({ ...event('b'), colorId: undefined, ownColor: false })
+    expect(createGoogleEvent).toHaveBeenCalledWith('b', expect.anything(), { description: undefined, colorId: undefined })
   })
 })

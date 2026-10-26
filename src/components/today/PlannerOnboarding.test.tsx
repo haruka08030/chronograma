@@ -101,6 +101,33 @@ describe('はじめの 3 ステップ', () => {
     }
   })
 
+  it('③ の間は行の ▶ を乗せなくても出しておく（場所を取って隠す印が付かない）', () => {
+    const id = useTaskStore.getState().addTask('Essay')!
+    useTaskStore.getState().updateTask(id, { scheduledDate: toDateKey(appToday()), startTime: '15:00', endTime: '16:00' })
+    openToday()
+    const play = screen.getAllByRole('button', { name: 'Start logging this task' })[0]!
+    expect(play.className).not.toContain('group-hover/row:inline-flex')
+    act(() => useTaskStore.getState().finishOnboarding())
+    expect(screen.getAllByRole('button', { name: 'Start logging this task' })[0]!.className).toContain('group-hover/row:inline-flex')
+  })
+
+  it('案内を終えた日は睡眠の行を出さず、次の日から出す', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(new Date().setHours(13, 0, 0, 0)))
+    try {
+      const user = userEvent.setup()
+      openToday()
+      await user.click(screen.getByRole('button', { name: 'Close the guide' }))
+      expect(screen.queryByText('Log your sleep?')).toBeNull()
+      act(() => {
+        useTaskStore.setState({ onboardingFinishedOn: '2000-01-01' })
+      })
+      expect(screen.getByText('Log your sleep?')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('3 つ終わると「できました」を出し、少しして消え、二度と出ない', () => {
     vi.useFakeTimers()
     try {
@@ -119,12 +146,17 @@ describe('はじめの 3 ステップ', () => {
     }
   })
 
-  it('× で閉じたら二度と出ない', async () => {
+  it('× で閉じたら二度と出ない。お知らせの「元に戻す」で戻せる', async () => {
     const user = userEvent.setup()
     openToday()
     await user.click(screen.getByRole('button', { name: 'Close the guide' }))
     expect(guide()).toBeNull()
     expect(useTaskStore.getState().onboardingDone).toBe(true)
+    const banner = useTaskStore.getState().undoBanner!
+    expect(banner.text).toEqual({ key: 'undo.guideClosed' })
+    act(() => void useTaskStore.getState().undoOperation(banner.undoId!))
+    expect(useTaskStore.getState().onboardingDone).toBe(false)
+    expect(guide()).toBeInTheDocument()
   })
 
   it('前から使っている人（データを引き継いだ人）には出さない', () => {

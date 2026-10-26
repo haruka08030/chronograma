@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/** 睡眠は睡眠の入力からだけ作る（#519）。題名・ラベルが「睡眠」の記録は記録のまま */
+/** 睡眠は睡眠の入力と後から記録からだけ作る（#519）。▶ の記録・習慣のチェックは題名が「睡眠」でも記録のまま */
 beforeAll(() => {
   const mem = new Map<string, string>()
   vi.stubGlobal('localStorage', {
@@ -19,12 +19,30 @@ beforeEach(() => {
   useTaskStore.setState({ tasks: [], activeTimer: null, completePromptTaskId: null, labelPromptLogId: null })
 })
 
-describe('睡眠は題名で判別しない', () => {
-  it('後から記録で題名・ラベルを「睡眠」「sleep」にしても記録のまま', () => {
+describe('題名・ラベルで睡眠にするのは後から記録だけ', () => {
+  it('後から記録で題名・ラベルを「睡眠」「sleep」にしたら睡眠', () => {
+    const s = useTaskStore.getState()
+    s.addTimeLog('睡眠', '2026-10-07', '23:30', '07:00', [], undefined, '2026-10-08', null, null, true)
+    s.addTimeLog('夜', '2026-10-07', '01:00', '02:00', ['sleep'], undefined, null, null, null, true)
+    s.addTimeLog('レポート', '2026-10-08', '10:00', '11:00', [], undefined, null, null, null, true)
+    expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['sleep', 'sleep', 'log'])
+  })
+
+  it('後から記録でない記録（▶ を止めた・予定を記録にした など）は「睡眠」でも記録のまま', () => {
     const s = useTaskStore.getState()
     s.addTimeLog('睡眠', '2026-10-07', '23:30', '07:00', [], undefined, '2026-10-08')
     s.addTimeLog('夜', '2026-10-07', '01:00', '02:00', ['sleep'])
     expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['log', 'log'])
+  })
+
+  it('▶ の記録は題名が「睡眠」でも記録のまま', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 8, 1, 0))
+    useTaskStore.getState().startTimer('睡眠')
+    vi.setSystemTime(new Date(2026, 9, 8, 2, 0))
+    useTaskStore.getState().stopTimer()
+    vi.useRealTimers()
+    expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['log'])
   })
 
   it('睡眠の入力（logSleep）からは睡眠になる', () => {

@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach, beforeAll, beforeEach } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import i18n from '../i18n/config'
 import { useTaskStore } from '../store/taskStore'
 import { clearDialogDrafts } from '../lib/dialogDrafts'
@@ -23,4 +23,9 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+})
+
+// プロセスはファイルをまたいで使い回す（vmForks）。ファイルで替えた環境変数（TZ など）を次のファイルへ持ち越さない
+afterAll(() => {
+  vi.unstubAllEnvs()
 })

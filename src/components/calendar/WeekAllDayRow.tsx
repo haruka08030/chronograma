@@ -2,6 +2,7 @@ import { useState, type Dispatch, type ReactNode, type SetStateAction } from 're
 import { useTranslation } from 'react-i18next'
 import { addDays, differenceInCalendarDays, parseISO } from 'date-fns'
 import { useTaskStore } from '../../store/taskStore'
+import { SKIPPED_EVENT_CLASS } from '../ui/rowStateClass'
 import { readDraggedTaskIds } from '../../lib/useTimelineDrop'
 import { beginCalendarItemNativeDrag } from '../../lib/calendarItemDrag'
 import {
@@ -139,7 +140,7 @@ export function WeekAllDayRow({
                   setAllDayDragOver(null)
                 }}
                 onClick={(ev) => openGoogleCard(e.id, ev.currentTarget)}
-                className={`${planVisualState({ completed: false, startTime: null, endTime: null }, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} truncate rounded px-1.5 py-0.5
+                className={`${planVisualState({ completed: false, startTime: null, endTime: null }, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} ${e.skipped ? SKIPPED_EVENT_CLASS : ''} truncate rounded px-1.5 py-0.5
                     text-[10px] leading-tight transition-[filter] hover:brightness-95
                     ${canEditGoogleEvent(e, googleCanWrite) ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
                 style={colorVars(e.color ?? DEFAULT_GOOGLE_EVENT_HEX)}

@@ -8,7 +8,7 @@ import { fromDateKey, toDateKey } from './dateKey'
 
 /** その日の空き時間と、その日にやると置いた To-Do の時間 */
 export interface DayLoad {
-  /** 空き（分）= 1 日に計画する時間の目安 − 授業・バイト・Google の予定（重なりは 1 回）。0 より小さくしない */
+  /** 空き（分）= 1 日に使える時間 − 授業・バイト・Google の予定（重なりは 1 回）。0 より小さくしない */
   freeMinutes: number
   /** その日に置いた To-Do の時間（分）。時刻つきはその長さ、時刻なしは見積もり（見積もりの無いものは数えない） */
   plannedMinutes: number

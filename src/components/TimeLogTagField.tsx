@@ -1,124 +1,35 @@
-import { useMemo, useState, type KeyboardEventHandler } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useTaskStore } from '../store/taskStore'
-import { buildTimeLogTagUniverse } from '../lib/timeLogTags'
-import { categoryHex, colorVars } from '../lib/logCategoryColors'
-import { useTextEntry } from '../hooks/useTextEntry'
-import { tip } from '../lib/tooltip'
-import { chipClass } from './ui/chipClass'
-import { CATEGORY_MAX_LENGTH } from '../lib/textLimits'
+import { useLogLabelChoice } from '../hooks/useLogLabelChoice'
+import { NEUTRAL_HEX } from '../lib/googleColors'
+import type { LogLabel } from '../lib/logCategoryColors'
+import { ColorLabelSelect } from './labels/ColorLabelSelect'
 
 /**
- * 記録の分類（1 つ選ぶ）。候補はチップで 1 タップ、同じチップをもう一度押すと解除。
- * 「＋」から新しい分類を足すと候補（設定の分類）にも残る。
+ * 記録のラベル（色＝ラベル）。予定・記録の詳細と同じ色のドロップダウンで選ぶ（候補は設定のラベルだけ）。
+ * 名前の付いた色を選ぶとその分類に、名前の無い色は色だけ付く。「ラベルなし」で外す。
  * 選ばずに記録しても、同じタイトルの前回の分類がストア側で補われる（`inferLogCategory`）。
  */
 export function TimeLogTagField({
   value,
+  color = null,
   onChange,
   compact,
-  onKeyDown,
 }: {
+  /** 分類（ラベル名）。無ければ '' */
   value: string
-  onChange: (v: string) => void
-  /** 旧 API 互換（datalist 用 id）。今は使わない */
-  listId?: string
-  /** 旧 API 互換。今は使わない */
-  inputClassName?: string
-  /** 予定 vs ログのヘッダなど狭いとき */
+  /** 名前の無い色（分類が無いときだけ使う） */
+  color?: string | null
+  onChange: (v: LogLabel) => void
   compact?: boolean
-  onKeyDown?: KeyboardEventHandler<HTMLInputElement>
 }) {
-  const { t } = useTranslation()
-  const tasks = useTaskStore((s) => s.tasks)
-  const presets = useTaskStore((s) => s.timeLogTagPresets)
-  const addLogCategory = useTaskStore((s) => s.addLogCategory)
-  const colors = useTaskStore((s) => s.logCategoryColors)
-  const universe = useMemo(() => buildTimeLogTagUniverse(presets, tasks), [presets, tasks])
-  const [adding, setAdding] = useState(false)
-  const [draft, setDraft] = useState('')
-
-  // 候補: 設定の分類（すべて）+ 記録にだけある分類（多すぎると選べないので合わせて 12 まで）
-  const chips = useMemo(() => {
-    const list = universe.slice(0, Math.max(12, presets.length))
-    if (value && !list.includes(value)) list.push(value)
-    return list
-  }, [universe, presets.length, value])
-
-  const commitDraft = () => {
-    const name = draft.trim()
-    if (name) {
-      addLogCategory(name)
-      onChange(name)
-    }
-    setDraft('')
-    setAdding(false)
-  }
-  const draftEntry = useTextEntry({
-    onSubmit: commitDraft,
-    onCancel: () => {
-      setDraft('')
-      setAdding(false)
-    },
-    onOtherKey: onKeyDown,
-  })
-
-  const size = compact ? 'sm' : 'md'
-
+  const label = useLogLabelChoice(value, color, onChange)
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="radiogroup" aria-label={t('logCategories.label')}>
-      {chips.map((name, i) => {
-        const selected = value === name
-        const vars = colorVars(categoryHex(name, colors))
-        // ラジオの並びは Tab で 1 回だけ止まり、←→ で選ぶ（1 つずつ止まると題名から開始まで Tab が 7 回）
-        const tabStop = selected || (!chips.includes(value) && i === 0)
-        return (
-          <button
-            key={name}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            tabIndex={tabStop ? 0 : -1}
-            onClick={() => onChange(selected ? '' : name)}
-            onKeyDown={(e) => {
-              const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
-              if (!step) return
-              e.preventDefault()
-              const nextIndex = (i + step + chips.length) % chips.length
-              onChange(chips[nextIndex]!)
-              const radios = e.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="radio"]')
-              radios?.[nextIndex]?.focus()
-            }}
-            className={chipClass({ variant: 'outline', size, selected })}
-            style={selected ? vars : undefined}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              {!selected && <span className="gc-dot h-1.5 w-1.5 rounded-full" style={vars} aria-hidden />}
-              {name}
-            </span>
-          </button>
-        )
-      })}
-      {adding ? (
-        <input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          maxLength={CATEGORY_MAX_LENGTH}
-          {...draftEntry}
-          placeholder={t('logCategories.newPlaceholder')}
-          className={`w-28 rounded-full border border-accent-300 bg-white outline-none dark:border-accent-500/50 dark:bg-zinc-900 ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'}`}
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          {...tip(t('logCategories.add'), { name: true })}
-          className={chipClass({ variant: 'add', size })}
-        >
-          ＋
-        </button>
-      )}
-    </div>
+    <ColorLabelSelect
+      current={label.current}
+      currentText={label.text}
+      onChoose={label.choose}
+      defaultLabel={label.defaultLabel}
+      defaultHex={NEUTRAL_HEX}
+      compact={compact}
+    />
   )
 }

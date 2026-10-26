@@ -14,7 +14,7 @@ import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
-import { buildHabitRecordIndex, habitDayStatus, plannedRecordTimes } from '../../lib/habitTiming'
+import { buildHabitRecordIndex, habitAsOf, habitDayStatus, plannedRecordTimes } from '../../lib/habitTiming'
 import { habitSlotId, isPointHabitOn } from '../../lib/habitSlots'
 import { logLimitAt, placeHabitSlot } from '../../lib/timelineBlockEdit'
 import { timeToMinutes } from '../../lib/timeGrid'
@@ -59,14 +59,17 @@ export function HabitSlotPopover({
 
   const times = habit ? plannedRecordTimes(habit, dateKey) : null
   // 時間を決めていない習慣は習慣の段のチップ（時刻なし）から開く
-  const untimed = habit?.timeMode === 'none'
+  const untimed = !!habit && habitAsOf(habit, dateKey).timeMode === 'none'
   if (!habit || (!times && !untimed)) return null
   const done = habitDayStatus(habit, dateKey, buildHabitRecordIndex(tasks.filter(isLogTask))) !== 'missed'
   // タイムラインの ✓ と同じ: 始まった枠だけ予定どおり達成にできる（今より先の記録は作らない）。▶ は終わるまで。
   // 時間なしは今日と過ぎた日に ✓、▶ は今日だけ
   const limit = logLimitAt(now)(dateKey)
   const started = !times ? limit === null || limit > 0 : limit === null || timeToMinutes(times.startTime) < limit
-  const ended = !times ? limit === null : limit === null || (times.endTime !== '00:00' && timeToMinutes(times.endTime) <= limit)
+  // 0:00 終わり・日をまたぐ枠（睡眠の 23:00–7:00 など）は、始まった日のうちには終わらない
+  const ended = !times
+    ? limit === null
+    : limit === null || (timeToMinutes(times.endTime) > timeToMinutes(times.startTime) && timeToMinutes(times.endTime) <= limit)
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 170)
   const start = () => {
     const { timeLogTagPresets, logCategoryColors, startTimer } = useTaskStore.getState()

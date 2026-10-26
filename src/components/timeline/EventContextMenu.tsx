@@ -1,15 +1,16 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
+import { skippedEventById } from '../../hooks/useShownCalendarEvents'
 import { isEventTask, isLogTask, type Task } from '../../types/task'
 import { NEUTRAL_HEX, DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { recordHex, colorVars } from '../../lib/logCategoryColors'
 import { planTiming } from '../../lib/planTiming'
 import { startTimerForTask } from '../../lib/timerDrop'
-import { canEditGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit'
+import { canEditGoogleEvent, duplicateGoogleEvent, removeGoogleEvent } from '../../lib/googleEventEdit'
 import { useTaskColor } from '../../hooks/useTaskColor'
 import { ColorPalette } from '../labels/ColorPalette'
 import { ActionMenu, type ActionEntry } from '../ui/ActionMenu'
-import { CalendarIcon, CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PlayIcon, TrashIcon } from '../icons'
+import { CalendarIcon, CheckIcon, ClockIcon, DuplicateIcon, OpenPanelIcon, PencilIcon, PlayIcon, TrashIcon } from '../icons'
 import { useScheduleEntry } from '../../hooks/useScheduleEntry'
 import { deleteTaskAsking } from '../../lib/seriesScope'
 import { isGoogleSkipped } from '../../lib/googleSkip'
@@ -22,41 +23,43 @@ function Dot({ hex }: { hex: string }) {
 }
 
 /**
- * タイムラインの予定・記録を右クリックしたときのメニュー（押して出るカードと同じ操作を、カードを開かずに）。
- * 予定: 色・完了/未完了・予定どおり記録・記録を始める・詳細・複製・（Google に送っているとき）この名前は Google に送らない・削除。
- * 記録: 色（＝ラベル）・詳細・削除
+ * 月・予定リスト・日の一覧で予定・記録を右クリックしたときのメニュー。
+ * タイムラインの右クリック・長押しは `brief` で完了 / 未完了・複製だけ（ほかはカードと編集画面）。
+ * 予定: 色・完了/未完了・予定どおり記録・記録を始める・編集・コピー・（Google に送っているとき）この名前は Google に送らない・削除。
+ * 記録: 色（＝ラベル）・編集・削除
  */
 export function TaskEventMenu({
   x,
   y,
-  alignRight,
+  brief,
   taskId,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
-  alignRight?: boolean
+  /** タイムラインの右クリック: 完了 / 未完了・複製だけ（ほかはカードと編集画面） */
+  brief?: boolean
   taskId: string
   onClose: () => void
   onOpenDetail: (taskId: string) => void
 }) {
   const task = useTaskStore((s) => s.tasks.find((t) => t.id === taskId) ?? null)
   if (!task) return null
-  return <TaskEventMenuBody x={x} y={y} alignRight={alignRight} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
+  return <TaskEventMenuBody x={x} y={y} brief={brief} task={task} onClose={onClose} onOpenDetail={onOpenDetail} />
 }
 
 function TaskEventMenuBody({
   x,
   y,
-  alignRight,
+  brief,
   task,
   onClose,
   onOpenDetail,
 }: {
   x: number
   y: number
-  alignRight?: boolean
+  brief?: boolean
   task: Task
   onClose: () => void
   onOpenDetail: (taskId: string) => void
@@ -157,7 +160,7 @@ function TaskEventMenuBody({
       id: 'open',
       divider: isLog,
       label: t('taskMenu.open'),
-      icon: <OpenPanelIcon className={ICON} />,
+      icon: <PencilIcon className={ICON} />,
       run: () => onOpenDetail(task.id),
     },
     // 同じ日・同じ時間に写し、写したものの詳細を開く（行のメニューの「複製」と同じ）
@@ -198,41 +201,52 @@ function TaskEventMenuBody({
       run: () => void deleteTaskAsking(task.id),
     },
   ]
-  return (
-    <ActionMenu
-      x={x}
-      y={y}
-      alignRight={alignRight}
-      header={task.title || t('taskMenu.one')}
-      entries={entries}
-      onClose={onClose}
-      searchable={false}
-    />
-  )
+  const shown = brief
+    ? entries.filter((e) => e.id === 'toggle' || e.id === 'duplicate').map((e) => (e.kind === 'leaf' ? { ...e, divider: false } : e))
+    : entries
+  if (shown.length === 0) return null
+  return <ActionMenu x={x} y={y} header={task.title || t('taskMenu.one')} entries={shown} onClose={onClose} searchable={false} />
 }
 
 /**
- * Google の予定を右クリックしたときのメニュー（Google カレンダーの右クリックと同じく、色と削除）。
- * 書き込めない予定は「Google カレンダーで開く」だけ。繰り返しの色はカードの既定と同じく「すべての予定」に付ける
+ * Google の予定を右クリックしたときのメニュー（Google カレンダーの右クリックと同じく、色・コピー・削除）。
+ * タイムラインの右クリック・長押しは `brief` でコピーだけ（ほかはカード）。
+ * 書き込めない予定は「Google カレンダーで開く」だけ。繰り返しの色はカードの既定と同じく「すべての予定」に付ける。
+ * やらなかった予定（#528）は削除だけ（予定していなかったものを消す）
  */
 export function GoogleEventMenu({
   x,
   y,
-  alignRight,
+  brief,
   eventId,
   onClose,
 }: {
   x: number
   y: number
-  alignRight?: boolean
+  /** タイムラインの右クリック: コピーだけ（ほかはカード） */
+  brief?: boolean
   eventId: string
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const event = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
+  const liveEvent = useTaskStore((s) => s.calendarEvents.find((e) => e.id === eventId) ?? null)
+  const skipped = useTaskStore((s) => !liveEvent && s.skippedEvents.some((e) => e.id === eventId && !e.removed))
+  const event = liveEvent ?? (skipped ? skippedEventById(eventId) : null)
   const googleCanWrite = useTaskStore((s) => s.googleCanWrite)
   const setGoogleEventColor = useTaskStore((s) => s.setGoogleEventColor)
+  const removeSkippedEvent = useTaskStore((s) => s.removeSkippedEvent)
   if (!event) return null
+  if (skipped) {
+    const remove: ActionEntry = {
+      kind: 'leaf',
+      id: 'delete',
+      label: t('common.delete'),
+      icon: <TrashIcon className={ICON} />,
+      danger: true,
+      run: () => removeSkippedEvent(event.id),
+    }
+    return <ActionMenu x={x} y={y} header={event.summary} entries={[remove]} onClose={onClose} searchable={false} />
+  }
   const editable = canEditGoogleEvent(event, googleCanWrite)
   const scope = event.recurringEventId ? 'series' : 'event'
   const entries: ActionEntry[] = [
@@ -265,6 +279,18 @@ export function GoogleEventMenu({
           },
         ]
       : []),
+    // 同じ日・同じ時間にもう 1 つ（自分の予定の「コピー」と同じ）
+    ...(editable
+      ? [
+          {
+            kind: 'leaf' as const,
+            id: 'duplicate',
+            label: t('taskMenu.duplicate'),
+            icon: <DuplicateIcon className={ICON} />,
+            run: () => void duplicateGoogleEvent(event),
+          },
+        ]
+      : []),
     ...(event.htmlLink
       ? [
           {
@@ -289,6 +315,7 @@ export function GoogleEventMenu({
         ]
       : []),
   ]
-  if (entries.length === 0) return null
-  return <ActionMenu x={x} y={y} alignRight={alignRight} header={event.summary} entries={entries} onClose={onClose} searchable={false} />
+  const shown = brief ? entries.filter((e) => e.id === 'duplicate') : entries
+  if (shown.length === 0) return null
+  return <ActionMenu x={x} y={y} header={event.summary} entries={shown} onClose={onClose} searchable={false} />
 }

@@ -10,6 +10,8 @@ import {
   readHabitTimeOverrides,
   readHabitWeekdayTimes,
   readHabitGoalMinutes,
+  readHabitPastRules,
+  readHabitKind,
   type Habit,
 } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
@@ -24,6 +26,7 @@ import type { SettingPushResult } from './settingSync'
 import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZones'
 import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
 import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
+import { normalizeSkippedEvents, type RemoteSkipped } from './skippedEvents'
 import { normalizeTimetable, type RemoteTimetable } from './timetable'
 import { normalizeAddons, type RemoteAddons } from './addons'
 import { readEventSeries, withSeries } from './eventSeries'
@@ -72,6 +75,10 @@ interface HabitRow {
   goal_minutes?: number | null
   /** ゴミ箱に入れた時刻（`042`）。古い DB には無い。無い・null はゴミ箱に無い */
   deleted_at?: string | null
+  /** 前の日の設定（`047`）。古い DB には無い。無い・null は無し */
+  past_rules?: unknown
+  /** 種類（`048`、`habit` / `routine`）。古い DB には無い。無い・`habit` は習慣 */
+  kind?: string | null
 }
 
 interface TaskRow {
@@ -202,6 +209,8 @@ function rowToHabit(row: HabitRow): Habit {
     ...withRestDates(row.rest_dates),
     ...withWeekdayTimes(row.weekday_times),
     ...withGoalMinutes(row.goal_minutes),
+    ...withPastRules(row.past_rules),
+    ...(readHabitKind(row.kind) ? { kind: 'routine' as const } : {}),
     ...(typeof row.deleted_at === 'string' ? { deletedAt: row.deleted_at } : {}),
   }
 }
@@ -229,6 +238,12 @@ function withGoalMinutes(raw: unknown): Pick<Habit, 'goalMinutes'> {
   return goalMinutes ? { goalMinutes } : {}
 }
 
+/** 前の日の設定も、1 つでもあるときだけ項目を持つ */
+function withPastRules(raw: unknown): Pick<Habit, 'pastRules'> {
+  const pastRules = readHabitPastRules(raw)
+  return pastRules ? { pastRules } : {}
+}
+
 function habitToRow(userId: string, h: Habit): HabitRow {
   return {
     id: h.id,
@@ -248,6 +263,8 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     weekday_times: h.weekdayTimes ?? null,
     goal_minutes: h.goalMinutes ?? null,
     deleted_at: h.deletedAt ?? null,
+    past_rules: h.pastRules ?? null,
+    kind: h.kind ?? 'habit',
   }
 }
 
@@ -568,6 +585,7 @@ export type SettingTable =
   | 'user_timetable'
   | 'user_addons'
   | 'user_sleep_timer'
+  | 'user_skipped_events'
 const SETTING_TABLES: readonly SettingTable[] = [
   'user_settings',
   'user_extra_time_zones',
@@ -577,6 +595,7 @@ const SETTING_TABLES: readonly SettingTable[] = [
   'user_timetable',
   'user_addons',
   'user_sleep_timer',
+  'user_skipped_events',
 ]
 
 /** `sync_changes_since`（`035`）の 1 回の答え */
@@ -1080,6 +1099,23 @@ export function pushCourseLinks(
   base: string | null,
 ): Promise<SettingPushResult> {
   return pushSettingRow(supabase, 'user_course_links', { user_id: userId, links: value.links, updated_at: value.updatedAt }, base)
+}
+
+/** やらなかった予定（`user_skipped_events.events`、`045`）。行が無ければ null */
+export async function fetchSkippedEvents(supabase: SupabaseClient, userId: string): Promise<RemoteSkipped | null | { error: string }> {
+  const { data, error } = await supabase.from('user_skipped_events').select('events, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { events: normalizeSkippedEvents(data.events), updatedAt: String(data.updated_at) }
+}
+
+export function pushSkippedEvents(
+  supabase: SupabaseClient,
+  userId: string,
+  value: RemoteSkipped,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_skipped_events', { user_id: userId, events: value.events, updated_at: value.updatedAt }, base)
 }
 
 /** 時間割の設定（`user_timetable.timetable`、`027`）。行が無ければ null */

@@ -3,6 +3,8 @@ import { OverlaySuspense } from './ui/OverlaySuspense'
 import { useTranslation } from 'react-i18next'
 import { addDays, format } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
+import { useShownCalendarEvents } from '../hooks/useShownCalendarEvents'
+import { SKIPPED_EVENT_CLASS } from './ui/rowStateClass'
 import { useWeekBuckets } from '../hooks/useWeekBuckets'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { useDateFormat } from '../hooks/useDateFormat'
@@ -56,7 +58,8 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
   const dateLocale = dateFnsLocale(i18n.resolvedLanguage)
   const tasks = useTaskStore((s) => s.tasks)
   const lists = useTaskStore((s) => s.lists)
-  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  // やらなかった予定（#528）も薄く出す
+  const calendarEvents = useShownCalendarEvents()
   const [pages, setPages] = useState(1)
   // 押すと小さなカード（月・週と同じ）
   const cards = useCalendarCards()
@@ -136,7 +139,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
                           e.preventDefault()
                           openTaskMenu({ kind: 'google', x: e.clientX, y: e.clientY, eventId: event.id })
                         }}
-                        className="gc-plan block w-full rounded-lg px-3 py-2 text-left"
+                        className={`${event.skipped ? `gc-missed ${SKIPPED_EVENT_CLASS}` : 'gc-plan'} block w-full rounded-lg px-3 py-2 text-left`}
                         style={colorVars(event.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
                       >
                         <div className="truncate text-sm font-medium">{event.summary}</div>

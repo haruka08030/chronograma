@@ -5,6 +5,15 @@ import type { Habit } from '../types/habit'
 import { SYNC_INBOX_LIST_ID } from './syncMerge'
 import { LEGACY_DATA_OWNER } from '../store/storeConstants'
 import { reportFailure } from './errorReport'
+import type { BackupExtras } from './backupFormat'
+import type { DayMoods } from './dayMood'
+import { mergeTimetables, type Timetable } from './timetable'
+import { mergeAddons, type Addons } from './addons'
+import { normalizeEventTemplates, type EventTemplate } from './eventTemplates'
+import { courseKey, normalizeCourseLinks, type CourseLink } from './courseLinks'
+import { normalizeExtraTimeZones, type ExtraTimeZone } from './extraTimeZones'
+import { merge3ById } from './settingMerge'
+import { sameValue } from './sameValue'
 
 /**
  * 自動バックアップ。この端末の IndexedDB に控えを残す。
@@ -49,6 +58,11 @@ export const BEFORE_SYNC_KEEP = 5
  * その人がこの端末でまた使わない限り消えなかった（ゴミ箱と同じ 30 日）
  */
 export const OTHER_OWNER_KEEP_DAYS = 30
+/**
+ * 控えの中身（`json` の文字数）の合計の上限。どれも全データの写しで、データの大きい人は 1 件で数 MB になる。
+ * 超えたら古いものから外す（いちばん新しい 1 件は残す）
+ */
+export const MAX_TOTAL_CHARS = 50_000_000
 
 const DB_NAME = 'chronograma-backups'
 const STORE = 'snapshots'
@@ -151,6 +165,36 @@ export function idsToPrune(all: readonly AutoBackupMeta[], current?: { owner: st
   return out
 }
 
+/** 合計の上限（`MAX_TOTAL_CHARS`）を超えた分の、古いものの id（いちばん新しい 1 件は残す） */
+export function idsOverTotal(all: readonly Pick<AutoBackup, 'id' | 'savedAt' | 'json'>[], maxChars = MAX_TOTAL_CHARS): string[] {
+  const sorted = [...all].sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+  const out: string[] = []
+  let total = 0
+  sorted.forEach((b, i) => {
+    total += b.json.length
+    if (i > 0 && total > maxChars) out.push(b.id)
+  })
+  return out
+}
+
+/**
+ * 端末の保存領域が足りないとき、いちばん古い控えを 1 つ手放す（いちばん新しい 1 件は残す）。手放したら true。
+ * 本体の保存（`persistStorage.ts` の `freeMoreSpace`）が書けなかったときに呼ぶ
+ */
+export async function releaseOldestBackup(): Promise<boolean> {
+  try {
+    const all = await getAll()
+    if (all.length <= 1) return false
+    const oldest = all[all.length - 1]!
+    await withStore('readwrite', (s) => {
+      s.delete(oldest.id)
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function countTasks(tasks: readonly Task[]): { todoCount: number; logCount: number } {
   let todoCount = 0
   let logCount = 0
@@ -195,7 +239,8 @@ export async function saveAutoBackup(
       owner,
       json: typeof json === 'string' ? json : json(),
     }
-    const prune = idsToPrune([entry, ...all], { owner, now: Date.parse(savedAt) })
+    const counted = idsToPrune([entry, ...all], { owner, now: Date.parse(savedAt) })
+    const prune = [...counted, ...idsOverTotal([entry, ...all].filter((b) => !counted.includes(b.id)))]
     await withStore('readwrite', (s) => {
       s.put(entry)
       for (const id of prune) s.delete(id)
@@ -271,4 +316,39 @@ export function restoreMissing(current: RestorableData, backup: RestorableData, 
   const habits = [...current.habits, ...backup.habits.filter((h) => !habitIds.has(h.id)).map((h) => ({ ...h, updatedAt: now }))]
 
   return { next: { lists, sections, tasks, habits }, addedTasks: added.length }
+}
+
+export interface RestorableSettings {
+  dayMoods: DayMoods
+  timetable: Timetable
+  addons: Addons
+  eventTemplates: EventTemplate[]
+  courseLinks: CourseLink[]
+  extraTimeZones: ExtraTimeZone[]
+}
+
+/**
+ * 控えにあって今は無い気分・欠席・支払い・よく入れる予定などを足す（`restoreMissing` の設定の分）。今あるものは触らず、
+ * 同じもの（同じ日・同じ授業の回数・同じ id）で中身が違えば今のまま。変わる値だけを返す。
+ * 気分は控えの時刻のまま足す（サーバーにその日の新しい気分があればそちらに合わせる）
+ */
+export function restoreMissingSettings(current: RestorableSettings, backup: BackupExtras): Partial<RestorableSettings> {
+  const out: Partial<RestorableSettings> = {}
+  if (backup.dayMoods) {
+    const missing = Object.entries(backup.dayMoods).filter(([day]) => !current.dayMoods[day])
+    if (missing.length > 0)
+      out.dayMoods = { ...current.dayMoods, ...Object.fromEntries(missing.map(([d, m]) => [d, { ...m, syncedAt: null }])) }
+  }
+  const put = <K extends keyof RestorableSettings>(key: K, next: RestorableSettings[K]) => {
+    if (!sameValue(next, current[key])) out[key] = next
+  }
+  if (backup.timetable) put('timetable', mergeTimetables(null, current.timetable, backup.timetable, 'l'))
+  if (backup.addons) put('addons', mergeAddons(null, current.addons, backup.addons, 'l'))
+  if (backup.eventTemplates)
+    put('eventTemplates', normalizeEventTemplates(merge3ById(null, current.eventTemplates, backup.eventTemplates, (t) => t.id, 'l')))
+  if (backup.courseLinks)
+    put('courseLinks', normalizeCourseLinks(merge3ById(null, current.courseLinks, backup.courseLinks, (l) => courseKey(l.title), 'l')))
+  if (backup.extraTimeZones)
+    put('extraTimeZones', normalizeExtraTimeZones(merge3ById(null, current.extraTimeZones, backup.extraTimeZones, (z) => z.tz, 'l')))
+  return out
 }

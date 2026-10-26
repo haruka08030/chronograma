@@ -2,6 +2,10 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    // ファイルごとに新しい vm（モジュール・jsdom・グローバル）で動かし、プロセスと読み込んだコードの控えは使い回す。
+    // ファイルごとにプロセスを立てる forks の数分の 1 の重さ。threads の vm は実行中の TZ の切り替えが Date に効かないので forks の vm。
+    // vm の中の jsdom は `window.location` を書き換えられない（読み込み直しは `reloadPage` を差し替える）
+    pool: 'vmForks',
     projects: [
       {
         extends: true,
@@ -11,7 +15,7 @@ export default defineConfig({
           include: ['src/**/*.test.ts', 'supabase/functions/**/*.test.ts'],
           environment: 'node',
           // 文言は後から読むので、i18n を使うテストのために先に読んでおく
-          setupFiles: ['src/test/setupUnit.ts'],
+          setupFiles: ['src/test/fakeNow.ts', 'src/test/setupUnit.ts'],
         },
       },
       {
@@ -21,7 +25,7 @@ export default defineConfig({
           name: 'components',
           include: ['src/**/*.test.tsx'],
           environment: 'jsdom',
-          setupFiles: ['src/test/setup.ts'],
+          setupFiles: ['src/test/fakeNow.ts', 'src/test/setup.ts'],
         },
       },
     ],

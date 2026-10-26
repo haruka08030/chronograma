@@ -90,3 +90,38 @@ test('今日の画面で習慣の行をタイムラインに落とすと、予�
   await page.getByRole('button', { name: /1 done/ }).click()
   await expect(page.getByText('Off time', { exact: true })).toBeVisible()
 })
+
+test('睡眠の習慣は時間帯を日をまたいで決められ、今日の画面では前の晩からの枠が 0:00 から出る', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-21T12:00:00+09:00'))
+  await page.goto('/?view=habits')
+  await page.getByRole('button', { name: '+ Add habit' }).click()
+  await page.getByPlaceholder('Name (e.g. morning stretch)').fill('sleep')
+  const start = page.getByRole('combobox').nth(0)
+  const end = page.getByRole('combobox').nth(1)
+  await start.fill('23:00')
+  await start.press('Tab')
+  // 長さを保って終わりもずれる（23:59 で止めない）
+  await expect(end).toHaveValue('00:00')
+  await end.fill('07:00')
+  await end.press('Tab')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'New habit' })).toHaveCount(0)
+
+  // 作った日は 23:00 から日の終わりまで
+  await page.goto('/?view=planner')
+  const column = (key: string) => page.locator(`[data-datekey="${key}"]`)
+  const firstSlot = column('2026-10-21').locator('[data-block-id^="habit-slot::"]')
+  await expect(firstSlot).toHaveCount(1)
+  const col = (await column('2026-10-21').boundingBox())!
+  const night = (await firstSlot.boundingBox())!
+  expect(Math.abs(night.y + night.height - (col.y + col.height))).toBeLessThan(2)
+
+  // 次の日は前の晩からの枠が 0:00 から（その日の晩の枠も 23:00 から）
+  await page.clock.setFixedTime(new Date('2026-10-22T12:00:00+09:00'))
+  await page.reload()
+  const slots = column('2026-10-22').locator('[data-block-id^="habit-slot::"]')
+  await expect(slots).toHaveCount(2)
+  const next = (await column('2026-10-22').boundingBox())!
+  const tops = await Promise.all((await slots.all()).map(async (s) => (await s.boundingBox())!.y - next.y))
+  expect(Math.min(...tops)).toBeLessThan(2)
+})

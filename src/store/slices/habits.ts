@@ -8,6 +8,8 @@ import { logColorNames } from '../storeDefaults'
 import { completeHabitAsPlannedPatch, recordHabitAtPatch, uncheckHabitDatePatch } from '../habitRecord'
 import type { TaskState } from '../storeTypes'
 import { patchChanges } from '../../lib/sameValue'
+import { createdPastRules, pastRulesAfterEdit } from '../../lib/habitPastRules'
+import { appTodayKey } from '../../lib/timeZone'
 import type { SliceContext } from './sliceTypes'
 
 type HabitsActions = Pick<
@@ -50,6 +52,9 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
         archivedAt: null,
         ...(fields.weekdayTimes ? { weekdayTimes: fields.weekdayTimes } : {}),
         ...(fields.goalMinutes ? { goalMinutes: fields.goalMinutes } : {}),
+        ...(fields.kind ? { kind: fields.kind } : {}),
+        // 作った日より前の日は変えない（予定の日にしない）
+        pastRules: createdPastRules(appTodayKey()),
       }
       set((s) => ({ habits: [...s.habits, habit] }))
       return habit.id
@@ -57,8 +62,8 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
     updateHabit: (id, patch) => {
       // 同じ値なら何もしない（取り消しの履歴を積まない）
       const habit = get().habits.find((h) => h.id === id)
-      // patchChanges は undefined の項目を見ないので、曜日ごとの時間・時間の目標を外すのは別に見る
-      const drops = (['weekdayTimes', 'goalMinutes'] as const).some((k) => k in patch && !patch[k] && !!habit?.[k])
+      // patchChanges は undefined の項目を見ないので、曜日ごとの時間・時間の目標・ルーティンを外すのは別に見る
+      const drops = (['weekdayTimes', 'goalMinutes', 'kind'] as const).some((k) => k in patch && !patch[k] && !!habit?.[k])
       if (habit && !patchChanges(habit, patch) && !drops) return
       pushUndo()
       return set((s) => ({
@@ -68,6 +73,10 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
           // 曜日ごとの時間を外したら項目ごと外す（同期で「変わった」と見ない形にそろえる）
           if (!updated.weekdayTimes) delete updated.weekdayTimes
           if (!updated.goalMinutes) delete updated.goalMinutes
+          if (!updated.kind) delete updated.kind
+          // 頻度・時間を変えても、今日より前の日は前の設定のまま数える
+          const pastRules = pastRulesAfterEdit(h, updated, appTodayKey())
+          if (pastRules) updated.pastRules = pastRules
           return updated
         }),
       }))

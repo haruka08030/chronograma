@@ -11,7 +11,7 @@ import { META_TEXT } from './ui/textClass'
 import { MENU_ROW_HOVER } from './ui/surface'
 
 /**
- * ラベルなしの記録を 1 行ずつ並べ、行のチップでその場でラベルを付ける（「1 日を締める」・設定のラベル）。
+ * ラベルなしの記録を 1 行ずつ並べ、行のチップでその場でラベルを付ける（記録の帯の凡例・設定のラベル）。
  * 行は開いたときの記録で固定する（付けたチップが見えたまま残り、押し間違いを直せる）。題名を押すと詳細
  */
 export function UntaggedLogList({ ids, showDate = false }: { ids: readonly string[]; showDate?: boolean }) {
@@ -46,7 +46,12 @@ export function UntaggedLogList({ ids, showDate = false }: { ids: readonly strin
                   .join(' · ')}
               </span>
             </button>
-            <TimeLogTagField value={log.category ?? ''} onChange={(v) => updateTask(log.id, { category: v || null })} compact />
+            <TimeLogTagField
+              value={log.category ?? ''}
+              color={log.color}
+              onChange={(v) => updateTask(log.id, { category: v.tags[0] ?? null, color: v.color })}
+              compact
+            />
           </li>
         ))}
       </ul>

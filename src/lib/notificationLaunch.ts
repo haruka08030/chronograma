@@ -3,7 +3,7 @@
  * - 開始前・締切 1 件: その To-Do・予定の詳細と、その日の今日の計画を開く
  * - 止め忘れの「止める」: そのタイマーを止め、できた記録の詳細を開く（終わりの時刻を直せる）
  * - 開始の通知の「記録を始める」: その予定のタイマーを ▶ と同じく始める（#419）
- * - 夜の締め: 今日の計画の「1 日を締める」の所を見せる
+ * - 夜のまとめ: 今日の計画を開き、スマホはタイムラインの面と気分の記号を見せる
  */
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
@@ -11,7 +11,7 @@ import { openTaskDetail, useOverlays } from './overlays'
 import { isActiveTask } from './taskLifecycle'
 import { taskPlacementDate } from './taskTimeRange'
 import { appTodayKey } from './timeZone'
-import { onActiveTimerSynced } from './timerSync'
+import { onActiveTimerSynced } from './activeTimerSynced'
 import { canStartTimerFor, startTimerForTask } from './timerDrop'
 import { askConfirm } from './confirmDialog'
 import { planEndMs } from '../../supabase/functions/daily-reminders/schedule.ts'
@@ -193,12 +193,12 @@ export async function startTimerFromNotification(taskId: string, date: string | 
   startTimerForTask(task.id)
 }
 
-/** 夜の締めの通知から開いた印（今日の計画がまだ描かれていなければ、描いたときに受け取る） */
+/** 夜のまとめの通知から開いた印（今日の計画がまだ描かれていなければ、描いたときに受け取る） */
 let wrapUpPending = false
 const wrapUpListeners = new Set<() => void>()
 
 /**
- * 夜の締めの通知（#299）を押したとき: 今日の計画（今日）を開き、「1 日を締める」の所を見せる。
+ * 夜のまとめの通知（#299）を押したとき: 今日の計画（今日）を開き、その日のずれ（スマホはタイムラインの面）と気分の記号を見せる。
  * 今日の計画が描かれていれば `onWrapUpRequest` の関数をすぐ呼び、まだなら描いたときに呼ぶ
  */
 export function openWrapUpFromNotification() {
@@ -209,7 +209,7 @@ export function openWrapUpFromNotification() {
   for (const fn of [...wrapUpListeners]) fn()
 }
 
-/** 「1 日を締める」を見せる頼みを受け取る（今日の計画）。前に来ていた頼みもここで受け取る。戻り値で受け取りをやめる */
+/** 夜のまとめを見せる頼みを受け取る（今日の計画）。前に来ていた頼みもここで受け取る。戻り値で受け取りをやめる */
 export function onWrapUpRequest(fn: () => void): () => void {
   const listener = () => {
     if (!wrapUpPending) return

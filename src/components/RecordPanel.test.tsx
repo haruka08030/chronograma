@@ -18,7 +18,13 @@ afterAll(async () => {
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.setSystemTime(new Date(NOW))
-  useTaskStore.setState({ appTimeZone: 'Asia/Tokyo', tasks: [], activeTimer: null, timeLogTagPresets: ['課題', 'バイト'] })
+  useTaskStore.setState({
+    appTimeZone: 'Asia/Tokyo',
+    tasks: [],
+    activeTimer: null,
+    timeLogTagPresets: ['課題', 'バイト'],
+    logCategoryColors: { 課題: 'peacock', バイト: 'tomato' },
+  })
   const add = useTaskStore.getState().addTimeLog
   add('STAT 勉強', '2026-10-05', '10:00', '11:30', ['課題'])
   add('STAT 勉強', '2026-10-06', '10:00', '11:30', ['課題'])
@@ -27,7 +33,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 const openLater = () => {
-  render(<RecordPanel dateKey="2026-10-08" viewingToday />)
+  render(<RecordPanel dateKey="2026-10-08" viewingToday reviewing={false} />)
   fireEvent.click(screen.getByRole('button', { name: '後から記録' }))
   const input = screen.getByPlaceholderText(/何をした？/)
   fireEvent.focus(input)
@@ -40,7 +46,7 @@ describe('記録の名前の候補', () => {
     fireEvent.change(input, { target: { value: 'st' } })
     fireEvent.click(screen.getByRole('option', { name: /STAT 勉強/ }))
     expect(input).toHaveValue('STAT 勉強')
-    expect(screen.getByRole('radio', { name: '課題' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('button', { name: '色とラベル' })).toHaveTextContent('課題')
     fireEvent.click(screen.getByRole('button', { name: '記録する' }))
     expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({
       title: 'STAT 勉強',
@@ -50,14 +56,33 @@ describe('記録の名前の候補', () => {
     })
   })
 
-  it('空欄では出さない。打った名前から推定したラベルを先に選び、自分で選び直したら上書きしない', () => {
+  it('空欄では最近よく記録するものを出す。打った名前から推定したラベルを先に選び、自分で選び直したら上書きしない', () => {
     const input = openLater()
-    expect(screen.queryByRole('listbox')).toBeNull()
+    const options = screen.getAllByRole('option')
+    expect(options).toHaveLength(2)
+    expect(options[0]).toHaveTextContent('STAT 勉強')
+    expect(options[1]).toHaveTextContent('カフェ')
     fireEvent.change(input, { target: { value: 'STAT HW' } })
-    expect(screen.getByRole('radio', { name: '課題' })).toHaveAttribute('aria-checked', 'true')
+    const picker = screen.getByRole('button', { name: '色とラベル' })
+    expect(picker).toHaveTextContent('課題')
+    fireEvent.click(picker)
     fireEvent.click(screen.getByRole('radio', { name: 'バイト' }))
     fireEvent.change(input, { target: { value: 'STAT HW2' } })
-    expect(screen.getByRole('radio', { name: 'バイト' })).toHaveAttribute('aria-checked', 'true')
+    expect(picker).toHaveTextContent('バイト')
+  })
+
+  it('ラベルは色の一覧で選ぶ。候補は設定のラベルだけ（記録にだけ残る古いラベルは出さない）、名前の無い色は色だけ付く', () => {
+    useTaskStore.getState().addTimeLog('昔', '2026-10-01', '10:00', '11:00', ['消したラベル'])
+    const input = openLater()
+    fireEvent.change(input, { target: { value: '散歩' } })
+    fireEvent.click(screen.getByRole('button', { name: '色とラベル' }))
+    // ラベル名はヒントに隠さずチップの文字で見せる（#596）
+    expect(screen.getByRole('radio', { name: '課題' })).toHaveTextContent('課題')
+    expect(screen.queryByRole('radio', { name: /消したラベル/ })).toBeNull()
+    fireEvent.click(screen.getByRole('radio', { name: 'セージ' }))
+    expect(screen.getByRole('button', { name: '色とラベル' })).toHaveTextContent('セージ')
+    fireEvent.click(screen.getByRole('button', { name: '記録する' }))
+    expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ title: '散歩', category: null, color: '#33B679' })
   })
 
   it('Esc は候補だけ閉じ、何も選んでいない Enter はそのまま記録する', () => {
@@ -71,7 +96,7 @@ describe('記録の名前の候補', () => {
     expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ title: 'カ' })
   })
 
-  it('後から記録で、重なる予定を空欄のまま出し、選ぶと予定の時間で記録する（#416）', () => {
+  it('後から記録で、重なる予定は候補に出さない（チェックで記録できる、#600）', () => {
     useTaskStore.setState((st) => ({
       tasks: [
         ...st.tasks,
@@ -91,9 +116,7 @@ describe('記録の名前の候補', () => {
       ],
     }))
     openLater()
-    fireEvent.click(screen.getByRole('option', { name: /ゼミ/ }))
-    fireEvent.click(screen.getByRole('button', { name: '記録する' }))
-    expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ title: 'ゼミ', kind: 'log', startTime: '13:00', endTime: '14:30' })
+    expect(screen.queryByRole('option', { name: /ゼミ/ })).toBeNull()
   })
 
   it('打った文字に合う今日の To-Do を選ぶと、その To-Do に紐づいた記録になる（#416）', () => {

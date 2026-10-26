@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { isBedtime, planSleepTimerSync, sleepFromTimer } from './sleepTimer'
+import { isBedtime, sleepFromTimer } from './sleepTimer'
+import { planSleepTimerSync } from './settingPlans'
 
 const local = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).toISOString()
 

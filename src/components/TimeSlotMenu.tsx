@@ -7,8 +7,7 @@ import { useDismiss } from '../hooks/useDismiss'
 import { useIsCoarsePointer, useIsDesktop } from '../hooks/useMediaQuery'
 import { busySpans, findFreeSlots } from '../lib/freeSlots'
 import { endAfterStartEdit, minutesToTime, toMinutes } from '../lib/clockTime'
-import { isAppToday, zonedNow } from '../lib/timeZone'
-import { fromDateKey } from '../lib/dateKey'
+import { useAppTodayKey, useNowMinutes } from '../hooks/useAppClock'
 import { toastTitle } from '../lib/undoWindow'
 import { anchoredCardClass, MENU_ROW_HOVER, MENU_ROW_PRESS } from './ui/surface'
 import { Segmented } from './ui/Segmented'
@@ -86,11 +85,13 @@ export function TimeSlotMenu({
     }
   }, [returnFocus])
 
+  const todayKey = useAppTodayKey()
+  const nowMinutes = useNowMinutes()
+  // 今日は今より後の空きから。ほかの日は決まった時刻から
   const slots = useMemo(() => {
-    const now = zonedNow()
-    const from = isAppToday(fromDateKey(dateKey)) ? now.getHours() * 60 + now.getMinutes() : FUTURE_DAY_FROM
+    const from = dateKey === todayKey ? nowMinutes : FUTURE_DAY_FROM
     return findFreeSlots(busySpans(tasks, events, dateKey, taskId), { from, duration })
-  }, [tasks, events, dateKey, taskId, duration])
+  }, [tasks, events, dateKey, taskId, duration, todayKey, nowMinutes])
 
   // PC: 画面からはみ出さないよう、押した所の下（入らなければ上）に置く
   useLayoutEffect(() => {

@@ -2,7 +2,7 @@ import { memo, type Dispatch, type MutableRefObject, type RefObject, type SetSta
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
 import { formatDuration, HOUR_HEIGHT, HOURS, timeToMinutes, yToTime } from '../../lib/timeGrid'
-import type { CreateIntent, CreatePopup, DragPreview, useTimelineDrag } from '../../lib/useTimelineDrag'
+import type { CreateIntent, CreatePopup, CreateStop, DragPreview, useTimelineDrag } from '../../lib/useTimelineDrag'
 import type { DropPreview, useTimelineDrop } from '../../lib/useTimelineDrop'
 import { canEditGoogleEvent } from '../../lib/googleEventEdit'
 import type { CalendarEvent } from '../../types/calendarEvent'
@@ -11,9 +11,9 @@ import { layoutPlanAndLog } from '../../lib/overlapLayout'
 import { recordHex } from '../../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex } from '../../lib/planVisual'
-import { habitToPlannedItem, isPointHabitOn } from '../../lib/habitSlots'
+import { habitSlotsOnDay } from '../../lib/habitSlots'
 import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
-import { isAppToday, isNowOnDay } from '../../lib/timeZone'
+import { fromAppWall, isAppToday, isNowOnDay } from '../../lib/timeZone'
 import { SELECTED_COLUMN, TODAY_COLUMN } from '../../lib/dayMarker'
 import { toDateKey } from '../../lib/dateKey'
 import { formatDate } from '../../lib/dateFormat'
@@ -22,8 +22,12 @@ import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
 import { OnboardingPlaceSlot } from './OnboardingPlaceSlot'
 import { logSegmentClockOnDay } from '../../lib/taskTimeRange'
+import { RUNNING_LOG_ID, runningLogTimes } from '../../lib/timerRecord'
+import { makeTask } from '../../store/taskHelpers'
+import { useNowWhile } from '../../hooks/useAppClock'
 import { googleEventCrossesDay, googleEventSegmentOnDay } from '../../lib/googleEventSpan'
-import { unrecordedGapsForDay } from '../../lib/unrecordedGaps'
+import { eventSpansOnDay, unrecordedGapsForDay } from '../../lib/unrecordedGaps'
+import { useAbsentOn } from '../../hooks/useAbsentOn'
 import { matchPlanAndActualForDate } from '../../lib/matchEvents'
 import type { PlannedItem } from '../../types/plannedItem'
 
@@ -138,7 +142,22 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const activeTimer = useTaskStore((s) => s.activeTimer)
+  const absentOn = useAbsentOn()
   const key = toDateKey(day)
+  // 記録中は、記録の列に始めた時刻から今まで伸びる枠（止めたら入る記録と同じ形。分の境目で描き直す）
+  const wallNow = useNowWhile(activeTimer !== null && splitLanes)
+  const runningLog = (() => {
+    if (!splitLanes || !activeTimer) return null
+    const times = runningLogTimes(activeTimer.startedAt, fromAppWall(wallNow).getTime())
+    if (!times) return null
+    const log = {
+      ...makeTask({ title: activeTimer.taskTitle, listId: '', kind: 'log', completed: true, tags: activeTimer.tags, ...times }, 0),
+      id: RUNNING_LOG_ID,
+      category: activeTimer.tags[0] ?? null,
+      color: activeTimer.color ?? null,
+    }
+    return logSegmentClockOnDay(log, key) ? log : null
+  })()
   // 日をまたぐ予定は、この日にかかる区間だけ描く（始まった日は 24:00 まで、次の日は 0:00 から）
   const dayTimedEvents = timedEvents.map((e) => ({
     e,
@@ -146,11 +165,11 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   }))
   const today = isAppToday(day)
   // 始まりと終わりを決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）。時刻ひとつの習慣は習慣の段（`WeekHabitRow`）
-  const dayHabitSlots = habits.flatMap((h) => {
-    if (isPointHabitOn(h, key)) return []
-    const slot = habitToPlannedItem(h, key, habitIndex)
-    return slot ? [{ habit: h, slot, done: habitDayStatus(h, key, habitIndex) !== 'missed' }] : []
-  })
+  // 日をまたぐ習慣（睡眠など）は、この日にかかる区間だけ描く（前の日に始まった枠も 0:00 から）
+  const dayHabitSlots = habitSlotsOnDay(habits, key, habitIndex).map((s) => ({
+    ...s,
+    done: habitDayStatus(s.habit, s.slotDate, habitIndex) !== 'missed',
+  }))
   // 移した予定は元の時間に点線の枠で残す（過ぎた日だけ。振り返りで「予定どおりだったか」を見る、#158）
   const dayMovedPlans = dayMoved.flatMap((t) => {
     const plan = t.movedPlans?.find((p) => p.date === key && p.startTime && p.endTime)
@@ -160,7 +179,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   /** 始まった（記録にできる）時間か */
   const hasStarted = (start: string) => limitMin === null || timeToMinutes(start) < limitMin
   // 過ぎた時間の「記録の無い時間」（起きてから寝るまで・今日は今まで、30 分以上）。記録の列に点線の枠で出し、押すとその時間で記録を作る
-  const gaps = splitLanes ? unrecordedGapsForDay(dayLogs, key, limitMin, activeTimer) : []
+  // 過ぎた予定（授業・バイト）は出たものとして抜けを埋める（欠席にした回は埋めない。見出し・ふりかえりの「記録なし」と同じ）
+  const gaps = splitLanes ? unrecordedGapsForDay(dayLogs, key, limitMin, activeTimer, eventSpansOnDay(dayTimed, key, absentOn)) : []
   const gapId = (g: { start: number }) => `gap-${g.start}`
   // 時間が重なるところだけ 予定=左 / ログ=右 に分け、同じ種類の重なりは列（週表示はずらし重ね）にする
   const mode = gridDays.length > 1 ? 'cascade' : 'columns'
@@ -184,7 +204,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         source: isEventTask(t) ? ('scheduled-event' as const) : ('scheduled-task' as const),
         taskId: t.id,
       })),
-      ...dayHabitSlots.map(({ slot }) => slot),
+      ...dayHabitSlots.map(({ slot, seg }) => ({ ...slot, ...seg })),
       ...dayTimedEvents.map(({ e, seg }) => ({ id: `event-${e.id}`, summary: e.summary, ...seg, source: 'google' as const })),
     ]
     for (const pair of matchPlanAndActualForDate(
@@ -207,28 +227,29 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     const lane = laneAt(clientX, el)
     return lane === 'log' && isFullAt(timeToMinutes(yToTime(getRelativeY(clientY, key)))) ? 'schedule' : lane
   }
+  const planBlocks = [
+    ...shownTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
+    ...shownHabitSlots.map(({ slot, seg }) => ({
+      id: slot.id,
+      ...blockGeometry({ id: slot.id, title: slot.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
+    })),
+    ...dayMovedPlans.map((m) => ({
+      id: m.id,
+      ...blockGeometry({ id: m.id, title: m.task.title, startTime: m.startTime, endTime: m.endTime, completed: false }, key, false),
+    })),
+    ...shownTimedEvents.map(({ e, seg }) => ({
+      id: `event-${e.id}`,
+      ...blockGeometry({ id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
+    })),
+  ]
+  const logBlocks = [
+    ...dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
+    ...(runningLog ? [{ id: RUNNING_LOG_ID, ...blockGeometry(runningLog as TimeBlockTask, key, true) }] : []),
+  ]
   const blockStyles = layoutPlanAndLog(
+    planBlocks,
     [
-      ...shownTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
-      ...shownHabitSlots.map(({ slot }) => ({
-        id: slot.id,
-        ...blockGeometry(
-          { id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false },
-          key,
-          false,
-        ),
-      })),
-      ...dayMovedPlans.map((m) => ({
-        id: m.id,
-        ...blockGeometry({ id: m.id, title: m.task.title, startTime: m.startTime, endTime: m.endTime, completed: false }, key, false),
-      })),
-      ...shownTimedEvents.map(({ e, seg }) => ({
-        id: `event-${e.id}`,
-        ...blockGeometry({ id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
-      })),
-    ],
-    [
-      ...dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
+      ...logBlocks,
       // 記録の無い時間も記録の列のもの（週表示でも予定と左右に分け、枠が予定の下に隠れないように）
       ...gaps.map((g) => {
         const top = (g.start / 60) * HOUR_HEIGHT
@@ -240,6 +261,15 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     fixedLanes,
     { fromTop: fullFromTop, logIds: fullLogIds },
   )
+  /**
+   * ドラッグで作る枠を止める、押した列のブロックの上下（予定の列は予定・習慣・Google の予定と全幅の記録、記録の列は記録）。
+   * 移した予定の跡と記録の無い時間の枠は止めない
+   */
+  const createStops = (lane: CreateIntent): CreateStop[] =>
+    (lane === 'log'
+      ? logBlocks
+      : [...planBlocks.filter((b) => !b.id.startsWith('moved-')), ...logBlocks.filter((b) => fullLogIds.has(b.id))]
+    ).map((b) => ({ top: b.top, bottom: b.top + b.span }))
   const planStyle = (id: string) => blockStyles.get(`plan:${id}`)
   const logStyle = (id: string) => blockStyles.get(`log:${id}`)
 
@@ -257,7 +287,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         onSelectDate?.(key)
         const lane = laneAtPoint(e.clientX, e.clientY, e.currentTarget)
         const limit = lane === 'log' ? logLimitMin(key) : null
-        handleCreatePointerDown(e, key, lane, limit === null ? undefined : (limit / 60) * HOUR_HEIGHT)
+        handleCreatePointerDown(e, key, lane, limit === null ? undefined : (limit / 60) * HOUR_HEIGHT, createStops(lane))
       }}
       onDragEnter={handleDragEnter}
       onDragOver={(e) => {
@@ -422,46 +452,66 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           />
         </div>
       ))}
-      {shownHabitSlots.map(({ habit, slot, done }) => (
-        <div className="group/slot" key={slot.id} style={{ opacity: movingTaskId === slot.id ? 0.3 : 1 }}>
+      {runningLog && (
+        // 動かせない・開かない（タイマーは下の浮いている欄で直す・止める）
+        <div data-running-log className="pointer-events-none">
           <TimeBlock
-            task={{ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: done }}
+            task={runningLog as TimeBlockTask}
             dayKey={key}
-            hStyle={planStyle(slot.id)}
-            colorHex={habit.color}
-            onPointerDown={(evt) => {
-              // まだの枠は動かす・伸ばすと、その日だけの時間になる（済んだ枠は記録のほうを動かす）
-              if (done) {
-                evt.preventDefault()
-                evt.stopPropagation()
-                return
-              }
-              handleBlockPointerDown(evt, slot.id, key, slot.startTime, slot.endTime, gridRef.current)
-            }}
-            // 済んだ枠は動かせないので押すとそのままカード（まだの枠はドラッグの仕組みが押したと判断して開く）
-            onTap={done ? () => openHabitCard(slot.id) : undefined}
-            onOpenDetail={() => openHabitCard(slot.id)}
-            withCheck={done || hasStarted(slot.startTime)}
+            isLog
+            running
+            hStyle={logStyle(RUNNING_LOG_ID)}
+            colorHex={recordHex(runningLog, logCategoryColors)}
+            onPointerDown={() => {}}
+            onOpenDetail={() => {}}
           />
-          {(done || hasStarted(slot.startTime)) && (
-            // 習慣画面・今日画面と同じく、もう一度押すと外す（その日の記録も外れる）
-            <SlotCheck
-              {...blockGeometry(
-                { id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false },
-                key,
-                false,
-              )}
-              hStyle={planStyle(slot.id)}
-              done={done}
-              label={done ? t('weekCalendar.habitUndo') : t('weekCalendar.habitDoneAsPlanned')}
-              onCheck={() => toggleHabitDate(habit.id, key)}
-            />
-          )}
         </div>
-      ))}
+      )}
+      {shownHabitSlots.map(({ habit, slot, slotDate, seg, crossesDay, done }) => {
+        // 日をまたぐ枠は列ごとに区間しか描いていないので、済んだ枠と同じくドラッグでは動かさない（押すとカード）
+        const fixed = done || crossesDay
+        return (
+          <div className="group/slot" key={slot.id} style={{ opacity: movingTaskId === slot.id ? 0.3 : 1 }}>
+            <TimeBlock
+              task={{ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: done, segment: seg }}
+              dayKey={key}
+              hStyle={planStyle(slot.id)}
+              colorHex={habit.color}
+              onPointerDown={(evt) => {
+                // まだの枠は動かす・伸ばすと、その日だけの時間になる（済んだ枠は記録のほうを動かす）
+                if (fixed) {
+                  evt.preventDefault()
+                  evt.stopPropagation()
+                  return
+                }
+                handleBlockPointerDown(evt, slot.id, key, slot.startTime, slot.endTime, gridRef.current)
+              }}
+              // 動かせない枠は押すとそのままカード（まだの枠はドラッグの仕組みが押したと判断して開く）
+              onTap={fixed ? () => openHabitCard(slot.id) : undefined}
+              onOpenDetail={() => openHabitCard(slot.id)}
+              withCheck={done || hasStarted(seg.startTime)}
+            />
+            {(done || hasStarted(seg.startTime)) && (
+              // 習慣画面・今日画面と同じく、もう一度押すと外す（その日の記録も外れる）
+              <SlotCheck
+                {...blockGeometry(
+                  { id: slot.id, title: slot.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false },
+                  key,
+                  false,
+                )}
+                hStyle={planStyle(slot.id)}
+                done={done}
+                label={done ? t('weekCalendar.habitUndo') : t('weekCalendar.habitDoneAsPlanned')}
+                onCheck={() => toggleHabitDate(habit.id, slotDate)}
+              />
+            )}
+          </div>
+        )
+      })}
       {shownTimedEvents.map(({ e, seg }) => {
-        // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー
+        // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー。やらなかった予定（#528）は薄く・取り消し線で、✓ は出さない
         const recorded = dayLogs.some((l) => l.title === e.summary)
+        const canCheck = hasStarted(seg.startTime) && !recorded && !e.skipped
         // 日をまたぐ予定は列ごとに区間しか描いていないので、ドラッグでは動かさない（押すとカードで直せる）
         const editable = canEditGoogleEvent(e, googleCanWrite) && !googleEventCrossesDay(e)
         return (
@@ -490,9 +540,10 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               }}
               onTap={editable ? undefined : () => openGoogleCard(e.id)}
               onOpenDetail={() => openGoogleCard(e.id)}
-              withCheck={hasStarted(seg.startTime) && !recorded}
+              withCheck={canCheck}
+              skipped={e.skipped}
             />
-            {hasStarted(seg.startTime) && !recorded && (
+            {canCheck && (
               <SlotCheck
                 {...blockGeometry(
                   { id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false },

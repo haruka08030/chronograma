@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CalendarEvent } from '../types/calendarEvent'
 import type { Task } from '../types/task'
@@ -49,20 +49,20 @@ beforeEach(() => {
 describe('useGoogleCalendarEvents', () => {
   it('前に取った予定をすぐ出し、届いたら入れ替えて覚え直す', async () => {
     cacheGoogleEvents('u1', key(from, to), [ev('old', '2026-10-14')])
-    let resolve!: (v: { events: CalendarEvent[]; canWrite: boolean; deletedPushed: [] }) => void
+    let resolve!: (v: { events: CalendarEvent[]; canWrite: boolean; deletedPushed: []; skipped: [] }) => void
     mocks.fetch.mockImplementationOnce(() => new Promise((r) => (resolve = r)))
-    mocks.fetch.mockResolvedValue({ events: [], canWrite: true, deletedPushed: [] })
+    mocks.fetch.mockResolvedValue({ events: [], canWrite: true, deletedPushed: [], skipped: [] })
 
     renderHook(() => useGoogleCalendarEvents(from, to))
     expect(ids()).toEqual(['old'])
 
-    await act(async () => resolve({ events: [ev('new', '2026-10-14')], canWrite: true, deletedPushed: [] }))
+    await act(async () => resolve({ events: [ev('new', '2026-10-14')], canWrite: true, deletedPushed: [], skipped: [] }))
     expect(ids()).toEqual(['new'])
     expect(cachedGoogleEvents('u1', key(from, to))?.events.map((e) => e.id)).toEqual(['new'])
   })
 
   it('取れたあと、前後の週を読んで覚えておく', async () => {
-    mocks.fetch.mockResolvedValue({ events: [], canWrite: true, deletedPushed: [] })
+    mocks.fetch.mockResolvedValue({ events: [], canWrite: true, deletedPushed: [], skipped: [] })
     renderHook(() => useGoogleCalendarEvents(from, to))
     await act(async () => {})
 
@@ -75,7 +75,7 @@ describe('useGoogleCalendarEvents', () => {
   })
 
   it('月のように長い範囲は前後を読まない', async () => {
-    mocks.fetch.mockResolvedValue({ events: [], canWrite: true, deletedPushed: [] })
+    mocks.fetch.mockResolvedValue({ events: [], canWrite: true, deletedPushed: [], skipped: [] })
     renderHook(() => useGoogleCalendarEvents(new Date(2026, 8, 28), new Date(2026, 10, 8, 23, 59, 59)))
     await act(async () => {})
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
@@ -112,12 +112,33 @@ describe('useGoogleCalendarEvents', () => {
     useTaskStore.setState({ tasks: [plan('gone'), plan('restored')], recentDeletes: [] })
     enqueuePush('u1', ['restored'])
     const deleted = (id: string) => ({ id: googleEventIdForTask(id), updated: '2026-10-19T00:00:00Z' })
-    mocks.fetch.mockResolvedValue({ events: [], canWrite: true, deletedPushed: [deleted('gone'), deleted('restored')] })
+    mocks.fetch.mockResolvedValue({ events: [], canWrite: true, deletedPushed: [deleted('gone'), deleted('restored')], skipped: [] })
+    renderHook(() => useGoogleCalendarEvents(new Date(2026, 8, 28), new Date(2026, 10, 8, 23, 59, 59)))
+    // ゴミ箱に入れる処理は消すときに読む（import() を待つ）
+    await waitFor(() => expect(useTaskStore.getState().tasks.find((t) => t.id === 'gone')?.deletedAt).not.toBeNull())
+    const byId = new Map(useTaskStore.getState().tasks.map((t) => [t.id, t]))
+    expect(byId.get('restored')?.deletedAt).toBeNull()
+  })
+
+  it('開始を過ぎてから消された予定は、やらなかった予定として残す。題名が来なければ前に出ていた予定の題名（#528）', async () => {
+    useTaskStore.setState({ skippedEvents: [] })
+    useTaskStore.getState().setCalendarEvents([ev('gym', '2026-10-14')])
+    const skipped = { ...ev('gym', '2026-10-14'), summary: '', skippedAt: '2026-10-14T03:00:00Z' }
+    mocks.fetch.mockResolvedValue({
+      events: [],
+      canWrite: true,
+      deletedPushed: [],
+      skipped: [skipped, { ...ev('nameless', '2026-10-14'), summary: '', skippedAt: 'x' }],
+    })
     renderHook(() => useGoogleCalendarEvents(new Date(2026, 8, 28), new Date(2026, 10, 8, 23, 59, 59)))
     await act(async () => {})
-    const byId = new Map(useTaskStore.getState().tasks.map((t) => [t.id, t]))
-    expect(byId.get('gone')?.deletedAt).not.toBeNull()
-    expect(byId.get('restored')?.deletedAt).toBeNull()
+    expect(ids()).toEqual([])
+    expect(useTaskStore.getState().skippedEvents.map((e) => [e.id, e.summary])).toEqual([['gym', 'gym']])
+
+    // Google でもとに戻した予定は、やらなかった予定から外す
+    mocks.fetch.mockResolvedValue({ events: [ev('gym', '2026-10-14')], canWrite: true, deletedPushed: [], skipped: [] })
+    await act(async () => window.dispatchEvent(new Event('focus')))
+    expect(useTaskStore.getState().skippedEvents).toEqual([])
   })
 
   it('一時的な失敗では「もう一度接続する」を出さない', async () => {

@@ -39,7 +39,7 @@ const launch: LaunchHandlers = {
   stopTimer: ({ startedAt }) => stopTimerFromNotification(startedAt),
   // 開始の通知の「記録を始める」はその予定のタイマーを始める（済んだ・終わった予定は詳細を開く）
   startTimer: ({ taskId, date }) => void startTimerFromNotification(taskId, date),
-  // 夜の締めは今日の計画の「1 日を締める」の所を見せる
+  // 夜のまとめは今日の計画（スマホはタイムラインの面）と気分の記号を見せる
   wrapUp: () => openWrapUpFromNotification(),
   // 共有から開いたときは中身を追加欄に入れて開く（足すのは確かめてから）
   add: (shared) => useTaskStore.getState().requestQuickAdd(shared),

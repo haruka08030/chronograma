@@ -9,7 +9,8 @@ import {
   pruneStorageCopies,
 } from './deviceCleanup'
 import { hasOtherUsersBaseline, loadBaseline, saveBaseline } from './syncMerge'
-import { clearLocalAccountState } from './accountBoundary'
+import { clearDeletedAccount, clearLocalAccountState } from './accountBoundary'
+import { loadSettingBase, saveSettingBase } from './settingSync'
 
 vi.mock('./webPush', () => ({ detachWebPush: vi.fn(() => Promise.resolve()), resyncWebPush: vi.fn(() => Promise.resolve()) }))
 vi.mock('../hooks/useAutoBackup', () => ({ backupNow: vi.fn(async () => true) }))
@@ -58,9 +59,14 @@ describe('ログアウトの片付け（#256）', () => {
     localStorage.setItem('chronograma-canvas-pulled-v1:u1', '{"a":{"title":"前の人の課題"}}')
     localStorage.setItem('chronograma-notion-pulled-v1:u1', '{"b":{"title":"前の人のページ"}}')
     localStorage.setItem('chronograma-canvas-pulled-v1:u0', '{}')
+    // 連携への送り待ち（Notion・Canvas への書き戻し、Google カレンダーに送る予定）
+    localStorage.setItem('chronograma-writeback-v1:notion:u1', '{"t":{"payload":{"pageId":"p","status":"前の人"}}}')
+    localStorage.setItem('chronograma.googlePush.u1', '{"t1":{"at":1,"tries":0}}')
     localStorage.setItem('chronograma-lang', 'ja')
     saveBaseline('u1', baseline)
     saveBaseline('u0', baseline)
+    // 設定の前回合わせた版の中身の控え（本体と同じ置き場所。授業の名前が入る）
+    saveSettingBase('u0', 'courses', 'V1', [{ title: '前の人の授業', course: 'Math' }])
   }
 
   it('写し・連携の前回取り込んだ値は消え、前回同期の控えは中身を消して印だけ残す', () => {
@@ -69,6 +75,8 @@ describe('ログアウトの片付け（#256）', () => {
     expect(keys(`${PERSIST_STORAGE_KEY}-`)).toEqual([])
     expect(keys('chronograma-canvas-pulled')).toEqual([])
     expect(keys('chronograma-notion-pulled')).toEqual([])
+    expect(keys('chronograma-writeback-v1:')).toEqual([])
+    expect(keys('chronograma.googlePush.')).toEqual([])
     expect(localStorage.getItem('chronograma-lang')).toBe('ja')
     // 控えは使わない（次にログインしたら両方を残す合わせ方）が、ほかの人として同期したことは分かる
     expect(loadBaseline('u1')).toBeNull()
@@ -76,6 +84,7 @@ describe('ログアウトの片付け（#256）', () => {
     expect(hasOtherUsersBaseline('u2')).toBe(true)
     expect(hasOtherUsersBaseline('u1')).toBe(true)
     for (const id of ['u0', 'u1']) expect(localStorage.getItem(`chronograma-sync-baseline-v1:${id}`)).toBe('null')
+    expect(loadSettingBase('u0', 'courses', 'V1')).toBeNull()
   })
 
   it('ログアウトすると、前の人の題名を含むものが端末に残らない', async () => {
@@ -87,6 +96,14 @@ describe('ログアウトの片付け（#256）', () => {
       .join('\n')
     expect(rest).not.toMatch(/前の人/)
     expect(hasOtherUsersBaseline('u2')).toBe(true)
+  })
+
+  it('アカウントを消すと、その人の連携への送り待ちが端末に残らない', async () => {
+    useTaskStore.getState().setDataOwner('u1')
+    seedLeftovers()
+    await clearDeletedAccount('u1')
+    expect(keys('chronograma-writeback-v1:')).toEqual([])
+    expect(keys('chronograma.googlePush.')).toEqual([])
   })
 })
 

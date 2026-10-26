@@ -20,6 +20,8 @@ const DEFAULT_HABIT_COLOR = hexForGoogleKey('sage')!
 
 /** 習慣の追加・編集フォームの中身 */
 export type HabitFormState = {
+  /** 習慣 / ルーティン（毎日の予定のプリセット）。前の版の書きかけには無い（習慣） */
+  kind?: 'habit' | 'routine'
   title: string
   freq: HabitFrequencyType
   /** 曜日を指定のときの曜日（ほかの頻度を選んでも残し、戻したときに使う） */
@@ -39,6 +41,7 @@ export type HabitFormState = {
 }
 
 export const EMPTY_HABIT_FORM: HabitFormState = {
+  kind: 'habit',
   title: '',
   freq: 'daily',
   weekdays: DEFAULT_WEEKDAYS,
@@ -55,6 +58,7 @@ export const EMPTY_HABIT_FORM: HabitFormState = {
 /** 編集を始めたときのフォーム（その習慣の今の値） */
 export function habitFormFrom(h: Habit): HabitFormState {
   return {
+    kind: h.kind === 'routine' ? 'routine' : 'habit',
     title: h.title,
     freq: h.frequency.type,
     weekdays: h.frequency.type === 'weekly' ? [...h.frequency.weekdays].sort((a, b) => a - b) : DEFAULT_WEEKDAYS,
@@ -69,6 +73,14 @@ export function habitFormFrom(h: Habit): HabitFormState {
     goalMinutes: h.goalMinutes ? String(h.goalMinutes) : '',
     color: h.color,
   }
+}
+
+/**
+ * 種類に合わせた中身。ルーティンは時間帯だけ・毎日か曜日を指定だけ・時間の目標なし（ほかを選んでいた値は残し、習慣に戻したら使う）
+ */
+export function effectiveHabitForm(f: HabitFormState): HabitFormState {
+  if (f.kind !== 'routine') return f
+  return { ...f, timeMode: 'range', freq: f.freq === 'timesPerWeek' ? 'daily' : f.freq, goalMinutes: '' }
 }
 
 /** 時間の目標の欄の値。空は null（目標なし）、1〜1440 の整数でなければ NaN */
@@ -103,7 +115,8 @@ function draftFields(f: HabitFormState, times: { startTime: string; endTime: str
 }
 
 /** 曜日ごとの時間なら、選んだ曜日の欄が全部そろっていること */
-export function canSubmitHabitForm(f: HabitFormState): boolean {
+export function canSubmitHabitForm(form: HabitFormState): boolean {
+  const f = effectiveHabitForm(form)
   if (Number.isNaN(formGoalMinutes(f))) return false
   if (!usesWeekdayTimes(f)) return canSubmitHabitDraft(draftFields(f))
   return f.weekdays.length > 0 && f.weekdays.every((d) => canSubmitHabitDraft(draftFields(f, formWeekdayTime(f, d))))
@@ -113,7 +126,8 @@ export function canSubmitHabitForm(f: HabitFormState): boolean {
  * ストアの addHabit / updateHabit に渡す値。曜日ごとの時間なら、選んだ曜日の時間を `weekdayTimes` に入れ、
  * 習慣の時間は最初の曜日の時間にする（使わなければ `weekdayTimes: undefined` で外す）
  */
-export function habitFromForm(f: HabitFormState) {
+export function habitFromForm(form: HabitFormState) {
+  const f = effectiveHabitForm(form)
   const perWeekday = usesWeekdayTimes(f)
   const weekdays = [...f.weekdays].sort((a, b) => a - b)
   const base = perWeekday && weekdays.length > 0 ? formWeekdayTime(f, weekdays[0]) : f
@@ -134,6 +148,7 @@ export function habitFromForm(f: HabitFormState) {
     frequency: habitFrequencyFromDraft(f.freq, f.weekdays, f.timesPerWeek),
     weekdayTimes,
     goalMinutes: formGoalMinutes(f) ?? undefined,
+    kind: f.kind === 'routine' ? ('routine' as const) : undefined,
   }
 }
 
