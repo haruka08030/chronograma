@@ -67,6 +67,10 @@ export const GlobeIcon = strokeIcon(ICON_PATHS.globe)
 export const RepeatIcon = strokeIcon(ICON_PATHS.repeat)
 export const CaretDownIcon = filledIcon(ICON_PATHS.caretDown)
 export const ArchiveIcon = strokeIcon(ICON_PATHS.archive)
+/** 習慣を休む（休みを外す）。カレンダーは日付の意味なので使わない */
+export const PauseIcon = strokeIcon(ICON_PATHS.pause)
+/** 格子に置いた習慣を習慣の段に戻す。時計は時刻の意味なので使わない */
+export const ArrowUpIcon = strokeIcon(ICON_PATHS.arrowUp)
 export const RestoreIcon = strokeIcon(ICON_PATHS.restore)
 export const FlagIcon = strokeIcon(ICON_PATHS.flag)
 /** 締切。どこでもこの形（旗は優先度） */

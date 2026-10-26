@@ -11,7 +11,7 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 import { MenuLabel } from './ui/Menu'
 import { DatePickerBody } from './DatePickerBody'
-import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, PencilIcon, RestoreIcon, TrashIcon } from './icons'
+import { ArchiveIcon, ArrowUpIcon, CheckIcon, PauseIcon, PencilIcon, RestoreIcon, TrashIcon } from './icons'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 
@@ -81,7 +81,7 @@ export function HabitContextMenu({
           kind: 'leaf',
           id: 'rest',
           label: t('habits.restClear'),
-          icon: <CalendarIcon className={ICON} />,
+          icon: <PauseIcon className={ICON} />,
           hint: df.monthDayWeekday(day),
           run: () => setHabitRest(habit.id, day, habitRestRunEnd(habit, day), false),
         }
@@ -89,7 +89,7 @@ export function HabitContextMenu({
           kind: 'sub',
           id: 'rest',
           label: t('habits.rest'),
-          icon: <CalendarIcon className={ICON} />,
+          icon: <PauseIcon className={ICON} />,
           hint: df.monthDayWeekday(day),
           width: 'lg',
           leaves: [{ id: 'rest-day', label: t('habits.restOneDay'), run: () => setHabitRest(habit.id, day, day, true) }],
@@ -126,7 +126,7 @@ export function HabitContextMenu({
               kind: 'leaf' as const,
               id: 'unplace',
               label: t('habits.unplace'),
-              icon: <ClockIcon className={ICON} />,
+              icon: <ArrowUpIcon className={ICON} />,
               run: () => unplaceHabitSlot(habitSlotId(habit.id, dateKey)),
             },
           ]

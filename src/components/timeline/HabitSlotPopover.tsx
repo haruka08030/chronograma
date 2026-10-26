@@ -8,7 +8,7 @@ import { useExitGhost } from '../../hooks/useExitGhost'
 import { useNow } from '../../hooks/useAppClock'
 import { anchoredCardClass } from '../ui/surface'
 import { iconButtonClass } from '../ui/iconButtonClass'
-import { ArchiveIcon, CalendarIcon, ClockIcon, CloseIcon, PencilIcon } from '../icons'
+import { ArchiveIcon, ArrowUpIcon, CloseIcon, PauseIcon, PencilIcon } from '../icons'
 import { isHabitRestOn } from '../../types/habit'
 import { tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
@@ -111,7 +111,7 @@ export function HabitSlotPopover({
             aria-label={t('habits.restThisDay')}
             {...tip(t('habits.restThisDay'))}
           >
-            <CalendarIcon className="h-4 w-4" />
+            <PauseIcon className="h-4 w-4" />
           </button>
         )}
         {isPlacedPointHabitOn(habit, dateKey) && (
@@ -125,7 +125,7 @@ export function HabitSlotPopover({
             aria-label={t('habits.unplace')}
             {...tip(t('habits.unplace'))}
           >
-            <ClockIcon className="h-4 w-4" />
+            <ArrowUpIcon className="h-4 w-4" />
           </button>
         )}
         <button
