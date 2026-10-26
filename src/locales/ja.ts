@@ -766,6 +766,7 @@ export default {
     rest: '休む',
     restOneDay: 'この日だけ',
     restThisDay: 'この日は休む',
+    dayTime: '{{date}} の時間',
     restUntil: 'この日まで休む',
     restClear: '休みを外す',
     restDayAria: '{{date}} 休み',

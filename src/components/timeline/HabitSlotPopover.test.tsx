@@ -38,10 +38,12 @@ describe('習慣の枠のカードの上のアイコン（#616）', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('アーカイブ: 習慣をアーカイブする', async () => {
-    open()
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Archive' }))
-    expect(get().archivedAt).toBeTruthy()
+  it('アーカイブと「時間を変える」はカードに出さない（時間は ✎ の編集画面で、#621）', () => {
+    useTaskStore.setState({ habits: [{ ...habit, timeMode: 'range', startTime: '12:00', endTime: '13:00' }] })
+    render(<HabitSlotPopover habitId="gym" dateKey="2099-10-20" anchor={anchor} onClose={() => {}} />)
+    expect(screen.getByText(/12:00/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Change time' })).toBeNull()
   })
 
   it('格子に置いていない日は「習慣の段に戻す」を出さない', () => {
