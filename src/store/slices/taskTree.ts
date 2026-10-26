@@ -247,6 +247,8 @@ export function createTaskTreeSlice({ set, get, undo }: SliceContext): TaskTreeA
       const task = s.tasks.find((t) => t.id === taskId)
       const prevId = getIndentTargetId(s.tasks, taskId)
       if (!task || !prevId) return false
+      // いつかでは横に動かしても子にしない（「人生で」へ運ぶつもりで小タスクになっていた、#606）
+      if (s.lists.find((l) => l.id === task.listId)?.kind === 'someday') return false
 
       if (task.parentId == null) get().nestRootUnderParent(taskId, prevId, null)
       else get().moveSubtaskInList(taskId, prevId, null)
