@@ -765,7 +765,7 @@ export default {
     restore: '戻す',
     rest: '休む',
     restOneDay: 'この日だけ',
-    removeDay: 'この日だけ消す',
+    restThisDay: 'この日は休む',
     restUntil: 'この日まで休む',
     restClear: '休みを外す',
     restDayAria: '{{date}} 休み',

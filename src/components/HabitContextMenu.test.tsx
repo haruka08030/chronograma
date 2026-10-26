@@ -27,17 +27,14 @@ function open(onTimeline: boolean) {
 }
 
 describe('習慣のメニューの削除（#614）', () => {
-  it('タイムラインでは習慣を消さず、その日だけ休みにする', async () => {
+  it('タイムラインでは習慣そのものの削除を出さない（その日だけ外すのは「休む」1 つ、#616）', () => {
     open(true)
     expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull()
-    await userEvent.setup().click(screen.getByRole('menuitem', { name: /Remove this day only/ }))
-    expect(get().deletedAt ?? null).toBeNull()
-    expect(get().restDates).toEqual(['2026-10-20'])
+    expect(screen.getAllByRole('menuitem', { name: /Rest/ })).toHaveLength(1)
   })
 
   it('習慣の画面では習慣そのものを消す', async () => {
     open(false)
-    expect(screen.queryByRole('menuitem', { name: /Remove this day only/ })).toBeNull()
     await userEvent.setup().click(screen.getByRole('menuitem', { name: 'Delete' }))
     expect(get().deletedAt).toBeTruthy()
   })

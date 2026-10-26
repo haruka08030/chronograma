@@ -8,15 +8,16 @@ import { useExitGhost } from '../../hooks/useExitGhost'
 import { useNow } from '../../hooks/useAppClock'
 import { anchoredCardClass } from '../ui/surface'
 import { iconButtonClass } from '../ui/iconButtonClass'
-import { CloseIcon, PencilIcon } from '../icons'
+import { ArchiveIcon, CalendarIcon, ClockIcon, CloseIcon, PencilIcon } from '../icons'
+import { isHabitRestOn } from '../../types/habit'
 import { tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
 import { buildHabitRecordIndex, habitAsOf, habitDayStatus, habitTimesOn, plannedRecordTimes } from '../../lib/habitTiming'
-import { habitSlotId, isPointHabitOn } from '../../lib/habitSlots'
-import { logLimitAt, placeHabitSlot } from '../../lib/timelineBlockEdit'
+import { habitSlotId, isPlacedPointHabitOn, isPointHabitOn } from '../../lib/habitSlots'
+import { logLimitAt, placeHabitSlot, unplaceHabitSlot } from '../../lib/timelineBlockEdit'
 import { timeToMinutes } from '../../lib/timeGrid'
 import { isLogTask } from '../../types/task'
 import { requestHabitEdit } from '../../lib/habitEditRequest'
@@ -29,7 +30,8 @@ const WIDTH = 300
 
 /**
  * タイムラインの習慣の枠を押したときの小さなカード（予定のカードと同じ形）。
- * 始まった枠は ✓（予定どおり達成・取り消し）、終わる前は ▶ 記録を開始、習慣の段のチップは「時間に置く」、今日以降は「時間を変える」でその場で時間を直す（`HabitTimeEditor`）、✎ で開いている画面のまま編集（`HabitEditHost`）。キー: Esc 閉じる / e 編集
+ * 始まった枠は ✓（予定どおり達成・取り消し）、終わる前は ▶ 記録を開始、習慣の段のチップは「時間に置く」、今日以降は「時間を変える」でその場で時間を直す（`HabitTimeEditor`）、✎ で開いている画面のまま編集（`HabitEditHost`）。
+ * 上の並びに、右クリックのメニューと同じ操作（この日は休む・習慣の段に戻す・アーカイブ）をアイコンで置く。キー: Esc 閉じる / e 編集
  */
 export function HabitSlotPopover({
   habitId,
@@ -47,6 +49,8 @@ export function HabitSlotPopover({
   const habit = useTaskStore((s) => selectLiveHabits(s).find((h) => h.id === habitId) ?? null)
   const tasks = useTaskStore((s) => s.tasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
+  const setHabitRest = useTaskStore((s) => s.setHabitRest)
+  const archiveHabit = useTaskStore((s) => s.archiveHabit)
   const now = useNow()
   const todayKey = useAppTodayKey()
   const [editingTime, setEditingTime] = useState(false)
@@ -94,6 +98,47 @@ export function HabitSlotPopover({
           {...tip(t('eventCard.edit'), 'e')}
         >
           <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
+        </button>
+        {/* 右クリックのメニューと同じ操作をアイコンで（その日を休む・習慣の段に戻す・アーカイブ、#616） */}
+        {!isHabitRestOn(habit, dateKey) && (
+          <button
+            type="button"
+            onClick={() => {
+              setHabitRest(habit.id, dateKey, dateKey, true)
+              onClose()
+            }}
+            className={iconButtonClass()}
+            aria-label={t('habits.restThisDay')}
+            {...tip(t('habits.restThisDay'))}
+          >
+            <CalendarIcon className="h-4 w-4" />
+          </button>
+        )}
+        {isPlacedPointHabitOn(habit, dateKey) && (
+          <button
+            type="button"
+            onClick={() => {
+              unplaceHabitSlot(habitSlotId(habit.id, dateKey))
+              onClose()
+            }}
+            className={iconButtonClass()}
+            aria-label={t('habits.unplace')}
+            {...tip(t('habits.unplace'))}
+          >
+            <ClockIcon className="h-4 w-4" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            archiveHabit(habit.id)
+            onClose()
+          }}
+          className={iconButtonClass()}
+          aria-label={t('habits.archive')}
+          {...tip(t('habits.archive'))}
+        >
+          <ArchiveIcon className="h-4 w-4" />
         </button>
         <button
           type="button"

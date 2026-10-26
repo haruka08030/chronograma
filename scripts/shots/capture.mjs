@@ -412,6 +412,8 @@ const SCREENS = [
     taskPatch: { s7: (x) => ({ dueDate: x.scheduledDate, dueTime: '18:00', tags: ['体力', '週2'], color: '#F6BF26' }) },
     click: '[data-block-id="s7"] >> visible=true',
   },
+  // 習慣の枠のカード（上の並びに ✎・この日は休む・アーカイブ・✕、#616）
+  { name: 'calendar-habit-card', view: 'calendar', click: '[data-block-id^="habit-slot::r1::"] >> visible=true >> nth=-1' },
   // 習慣の枠のカードで時間を直す（この日だけ / これ以降の◯曜日・期限。#612）
   {
     name: 'calendar-habit-time',

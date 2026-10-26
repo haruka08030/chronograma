@@ -19,7 +19,7 @@ const ICON = 'h-4 w-4 flex-shrink-0'
  * 習慣のカードを右クリック（タッチは長押し）したときのメニュー（編集・今日の記録・休み・アーカイブ・削除）。
  * 休みは日のマスで開いたらその日、行で開いたら今日から（その日だけ・カレンダーで選んだ日まで。休みの日なら「休みを外す」）。
  * アーカイブした習慣は「戻す」と削除だけ。削除は確認なしで消して「元に戻す」で戻せる。
- * タイムラインで開いたときは習慣そのものを消さず、「この日だけ消す」（その日を休みに）にする（#614）
+ * タイムラインで開いたときは習慣そのものの削除を出さない（その日だけ外すのは「休む」、#614・#616）
  */
 export function HabitContextMenu({
   x,
@@ -138,21 +138,7 @@ export function HabitContextMenu({
         icon: <ArchiveIcon className={ICON} />,
         run: () => archiveHabit(habit.id),
       },
-      ...(!onTimeline
-        ? [remove]
-        : isHabitRestOn(habit, day)
-          ? []
-          : [
-              {
-                kind: 'leaf' as const,
-                id: 'delete-day',
-                divider: true,
-                label: t('habits.removeDay'),
-                icon: <TrashIcon className={ICON} />,
-                hint: df.monthDayWeekday(day),
-                run: () => setHabitRest(habit.id, day, day, true),
-              },
-            ]),
+      ...(onTimeline ? [] : [remove]),
     ]
   }
   return <ActionMenu x={x} y={y} header={habit.title} entries={entries} onClose={onClose} searchable={false} />
