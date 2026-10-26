@@ -7,7 +7,7 @@ import { colorVars, labelForHex, recordHex } from '../../lib/logCategoryColors'
 import { CourseAssignments } from './CourseAssignments'
 import { ClassAttendance } from './ClassAttendance'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, type AnchorRect } from './anchoredCard'
+import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, taskCardMetaHeight, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
@@ -31,6 +31,7 @@ import { endKeepingLength } from '../../lib/clockTime'
 import { isOvernightTimeLog } from '../../lib/taskTimeRange'
 import { useTaskTimes } from '../detail/useTaskTimes'
 import { CardTimeRange } from './CardTimeRange'
+import { TaskCardMeta } from './TaskCardMeta'
 import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
 import { deleteTaskAsking } from '../../lib/seriesScope'
 import { SeriesScopeField, SeriesSummary } from '../detail/SeriesScopeField'
@@ -142,7 +143,11 @@ function EventPopoverBody({
   const { style, sheet } = anchoredCardStyle(
     anchor,
     WIDTH,
-    (isLog ? 270 : 280) + (editableTimes ? 30 : 0) + attendanceRow + memoHeightEstimate(memo),
+    (isLog ? 270 : 280) +
+      (editableTimes ? 30 : 0) +
+      attendanceRow +
+      memoHeightEstimate(memo) +
+      (isLog || isEvent ? 0 : taskCardMetaHeight(task)),
   )
   // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに。予定（完了の無いもの）は「記録にする」
   const recordAndComplete = () => {
@@ -221,6 +226,8 @@ function EventPopoverBody({
               {tv.startTime && tv.endTime && ` · ${tv.startTime} – ${tv.endTime}`}
             </p>
           )}
+          {/* To-Do は一覧の行と同じ締切・ラベル・タグ（記録・予定には無い） */}
+          {!isLog && !isEvent && <TaskCardMeta task={task} />}
           {/* 操作は題名・時刻のすぐ下（色・課題はその下）。予定（バイト・授業）には完了を出さない */}
           {!isLog && (
             <CardActions

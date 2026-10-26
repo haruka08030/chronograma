@@ -405,6 +405,13 @@ const SCREENS = [
   { name: 'calendar-date-jump', view: 'calendar', click: 'button[aria-label="日付を選択"]' },
   // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
   { name: 'calendar-event-card', view: 'calendar', click: '[data-block-id="s6"] >> visible=true' },
+  // カレンダーの To-Do のカードに締切・ラベル・タグ、締切がこの日までのタイルに →|（#615）
+  {
+    name: 'calendar-todo-card-due',
+    view: 'calendar',
+    taskPatch: { s7: (x) => ({ dueDate: x.scheduledDate, dueTime: '18:00', tags: ['体力', '週2'], color: '#F6BF26' }) },
+    click: '[data-block-id="s7"] >> visible=true',
+  },
   // 習慣の枠のカードで時間を直す（この日だけ / これ以降の◯曜日・期限。#612）
   {
     name: 'calendar-habit-time',
@@ -1276,7 +1283,9 @@ async function main() {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedInstant.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedInstant.toISOString()
             if (screen.estimates?.[x.id] != null) x.estimateMinutes = screen.estimates[x.id]
-            if (screen.taskPatch?.[x.id]) Object.assign(x, screen.taskPatch[x.id])
+            // 値は関数でもよい（その To-Do から作る。置いた日を締切にするなど）
+            const patch = screen.taskPatch?.[x.id]
+            if (patch) Object.assign(x, typeof patch === 'function' ? patch(x) : patch)
             if (screen.doneNow?.includes(x.id)) {
               x.completed = true
               x.completedAt = seedInstant.toISOString()

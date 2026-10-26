@@ -33,7 +33,7 @@ import { ChildDueChip } from './ui/ChildDueChip'
 import { useChildDue } from '../hooks/useChildDue'
 import { recurrenceLabel } from '../lib/recurrenceLabel'
 import { isTinyDrag, startTaskDrag } from '../lib/taskDrag'
-import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
+import { SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { fromDateKey } from '../lib/dateKey'
 import { formatShortDateWeekday } from '../lib/dateFormat'
 import { chipClass } from './ui/chipClass'
@@ -49,6 +49,7 @@ import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS, ROW_LIFTED_CLASS
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 import { dueDateLabel } from './ui/dueDateLabel'
+import { DueChip } from './ui/DueChip'
 import { DAY_ROW_PAD_CLASS, DAY_ROW_TIME_CLASS } from './ui/DayRow'
 
 function dateTone(d: Date): DateTone {
@@ -497,12 +498,7 @@ export const TaskItem = memo(function TaskItem({
 
           {!compact && (
             <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
-              {dueTone && dueText && (!task.completed || timeLog) && (
-                <span className={`inline-flex items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
-                  <DueIcon className="w-3 h-3" />
-                  {dueText}
-                </span>
-              )}
+              {dueTone && dueText && (!task.completed || timeLog) && <DueChip tone={dueTone} text={dueText} />}
               {submitted && (
                 <span {...tip(t('canvas.submittedMarkHint'))} className="text-[11px] text-zinc-500 dark:text-zinc-400">
                   {t('canvas.submittedMark')}
@@ -559,12 +555,7 @@ export const TaskItem = memo(function TaskItem({
           )}
         </div>
 
-        {compact && dueTone && dueText && !task.completed && (
-          <span className={`inline-flex shrink-0 items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
-            <DueIcon className="w-3 h-3" />
-            {dueText}
-          </span>
-        )}
+        {compact && dueTone && dueText && !task.completed && <DueChip tone={dueTone} text={dueText} className="shrink-0" />}
 
         {listKind === 'someday' && !task.completed && !dream && (
           // いつかは締切の代わりに「予定する」（日付を選ぶと未分類へ移ってその日の予定になる）。出し方は締切のボタンと同じ
