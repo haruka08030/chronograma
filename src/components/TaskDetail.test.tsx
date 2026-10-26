@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
@@ -77,5 +77,24 @@ describe('TaskDetail の並び（#380）', () => {
     }
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(useOverlays.getState().detailTaskId).not.toBe(otherId)
+  })
+})
+
+describe('TaskDetail のサブタスク（#613）', () => {
+  it('消した・アーカイブした子は欄から消え、件数にも入れない', async () => {
+    const s = useTaskStore.getState()
+    const id = s.addTask('Trip')!
+    const kids = ['Pack', 'Passport', 'Ticket'].map((title) => s.addTask(title)!)
+    useTaskStore.setState({ tasks: useTaskStore.getState().tasks.map((t) => (kids.includes(t.id) ? { ...t, parentId: id } : t)) })
+    const user = userEvent.setup()
+    render(<TaskDetail task={useTaskStore.getState().tasks.find((t) => t.id === id)!} onClose={() => {}} />)
+    const row = (title: string) => screen.queryByText(title)?.closest<HTMLElement>('[data-task-row]') ?? null
+
+    await user.click(within(row('Pack')!).getByRole('button', { name: 'Delete' }))
+    act(() => useTaskStore.getState().archiveTasks([kids[1]!]))
+    expect(row('Pack')).toBeNull()
+    expect(row('Passport')).toBeNull()
+    expect(row('Ticket')).not.toBeNull()
+    expect(screen.getByText('Subtasks (1)')).toBeInTheDocument()
   })
 })
