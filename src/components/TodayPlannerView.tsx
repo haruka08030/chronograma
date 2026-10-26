@@ -14,7 +14,7 @@ import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
 import { isAppToday, appToday, appTodayKey } from '../lib/timeZone'
-import { CalendarArrowIcon, CheckIcon } from './icons'
+import { CalendarArrowIcon, CheckIcon, PostponeIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { DayNav } from './ui/DayNav'
 import { SelectionBar } from './ui/SelectionBar'
@@ -280,7 +280,7 @@ export function TodayPlannerView() {
         {
           // 別の日を見ているときは、見ている日の翌日へ（本当の明日ではない）
           label: viewingToday ? t('taskList.selectionTomorrow') : t('taskList.selectionNextDay'),
-          icon: <CalendarArrowIcon className="h-3.5 w-3.5" />,
+          icon: <PostponeIcon className="h-3.5 w-3.5" />,
           onClick: () =>
             rescheduleTasks(
               ids,

@@ -20,7 +20,7 @@ import { courseAttendance, defaultTerm, termCourses, type ClassAttendance, type 
 import { useSchool } from '../../hooks/useSchool'
 import { SchoolTermBar } from '../addons/SchoolTermBar'
 import { courseKey, lmsCourses } from '../../lib/courseLinks'
-import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { NOTICE_TONE_CLASS } from '../ui/dueTone'
 import { colorVars } from '../../lib/logCategoryColors'
 import { planHex } from '../../lib/planVisual'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
@@ -199,7 +199,7 @@ function PeriodRow({
                 {absences && (
                   <span
                     aria-hidden
-                    className={`mt-0.5 block tabular-nums ${attendanceTone(absences) === 'future' ? 'opacity-70' : DUE_TONE_CLASS[attendanceTone(absences)]}`}
+                    className={`mt-0.5 block tabular-nums ${attendanceTone(absences) === 'future' ? 'opacity-70' : NOTICE_TONE_CLASS[attendanceTone(absences)]}`}
                   >
                     {t('timetable.cellAttendance', { absent: absences.absent, limit: absences.limit ?? '–' })}
                   </span>

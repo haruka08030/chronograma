@@ -17,7 +17,7 @@ import { fieldClass } from '../ui/fieldClass'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { CARD_TITLE_CLASS } from '../ui/headingClass'
-import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { DUE_TONE_CLASS, NOTICE_TONE_CLASS } from '../ui/dueTone'
 import { dueDateLabel } from '../ui/dueDateLabel'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT } from '../ui/textClass'
 import { useTermCourses } from '../../hooks/useTermCourses'
@@ -143,7 +143,7 @@ export function CoursePage({
           {t('school.absences')}
         </h2>
         <div className="mt-1 flex flex-wrap items-center gap-3">
-          <p className={`text-sm tabular-nums ${DUE_TONE_CLASS[attendanceTone(a)]}`}>{attendanceText(a, t)}</p>
+          <p className={`text-sm tabular-nums ${NOTICE_TONE_CLASS[attendanceTone(a)]}`}>{attendanceText(a, t)}</p>
           {inTermRange(today, term) && (
             <button
               type="button"

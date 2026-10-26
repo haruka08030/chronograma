@@ -12,18 +12,8 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
 import { RowSelectCheckbox } from './ui/RowSelectCheckbox'
-import {
-  ArchiveIcon,
-  CalendarArrowIcon,
-  CalendarIcon,
-  CheckIcon,
-  ClockIcon,
-  DueIcon,
-  EllipsisIcon,
-  RepeatIcon,
-  StarIcon,
-  TrashIcon,
-} from './icons'
+import { ArchiveIcon, CalendarIcon, CheckIcon, DreamIcon, DueIcon, EllipsisIcon, RepeatIcon, TrashIcon } from './icons'
+import { DayMoveIcon } from './ui/DayMoveIcon'
 import { CompletionCircle, EventMark } from './ui/CompletionCircle'
 import { planHex } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
@@ -350,7 +340,7 @@ export const TaskItem = memo(function TaskItem({
         listKind === 'tasks' && !isSubtask
           ? {
               label: todayToggle([task.id]).label,
-              icon: <CalendarArrowIcon className="h-4 w-4" />,
+              icon: <DayMoveIcon later={todayToggle([task.id]).toTomorrow} className="h-4 w-4" />,
               tone: 'date',
               run: () => todayToggle([task.id]).run(),
             }
@@ -507,7 +497,7 @@ export const TaskItem = memo(function TaskItem({
               {childDue && <ChildDueChip due={childDue} />}
               {scheduled && (!task.completed || timeLog) && (
                 <span className={`inline-flex items-center gap-0.5 text-[11px] ${SCHEDULED_TONE_CLASS[scheduled.tone]}`}>
-                  <ClockIcon className="w-3 h-3" />
+                  <CalendarIcon className="w-3 h-3" />
                   {scheduled.text}
                 </span>
               )}
@@ -525,7 +515,7 @@ export const TaskItem = memo(function TaskItem({
                   className="inline-flex min-w-0 items-center gap-0.5 text-[11px] text-zinc-500 dark:text-zinc-400"
                   aria-label={t('someday.stepOfDreamAria', { title: stepOfDream })}
                 >
-                  <StarIcon className="h-3 w-3 shrink-0" aria-hidden />
+                  <DreamIcon className="h-3 w-3 shrink-0" />
                   <span className="max-w-[12rem] truncate">{stepOfDream}</span>
                 </span>
               )}
@@ -605,7 +595,7 @@ export const TaskItem = memo(function TaskItem({
                 className={`transition-colors cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
                 ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
               >
-                <DueIcon className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
+                <DueIcon className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-400'}`} />
               </button>
             )}
           />

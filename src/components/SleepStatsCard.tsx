@@ -10,8 +10,7 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
 import { META_TEXT } from './ui/textClass'
 import { useAppTodayKey } from '../hooks/useAppClock'
-import { SleepMoonIcon, SleepTimesField } from './SleepTimesField'
-import { SunIcon } from './icons'
+import { SleepMoonIcon, SleepTimesField, SleepWakeIcon } from './SleepTimesField'
 import { DayInsightsSection } from './DayInsights'
 import { useDayInsights } from '../hooks/useDayInsights'
 
@@ -19,13 +18,12 @@ const DAYS = 14
 /** 「正午からの分」（SleepNight の bedOffset / wakeOffset）を hh:00 の目盛りの文字に */
 const clockLabel = (off: number) => `${((off / 60 + 12) % 24).toFixed(0)}:00`
 const SLEEP_VARS = { '--c': 'var(--color-sleep)' } as CSSProperties
-const SunMark = () => <SunIcon className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
 
 /**
  * 睡眠のページの直近 14 日（#577・#628）。上に要約、下に夜ごとの横の帯。
  * - 要約: 左に小さい 24 時間の時計（夜ごとの円弧を外へ重ね、いちばん外＝最新を濃く。重なりがそろうほど規則正しい）、
- *   右に平均の睡眠時間を大きく、☾ 寝た・☀ 起きた（平均と ±ばらつき）
- * - 夜ごとの図: 新しい夜が上。行頭は「23 金」、土日の行はうっすら色。時刻の目盛りは上、いつもの寝た・起きたは ☾・☀ の点線。
+ *   右に平均の睡眠時間を大きく、☾ 寝た・日の出 起きた（平均と ±ばらつき）
+ * - 夜ごとの図: 新しい夜が上。行頭は「23 金」、土日の行はうっすら色。時刻の目盛りは上、いつもの寝た・起きたは ☾・日の出の点線。
  *   長さは帯のすぐ右。今日の計画の睡眠の行（☾ 23:30 ▬ 07:00）と同じ横の帯の形
  * 行を押すとその夜の時刻を図の下で直せ、記録の無い夜（日付だけ薄く）を押すとその夜を埋められる。
  * 入力欄は今日の計画の睡眠の行と同じ部品（SleepTimesField）。
@@ -101,7 +99,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
             {(
               [
                 [<SleepMoonIcon key="m" />, t('sleepStats.avgBed'), t('sleepStats.bed'), summary.avgBed, summary.bedSpread],
-                [<SunMark key="s" />, t('sleepStats.avgWake'), t('sleepStats.wake'), summary.avgWake, summary.wakeSpread],
+                [<SleepWakeIcon key="s" />, t('sleepStats.avgWake'), t('sleepStats.wake'), summary.avgWake, summary.wakeSpread],
               ] as const
             ).map(([icon, name, caption, value, spread]) => (
               <div key={name} className="grid gap-0.5">
@@ -129,10 +127,10 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
               : `${dayLabel(focusedKey)} ${t('sleepStats.noRecord')}`}
           </span>
         </figcaption>
-        {/* 行の地は透ける色（土日・ホバー・選択中）にして、目盛りと ☾・☀ の点線を隠さない */}
+        {/* 行の地は透ける色（土日・ホバー・選択中）にして、目盛りと ☾・日の出の点線を隠さない */}
         {/* 行頭の日付（3rem）・帯の領域・右に長さの文字ぶんの余白（4.5rem） */}
         <div className="relative pl-12 pr-[4.5rem]">
-          {/* 上の目盛りと、いつもの寝た・起きた（☾・☀ の点線） */}
+          {/* 上の目盛りと、いつもの寝た・起きた（☾・日の出の点線） */}
           <div className="@container relative h-8 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500" aria-hidden>
             {/* 狭いとき（帯の幅が 13rem 未満）は目盛りの文字を 1 つおきに（重ならないように） */}
             {ticks.map((m, i) => (
@@ -148,7 +146,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
             {(
               [
                 [avgBedOffset, <SleepMoonIcon key="m" />],
-                [avgWakeOffset, <SunMark key="s" />],
+                [avgWakeOffset, <SleepWakeIcon key="s" />],
               ] as const
             ).map(([off, icon], i) => (
               <span key={i} className="absolute inset-y-0" style={{ left: x(off) }}>

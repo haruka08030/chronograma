@@ -14,7 +14,8 @@
 | --- | --- | --- |
 | 今日・選んだ日 | 今日＝藍の塗り、選んだ日＝藍の枠、両方＝塗り＋外側の枠。塗れないところ（曜日の見出し、達成色で塗る習慣の丸、睡眠の目盛り）は今日を藍の文字で示す | `lib/dayMarker.ts`（`dayMarkerClass`・`TODAY_TEXT`・`TODAY_COLUMN`・`SELECTED_COLUMN`） |
 | タスク行の「今日」 | 締切の今日はオレンジ（`DUE_TONE_CLASS`）、実行日の今日は藍（`SCHEDULED_TONE_CLASS`）。役割が違うので 2 色のまま。過ぎた実行日は灰色（責める色にしない） | `components/ui/dueTone.ts`・`TaskItem.tsx` |
-| 締切の色 | 締切切れ＝赤、今日まで＝オレンジ、明日まで（と 2〜3 日後の「あと ◯ 日」）＝薄いオレンジ。判断は `dueToneOf`（タイムラインの点・To-Do の行・今日の計画で同じ）、文字は `dueDateLabel`（「10/8 (木)まで・あと 2 日」「1日遅れ」） | `components/ui/dueTone.ts` `DUE_TONE_CLASS`・`lib/dueTone.ts` `dueToneOf`・`components/ui/dueDateLabel.ts` |
+| 締切の色 | 締切切れ＝赤、今日まで＝オレンジ、明日まで（と 2〜3 日後の「あと ◯ 日」）＝薄いオレンジ。判断は `dueToneOf`（タイムラインの点・To-Do の行・今日の計画で同じ）、文字は `dueDateLabel`（「10/8 (木)まで・あと 2 日」「1日遅れ」）。締切の →| を実行日の藍で塗らない（行のボタン・詳細の欄は付いていれば濃い灰色） | `components/ui/dueTone.ts` `DUE_TONE_CLASS`・`lib/dueTone.ts` `dueToneOf`・`components/ui/dueDateLabel.ts` |
+| 締切でない「近い・尽きた」 | 期限の日（今日の計画・カレンダーの ◇）と欠席の残り（学校・授業のページ・時間割・予定カード）は締切の色を使わず、濃さと太さだけ（尽きた・今日 > 明日 > それ以外 > 過ぎた） | `components/ui/dueTone.ts` `NOTICE_TONE_CLASS` |
 | 落とし先の光り方 | 薄いグレーの塗り＋グレーの内側の枠（`accent`）。月・週の終日行・習慣の段・日パネル | `lib/taskDrag.ts` `DROP_HIGHLIGHT_CLASS` |
 | Google の予定の色 | 予定ごとの色、無ければピーコック（`DEFAULT_GOOGLE_EVENT_HEX`）。カレンダー（月・週・スケジュール）・日パネル・今日の計画・予定カード・右クリックメニューで共通 | `lib/googleColors.ts`（`googleEventHex`・`DEFAULT_GOOGLE_EVENT_HEX`） |
 | 色の付いた面 | 色は style の `--c` で渡す（`colorVars(hex)`）。style に背景色を直に書かない（lint で止める）。ベタ塗りにせず薄い塗り＋縁: 予定・記録・Google の予定の枠は `gc-plan`、色の丸（リスト・ラベル・習慣・色選択・記録の内訳の棒）は `gc-dot`、行の左の線は `gc-line`、量の濃さのマスは `gc-heat`、終わった予定は `gc-missed`（灰色） | `index.css`（`.gc-*`）・`lib/logCategoryColors.ts` `colorVars` |
@@ -27,7 +28,7 @@
 | メニュー・候補の行のハイライト | ↑↓ で選んでいる行とホバーは同じ薄いグレー（ダーク zinc-700）、押している間も同じ色（`MENU_ROW_PRESS`）。メニューと時刻の候補で共通。今の値は ✓ | `components/ui/surface.ts`（`MENU_ROW_ACTIVE`・`MENU_ROW_HOVER`・`MENU_ROW_PRESS`） |
 | 行の状態 | 選んだ行＝藍の薄い塗り（ホバーより優先）、↑↓ のカーソル＝藍の内側の枠、押している間＝薄いグレー、つかんで持ち上げた行＝影と縁（長押しで浮かせた行は少し大きく、動きを減らす設定では影だけ）。To-Do の行・今日の計画の行・カレンダーの行で共通 | `components/ui/rowStateClass.ts`（`ROW_SELECTED_CLASS`・`ROW_CURSOR_CLASS`・`ROW_PRESS_CLASS`・`ROW_LIFTED_CLASS`・`LIFT_CARD_CLASS`） |
 | ブラウザが描く部品 | ラジオ・チェックボックスは墨（`accent-color`）。ダークのときは `color-scheme: dark` で、ラジオ・選択欄の一覧・スクロールバーも暗い見た目。部品ごとに色を付けない。キーボードのフォーカスは藍の枠 | `src/index.css`（`@layer base`） |
-| 完了チェック | 完了は墨の塗り＋✓。形は `shape`: To-Do は丸、チェックリスト（買い物）は四角、いつかは ☆（かなえたら黄色の ★）。買い物の行も To-Do と同じ `TaskItem` | `components/ui/CompletionCircle.tsx` の `shape` |
+| 完了チェック | 完了は墨の塗り＋✓。形は `shape`: To-Do は丸、チェックリスト（買い物）は四角、いつかは ☆（かなえたら黄色の ★。塗りは薄く縁はくっきり）。かなえたの ★ は夢のタイル（`FulfilledMark`）・メニューの「かなえた」でも同じ形・同じ色。買い物の行も To-Do と同じ `TaskItem` | `components/ui/CompletionCircle.tsx` の `shape`・`FULFILLED_TEXT`・`FulfilledMark` |
 
 ### 見た目の部品
 
@@ -112,7 +113,7 @@
 | 文字からタスクを足す | 「明日 課題」＝実行日、「明日まで 課題」「締切」「〆切」「提出」「今週中」「by / due」＝締切、時刻つき＝タイムラインの予定、「@リスト」＝リスト、「毎日」「毎週金」「毎週月水」「毎週月・水・金」「平日」「隔週」「毎月15日」「毎年」「3日ごと」「2週間ごと」「every fri」「every mon wed」「every weekday」「every 2 weeks」＝繰り返し（最初の回の日が締切。日付を書かなければ既定の実行日か今日から数えて最初に当たる日。曜日が 2 つ以上なら繰り返しに曜日を持たせる）。書いた URL は題名から外してメモへ。上部の追加欄・今日の計画・カレンダーのセル・予定作成カード・サブタスクで同じ。欄ごとに違うのは書かなかったときの既定値だけ（セル＝その日、予定作成カード＝ドラッグした日と時間帯、サブタスク＝親とそのリスト固定で @… は題名に残る）。書いた日付・時刻は既定値より優先。いつか・チェックリストには日付を付けない。足すのと日時を付けるのは 1 回で元に戻る | `lib/quickAddTask.ts` `addTaskFromQuickText`・`lib/parseQuickAdd.ts` |
 | To-Do のドラッグ | 運ぶ側は `startTaskDrag`（常に copyMove を許す）、受ける側は `acceptTaskDrag`（運ぶ側の許可に合わせる。To-Do・Google の予定以外では光らない）。画面ごとに `effectAllowed`・`dropEffect` を書かない | `lib/taskDrag.ts` |
 | タッチの行 | 横に払う（`useRowSwipe`: 右へ＝完了、左へ＝今日やる・明日へ。その向きに操作があれば画面の横スワイプより先に取る）と長押し（`useRowLift`: 浮かせて選択に入れ、押さえたまま別の指のタップで足す）。今日の計画の行は `GestureRow`、To-Do の行は同じ hook を使う。並べ替えられる行は PC は左のつまみ、タッチは長押しで浮かせて運ぶ（`useRowGrip`） | `hooks/useRowSwipe.tsx`・`hooks/useTouchLift.ts`・`components/ui/GestureRow.tsx`・`hooks/useRowGrip.tsx` |
-| 今日やる ⇄ 明日へ | 全部が今日に置いてあれば明日へ、そうでなければ今日へ。時刻と締切はそのまま（実行日だけ動かす）。右クリックメニューの先頭・Shift+T・今日の計画の行で共通。メニューの「実行日 › 今日 / 明日 / 来週 / 日付…」は `useScheduleEntry`（タスクの行と予定ブロックで共通） | `hooks/useTodayToggle.ts`・`hooks/useScheduleEntry.tsx` |
+| 今日やる ⇄ 明日へ | 全部が今日に置いてあれば明日へ、そうでなければ今日へ。時刻と締切はそのまま（実行日だけ動かす）。右クリックメニューの先頭・Shift+T・今日の計画の行で共通。印は今日やる（この日にやる）がカレンダーに矢印、明日へ回す（翌日へ）が ↪（`DayMoveIcon`。メニュー・行のボタン・払う操作・選択中のバー・検索で同じ）。メニューの「実行日 › 今日 / 明日 / 来週 / 日付…」は `useScheduleEntry`（タスクの行と予定ブロックで共通） | `hooks/useTodayToggle.ts`・`hooks/useScheduleEntry.tsx`・`components/ui/DayMoveIcon.tsx` |
 | 習慣の達成 | 習慣画面・今日画面・週カレンダー・習慣の詳細とも、押すと付き、もう一度押すと外す（その日の習慣の記録も外れる） | ストアの `toggleHabitDate` |
 | 記録を足して完了 | 完了の丸はどこでも完了の切り替えだけ（時刻つきの予定も記録を足さない）。「記録して完了」は通知の「記録する」から開く。予定カードは「完了」と「予定どおり記録」を別のボタンにする。記録の追加と完了は 1 つの操作で、元に戻すも 1 回 | `hooks/useCompleteWithLog.tsx` |
 | タイマーの切り替え | どこからでも切り替えられる。前の記録は保存し「「○○」の記録を保存して切り替えました」と知らせる（1 分未満なら記録せずに切り替えたと知らせる）。行・予定カード・メニュー・検索パレットは `startTimerForTask` を通す | `lib/timerDrop.ts`・ストアの `startTimer` |

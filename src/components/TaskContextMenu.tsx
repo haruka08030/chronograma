@@ -13,17 +13,19 @@ import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
 import {
   ArchiveIcon,
   ArrowRightIcon,
-  CalendarArrowIcon,
   CalendarIcon,
   CheckIcon,
   ClockIcon,
+  DueIcon,
   DuplicateIcon,
   FlagIcon,
   PencilIcon,
   PlayIcon,
   SectionIcon,
+  StarFilledIcon,
   TrashIcon,
 } from './icons'
+import { DayMoveIcon } from './ui/DayMoveIcon'
 import { startTimerForTask } from '../lib/timerDrop'
 import { openTaskMenu } from '../lib/overlays'
 import { canPickTime, timeSlotDateKey } from '../lib/timeSlotTarget'
@@ -250,7 +252,7 @@ export function TaskContextMenu({
           kind: 'leaf',
           id: 'today-toggle',
           label: todayToggle.label,
-          icon: <CalendarArrowIcon className={ICON} />,
+          icon: <DayMoveIcon later={todayToggle.toTomorrow} className={ICON} />,
           keys: shortcutLabel(['Shift', 'T']),
           run: done(todayToggle.run),
         },
@@ -292,7 +294,7 @@ export function TaskContextMenu({
       kind: 'sub',
       id: 'due',
       label: t('common.due'),
-      icon: <CalendarIcon className={ICON} />,
+      icon: <DueIcon className={ICON} />,
       // 今の締切（時刻があれば時刻も）。選んだタスクで違えば出さない
       hint: menuDateHint(targets.map((x) => ({ date: x.dueDate, time: x.dueDate ? x.dueTime : null }))),
       leaves: dueLeaves,
@@ -364,7 +366,7 @@ export function TaskContextMenu({
             kind: 'leaf' as const,
             id: 'complete',
             label: t('someday.fulfill'),
-            icon: <CheckIcon className={ICON} />,
+            icon: <StarFilledIcon className={ICON} />,
             keys: shortcutLabel(['mod', '↵']),
             run: done(() => bulk.complete(openWishes)),
           },

@@ -6,7 +6,7 @@ import { defaultSleepTimes, sleepMinutes } from '../lib/sleep'
 import type { Task } from '../types/task'
 import { TimeInput } from './TimeInput'
 import { useNow } from '../hooks/useAppClock'
-import { CheckIcon, CloseIcon, MoonSolidIcon } from './icons'
+import { CheckIcon, CloseIcon, MoonSolidIcon, SunriseIcon } from './icons'
 import { FIELD_FOCUS_RING } from './ui/fieldClass'
 import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { tip } from '../lib/tooltip'
@@ -21,6 +21,8 @@ const floorTo5 = (min: number) => {
 }
 
 export const SleepMoonIcon = () => <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-sleep" />
+/** 起きた時刻の印（日の出。☀ は「今日」に使うので使わない）。統計・睡眠のページで ☾ と組にする */
+export const SleepWakeIcon = () => <SunriseIcon className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
 
 /**
  * 寝た時刻と起きた時刻の間に置く、睡眠の色の細い線（「睡眠」「〜」の文字の代わり）。
@@ -37,7 +39,7 @@ export function SleepBar({ open = false }: { open?: boolean }) {
 }
 
 /**
- * 睡眠の行のアイコンだけのボタン（寝る ▶・起きた ☀・保存 ✓）。枠でボタンと分かる形にする。
+ * 睡眠の行のアイコンだけのボタン（寝る ▶・起きた（日の出）・保存 ✓）。枠でボタンと分かる形にする。
  * 見える丸は 24px で 12px の行になじませ、スマホの押せる範囲だけ 32px にする（丸は ::before で描く）
  */
 export const SLEEP_ICON_BUTTON =

@@ -11,7 +11,7 @@ import { CARRY_SHOW_DAYS, carriedDaysOn } from '../../lib/carryDays'
 import type { RowSwipeAction } from '../../hooks/useRowSwipe'
 import type { useTaskListSelection } from '../../hooks/useTaskListSelection'
 import type { useDeferredComplete } from '../../hooks/useDeferredComplete'
-import { CalendarArrowIcon, CheckIcon } from '../icons'
+import { CalendarArrowIcon, CheckIcon, PostponeIcon } from '../icons'
 import { GestureRow } from '../ui/GestureRow'
 import { CompletionCircle } from '../ui/CompletionCircle'
 import { HIDE_ON_ROW_HOVER } from '../ui/revealClass'
@@ -78,7 +78,7 @@ export function PlannerTaskRow({
   const swipeLeft: RowSwipeAction = committed
     ? {
         label: viewingToday ? t('taskMenu.toTomorrow') : t('taskMenu.toNextDay'),
-        icon: <CalendarArrowIcon className="h-4 w-4" />,
+        icon: <PostponeIcon className="h-4 w-4" />,
         tone: 'date',
         run: () => rescheduleTasks([task.id], day.tomorrowKey),
       }
@@ -183,7 +183,7 @@ export function PlannerTaskRow({
         </span>
       )}
       {meta.time && !task.completed && (
-        <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.overdue : META_TONE_CLASS.muted} ${metaHide}`}>
+        <span className={`shrink-0 text-xs tabular-nums ${meta.timeOver ? META_TONE_CLASS.passed : META_TONE_CLASS.muted} ${metaHide}`}>
           {meta.time}
         </span>
       )}

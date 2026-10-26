@@ -9,7 +9,7 @@ import { DueDatePopover } from '../DueDatePopover'
 import { TimeInput } from '../TimeInput'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from '../TaskTimeZoneField'
 import { TaskRemindersField } from '../TaskRemindersField'
-import { ClockIcon, DueIcon } from '../icons'
+import { CalendarIcon, DueIcon } from '../icons'
 import { fieldClass, TIME_FIELD_WIDTH } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { TaskRecurrenceField } from './TaskRecurrenceField'
@@ -63,7 +63,7 @@ export function TaskPlanFields({ task }: { task: Task }) {
               onClick={toggle}
               className={fieldClass({ active: open }, 'flex items-center gap-2')}
             >
-              <ClockIcon className={`w-4 h-4 ${tv.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} />
+              <CalendarIcon className={`w-4 h-4 ${tv.scheduledDate ? 'text-date-500' : 'text-zinc-400'}`} />
               <span className={tv.scheduledDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                 {tv.scheduledDate ? df.fullDate(tv.scheduledDate) : t('taskDetail.scheduledNone')}
               </span>
@@ -119,7 +119,7 @@ export function TaskPlanFields({ task }: { task: Task }) {
                   onClick={toggle}
                   className={fieldClass({ active: open }, 'flex items-center gap-2')}
                 >
-                  <DueIcon className={`w-4 h-4 ${tv.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
+                  <DueIcon className={`w-4 h-4 ${tv.dueDate ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-400'}`} />
                   <span className={tv.dueDate ? '' : 'text-zinc-400 dark:text-zinc-500'}>
                     {tv.dueDate ? df.fullDate(tv.dueDate) : t('dueDatePicker.noDate')}
                   </span>

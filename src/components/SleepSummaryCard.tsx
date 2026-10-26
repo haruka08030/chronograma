@@ -6,15 +6,15 @@ import { isSleepTask } from '../types/task'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { formatDuration } from '../lib/timeGrid'
 import { useAppTodayKey } from '../hooks/useAppClock'
-import { SleepMoonIcon } from './SleepTimesField'
-import { ChevronRightIcon, SunIcon } from './icons'
+import { SleepMoonIcon, SleepWakeIcon } from './SleepTimesField'
+import { ChevronRightIcon } from './icons'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
 import { META_TEXT } from './ui/textClass'
 
 const DAYS = 14
 
 /**
- * 統計の「睡眠」（#628）。直近 14 日の平均（睡眠時間・☾ 寝た・☀ 起きた）だけを出し、押すと睡眠のページへ。
+ * 統計の「睡眠」（#628）。直近 14 日の平均（睡眠時間・☾ 寝た・日の出 起きた）だけを出し、押すと睡眠のページへ。
  * 睡眠の記録が 1 件も無い人には出さない
  */
 export function SleepSummaryCard() {
@@ -48,7 +48,7 @@ export function SleepSummaryCard() {
             {summary.avgBed}
           </span>
           <span className="flex items-center gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
-            <SunIcon className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
+            <SleepWakeIcon />
             {summary.avgWake}
           </span>
           <span className={`basis-full ${META_TEXT}`}>{t('sleepPage.summaryRange', { days: DAYS, count: summary.count })}</span>

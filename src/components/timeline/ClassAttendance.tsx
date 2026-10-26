@@ -8,7 +8,7 @@ import { useAppTodayKey } from '../../hooks/useAppClock'
 import { useAddonOn } from '../../hooks/useAddon'
 import { useSchool } from '../../hooks/useSchool'
 import type { Task } from '../../types/task'
-import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { NOTICE_TONE_CLASS } from '../ui/dueTone'
 import { buttonClass } from '../ui/buttonClass'
 
 /**
@@ -39,7 +39,7 @@ export function ClassAttendance({ title, date, task }: { title: string; date: st
 
   return (
     <div className="flex items-center justify-between gap-2 border-t border-zinc-100 px-4 py-2.5 dark:border-zinc-700">
-      <p className={`text-sm tabular-nums ${DUE_TONE_CLASS[attendanceTone(a)]}`}>{attendanceText(a, t)}</p>
+      <p className={`text-sm tabular-nums ${NOTICE_TONE_CLASS[attendanceTone(a)]}`}>{attendanceText(a, t)}</p>
       {canMark && (
         <button
           type="button"

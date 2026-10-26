@@ -9,7 +9,7 @@ import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
 import { clockOf } from '../lib/clockTime'
 import { toAppWall } from '../lib/timeZone'
-import { CloseIcon, PencilIcon, PlayIcon, SunIcon } from './icons'
+import { CloseIcon, PencilIcon, PlayIcon, SunriseIcon } from './icons'
 import type { Task } from '../types/task'
 import { SLEEP_ICON_BUTTON, SleepBar, SleepMoonIcon, SleepTimesField } from './SleepTimesField'
 import { minutesOfDay } from '../lib/clockTime'
@@ -22,7 +22,7 @@ const PROMPT_FROM_MIN = 5 * 60
  * 文字で説明せず形で見せる（#575）: 行頭の月・寝た時刻・睡眠の色の帯・起きた時刻・長さ。操作はアイコンのボタン（名前はホバーと読み上げ）。
  * まだ無ければ前回の時刻を入れた入力欄（同じなら ✓ のワンタップで記録）、あれば時刻と長さだけを薄く出す。
  * 今日の分は朝 5 時を過ぎてから聞く。
- * 今日の夜（20 時〜朝 5 時）は寝る（▶）を出し、押すと睡眠のタイマー（#519）。寝ている間は起きた（☀）で睡眠にする。
+ * 今日の夜（20 時〜朝 5 時）は寝る（▶）を出し、押すと睡眠のタイマー（#519）。寝ている間は起きた（日の出）で睡眠にする。
  * 寝ている間もその朝の記録の行は上に残す。記録の行は ✎ で直せると見せ、まだ記録の無い朝の欄は前回の時刻を下書きとして薄く出す（#627）。
  * 入力欄は睡眠のページの図・一覧と同じ部品（SleepTimesField）。月のアイコンは行頭の 1 つだけで、押すと睡眠のページ（#628）。
  */
@@ -149,7 +149,7 @@ function SleepPageButton() {
 }
 
 /**
- * 睡眠のタイマーが動いている間の行。☾ 寝た時刻 ▬╌ 経った時間 と、起きた（☀）・×（取り消し）。
+ * 睡眠のタイマーが動いている間の行。☾ 寝た時刻 ▬╌ 経った時間 と、起きた（日の出）・×（取り消し）。
  * 長く寝たまま（止め忘れ）なら今を起きた時刻にせず、寝た時刻を入れた入力欄で起きた時刻を聞く
  */
 function SleepingRow({ timer, dateKey }: { timer: SleepTimer; dateKey: string }) {
@@ -186,7 +186,7 @@ function SleepingRow({ timer, dateKey }: { timer: SleepTimer; dateKey: string })
       <SleepBar open />
       {/* 経った時間（寝た直後の「0分」は出さない） */}
       {elapsedMin >= 1 && <span className="text-zinc-400 dark:text-zinc-500">{formatDuration(elapsedMin)}</span>}
-      {/* 起きた（☀）と取り消し（×）は寝ている間の操作の組。離して置くと × が「行を閉じる」「記録を消す」に読める */}
+      {/* 起きた（日の出）と取り消し（×）は寝ている間の操作の組。離して置くと × が「行を閉じる」「記録を消す」に読める */}
       <span className="ml-1 inline-flex items-center">
         <button
           type="button"
@@ -196,7 +196,7 @@ function SleepingRow({ timer, dateKey }: { timer: SleepTimer; dateKey: string })
           {...tip(t('sleep.wakeUp'), { name: true })}
           className={SLEEP_ICON_BUTTON}
         >
-          <SunIcon className="h-3.5 w-3.5" />
+          <SunriseIcon className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"

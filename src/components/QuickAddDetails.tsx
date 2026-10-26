@@ -13,7 +13,7 @@ import { NEUTRAL_HEX } from '../lib/googleColors'
 import { DatePickerBody } from './DatePickerBody'
 import { TimeInput } from './TimeInput'
 import { ColorPalette } from './labels/ColorPalette'
-import { ArrowRightIcon, CalendarIcon, ClockIcon, DueIcon, FlagIcon, HourglassIcon, StarIcon } from './icons'
+import { ArrowRightIcon, CalendarIcon, ClockIcon, DreamIcon, DueIcon, FlagIcon, HourglassIcon } from './icons'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import type { Priority } from '../types/task'
 import { chipClass } from './ui/chipClass'
@@ -32,7 +32,7 @@ const ICON = 'h-3 w-3 shrink-0'
  * 追加欄の下の詳細のチップ（やる日・時間・見積もり・締切・優先度・リスト・ラベル）。旗は優先度だけ（締切は →|）。入力中だけ出す。
  * チップには足したら付く値（書いた文・選んだ値・欄の既定を重ねた結果、`quickAddDraft`）を出し、押すと下に選ぶ面が開く。
  * 選んだ値（`picks`）は書いた文より勝つ。いつか・チェックリストに入るなら日付のチップは出さない。
- * やりたいことのリストに入るなら「☆ 夢」の切り替え（押すたびに夢にする / しない。夢ボードを開いていれば最初から夢）
+ * やりたいことのリストに入るなら「人生で」（夢。ロケットの印）の切り替え（押すたびに夢にする / しない。夢ボードを開いていれば最初から夢）
  */
 export function QuickAddDetails({
   text,
@@ -152,7 +152,7 @@ export function QuickAddDetails({
             : 'text-zinc-400 dark:text-zinc-500',
         )}
       >
-        <StarIcon className={ICON} />
+        <DreamIcon className={ICON} />
         <span>{t('quickAdd.chip.dream')}</span>
       </button>,
     )

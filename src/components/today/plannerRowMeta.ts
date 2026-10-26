@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next'
 import type { Task } from '../../types/task'
 import { fromDateKey } from '../../lib/dateKey'
 import { planTiming } from '../../lib/planTiming'
-import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS } from '../ui/dueTone'
 import { dueToneOf } from '../../lib/dueTone'
 
 export const META_TONE_CLASS = {
@@ -11,6 +11,8 @@ export const META_TONE_CLASS = {
   overdue: DUE_TONE_CLASS.overdue,
   today: DUE_TONE_CLASS.today,
   tomorrow: DUE_TONE_CLASS.tomorrow,
+  /** 時間が過ぎて終わっていない予定の時刻。責める赤は締切だけなので、過ぎた実行日と同じ灰色 */
+  passed: SCHEDULED_TONE_CLASS.overdue,
 } as const
 
 /**
@@ -53,7 +55,7 @@ export function dueMeta(task: Task, day: PlannerDay): DueMeta {
 
 /**
  * 行の右端: 時刻があれば時刻、締切があれば締切（`mode` で出し方を変える）。
- * 予定の時間が過ぎても終わっていなければ時刻も赤くする
+ * 予定の時間が過ぎても終わっていなければ時刻を過ぎた実行日と同じ灰色にする（赤は締切だけ）
  */
 export function rowMeta(task: Task, mode: DueMode, day: PlannerDay): { time: string | null; timeOver: boolean; due: DueMeta } {
   const timed = Boolean(task.startTime && task.endTime && task.scheduledDate === day.dateKey)

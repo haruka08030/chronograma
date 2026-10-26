@@ -17,7 +17,7 @@ import { chipClass } from '../ui/chipClass'
 import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { CARD_TITLE_CLASS } from '../ui/headingClass'
-import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { NOTICE_TONE_CLASS } from '../ui/dueTone'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT } from '../ui/textClass'
 import { SchoolTermBar } from './SchoolTermBar'
 import { useTermCourses } from '../../hooks/useTermCourses'
@@ -90,7 +90,7 @@ function CourseList({ term, onOpen }: { term: Term; onOpen: (title: string) => v
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-zinc-800 dark:text-zinc-100">{row.title}</span>
                   <span className="block text-xs tabular-nums">
-                    <span className={DUE_TONE_CLASS[attendanceTone(row.attendance)]}>{attendanceText(row.attendance, t)}</span>
+                    <span className={NOTICE_TONE_CLASS[attendanceTone(row.attendance)]}>{attendanceText(row.attendance, t)}</span>
                     {row.assignments.length > 0 && (
                       <span className={META_TEXT}> · {t('school.assignmentsCount', { count: row.assignments.length })}</span>
                     )}
