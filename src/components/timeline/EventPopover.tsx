@@ -111,7 +111,7 @@ function EventPopoverBody({
   const timeLogTagPresets = useTaskStore((s) => s.timeLogTagPresets)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const timetable = useTaskStore((s) => s.timetable)
-  const timetableOn = useAddonOn('timetable')
+  const schoolOn = useAddonOn('school')
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   // タイムゾーンを決めたタスクはそのタイムゾーンの時刻で見せて直す（詳細と同じ）
@@ -139,7 +139,7 @@ function EventPopoverBody({
     updateTimes({ startTime: v, endTime: endKeepingLength(tv.startTime!, tv.endTime!, v) })
   }
   // 時間割の授業は欠席の行（#452）の分だけ高い
-  const attendanceRow = timetableOn && isClassTask(task, timetable) ? 42 : 0
+  const attendanceRow = schoolOn && isClassTask(task, timetable) ? 42 : 0
   const { style, sheet } = anchoredCardStyle(
     anchor,
     WIDTH,

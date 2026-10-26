@@ -52,11 +52,34 @@ function withTerm(tt: Timetable, today: string): Timetable {
 }
 
 /**
- * 時間割（#279）。曜日（月〜土）× 時限のマスを押して授業を入れると、学期の間の毎週の予定ができる。
+ * 時間割（#279）。週表示の見出しの「時間割」で開くダイアログ。中身は追加機能「学校」のページと同じ（`TimetableBody`）
+ */
+export function TimetableDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <Modal onClose={onClose} labelledBy="timetable-title" width="lg" className="flex max-h-[min(90vh,820px)] flex-col overflow-hidden">
+      <div className="border-b border-zinc-200 px-4 pb-3 pt-5 dark:border-zinc-700 sm:px-6">
+        <ModalTitle id="timetable-title">{t('timetable.title')}</ModalTitle>
+        <p className={`mt-1 ${HINT_TEXT}`}>{t('timetable.intro')}</p>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6">
+        <TimetableBody />
+      </div>
+      <div className="flex justify-end border-t border-zinc-200 px-4 py-3 dark:border-zinc-700 sm:px-6">
+        <button type="button" onClick={onClose} className={buttonClass({ variant: 'primary', size: 'md' })}>
+          {t('timetable.done')}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * 時間割の中身。曜日（月〜土）× 時限のマスを押して授業を入れると、学期の間の毎週の予定ができる。
  * 上の「時限と学期」で時限（学校ごとに違う）・学期の期間・祝日を除くかを決める（決めたらすぐ保存し、端末間で同期）。
  * マスはボタンで「月曜 2 限 空き」「月曜 2 限 経済学入門」と読む
  */
-export function TimetableDialog({ onClose }: { onClose: () => void }) {
+export function TimetableBody() {
   const { t } = useTranslation()
   const today = useAppTodayKey()
   const saved = useTaskStore((s) => s.timetable)
@@ -82,47 +105,36 @@ export function TimetableDialog({ onClose }: { onClose: () => void }) {
   const sep = t('common.timeRangeSeparator')
 
   return (
-    <Modal onClose={onClose} labelledBy="timetable-title" width="lg" className="flex max-h-[min(90vh,820px)] flex-col overflow-hidden">
-      <div className="border-b border-zinc-200 px-4 pb-3 pt-5 dark:border-zinc-700 sm:px-6">
-        <ModalTitle id="timetable-title">{t('timetable.title')}</ModalTitle>
-        <p className={`mt-1 ${HINT_TEXT}`}>{t('timetable.intro')}</p>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6">
-        <DisclosureButton open={settingsOpen} onToggle={() => setSettingsOpen((o) => !o)} className="-ml-3">
-          {termSaved ? t('timetable.settingsSummary', { term: termText }) : t('timetable.settingsUnset', { term: termText })}
-        </DisclosureButton>
-        {settingsOpen && <TimetableSettings timetable={timetable} />}
+    <>
+      <DisclosureButton open={settingsOpen} onToggle={() => setSettingsOpen((o) => !o)} className="-ml-3">
+        {termSaved ? t('timetable.settingsSummary', { term: termText }) : t('timetable.settingsUnset', { term: termText })}
+      </DisclosureButton>
+      {settingsOpen && <TimetableSettings timetable={timetable} />}
 
-        <div
-          className="mt-3 grid gap-1"
-          style={{ gridTemplateColumns: `minmax(2.75rem, auto) repeat(${TIMETABLE_WEEKDAYS.length}, minmax(0, 1fr))` }}
-        >
-          <span />
-          {TIMETABLE_WEEKDAYS.map((d) => (
-            <span key={d} className="pb-1 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              {weekdayLabels[d - 1]}
-            </span>
-          ))}
-          {timetable.periods.map((p, i) => (
-            <PeriodRow
-              key={`${i}-${p.start}`}
-              index={i}
-              period={p}
-              sep={sep}
-              classes={classes}
-              attendance={attendance}
-              weekdayLabels={weekdayLabels}
-              onCell={(weekday) => setEditing({ weekday, period: i })}
-            />
-          ))}
-        </div>
-        {timetable.periods.length === 0 && <p className={`mt-2 ${HINT_TEXT}`}>{t('timetable.noPeriods')}</p>}
+      <div
+        className="mt-3 grid gap-1"
+        style={{ gridTemplateColumns: `minmax(2.75rem, auto) repeat(${TIMETABLE_WEEKDAYS.length}, minmax(0, 1fr))` }}
+      >
+        <span />
+        {TIMETABLE_WEEKDAYS.map((d) => (
+          <span key={d} className="pb-1 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            {weekdayLabels[d - 1]}
+          </span>
+        ))}
+        {timetable.periods.map((p, i) => (
+          <PeriodRow
+            key={`${i}-${p.start}`}
+            index={i}
+            period={p}
+            sep={sep}
+            classes={classes}
+            attendance={attendance}
+            weekdayLabels={weekdayLabels}
+            onCell={(weekday) => setEditing({ weekday, period: i })}
+          />
+        ))}
       </div>
-      <div className="flex justify-end border-t border-zinc-200 px-4 py-3 dark:border-zinc-700 sm:px-6">
-        <button type="button" onClick={onClose} className={buttonClass({ variant: 'primary', size: 'md' })}>
-          {t('timetable.done')}
-        </button>
-      </div>
+      {timetable.periods.length === 0 && <p className={`mt-2 ${HINT_TEXT}`}>{t('timetable.noPeriods')}</p>}
       {editing && timetable.periods[editing.period] && (
         <ClassEditor
           weekday={editing.weekday}
@@ -134,7 +146,7 @@ export function TimetableDialog({ onClose }: { onClose: () => void }) {
           onClose={() => setEditing(null)}
         />
       )}
-    </Modal>
+    </>
   )
 }
 
