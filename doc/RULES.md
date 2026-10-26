@@ -1,7 +1,7 @@
 # Chronograma の決まり
 
-原則は [[chronograma-ux-principles]]（記録が主役 / 締切は焦らせてよい / ごちゃつかせない /
-性質の違うものを混ぜない / Google カレンダー準拠 / 想定ユーザーは学生・就活生 / PC 優先 + PWA）。
+原則は [`PRINCIPLES.md`](./PRINCIPLES.md)（記録が主役 / 締切は焦らせてよい / ごちゃつかせない /
+性質の違うものを混ぜない / Google カレンダーに合わせる / 想定する利用者は学生・就活生 / PC が先 + PWA）。
 
 実装で守り続ける決まり。作業は GitHub の Issue、アイデアと方向性は [`IDEAS.md`](./IDEAS.md)。
 
