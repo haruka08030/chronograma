@@ -8,13 +8,14 @@ import { TaskItem } from '../TaskItem'
 import { InlineAddInput } from '../ui/InlineAddInput'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { compareByOrder } from '../../lib/orderCompare'
+import { isActiveTask } from '../../lib/taskLifecycle'
 
 /** タスク詳細のサブタスク（一覧と同じ行）と追加欄。確定せずに外を押しても足す */
 export function SubtasksField({ task }: { task: Task }) {
   const { t } = useTranslation()
   const [subInput, setSubInput] = useState('')
-  // 子だけを購読する（ほかのタスクの変化で詳細を描き直さない）
-  const subtasks = useTaskStore(useShallow((s) => s.tasks.filter((t) => t.parentId === task.id).sort(compareByOrder)))
+  // 子だけを購読する（ほかのタスクの変化で詳細を描き直さない）。消した・アーカイブした子は出さない（#613）
+  const subtasks = useTaskStore(useShallow((s) => s.tasks.filter((t) => t.parentId === task.id && isActiveTask(t)).sort(compareByOrder)))
 
   const addSubtask = () => {
     const trimmed = subInput.trim()
