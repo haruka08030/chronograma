@@ -67,7 +67,7 @@ export function habitFormFrom(h: Habit): HabitFormState {
     timeMode: h.timeMode,
     startTime: h.startTime ?? '09:00',
     endTime: h.endTime ?? '10:00',
-    perWeekday: h.frequency.type === 'weekly' && !!h.weekdayTimes,
+    perWeekday: !!h.weekdayTimes,
     weekdayTimes: Object.fromEntries(
       Object.entries(h.weekdayTimes ?? {}).map(([d, v]) => [d, { startTime: v.startTime, endTime: v.endTime ?? h.endTime ?? '10:00' }]),
     ),
@@ -92,9 +92,16 @@ function formGoalMinutes(f: HabitFormState): number | null {
   return Number.isInteger(n) && n >= 1 && n <= HABIT_GOAL_MINUTES_MAX ? n : NaN
 }
 
-/** 曜日ごとの時間の欄を使うか（曜日を指定・時間あり・「曜日ごとに時間を変える」を押した） */
+/** 曜日ごとの時間の欄を使うか（時間あり・「曜日ごとに時間を変える」を押した） */
 export function usesWeekdayTimes(f: HabitFormState): boolean {
-  return f.perWeekday && f.freq === 'weekly' && f.timeMode !== 'none'
+  return f.perWeekday && f.timeMode !== 'none'
+}
+
+const ALL_WEEKDAYS: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
+
+/** 曜日ごとの時間の行を出す曜日（月曜から）。曜日を指定した習慣は選んだ曜日、ほかは 7 日とも */
+export function formTimeDays(f: HabitFormState): HabitWeekday[] {
+  return f.freq === 'weekly' ? [...f.weekdays].sort((a, b) => a - b) : ALL_WEEKDAYS
 }
 
 /** その曜日の欄の時間。まだ入れていない曜日は上の時間 */
@@ -120,7 +127,8 @@ export function canSubmitHabitForm(form: HabitFormState): boolean {
   const f = effectiveHabitForm(form)
   if (Number.isNaN(formGoalMinutes(f))) return false
   if (!usesWeekdayTimes(f)) return canSubmitHabitDraft(draftFields(f))
-  return f.weekdays.length > 0 && f.weekdays.every((d) => canSubmitHabitDraft(draftFields(f, formWeekdayTime(f, d))))
+  const days = formTimeDays(f)
+  return days.length > 0 && days.every((d) => canSubmitHabitDraft(draftFields(f, formWeekdayTime(f, d))))
 }
 
 /**
@@ -130,7 +138,7 @@ export function canSubmitHabitForm(form: HabitFormState): boolean {
 export function habitFromForm(form: HabitFormState) {
   const f = effectiveHabitForm(form)
   const perWeekday = usesWeekdayTimes(f)
-  const weekdays = [...f.weekdays].sort((a, b) => a - b)
+  const weekdays = formTimeDays(f)
   const base = perWeekday && weekdays.length > 0 ? formWeekdayTime(f, weekdays[0]) : f
   let weekdayTimes: HabitWeekdayTimes | undefined
   if (perWeekday) {

@@ -405,6 +405,24 @@ const SCREENS = [
   { name: 'calendar-date-jump', view: 'calendar', click: 'button[aria-label="日付を選択"]' },
   // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
   { name: 'calendar-event-card', view: 'calendar', click: '[data-block-id="s6"] >> visible=true' },
+  // 習慣の枠のカードで時間を直す（この日だけ / これ以降の◯曜日・期限。#612）
+  {
+    name: 'calendar-habit-time',
+    view: 'calendar',
+    click: '[data-block-id^="habit-slot::r1::"] >> visible=true >> nth=-1',
+    steps: [
+      { click: '[role="dialog"] button:has-text("時間を変える")' },
+      { click: '[role="dialog"] [role="radio"]:has-text("これ以降の")' },
+      { click: '[role="dialog"] [role="radio"]:has-text("日付まで")' },
+    ],
+  },
+  // ✎ は画面を移らず、カレンダーの上に習慣の編集を開く（#612）
+  {
+    name: 'calendar-habit-edit',
+    view: 'calendar',
+    click: '[data-block-id^="habit-slot::r1::"] >> visible=true >> nth=-1',
+    steps: [{ click: '[role="dialog"] button[aria-label="詳細を編集"]' }],
+  },
   // 時刻を押したところ（カードのままで分単位に直せる。候補は 15 分刻み）
   {
     name: 'calendar-event-card-time',

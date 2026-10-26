@@ -57,8 +57,8 @@ describe('曜日ごとの時間', () => {
     expect(habitTimesOn(h, SAT)).toEqual({ startTime: '13:00', endTime: '14:00' })
   })
 
-  it('曜日を指定していない習慣は曜日ごとの時間を見ない', () => {
-    expect(habitTimesOn(gym({ frequency: { type: 'daily' } }), SAT)).toEqual({ startTime: '18:00', endTime: '19:00' })
+  it('毎日の習慣も曜日ごとの時間を見る（枠のカードで「これ以降の◯曜日」を変えた）', () => {
+    expect(habitTimesOn(gym({ frequency: { type: 'daily' } }), SAT)).toEqual({ startTime: '10:00', endTime: '11:00' })
   })
 
   it('✓ で土曜の時間の記録を作り、その日は達成', () => {

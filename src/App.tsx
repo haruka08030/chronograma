@@ -35,6 +35,7 @@ import { SignedOutNotice } from './components/SignedOutNotice'
 import { useReminders } from './hooks/useReminders'
 import { useFollowToday } from './hooks/useFollowToday'
 import { useQuickStartLaunch } from './hooks/useQuickStartLaunch'
+import { HabitEditHost } from './components/habits/HabitEditHost'
 import { DndContext, DragOverlay } from '@dnd-kit/core'
 
 // 最初に開く「今日の計画」以外の画面は、開いたときに読み込む（最初の読み込みを軽くする）
@@ -225,6 +226,9 @@ export default function App() {
         </PartBoundary>
         <PartBoundary name="recordPrompt" resetKey={partKey}>
           <RecordPromptHost />
+        </PartBoundary>
+        <PartBoundary name="habitEdit" resetKey={partKey}>
+          <HabitEditHost />
         </PartBoundary>
         <PartBoundary name="bottomNav" resetKey={partKey}>
           <MobileBottomNav onNavigate={() => setSidebarOpen(false)} />

@@ -85,14 +85,14 @@ describe('曜日ごとの時間', () => {
     expect(canSubmitHabitForm({ ...f, weekdayTimes: { ...f.weekdayTimes, 6: { startTime: '10:00', endTime: '10:00' } } })).toBe(false)
   })
 
-  it('時刻ひとつの習慣は終わりを持たず、毎日・時間なしにしたら曜日ごとの時間を外す', () => {
+  it('時刻ひとつの習慣は終わりを持たず、毎日なら 7 日とも、時間なしにしたら曜日ごとの時間を外す', () => {
     const fixed = { ...gym, timeMode: 'fixed' as const, perWeekday: true, weekdayTimes: { 6: { startTime: '10:00', endTime: '11:00' } } }
     expect(habitFromForm(fixed).weekdayTimes).toEqual({
       1: { startTime: '18:00', endTime: null },
       3: { startTime: '18:00', endTime: null },
       6: { startTime: '10:00', endTime: null },
     })
-    expect(habitFromForm({ ...fixed, freq: 'daily' }).weekdayTimes).toBeUndefined()
+    expect(Object.keys(habitFromForm({ ...fixed, freq: 'daily' }).weekdayTimes ?? {})).toEqual(['1', '2', '3', '4', '5', '6', '7'])
     expect(habitFromForm({ ...fixed, timeMode: 'none' }).weekdayTimes).toBeUndefined()
   })
 

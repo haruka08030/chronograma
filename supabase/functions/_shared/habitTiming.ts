@@ -176,12 +176,12 @@ export function isTimedHabit(habit: TimingHabit): boolean {
 
 /**
  * その曜日のいつもの時間（時間を決めた習慣だけ。その日だけの時間は見ない）。
- * 曜日を指定した習慣で曜日ごとの時間があればそれ、無ければ習慣の時間
+ * 曜日ごとの時間があればそれ（どの頻度でも）、無ければ習慣の時間
  */
 export function habitUsualTimesOn(h: TimingHabit, dateKey: string): { startTime: string; endTime: string | null } | null {
   const habit = habitAsOf(h, dateKey)
   if (!isTimedHabit(habit)) return null
-  const w = habit.frequency.type === 'weekly' ? habit.weekdayTimes?.[isoWeekdayOf(dateKey)] : undefined
+  const w = habit.weekdayTimes?.[isoWeekdayOf(dateKey)]
   const startTime = w?.startTime ?? habit.startTime!
   if (habit.timeMode !== 'range') return { startTime, endTime: null }
   return { startTime, endTime: w?.endTime ?? habit.endTime! }

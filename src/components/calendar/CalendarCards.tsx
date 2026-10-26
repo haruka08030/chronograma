@@ -4,7 +4,7 @@ import { HabitSlotPopover } from '../timeline/HabitSlotPopover'
 import { HabitContextMenu } from '../HabitContextMenu'
 import { requestHabitEdit } from '../../lib/habitEditRequest'
 
-/** 押した予定のカード（Google の予定は `GoogleEventPopover`、アプリの予定・To-Do は `EventPopover`、習慣の枠は `HabitSlotPopover` と習慣のメニュー）。`OverlaySuspense` の中に置く */
+/** 押した予定のカード（Google の予定は `GoogleEventPopover`、アプリの予定・To-Do は `EventPopover`、習慣の枠は `HabitSlotPopover` と習慣のメニュー、その「編集」は `HabitEditHost`）。`OverlaySuspense` の中に置く */
 export function CalendarCards({ cards }: { cards: CalendarCardsState }) {
   const { googleCard, closeGoogleCard, eventCard, closeCard, openDetailFromCard, habitCard, closeHabitCard, habitMenu, closeHabitMenu } =
     cards

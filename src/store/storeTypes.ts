@@ -3,7 +3,7 @@ import type { Task } from '../types/task'
 import type { ListKind, TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { CalendarEvent } from '../types/calendarEvent'
-import type { Habit } from '../types/habit'
+import type { Habit, HabitTimeOverride } from '../types/habit'
 import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
@@ -341,6 +341,17 @@ export interface TaskState {
    * その日だけ習慣の時間を変える（タイムラインで枠を動かした・習慣の段のチップを格子に置いた）。習慣の時間と同じにしたらその日の分は消す
    */
   setHabitDayTime: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
+  /**
+   * 習慣の枠のカードで時間を直す。`scope` が `day` ならその日だけ（日ごとの時間）、`weekday` ならその日から先の同じ曜日。
+   * 曜日は `until`（yyyy-MM-dd、含む）までならその曜日の日ごとの時間を入れ、null（ずっと）なら曜日ごとの時間を変える
+   * （今日より前の日は前の設定のまま、今日〜その日の前の同じ曜日も前の時間のまま）。時刻ひとつの習慣は `endTime: null`
+   */
+  setHabitTime: (
+    id: string,
+    dateKey: string,
+    times: HabitTimeOverride,
+    scope: { kind: 'day' } | { kind: 'weekday'; until: string | null },
+  ) => void
   /** その日だけの時間を消して、いつもの時間に戻す（格子に置いた時刻ひとつの習慣を習慣の段のチップに戻す） */
   clearHabitDayTime: (id: string, dateKey: string, label?: ToastText) => void
   /**

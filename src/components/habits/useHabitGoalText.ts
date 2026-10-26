@@ -26,15 +26,23 @@ export function useHabitGoalText(h: Habit): string {
         : null
   // 時間の目標（「毎日 · 30 分」）
   const goalTime = h.goalMinutes ? t('habits.goalMinutesValue', { count: h.goalMinutes }) : null
-  if (h.frequency.type === 'weekly' && h.weekdayTimes && h.timeMode !== 'none') {
+  if (h.weekdayTimes && h.timeMode !== 'none') {
+    // 曜日を指定した習慣は選んだ曜日、ほかは 7 日を同じ時間ごとにまとめる（毎日・週に◯回は頭に頻度を付ける）
+    const days: HabitWeekday[] = h.frequency.type === 'weekly' ? [...h.frequency.weekdays].sort((a, b) => a - b) : [1, 2, 3, 4, 5, 6, 7]
     const groups = new Map<string, HabitWeekday[]>()
-    for (const d of [...h.frequency.weekdays].sort((a, b) => a - b)) {
+    for (const d of days) {
       const w = h.weekdayTimes[d]
       const time = timeText(w?.startTime ?? h.startTime, w ? w.endTime : h.endTime) ?? ''
       groups.set(time, [...(groups.get(time) ?? []), d])
     }
     const grouped = [...groups].map(([time, days]) => [dayNames(days), time].filter(Boolean).join(' ')).join(t('habits.timeGroupSeparator'))
-    return [grouped, goalTime].filter(Boolean).join(' · ')
+    const freq =
+      h.frequency.type === 'daily'
+        ? t('habits.goalDaily')
+        : h.frequency.type === 'timesPerWeek'
+          ? t('habits.goalTimesPerWeek', { count: h.frequency.count })
+          : null
+    return [freq, grouped, goalTime].filter(Boolean).join(' · ')
   }
   // 曜日を指定した習慣は「週に3日」だと回数で数える習慣に読めるので、決めた曜日をそのまま出す（月・水・金）
   const goal =

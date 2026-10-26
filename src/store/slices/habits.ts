@@ -1,9 +1,9 @@
 /** 習慣 */
 import { addDays } from 'date-fns'
-import { isHabitDeleted, type Habit, type HabitTimeOverrides } from '../../types/habit'
+import { isHabitDeleted, type Habit, type HabitTimeOverride, type HabitTimeOverrides, type HabitWeekday } from '../../types/habit'
 import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { newId } from '../../lib/id'
-import { buildHabitRecordIndex, habitDayStatus, habitTimesOn, habitUsualTimesOn } from '../../lib/habitTiming'
+import { buildHabitRecordIndex, habitDayStatus, habitTimesOn, habitUsualTimesOn, isoWeekdayOf } from '../../lib/habitTiming'
 import { logColorNames } from '../storeDefaults'
 import { completeHabitAsPlannedPatch, recordHabitAtPatch, uncheckHabitDatePatch } from '../habitRecord'
 import type { TaskState } from '../storeTypes'
@@ -17,6 +17,7 @@ type HabitsActions = Pick<
   | 'addHabit'
   | 'updateHabit'
   | 'setHabitDayTime'
+  | 'setHabitTime'
   | 'clearHabitDayTime'
   | 'setHabitRest'
   | 'deleteHabit'
@@ -31,6 +32,18 @@ type HabitsActions = Pick<
 
 /** 一度に休みにできる日数（期間で選んだとき） */
 const HABIT_REST_MAX_DAYS = 366
+
+/** 期限まで同じ曜日の時間を変えるとき、日ごとの時間を入れる回数の上限（約 1 年） */
+const HABIT_WEEKDAY_TIME_MAX_WEEKS = 53
+
+const sameTimes = (a: HabitTimeOverride | null, b: HabitTimeOverride | null) =>
+  !!a && !!b && a.startTime === b.startTime && a.endTime === b.endTime
+
+/** その日だけの時間を `times` にする（いつもの時間と同じなら消す） */
+function putDayTime(habit: Habit, overrides: HabitTimeOverrides, dateKey: string, times: HabitTimeOverride) {
+  if (sameTimes(habitUsualTimesOn(habit, dateKey), times)) delete overrides[dateKey]
+  else overrides[dateKey] = times
+}
 
 export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActions {
   const { pushUndo } = undo
@@ -102,6 +115,53 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
           if (h.id !== id) return h
           // 1 日も無くなったら項目ごと外す（同期で「変わった」と見ない形にそろえる）
           const updated: Habit = { ...h, timeOverrides: overrides, updatedAt: now }
+          if (Object.keys(overrides).length === 0) delete updated.timeOverrides
+          return updated
+        }),
+      }))
+    },
+    setHabitTime: (id, dateKey, times, scope) => {
+      const habit = get().habits.find((h) => h.id === id)
+      if (!habit) return
+      const overrides: HabitTimeOverrides = { ...habit.timeOverrides }
+      let next: Habit = habit
+      if (scope.kind === 'day') {
+        putDayTime(habit, overrides, dateKey, times)
+      } else if (scope.until) {
+        // 期限まで: その曜日の日ごとの時間を入れる（期限の後はいつもの時間）
+        for (let d = fromDateKey(dateKey), i = 0; toDateKey(d) <= scope.until && i < HABIT_WEEKDAY_TIME_MAX_WEEKS; d = addDays(d, 7), i++) {
+          putDayTime(habit, overrides, toDateKey(d), times)
+        }
+      } else {
+        // ずっと: 曜日ごとの時間を変える。今日〜その日の前の同じ曜日は前の時間のまま、その日から先の同じ曜日の日ごとの時間は外す
+        const today = appTodayKey()
+        const weekday = isoWeekdayOf(dateKey) as HabitWeekday
+        const from = dateKey > today ? dateKey : today
+        for (let d = fromDateKey(today); toDateKey(d) < dateKey; d = addDays(d, 1)) {
+          const key = toDateKey(d)
+          if (isoWeekdayOf(key) === weekday && !overrides[key]) {
+            const before = habitUsualTimesOn(habit, key)
+            if (before && !sameTimes(before, times)) overrides[key] = before
+          }
+        }
+        for (const key of Object.keys(overrides)) if (key >= from && isoWeekdayOf(key) === weekday) delete overrides[key]
+        next = { ...habit, weekdayTimes: { ...habit.weekdayTimes, [weekday]: times } }
+        // 前の日は前の設定のまま数える
+        const pastRules = pastRulesAfterEdit(habit, next, today)
+        if (pastRules) next.pastRules = pastRules
+      }
+      const changed =
+        next !== habit ||
+        Object.keys(overrides).length !== Object.keys(habit.timeOverrides ?? {}).length ||
+        Object.entries(overrides).some(([k, v]) => !sameTimes(habit.timeOverrides?.[k] ?? null, v))
+      if (!changed) return
+      pushUndo()
+      const now = new Date().toISOString()
+      set((s) => ({
+        habits: s.habits.map((h) => {
+          if (h.id !== id) return h
+          // 1 日も無くなったら項目ごと外す（同期で「変わった」と見ない形にそろえる）
+          const updated: Habit = { ...next, timeOverrides: overrides, updatedAt: now }
           if (Object.keys(overrides).length === 0) delete updated.timeOverrides
           return updated
         }),
