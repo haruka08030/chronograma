@@ -37,6 +37,7 @@ import { PlannerSuggestions } from './today/PlannerSuggestions'
 import { PlannerHabitRows, PlannerHabits } from './today/PlannerHabits'
 import { splitHabitDayKey } from '../lib/habitDayKey'
 import { usePlannerHabitRows } from '../hooks/usePlannerHabitRows'
+import { useShowsOnboarding } from '../hooks/useShowsOnboarding'
 import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
 import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSuggestions'
@@ -150,10 +151,12 @@ export function TodayPlannerView() {
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
-  const [paneOf, setPaneOf] = useState(() => ({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom) }))
+  // はじめの案内は「やること」の面にあるので、出ている間はそちらから開く
+  const onboarding = useShowsOnboarding(viewingToday)
+  const [paneOf, setPaneOf] = useState(() => ({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom, onboarding) }))
   const paneCurrent = paneOf.dateKey === dateKey && paneOf.opened === opened
-  if (!paneCurrent) setPaneOf({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom) })
-  const mobilePane = paneCurrent ? paneOf.pane : openedPlannerPane(dateKey, wrapUpFrom)
+  if (!paneCurrent) setPaneOf({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom, onboarding) })
+  const mobilePane = paneCurrent ? paneOf.pane : openedPlannerPane(dateKey, wrapUpFrom, onboarding)
   const setMobilePane = (pane: PlannerPane) => {
     choosePlannerPane(pane, todayKey)
     setPaneOf({ dateKey, opened, pane })

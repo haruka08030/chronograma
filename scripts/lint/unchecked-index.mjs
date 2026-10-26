@@ -4,7 +4,7 @@
 //   npm run lint:unchecked-index
 import { spawnSync } from 'node:child_process'
 
-const LIMIT = 90
+const LIMIT = 88
 
 const res = spawnSync('npx', ['tsc', '-p', 'tsconfig.app.json', '--noEmit', '--noUncheckedIndexedAccess'], { encoding: 'utf8' })
 if (res.error || !res.stdout) {

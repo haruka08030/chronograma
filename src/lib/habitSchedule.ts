@@ -38,7 +38,7 @@ export function habitWeekDates(date: Date): Date[] {
  * 終わった週はその週の設定、今週は今の設定で数える
  */
 export function habitAsOfWeek(habit: Habit, date: Date): Habit {
-  return habitAsOf(habit, toDateKey(habitWeekDates(date)[6]))
+  return habitAsOf(habit, toDateKey(addDays(startOfWeek(date, { weekStartsOn: HABIT_WEEK_STARTS_ON }), 6)))
 }
 
 /** その日を含む週に達成した日数（時間を決めた習慣は時間どおりの日だけ。`records` を渡したとき） */

@@ -7,7 +7,7 @@ import { habitAsOf, habitDayStatus, habitMinutesOn, habitRecordFor, type HabitRe
 import { HABIT_DONE_FILL, HABIT_MISSED, HABIT_OFF_TIME_FILL, HABIT_PENDING } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
 import { TODAY_COLUMN, TODAY_TEXT } from '../../lib/dayMarker'
-import { toDateKey } from '../../lib/dateKey'
+import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { CheckIcon } from '../icons'
@@ -110,12 +110,13 @@ function HabitWeekRow({
   const goalText = useHabitGoalText(h)
   // 右端: 週に◯回は見ている週の回数（休みの日を除いた日数まで。まるごと休みの週は出さない）、
   // ほかは今の連続。途切れたら最長を残す（どちらも 0 なら出さない）
+  const weekStart = weekDates[0] ?? fromDateKey(todayKey)
   const tail =
-    habitAsOfWeek(h, weekDates[0]).frequency.type === 'timesPerWeek'
+    habitAsOfWeek(h, weekStart).frequency.type === 'timesPerWeek'
       ? (() => {
-          const count = habitWeekRequired(h, weekDates[0])
+          const count = habitWeekRequired(h, weekStart)
           if (count === 0) return null
-          return t('habits.weekCountValue', { done: Math.min(habitWeekDoneCount(h, weekDates[0], habitRecords), count), count })
+          return t('habits.weekCountValue', { done: Math.min(habitWeekDoneCount(h, weekStart, habitRecords), count), count })
         })()
       : (() => {
           const streak = habitStreak(h, habitRecords)
