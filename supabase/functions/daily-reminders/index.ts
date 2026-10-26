@@ -310,7 +310,7 @@ Deno.serve(async (req) => {
           let query = admin
             .from('habits')
             .select(
-              'id,title,time_mode,start_time,end_time,frequency,completed_dates,time_overrides,weekday_times,rest_dates,goal_minutes,past_rules,archived_at,deleted_at',
+              'id,title,time_mode,start_time,end_time,frequency,completed_dates,time_overrides,weekday_times,rest_dates,goal_minutes,past_rules,kind,archived_at,deleted_at',
             )
             .eq('user_id', userId)
             .is('deleted_at', null)

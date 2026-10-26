@@ -712,6 +712,13 @@ const SCREENS = [
       { click: '[role=menuitem]:has-text("この日だけ") >> visible=true' },
     ],
   },
+  // ルーティンを作るフォーム（時間帯だけ・回数を指定なし・目標なし）と、ルーティンの詳細（いつもの時間からのずれ、#601）
+  {
+    name: 'habits-new-routine',
+    view: 'habits',
+    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("ルーティン")'],
+  },
+  { name: 'habits-routine-detail', view: 'habits', click: 'li[data-habit-row]:has-text("お風呂") button >> nth=0' },
   // 下の「アーカイブ」を開いた状態（戻すボタン）と、その行の右クリック（戻す・削除）
   { name: 'habits-archived', view: 'habits', click: 'button[aria-expanded]:has-text("アーカイブ")', scrollToBottom: true },
   {

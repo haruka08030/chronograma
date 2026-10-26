@@ -9,6 +9,7 @@ import {
   readHabitWeekdayTimes,
   readHabitGoalMinutes,
   readHabitPastRules,
+  readHabitKind,
   type Habit,
 } from '../types/habit'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
@@ -400,6 +401,8 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
     ...(weekdayTimes ? { weekdayTimes } : {}),
     ...(goalMinutes ? { goalMinutes } : {}),
     ...(pastRules ? { pastRules } : {}),
+    // 習慣（ルーティンでない）には無い
+    ...(readHabitKind(rec.kind) ? { kind: 'routine' as const } : {}),
     // ゴミ箱に無い習慣には無い
     ...(deletedAt ? { deletedAt } : {}),
   }

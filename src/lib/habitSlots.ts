@@ -24,7 +24,7 @@ export function habitToPlannedItem(habit: Habit, dateKey: string, records?: Habi
     summary: habit.title,
     startTime: times.startTime,
     endTime: times.endTime,
-    source: 'habit',
+    source: habit.kind === 'routine' ? 'routine' : 'habit',
   }
 }
 

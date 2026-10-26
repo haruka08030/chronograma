@@ -45,6 +45,8 @@ export interface WrapUpHabitRow {
   rest_dates?: unknown
   goal_minutes?: number | null
   past_rules?: unknown
+  /** `habit` / `routine`（`048`） */
+  kind?: string | null
   archived_at?: string | null
   deleted_at?: string | null
 }
@@ -188,6 +190,7 @@ export function habitFromRow(row: WrapUpHabitRow): SlotHabit | null {
     timeOverrides: readTimes(row.time_overrides, DATE_KEY),
     restDates: isStringArray(row.rest_dates) ? row.rest_dates : undefined,
     pastRules: readPastRules(row.past_rules),
+    ...(row.kind === 'routine' ? { kind: 'routine' as const } : {}),
     archivedAt: row.archived_at ?? null,
   }
 }

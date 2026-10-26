@@ -1,7 +1,7 @@
 /**
  * その日の結果「予定 N 件中 M 件・予定外 ◯時間」の数え方。アプリ（今日の計画の見出し・週のふりかえり・タブを開いている間の通知）と
  * Edge Function（夜のまとめ・朝のまとめの「昨日」）で同じものを使う。依存は持たない（どちらからも読めるように）。
- * - 予定 N 件: 時間に置いた To-Do（その日から別の日へ移したものも）と、時間を決めた習慣の枠。予定（授業・バイト）は入れない
+ * - 予定 N 件: 時間に置いた To-Do（その日から別の日へ移したものも）と、時間を決めた習慣の枠。予定（授業・バイト）とルーティンの枠は入れない
  *   （突き合わせには入れて、その時間の記録を「予定外」にしない）。今日はまだ終わっていない予定を入れない（先に記録できたものは入れる）
  * - M 件: そのうち記録と組になった（時刻のずれは問わない）・✓ で終えたもの
  * - 予定外: どの予定とも組にならなかった記録の時間
@@ -17,8 +17,13 @@ import {
   type TimingRecord,
 } from './habitTiming.ts'
 
-/** 突き合わせる予定の出どころ（Google / 自分で置いた To-Do / 予定（授業・バイト） / 習慣の枠） */
-export type PlannedSource = 'google' | 'scheduled-task' | 'scheduled-event' | 'habit'
+/** 突き合わせる予定の出どころ（Google / 自分で置いた To-Do / 予定（授業・バイト） / 習慣の枠 / ルーティンの枠） */
+export type PlannedSource = 'google' | 'scheduled-task' | 'scheduled-event' | 'habit' | 'routine'
+
+/** 完了・達成の無い予定（授業・バイト・ルーティン）。突き合わせには入れるが「予定 N 件」・予定した時間には数えない */
+export function isUncountedPlanSource(source: PlannedSource): boolean {
+  return source === 'scheduled-event' || source === 'routine'
+}
 
 /** 記録と突き合わせる予定 */
 export interface PlanSlot {
@@ -213,14 +218,21 @@ export function isHabitScheduledOn(h: SlotHabit, dateKey: string): boolean {
 
 /**
  * 「予定 N 件」に入れる、その日の習慣の枠（時間を決めた習慣だけ。枠は ✓ で作る記録と同じ時間）。
- * 週に◯回の習慣は、やらなかった日の枠を入れない（やらない日の枠を「できなかった予定」にしない）
+ * 週に◯回の習慣は、やらなかった日の枠を入れない（やらない日の枠を「できなかった予定」にしない）。
+ * ルーティンの枠は `routine`（突き合わせにだけ使い、数えない）
  */
 export function habitPlanSlot<R extends TimingRecord>(habit: SlotHabit, dateKey: string, records: HabitRecordIndex<R>): PlanSlot | null {
   if (!isHabitScheduledOn(habit, dateKey)) return null
   if (habitAsOf(habit, dateKey).frequency.type === 'timesPerWeek' && habitDayStatus(habit, dateKey, records) === 'missed') return null
   const times = plannedRecordTimes(habit, dateKey)
   if (!times) return null
-  return { id: habitSlotId(habit.id, dateKey), summary: habit.title, startTime: times.startTime, endTime: times.endTime, source: 'habit' }
+  return {
+    id: habitSlotId(habit.id, dateKey),
+    summary: habit.title,
+    startTime: times.startTime,
+    endTime: times.endTime,
+    source: habit.kind === 'routine' ? 'routine' : 'habit',
+  }
 }
 
 /** 予定の時間が過ぎたか（過ぎた日はすべて。今日は終わりの時刻を過ぎたもの。日をまたぐ予定は今日のうちは過ぎていない） */
@@ -268,8 +280,8 @@ export function countDayResult<P extends PlanSlot, A extends LogSlot>(
       continue
     }
     if (!pair.planned) continue
-    // 予定（授業・バイト）は完了できないので数えない（突き合わせには入れて、その時間の記録を「予定外」にしない）
-    if (pair.planned.source === 'scheduled-event') continue
+    // 予定（授業・バイト）・ルーティンは完了できないので数えない（突き合わせには入れて、その時間の記録を「予定外」にしない）
+    if (isUncountedPlanSource(pair.planned.source)) continue
     // ✓ で終えた時刻つきの To-Do は、記録が無くても予定どおり（✓ は完了だけで記録は足さない。予定の枠が時間を表す）
     const followed =
       pair.status === 'matched' || pair.status === 'time-drift' || (pair.status === 'planned-only' && pair.planned.completed === true)

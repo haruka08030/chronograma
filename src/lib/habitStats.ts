@@ -1,5 +1,5 @@
 import { addDays, addWeeks, startOfWeek, subDays, subWeeks } from 'date-fns'
-import { isHabitActive, isHabitRestOn, type Habit } from '../types/habit'
+import { isHabitActive, isHabitRestOn, isRoutine, type Habit } from '../types/habit'
 import { habitAsOfWeek, habitWeekDates, habitWeekDoneCount, habitWeekRequired, isHabitScheduledOnDate } from './habitSchedule'
 import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { appDayKeyOf, appToday } from './timeZone'
@@ -23,10 +23,10 @@ const isTimesPerWeek = (h: Habit) => h.frequency.type === 'timesPerWeek'
 
 /**
  * 達成率・ヒートマップ・週のふりかえりの分母に入れる日か: 予定の日で、習慣を作った日（アプリの日付）以降。
- * 作る前の日でも達成を付けていれば（取り込みなど）数える
+ * 作る前の日でも達成を付けていれば（取り込みなど）数える。ルーティンは達成を数えないので入れない
  */
 export function isHabitCountedOnDate(h: Habit, d: Date, records?: HabitRecordIndex): boolean {
-  if (!isHabitScheduledOnDate(h, d)) return false
+  if (isRoutine(h) || !isHabitScheduledOnDate(h, d)) return false
   const key = toDateKey(d)
   return key >= appDayKeyOf(h.createdAt) || achieved(h, key, records)
 }

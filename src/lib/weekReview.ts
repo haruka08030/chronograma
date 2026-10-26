@@ -1,12 +1,12 @@
 import { isLogTask, isSleepTask, type Task } from '../types/task'
-import { isHabitActive, type Habit } from '../types/habit'
+import { isHabitActive, isRoutine, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
 import { buildHabitRecordIndex, habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { isHabitCountedOnDate, timesPerWeekTally } from './habitStats'
 import { habitAsOfWeek } from './habitSchedule'
 import type { MatchedPair } from './matchEvents'
-import { countDayResult, habitPlanSlot, planEnded } from '../../supabase/functions/_shared/dayResult.ts'
+import { countDayResult, habitPlanSlot, isUncountedPlanSource, planEnded } from '../../supabase/functions/_shared/dayResult.ts'
 import { scheduledTaskToPlannedItem } from './plannedItemUtils'
 import { movedPlanToPlannedItem, movedPlansOnDay } from './movedPlans'
 import { isActiveTask } from './taskLifecycle'
@@ -164,7 +164,7 @@ export function getReview(
 
   const habitWeeks = period === 'month' ? monthHabitWeekStarts(anchor) : [reviewPeriodStart('week', anchor)]
   for (const h of habits) {
-    if (!isHabitActive(h)) continue
+    if (!isHabitActive(h) || isRoutine(h)) continue
     for (const week of habitWeeks) {
       if (toDateKey(week) > todayKey) break
       if (habitAsOfWeek(h, week).frequency.type !== 'timesPerWeek') continue
@@ -312,10 +312,10 @@ function collectReviewDays(
       dayTagMinutes.set(label, (dayTagMinutes.get(label) ?? 0) + min)
     }
     day.tagMinutes = sortedTagMinutes(dayTagMinutes)
-    // 日ごとの棒の予定の枠は、計画どおりと同じ予定の集まり（To-Do・習慣の枠）から。予定（授業・バイト）は入れない
+    // 日ごとの棒の予定の枠は、計画どおりと同じ予定の集まり（To-Do・習慣の枠）から。予定（授業・バイト）・ルーティンは入れない
     // ラベル別の予定した時間も同じ集まりから（棒の枠の合計 = ラベル別の予定の合計）
     for (const p of planned) {
-      if (p.source === 'scheduled-event') continue
+      if (isUncountedPlanSource(p.source)) continue
       const min = plannedItemMinutes(p)
       day.plannedMinutes += min
       const tag = planLabel.get(p) ?? ''

@@ -26,6 +26,8 @@ export interface TimingHabit {
   goalMinutes?: number
   /** 前の日の設定（古い順。`habitAsOf`） */
   pastRules?: readonly HabitPastRule[]
+  /** `routine` はルーティン（毎日の予定のプリセット。「予定 N 件」に入れない） */
+  kind?: 'routine'
 }
 
 /** 日によって変わる習慣の設定（頻度・時間・時間の目標） */
