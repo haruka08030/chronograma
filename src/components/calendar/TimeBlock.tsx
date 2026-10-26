@@ -16,7 +16,7 @@ import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 /**
  * タイムライン上の 1 ブロック（Google カレンダー風）。
  * 記録（実績）とこれからの予定（Google の予定も）は薄い塗り＋枠（`gc-plan`）。記録は右、予定は左の列で見分ける。
- * 終わった・完了した予定は灰色（`gc-missed`）。
+ * 終わった・完了した予定は灰色（`gc-missed`）。完了は右上の ✓ の塗りだけで見せる（題名に ✓ は付けない、#638）。
  * 背景色の細い縁で、隣り合う・重なるブロックの境目を見せる。
  * 文字はブロックの上端に寄せる（button は既定で縦中央。長いブロックに後の予定が重なっても題名・時刻が隠れないように）。
  */
@@ -39,7 +39,7 @@ export function TimeBlock({
   running?: boolean
   /** やらなかった予定（#528）。灰色に重ねて薄く・取り消し線 */
   skipped?: boolean
-  /** 右上に ✓（`SlotCheck`）を重ねる。文字を避け、完了は ✓ の塗りで見せる */
+  /** 右上に ✓（`SlotCheck`）を重ねる。文字を避ける */
   withCheck?: boolean
   /** クリック・タップで開く（ドラッグしない Google の予定用） */
   onTap?: () => void
@@ -73,7 +73,6 @@ export function TimeBlock({
   const state = !isLog && dayKey ? planVisualState(task, dayKey) : 'upcoming'
   const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : state === 'upcoming' ? 'gc-plan' : 'gc-missed'
   const moon = sleep && <MoonSolidIcon className="mr-1 inline h-3 w-3 -translate-y-px" />
-  const doneMark = state === 'done' && !withCheck ? '✓ ' : ''
   // 締切がこの日まで（過ぎた・この予定では間に合わなければ赤、当日は黄）の予定は、題名の前に締切の →| を付ける（先の締切は出さない）（予定を入れても締切を見失わない）
   const dueTone =
     !isLog && !sleep && state === 'upcoming' && dayKey && task.dueDate && task.dueDate <= dayKey
@@ -131,7 +130,6 @@ export function TimeBlock({
             {runningDot}
             {dueDot}
             {moon}
-            {doneMark}
             {task.title}
           </span>
           <span className="opacity-80">
@@ -148,7 +146,6 @@ export function TimeBlock({
             {runningDot}
             {dueDot}
             {moon}
-            {doneMark}
             {task.title}
             <span className="hidden @max-[5rem]:inline">{t('common.listSeparator')}</span>
           </span>
@@ -163,7 +160,7 @@ export function TimeBlock({
 }
 
 /**
- * 予定ブロックの右上に重ねる ✓（ToDo の完了、習慣の「予定どおりやった」、Google の予定を記録にする）。
+ * 予定ブロックの右上に重ねる ✓。意味は「終わった」（#638）: To-Do は完了、習慣は予定どおりやった、予定・Google の予定は記録にする。
  * ブロック自体が button なので入れ子にせず、同じ位置に重ねる。
  */
 export function SlotCheck({

@@ -8,7 +8,8 @@ import { canSetMyEventTime } from '../../lib/googleEventEdit'
 import type { CalendarEvent } from '../../types/calendarEvent'
 import { isEventTask, isSleepTask, type Task } from '../../types/task'
 import { layoutPlanAndLog } from '../../lib/overlapLayout'
-import { recordHex } from '../../lib/logCategoryColors'
+import { logLabelFromTask, recordHex } from '../../lib/logCategoryColors'
+import { checkRecordTimes, planRecordOn } from '../../lib/planCheck'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex } from '../../lib/planVisual'
 import { habitSlotsOnDay } from '../../lib/habitSlots'
@@ -141,6 +142,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
+  const addTimeLog = useTaskStore((s) => s.addTimeLog)
+  const deleteTask = useTaskStore((s) => s.deleteTask)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const absentOn = useAbsentOn()
   const key = toDateKey(day)
@@ -397,35 +400,59 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         )
       })}
 
-      {shownTimed.map((t) => (
-        <div className="group/slot" key={t.id} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
-          <TimeBlock
-            task={t as TimeBlockTask}
-            onPointerDown={(e) =>
-              handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
-                startTime: t.startTime!,
-                endTime: t.endTime!,
-                kind: 'todo',
-              })
-            }
-            dayKey={key}
-            onOpenDetail={() => openCard(t.id)}
-            hStyle={planStyle(t.id)}
-            colorHex={planHex(t)}
-            withCheck={!isEventTask(t)}
-          />
-          {/* 予定（バイト・授業）には完了の ✓ を出さない。時間が過ぎたらグレー（Google の予定と同じ） */}
-          {!isEventTask(t) && (
-            <SlotCheck
-              {...blockGeometry(t as TimeBlockTask, key, false)}
+      {shownTimed.map((t) => {
+        // ✓ は「終わった」（#638）。To-Do はいつも出して完了。予定（バイト・授業）は始まってから出して記録にする（Google の予定と同じ）
+        const event = isEventTask(t)
+        const seg = { startTime: t.startTime!, endTime: t.endTime! }
+        const record = event ? planRecordOn(dayLogs, t.title, seg) : undefined
+        // 日をまたぐ予定は列ごとに区間しか描いていないので ✓ は出さない（カードの「記録にする」で記録にする）
+        const canCheck = event ? !!record || (hasStarted(seg.startTime) && (!t.endDate || t.endDate === key)) : true
+        const done = event ? !!record : t.completed
+        return (
+          <div className="group/slot" key={t.id} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
+            <TimeBlock
+              task={{ ...(t as TimeBlockTask), completed: done }}
+              onPointerDown={(e) =>
+                handleBlockPointerDown(e, t.id, key, t.startTime!, t.endTime!, gridRef.current, {
+                  startTime: t.startTime!,
+                  endTime: t.endTime!,
+                  kind: 'todo',
+                })
+              }
+              dayKey={key}
+              onOpenDetail={() => openCard(t.id)}
               hStyle={planStyle(t.id)}
-              done={t.completed}
-              label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
-              onCheck={() => toggleTask(t.id)}
+              colorHex={planHex(t)}
+              withCheck={canCheck}
             />
-          )}
-        </div>
-      ))}
+            {canCheck && (
+              <SlotCheck
+                {...blockGeometry(t as TimeBlockTask, key, false)}
+                hStyle={planStyle(t.id)}
+                done={done}
+                label={
+                  event
+                    ? record
+                      ? tr('weekCalendar.eventUnrecord')
+                      : tr('weekCalendar.eventToRecord')
+                    : t.completed
+                      ? tr('taskItem.markIncomplete')
+                      : tr('taskItem.markComplete')
+                }
+                onCheck={() => {
+                  if (!event) return toggleTask(t.id)
+                  if (record) return deleteTask(record.id)
+                  // 途中で押したら今まで（#638）。ラベルはカードの「記録にする」と同じく予定のラベル
+                  const times = checkRecordTimes(seg, limitMin)
+                  const { timeLogTagPresets } = useTaskStore.getState()
+                  const label = logLabelFromTask(t, timeLogTagPresets, logCategoryColors)
+                  addTimeLog(t.title, key, times.startTime, times.endTime, label.tags, undefined, null, label.color)
+                }}
+              />
+            )}
+          </div>
+        )
+      })}
       {dayLogs.map((t) => (
         <div key={`${t.id}::${key}`} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
           <TimeBlock
@@ -507,9 +534,11 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         )
       })}
       {shownTimedEvents.map(({ e, seg }) => {
-        // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー。やらなかった予定（#528）は薄く・取り消し線で、✓ は出さない
-        const recorded = dayLogs.some((l) => l.title === e.summary)
-        const canCheck = hasStarted(seg.startTime) && !recorded && !e.skipped
+        // Google の予定も予定。✓ は始まってから出して記録にし、もう一度押すと記録を外す（#638）。時間が過ぎたらグレー。
+        // やらなかった予定（#528）は薄く・取り消し線で、✓ は出さない
+        const record = planRecordOn(dayLogs, e.summary, seg)
+        const recorded = !!record
+        const canCheck = (recorded || hasStarted(seg.startTime)) && !e.skipped
         // ドラッグで動かした時間は自分の時間になる（Google の予定は変えない、#625）。
         // 日をまたぐ予定は列ごとに区間しか描いていないので、ドラッグでは動かさない（押すとカードで直せる）
         const editable = canSetMyEventTime(e) && !googleEventCrossesDay(e)
@@ -550,12 +579,13 @@ export const WeekDayColumn = memo(function WeekDayColumn({
                   false,
                 )}
                 hStyle={planStyle(`event-${e.id}`)}
-                label={t('weekCalendar.eventToRecord')}
+                done={recorded}
+                label={recorded ? t('weekCalendar.eventUnrecord') : t('weekCalendar.eventToRecord')}
                 onCheck={() => {
+                  if (record) return deleteTask(record.id)
                   // 今より先までの予定は、今までの分だけ記録にする。日をまたぐ予定はこの日の区間（24:00 までは 0:00 終わり）
-                  const segEnd = seg.endTime === '24:00' ? '00:00' : seg.endTime
-                  const end = limitMin !== null && timeToMinutes(seg.endTime) > limitMin ? minutesToTime(limitMin) : segEnd
-                  addCompletedTaskWithTime(e.summary, key, seg.startTime, end, e.color ?? DEFAULT_GOOGLE_EVENT_HEX)
+                  const times = checkRecordTimes(seg, limitMin)
+                  addCompletedTaskWithTime(e.summary, key, times.startTime, times.endTime, e.color ?? DEFAULT_GOOGLE_EVENT_HEX)
                 }}
               />
             )}

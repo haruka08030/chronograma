@@ -9,7 +9,8 @@ import { completeHabitAsPlannedPatch, recordHabitAtPatch, uncheckHabitDatePatch 
 import type { TaskState } from '../storeTypes'
 import { patchChanges } from '../../lib/sameValue'
 import { createdPastRules, pastRulesAfterEdit } from '../../lib/habitPastRules'
-import { appTodayKey } from '../../lib/timeZone'
+import { appTodayKey, zonedNow } from '../../lib/timeZone'
+import { minutesOfDay } from '../../lib/clockTime'
 import type { SliceContext } from './sliceTypes'
 
 type HabitsActions = Pick<
@@ -262,7 +263,11 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
     },
     completeHabitAsPlanned: (habitId, dateKey) => {
       // 時間を決めた習慣は、予定どおりの時刻の記録も作る（`habitRecord.ts`）
-      const patch = completeHabitAsPlannedPatch(get(), habitId, dateKey, { now: new Date().toISOString(), colorNames: logColorNames() })
+      const patch = completeHabitAsPlannedPatch(get(), habitId, dateKey, {
+        now: new Date().toISOString(),
+        colorNames: logColorNames(),
+        limitMin: recordLimitOn(dateKey),
+      })
       if (!patch) return
       // 記録を作ったときは、どのラベルで残したかを出す（習慣の色＝ラベルなので、黙って付くと気付けない）
       const record = 'tasks' in patch ? patch.tasks[patch.tasks.length - 1] : undefined
@@ -292,4 +297,11 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       set(patch)
     },
   }
+}
+
+/** 記録を置ける最後の分（今日は今、過ぎた日は無し、先の日は 0。タイムラインの `logLimitAt` と同じ） */
+function recordLimitOn(dateKey: string): number | null {
+  const now = zonedNow()
+  const today = toDateKey(now)
+  return dateKey < today ? null : dateKey > today ? 0 : minutesOfDay(now)
 }

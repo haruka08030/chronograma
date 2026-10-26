@@ -1606,6 +1606,7 @@ export default {
     habitMarkDone: 'Mark done',
     habitUndo: 'Mark as not done',
     eventToRecord: 'Turn into a record',
+    eventUnrecord: 'Remove the record',
     blockTimeAnnounce: '“{{title}}” {{start}}–{{end}}',
     lanePlan: 'Plan',
     laneLog: 'Record',

@@ -1548,6 +1548,7 @@ export default {
     dueMark: '「{{title}}」の締切',
     dueMarkTime: '「{{title}}」の締切（{{time}} まで）',
     eventToRecord: '記録にする',
+    eventUnrecord: '記録を外す',
     blockTimeAnnounce: '「{{title}}」{{start}}–{{end}}',
     lanePlan: '予定',
     laneLog: '記録',
