@@ -181,3 +181,41 @@ describe('習慣の画面: 時間の目標', () => {
     expect(screen.getByText('Daily · 30 min')).toBeInTheDocument()
   })
 })
+
+describe('習慣の画面: 週に◯回の行（#609）', () => {
+  it('7 日の丸ではなく回数分の丸を出し、空いた丸で今日やった・塗った丸で外す', async () => {
+    const user = userEvent.setup()
+    useTaskStore.setState({
+      selectedCalendarDateKey: appTodayKey(),
+      habits: [
+        {
+          id: 'pack',
+          title: 'Face mask',
+          color: '#33B679',
+          timeMode: 'none',
+          startTime: null,
+          endTime: null,
+          frequency: { type: 'timesPerWeek', count: 2 },
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          completedDates: [],
+          archivedAt: null,
+        },
+      ],
+    })
+    render(<HabitsView />)
+    const row = document.querySelector<HTMLElement>('[data-habit-row="pack"]')!
+    // 日のマスは無い
+    expect(row.querySelector('[data-habit-day]')).toBeNull()
+    expect(within(row).getAllByRole('button', { name: 'Done today' })).toHaveLength(2)
+    expect(within(row).getByText('any day')).toBeInTheDocument()
+
+    await user.click(within(row).getAllByRole('button', { name: 'Done today' })[0])
+    expect(useTaskStore.getState().habits[0].completedDates).toEqual([appTodayKey()])
+    // 今日はもう付けたので、残りの丸は押せない（別の日は詳細の月のカレンダーで）
+    expect(within(row).getByRole('button', { name: 'Not yet' })).toBeDisabled()
+
+    await user.click(within(row).getByRole('button', { name: /^Done on .* \(click to undo\)$/ }))
+    expect(useTaskStore.getState().habits[0].completedDates).toEqual([])
+  })
+})
