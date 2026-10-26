@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /** 押した行を済んだ見た目のままその場に残す間 */
-export const COMPLETE_LINGER_MS = 1500
+export const COMPLETE_LINGER_MS = 600
 /** 残したあと、行を縮めて消す間（`animate-row-collapse` と同じ長さ） */
 export const COMPLETE_COLLAPSE_MS = 200
 
 /**
- * To-Do・習慣を完了・達成にしたとき、押した行がその場で ✓ と取り消し線になり、1.5 秒残してから縮んで完了の欄へ移る。
+ * To-Do・習慣を完了・達成にしたとき、押した行がその場で ✓ と取り消し線になり、0.6 秒残してから縮んで完了の欄へ移る。
  * 押した瞬間に行が消えると、押せたか・どこへ行ったかが目で追えないため（#525）。
  * - 待っている間（縮んでいる間も）にもう一度押すと取り消す（完了にしない）
  * - 続けて別の行を押したときは、それぞれの行が自分の時間で移る

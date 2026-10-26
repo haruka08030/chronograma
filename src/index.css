@@ -57,7 +57,7 @@
   --animate-fade-out: fade-out 150ms ease-out forwards;
   --animate-pop-out: pop-out 150ms var(--ease-standard) forwards;
   --animate-sheet-out: sheet-out 150ms var(--ease-standard) forwards;
-  /* 完了にした行が 1.5 秒残ったあと、縮んで消える（`useDeferredComplete`。動きを減らす設定では下の設定で止まり、すぐ消える） */
+  /* 完了にした行が 0.6 秒残ったあと、縮んで消える（`useDeferredComplete`。動きを減らす設定では下の設定で止まり、すぐ消える） */
   --animate-row-collapse: row-collapse 200ms var(--ease-standard) forwards;
   /* 記録中の赤い点。点滅ではなく、ゆっくり明るさが変わる */
   --animate-breathe: breathe 3s ease-in-out infinite;

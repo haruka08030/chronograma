@@ -109,7 +109,7 @@ describe('今日の計画の習慣: 達成にしたとき', () => {
   const bath: Habit = { ...vocab, id: 'bath', title: 'Bath', goalMinutes: undefined, completedDates: [] }
   const doneBox = (c: HTMLElement) => c.querySelector('[data-done]') as HTMLElement
 
-  it('押した行は済んだ見た目でその場に残り、1.5 秒後に縮んでから「完了」の中へ移る', () => {
+  it('押した行は済んだ見た目でその場に残り、0.6 秒後に縮んでから「完了」の中へ移る', () => {
     vi.useFakeTimers()
     try {
       useTaskStore.setState({ habits: [bath], tasks: [] })

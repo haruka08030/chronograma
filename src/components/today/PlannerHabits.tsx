@@ -25,7 +25,7 @@ type Deferred = ReturnType<typeof useDeferredComplete>
  * 行: その色の丸（押すと達成、もう一度押すと外す）・名前・右に時刻 / 今週の回数 / 時間の目標の進み・▶（その名前のタイマー）。
  * まだの行は右のタイムラインへドラッグできる（予定の列＝その日だけの枠、記録の列＝その時間の記録）。
  * 出すのはまだの習慣だけ（済んだものは「完了 N 件」の中の `PlannerHabitRows`）。全部済んだら見出しも出さない。
- * 丸を押した行は済んだ見た目でその場に 1.5 秒残し、縮んでから「完了 N 件」へ移る（To-Do と同じ `useDeferredComplete`）
+ * 丸を押した行は済んだ見た目でその場に 0.6 秒残し、縮んでから「完了 N 件」へ移る（To-Do と同じ `useDeferredComplete`）
  */
 export function PlannerHabits({
   rows,
