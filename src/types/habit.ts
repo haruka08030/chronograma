@@ -128,6 +128,21 @@ export interface Habit {
    * 作った・頻度や時間を変えた日より前の日の結果を変えないため（`habitAsOf`）。無ければ項目ごと無い
    */
   pastRules?: HabitPastRule[]
+  /**
+   * `routine` はルーティン（毎日の予定のプリセット。ご飯・お風呂）。タイムラインに枠を出すだけで、今日の計画の行・連続・達成率・
+   * 「予定 N 件」に入れない。無ければ習慣（続けたいこと）。項目ごと無い
+   */
+  kind?: 'routine'
+}
+
+/** 保存データ・同期・バックアップの種類を読む。`routine` 以外は習慣（undefined） */
+export function readHabitKind(raw: unknown): 'routine' | undefined {
+  return raw === 'routine' ? 'routine' : undefined
+}
+
+/** ルーティン（毎日の予定のプリセット）か */
+export function isRoutine(habit: Pick<Habit, 'kind'>): boolean {
+  return habit.kind === 'routine'
 }
 
 /** 保存データ・同期・バックアップの前の日の設定を読む。読めない項目は捨てて古い順に並べ、1 つも無ければ undefined */

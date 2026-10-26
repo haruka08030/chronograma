@@ -359,6 +359,26 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       ),
     ),
     task({ id: 's20', title: '就活サイトのプロフィール更新', scheduledDate: dayKey(shift(now, -2)), order: 15 }, instant),
+    // ルーティン「お風呂」（21:00〜）の記録。詳細のいつもの時間からのずれ（#601）
+    ...[
+      [-1, '21:30', '22:00'],
+      [-2, '21:20', '21:50'],
+      [-4, '21:05', '21:35'],
+    ].map(([days, startTime, endTime], i) =>
+      task(
+        {
+          id: `bath${i}`,
+          title: 'お風呂',
+          dueDate: dayKey(shift(now, days)),
+          startTime,
+          endTime,
+          kind: 'log',
+          completed: true,
+          order: 90 + i,
+        },
+        instant,
+      ),
+    ),
   ]
 
   const habits = [
@@ -403,6 +423,35 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       updatedAt: instant.toISOString(),
       completedDates: [yesterday, dayKey(shift(now, -7)), dayKey(shift(now, -9))],
       archivedAt: null,
+    },
+    // ルーティン（毎日の予定のプリセット。タイムラインに枠が出るだけで、今日の計画の行・連続・達成率には出ない。#601）
+    {
+      id: 'r1',
+      title: '昼ご飯',
+      color: '#8E24AA',
+      timeMode: 'range',
+      startTime: '12:10',
+      endTime: '13:00',
+      frequency: { type: 'daily' },
+      createdAt: shift(instant, -30).toISOString(),
+      updatedAt: instant.toISOString(),
+      completedDates: [],
+      archivedAt: null,
+      kind: 'routine',
+    },
+    {
+      id: 'r2',
+      title: 'お風呂',
+      color: '#039BE5',
+      timeMode: 'range',
+      startTime: '21:00',
+      endTime: '21:30',
+      frequency: { type: 'daily' },
+      createdAt: shift(instant, -30).toISOString(),
+      updatedAt: instant.toISOString(),
+      completedDates: [],
+      archivedAt: null,
+      kind: 'routine',
     },
     // アーカイブした習慣（習慣の画面の下の「アーカイブ」にだけ出る）
     {

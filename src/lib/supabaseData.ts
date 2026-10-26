@@ -11,6 +11,7 @@ import {
   readHabitWeekdayTimes,
   readHabitGoalMinutes,
   readHabitPastRules,
+  readHabitKind,
   type Habit,
 } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
@@ -76,6 +77,8 @@ interface HabitRow {
   deleted_at?: string | null
   /** 前の日の設定（`047`）。古い DB には無い。無い・null は無し */
   past_rules?: unknown
+  /** 種類（`048`、`habit` / `routine`）。古い DB には無い。無い・`habit` は習慣 */
+  kind?: string | null
 }
 
 interface TaskRow {
@@ -207,6 +210,7 @@ function rowToHabit(row: HabitRow): Habit {
     ...withWeekdayTimes(row.weekday_times),
     ...withGoalMinutes(row.goal_minutes),
     ...withPastRules(row.past_rules),
+    ...(readHabitKind(row.kind) ? { kind: 'routine' as const } : {}),
     ...(typeof row.deleted_at === 'string' ? { deletedAt: row.deleted_at } : {}),
   }
 }
@@ -260,6 +264,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     goal_minutes: h.goalMinutes ?? null,
     deleted_at: h.deletedAt ?? null,
     past_rules: h.pastRules ?? null,
+    kind: h.kind ?? 'habit',
   }
 }
 

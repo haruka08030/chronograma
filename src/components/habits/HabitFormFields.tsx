@@ -21,7 +21,7 @@ import { SectionLabel } from '../ui/SectionLabel'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { fieldClass } from '../ui/fieldClass'
 import { HINT_TEXT } from '../ui/textClass'
-import { formWeekdayTime, usesWeekdayTimes, type HabitFormState } from './habitFormState'
+import { effectiveHabitForm, formWeekdayTime, usesWeekdayTimes, type HabitFormState } from './habitFormState'
 import { buttonClass } from '../ui/buttonClass'
 import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 
@@ -35,6 +35,14 @@ const FREQ_OPTIONS: { value: HabitFrequencyType; labelKey: string }[] = [
   { value: 'daily', labelKey: 'habits.freqDaily' },
   { value: 'weekly', labelKey: 'habits.freqWeeklyLabel' },
   { value: 'timesPerWeek', labelKey: 'habits.freqTimesPerWeek' },
+]
+/** ルーティンはやる日の決まった予定なので、週に◯回は選べない */
+const ROUTINE_FREQ_OPTIONS = FREQ_OPTIONS.filter((o) => o.value !== 'timesPerWeek')
+
+/** 種類の選択肢（習慣 / ルーティン） */
+const KIND_OPTIONS: { value: 'habit' | 'routine'; labelKey: string }[] = [
+  { value: 'habit', labelKey: 'habits.kindHabit' },
+  { value: 'routine', labelKey: 'habits.kindRoutine' },
 ]
 
 /**
@@ -216,17 +224,25 @@ function HabitTimeFields({
   onChange: (patch: Partial<HabitFormState>) => void
 }) {
   const { t } = useTranslation()
+  const routine = form.kind === 'routine'
   const mode = form.timeMode
   const perWeekday = usesWeekdayTimes(form)
   return (
     <div className="space-y-2">
-      <RadioChoices
-        heading={t('habits.time')}
-        name={`${name}-time-mode`}
-        options={TIME_MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-        value={mode}
-        onChange={(timeMode) => onChange({ timeMode })}
-      />
+      {/* ルーティンは時間帯だけ（タイムラインの枠にするため） */}
+      {routine ? (
+        <SectionLabel as="span" level="field">
+          {t('habits.time')}
+        </SectionLabel>
+      ) : (
+        <RadioChoices
+          heading={t('habits.time')}
+          name={`${name}-time-mode`}
+          options={TIME_MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+          value={mode}
+          onChange={(timeMode) => onChange({ timeMode })}
+        />
+      )}
 
       {perWeekday ? (
         <WeekdayTimeRows form={form} onChange={onChange} />
@@ -257,7 +273,7 @@ function HabitTimeFields({
         </button>
       ) : null}
 
-      {mode !== 'none' ? <p className={HINT_TEXT}>{t('habits.onTimeHint', { min: HABIT_ON_TIME_TOLERANCE_MIN })}</p> : null}
+      {mode !== 'none' && !routine ? <p className={HINT_TEXT}>{t('habits.onTimeHint', { min: HABIT_ON_TIME_TOLERANCE_MIN })}</p> : null}
     </div>
   )
 }
@@ -287,7 +303,8 @@ function GoalMinutesField({ value, onChange }: { value: string; onChange: (value
 }
 
 /**
- * 習慣の追加・編集で共通の欄: 名前・色（＝ラベル）・頻度（毎日 / 曜日を指定と曜日 / 週に◯回と回数）・時刻。
+ * 習慣の追加・編集で共通の欄: 種類（習慣 / ルーティン）・名前・色（＝ラベル）・頻度（毎日 / 曜日を指定と曜日 / 週に◯回と回数）・時刻。
+ * ルーティンは時間帯だけ・週に◯回と時間の目標なし（`effectiveHabitForm`）。
  * Enter で `onSubmit`、Esc で `onEscape`。`name` はラジオのまとまりの名前（追加と編集で分ける）
  */
 export function HabitFormFields({
@@ -308,8 +325,20 @@ export function HabitFormFields({
   titleRef?: Ref<HTMLInputElement>
 }) {
   const { t } = useTranslation()
+  const routine = form.kind === 'routine'
+  const shown = effectiveHabitForm(form)
   return (
     <>
+      <div className="space-y-1">
+        <RadioChoices
+          heading={t('habits.kindHeading')}
+          name={`${name}-kind`}
+          options={KIND_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+          value={routine ? 'routine' : 'habit'}
+          onChange={(kind) => onChange({ kind })}
+        />
+        <p className={HINT_TEXT}>{t(routine ? 'habits.kindRoutineHint' : 'habits.kindHabitHint')}</p>
+      </div>
       <input
         ref={titleRef}
         value={form.title}
@@ -329,18 +358,18 @@ export function HabitFormFields({
       <RadioChoices
         heading={t('habits.freqHeading')}
         name={`${name}-frequency`}
-        options={FREQ_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-        value={form.freq}
+        options={(routine ? ROUTINE_FREQ_OPTIONS : FREQ_OPTIONS).map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+        value={shown.freq}
         onChange={(freq) => onChange({ freq })}
       />
-      {form.freq === 'weekly' ? (
+      {shown.freq === 'weekly' ? (
         <WeekdayPicker weekdays={form.weekdays} onToggle={(v) => onChange({ weekdays: toggleHabitWeekdaySelection(form.weekdays, v) })} />
       ) : null}
-      {form.freq === 'timesPerWeek' ? (
+      {shown.freq === 'timesPerWeek' ? (
         <TimesPerWeekPicker count={form.timesPerWeek} onChange={(timesPerWeek) => onChange({ timesPerWeek })} />
       ) : null}
-      <HabitTimeFields form={form} name={name} onChange={onChange} />
-      <GoalMinutesField value={form.goalMinutes} onChange={(goalMinutes) => onChange({ goalMinutes })} />
+      <HabitTimeFields form={shown} name={name} onChange={onChange} />
+      {routine ? null : <GoalMinutesField value={form.goalMinutes} onChange={(goalMinutes) => onChange({ goalMinutes })} />}
     </>
   )
 }
