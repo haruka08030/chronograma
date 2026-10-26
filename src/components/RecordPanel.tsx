@@ -257,11 +257,7 @@ export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: str
             onPick={(s) => {
               pick(s)
               if (mode !== 'manual' || !end) return
-              if (s.startTime && s.endTime) {
-                // 予定を選んだら、その予定の時間で記録する（今日は今より先にしない）
-                setStart(s.startTime)
-                setEnd(viewingToday && s.endTime > nowHm ? nowRounded() : s.endTime)
-              } else if (s.typicalMinutes) {
+              if (s.typicalMinutes) {
                 // 後から記録は、いつもの長さで始まりを入れる（終わりはそのまま。0 時より前にはしない）
                 setStart(addClockMinutes('00:00', Math.max(0, timeToMinutes(end) - s.typicalMinutes)))
               }

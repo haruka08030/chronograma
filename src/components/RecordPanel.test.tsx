@@ -56,9 +56,12 @@ describe('記録の名前の候補', () => {
     })
   })
 
-  it('空欄では出さない。打った名前から推定したラベルを先に選び、自分で選び直したら上書きしない', () => {
+  it('空欄では最近よく記録するものを出す。打った名前から推定したラベルを先に選び、自分で選び直したら上書きしない', () => {
     const input = openLater()
-    expect(screen.queryByRole('listbox')).toBeNull()
+    const options = screen.getAllByRole('option')
+    expect(options).toHaveLength(2)
+    expect(options[0]).toHaveTextContent('STAT 勉強')
+    expect(options[1]).toHaveTextContent('カフェ')
     fireEvent.change(input, { target: { value: 'STAT HW' } })
     const picker = screen.getByRole('button', { name: '色とラベル' })
     expect(picker).toHaveTextContent('課題')
@@ -93,7 +96,7 @@ describe('記録の名前の候補', () => {
     expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ title: 'カ' })
   })
 
-  it('後から記録で、重なる予定を空欄のまま出し、選ぶと予定の時間で記録する（#416）', () => {
+  it('後から記録で、重なる予定は候補に出さない（チェックで記録できる、#600）', () => {
     useTaskStore.setState((st) => ({
       tasks: [
         ...st.tasks,
@@ -113,9 +116,7 @@ describe('記録の名前の候補', () => {
       ],
     }))
     openLater()
-    fireEvent.click(screen.getByRole('option', { name: /ゼミ/ }))
-    fireEvent.click(screen.getByRole('button', { name: '記録する' }))
-    expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ title: 'ゼミ', kind: 'log', startTime: '13:00', endTime: '14:30' })
+    expect(screen.queryByRole('option', { name: /ゼミ/ })).toBeNull()
   })
 
   it('打った文字に合う今日の To-Do を選ぶと、その To-Do に紐づいた記録になる（#416）', () => {

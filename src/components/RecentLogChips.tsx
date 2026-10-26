@@ -1,31 +1,33 @@
 import { useMemo } from 'react'
 import { useTaskStore } from '../store/taskStore'
-import { frequentLogs } from '../lib/logCategory'
+import { emptyLogSuggestions, type LogSuggestion, type LogWindow } from '../lib/logSuggestions'
 import { categoryHex, colorVars } from '../lib/logCategoryColors'
 import { chipClass } from './ui/chipClass'
 
 /** 出すチップの数 */
 const RECENT_CHIPS = 3
 
-type RecentLog = ReturnType<typeof frequentLogs>[number]
-
 /**
- * よく記録するものを色の丸つきのチップで並べ、押すとその名前とラベルで記録する（タイムラインの「＋ 記録なし」のカード）。
- * 書く前に 1 タップで埋められるように
+ * その時間帯にいつもやっていること → 最近よく記録するものを色の丸つきのチップで並べ、押すとその名前とラベルで記録する
+ * （タイムラインの記録の作成カード）。書く前に 1 タップで埋められるように。予定はチェックで記録できるので出さない
  */
 export function RecentLogChips({
+  when,
   onPick,
   ariaLabel,
   className = '',
 }: {
-  onPick: (log: RecentLog) => void
+  /** 何時から何時の記録か（いつもやっていることを引く） */
+  when: LogWindow
+  onPick: (log: LogSuggestion) => void
   /** チップの読み上げ名（「授業 として 07:00–10:00 を記録」など） */
   ariaLabel: (title: string) => string
   className?: string
 }) {
   const tasks = useTaskStore((s) => s.tasks)
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
-  const recent = useMemo(() => frequentLogs(tasks, RECENT_CHIPS), [tasks])
+  const { dateKey, start, end } = when
+  const recent = useMemo(() => emptyLogSuggestions(tasks, { dateKey, start, end }, RECENT_CHIPS), [tasks, dateKey, start, end])
   if (recent.length === 0) return null
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className}`} data-recent-log-chips>

@@ -13,7 +13,8 @@ import { FLOATING_SURFACE, MENU_ROW_ACTIVE, MENU_ROW_HOVER, MENU_ROW_PRESS } fro
 
 /**
  * 記録の名前の欄。候補を最大 3 件、ラベルの色の点つきで出す（`logSuggestions`）。
- * 空欄なら記録する時間（`when`）に重なる予定と、その時間帯にいつもやっていること。打った後は合う予定・今日の To-Do・過去の記録。
+ * 空欄ならその時間帯（`when`）にいつもやっていることと、最近よく記録するもの。打った後は合う今日の To-Do・過去の記録。
+ * 予定はチェックで記録できるので出さない。
  * To-Do は丸の印で過去の記録と分ける。
  * PC は欄の下（`dropUp` なら上）に浮く一覧。↑↓ で選び、Enter で決め、Esc で一覧だけ閉じる。何も選んでいない Enter は親へ。
  * スマホは欄のすぐ下に 1 行のチップ（浮く一覧はキーボードとラベルのチップに隠れる）。
@@ -28,14 +29,17 @@ export function LogTitleInput({
   inputRef,
   dropUp = false,
   when = null,
+  emptySuggestions = true,
   className,
   ...inputProps
 }: {
   value: string
   onChange: (v: string) => void
   onPick: (s: LogSuggestion) => void
-  /** 何時から何時の記録か（予定・いつもやっていることを引く）。分からなければ null */
+  /** 何時から何時の記録か（いつもやっていることを引く）。分からなければ null */
   when?: LogWindow | null
+  /** 空欄のときも候補を出す（1 タップで記録するチップを別に並べる画面では false） */
+  emptySuggestions?: boolean
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void
   onBlur?: () => void
   inputRef?: Ref<HTMLInputElement>
@@ -49,7 +53,6 @@ export function LogTitleInput({
   const { t } = useTranslation()
   const desktop = useIsDesktop()
   const tasks = useTaskStore((s) => s.tasks)
-  const events = useTaskStore((s) => s.calendarEvents)
   const lists = useTaskStore((s) => s.lists)
   const presets = useTaskStore((s) => s.timeLogTagPresets)
   const colors = useTaskStore((s) => s.logCategoryColors)
@@ -63,7 +66,6 @@ export function LogTitleInput({
     () =>
       logSuggestions({
         tasks,
-        events,
         query: value,
         window: dateKey && whenStart && whenEnd ? { dateKey, start: whenStart, end: whenEnd } : null,
         todos,
@@ -72,17 +74,17 @@ export function LogTitleInput({
           return { category: label.tags[0] ?? null, color: label.color }
         },
       }),
-    [tasks, events, value, dateKey, whenStart, whenEnd, todos, presets, colors],
+    [tasks, value, dateKey, whenStart, whenEnd, todos, presets, colors],
   )
   const [focused, setFocused] = useState(false)
   // Esc・選んだあとは、次に打つまで閉じておく
   const [dismissed, setDismissed] = useState(false)
   const [active, setActive] = useState(-1)
   const listId = useId()
-  // 浮く一覧は PC で打っている間だけ。空欄（予定・いつもやっていること）とスマホは欄の下に 1 行のチップで並べる
+  // 浮く一覧は PC で打っている間だけ。空欄（いつもやっていること・よく記録するもの）とスマホは欄の下に 1 行のチップで並べる
   // （開いてすぐ浮かせると時刻の欄を隠す）。並べるだけなら何も隠さないので、欄を押す前から出す
   const floating = desktop && value.trim() !== ''
-  const open = (focused || !floating) && !dismissed && items.length > 0
+  const open = (focused || !floating) && !dismissed && items.length > 0 && (emptySuggestions || value.trim() !== '')
   const activeIndex = open && active < items.length ? active : -1
 
   const pick = (s: LogSuggestion) => {
@@ -124,15 +126,9 @@ export function LogTitleInput({
     ) : (
       <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(markHex(s))} aria-hidden />
     )
-  // 右の薄い字: 予定は時刻、To-Do は「To-Do」、記録はラベル（名前と同じなら出さない。「授業」の記録に「授業」と並べない）
+  // 右の薄い字: To-Do は「To-Do」、記録はラベル（名前と同じなら出さない。「授業」の記録に「授業」と並べない）
   const hint = (s: LogSuggestion) =>
-    s.source === 'plan' && s.startTime
-      ? `${s.startTime}–${s.endTime}`
-      : s.source === 'todo'
-        ? t('quickCreate.kindTodo')
-        : s.category && s.category !== s.title
-          ? s.category
-          : null
+    s.source === 'todo' ? t('quickCreate.kindTodo') : s.category && s.category !== s.title ? s.category : null
 
   const list = open && (
     <div

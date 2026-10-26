@@ -255,8 +255,9 @@ export function QuickCreatePopover({
           value={title}
           onChange={setTitle}
           onPick={pick}
-          // 置いた枠に重なる予定と、その時間帯にいつもやっていることを、書く前から出す
           when={{ dateKey, start: startTime, end: endTime }}
+          // 書く前の候補は下の 1 タップで記録するチップに任せる
+          emptySuggestions={false}
           onKeyDown={onTitleKeyDown}
           placeholder={t('quickCreate.logPlaceholder')}
           className={TITLE_INPUT}
@@ -276,6 +277,7 @@ export function QuickCreatePopover({
         // 書く前に、よく記録するものから 1 タップでこの時間を埋める（今日の画面の締めにあった記録の無い時間の埋め方）
         <RecentLogChips
           className="mt-2"
+          when={{ dateKey, start: startTime, end: endTime }}
           ariaLabel={(name) => t('planner.gapRecordAs', { title: name, start: startTime, end: endTime })}
           onPick={(r) => {
             addTimeLog(r.title, dateKey, startTime, endTime, r.category ? [r.category] : [])
