@@ -6,13 +6,17 @@ import { courseKey } from './courseLinks'
 import { merge3, merge3ById, merge3Record, merge3Set, type Side } from './settingMerge'
 
 /**
- * 追加機能（#453）。生活まわりの機能（時間割・学校・引き落とし …）は使う人だけがオンにし、オフの機能は普段の画面に出さない。
- * 「追加機能」の画面と設定のどちらからでもオン・オフでき、端末間で同期する（`user_addons`、`041`）
+ * 追加機能（#453）。生活まわりの機能（学校・引き落とし …）は使う人だけがオンにし、オフの機能は普段の画面に出さない。
+ * オン・オフは「追加機能」の画面でし、端末間で同期する（`user_addons`、`041`）。
+ * 学校は時間割と授業の欠席をまとめたもの（#617。前は「時間割」と「学校」の 2 つ）
  */
-export type AddonId = 'timetable' | 'school' | 'dues'
+export type AddonId = 'school' | 'dues'
 
-/** 追加機能の画面・設定に並べる順 */
-export const ADDON_IDS: readonly AddonId[] = ['timetable', 'school', 'dues']
+/** 追加機能の画面に並べる順 */
+export const ADDON_IDS: readonly AddonId[] = ['school', 'dues']
+
+/** 学校にまとめる前の時間割のオン・オフ（前の版のアプリが書いたもの。読むときに学校へ移す） */
+const LEGACY_TIMETABLE = 'timetable'
 
 export type Addons = {
   /** 決めた機能だけ。無い機能は既定（`isAddonOn`） */
@@ -38,9 +42,13 @@ export function normalizeAddons(raw: unknown): Addons {
   const x = raw as Record<string, unknown>
   const enabled: Addons['enabled'] = {}
   if (x.enabled && typeof x.enabled === 'object' && !Array.isArray(x.enabled)) {
-    for (const [id, on] of Object.entries(x.enabled as Record<string, unknown>)) {
+    const raw = x.enabled as Record<string, unknown>
+    for (const [id, on] of Object.entries(raw)) {
       if (isAddonId(id) && typeof on === 'boolean') enabled[id] = on
     }
+    // 時間割と学校のどちらかをオンにしていたら学校はオン（#617）
+    const legacy = raw[LEGACY_TIMETABLE]
+    if (typeof legacy === 'boolean') enabled.school = legacy || enabled.school === true
   }
   return {
     ...x,
@@ -54,11 +62,11 @@ export function normalizeAddons(raw: unknown): Addons {
 /** 時間割の授業を入れているか（毎週の予定がある。時間割が追加機能になる前から使っていた人はオンのまま） */
 export const hasWeeklyEvents = (tasks: readonly Task[]) => tasks.some((t) => isEventTask(t) && !!t.series && !t.deletedAt)
 
-/** その機能がオンか。決めていなければ既定（時間割は、毎週の予定があればオン・無ければオフ） */
+/** その機能がオンか。決めていなければ既定（学校は、毎週の予定があればオン・無ければオフ） */
 export function isAddonOn(addons: Addons, id: AddonId, tasks: readonly Task[]): boolean {
   const set = addons.enabled[id]
   if (set !== undefined) return set
-  return id === 'timetable' ? hasWeeklyEvents(tasks) : false
+  return id === 'school' ? hasWeeklyEvents(tasks) : false
 }
 
 /** オン・オフを決めた値 */

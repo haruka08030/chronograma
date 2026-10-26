@@ -21,18 +21,27 @@ const weekly = (extra: Partial<Task> = {}) =>
   }) as Task
 
 describe('追加機能（#453）', () => {
-  it('時間割は、決めていなければ毎週の予定がある人だけオン。決めたらその値', () => {
-    expect(isAddonOn(DEFAULT_ADDONS, 'timetable', [])).toBe(false)
-    expect(isAddonOn(DEFAULT_ADDONS, 'timetable', [weekly()])).toBe(true)
-    expect(isAddonOn(DEFAULT_ADDONS, 'timetable', [weekly({ deletedAt: NOW })])).toBe(false)
-    expect(isAddonOn(withAddonOn(DEFAULT_ADDONS, 'timetable', false), 'timetable', [weekly()])).toBe(false)
-    expect(isAddonOn(withAddonOn(DEFAULT_ADDONS, 'timetable', true), 'timetable', [])).toBe(true)
+  it('学校は、決めていなければ毎週の予定がある人だけオン。決めたらその値', () => {
+    expect(isAddonOn(DEFAULT_ADDONS, 'school', [])).toBe(false)
+    expect(isAddonOn(DEFAULT_ADDONS, 'school', [weekly()])).toBe(true)
+    expect(isAddonOn(DEFAULT_ADDONS, 'school', [weekly({ deletedAt: NOW })])).toBe(false)
+    expect(isAddonOn(withAddonOn(DEFAULT_ADDONS, 'school', false), 'school', [weekly()])).toBe(false)
+    expect(isAddonOn(withAddonOn(DEFAULT_ADDONS, 'school', true), 'school', [])).toBe(true)
+  })
+
+  it('前の版の時間割のオン・オフは学校に移す。どちらかがオンなら学校はオン（#617）', () => {
+    const school = (enabled: Record<string, boolean>) => normalizeAddons({ enabled }).enabled
+    expect(school({ timetable: true })).toEqual({ school: true })
+    expect(school({ timetable: false })).toEqual({ school: false })
+    expect(school({ timetable: true, school: false })).toEqual({ school: true })
+    expect(school({ timetable: false, school: true })).toEqual({ school: true })
+    expect(school({ dues: true })).toEqual({ dues: true })
   })
 
   it('読んだ値は知らない機能・形の合わない値を落とし、知らない項目は残す', () => {
     expect(normalizeAddons(null)).toEqual({ enabled: {}, dues: [], googleSkip: [], absenceCourses: [] })
-    expect(normalizeAddons({ enabled: { timetable: true, x: true, y: 'on' }, dues: [1], later: { a: 1 } })).toEqual({
-      enabled: { timetable: true },
+    expect(normalizeAddons({ enabled: { dues: true, x: true, y: 'on' }, dues: [1], later: { a: 1 } })).toEqual({
+      enabled: { dues: true },
       dues: [],
       googleSkip: [],
       absenceCourses: [],
@@ -41,7 +50,7 @@ describe('追加機能（#453）', () => {
   })
 
   it('同期: 一度も変えていなければ送らず、サーバーが新しければ合わせ、手元だけ変えていれば送る', () => {
-    const on = withAddonOn(DEFAULT_ADDONS, 'timetable', true)
+    const on = withAddonOn(DEFAULT_ADDONS, 'school', true)
     expect(planAddonsSync({ addons: DEFAULT_ADDONS, updatedAt: null }, null)).toEqual({})
     expect(planAddonsSync({ addons: on, updatedAt: NOW }, null)).toEqual({ push: { addons: on, updatedAt: NOW, base: null } })
     expect(planAddonsSync({ addons: DEFAULT_ADDONS, updatedAt: null }, { addons: on, updatedAt: NOW })).toEqual({

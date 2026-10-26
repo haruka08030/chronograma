@@ -1389,8 +1389,8 @@ export default {
   addons: {
     title: 'Add-ons',
     intro: 'Only the add-ons you turn on appear in the calendar and the day plan.',
-    open: 'Open',
     switchAria: 'Use {{name}}',
+    infoAria: 'About {{name}}',
     dues: {
       name: 'Payments & expiry dates',
       description: 'Rent and subscription payments, free trial ends, passport expiry … shown in the calendar and the day plan.',
@@ -1398,11 +1398,7 @@ export default {
     school: {
       name: 'School',
       description:
-        'Counts your absences per class and how many more you can miss. Works even if your classes are not in the timetable or calendar.',
-    },
-    timetable: {
-      name: 'Timetable & absences',
-      description: 'Put classes in the weekday × period grid to make weekly events for the term. Counts your absences too.',
+        'Put classes in the weekday × period timetable to make weekly events for the term. Also counts your absences per class and how many more you can miss (you can add classes that are not in the timetable too).',
     },
   },
   dues: {

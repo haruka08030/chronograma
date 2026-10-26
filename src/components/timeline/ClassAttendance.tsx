@@ -12,7 +12,7 @@ import { buttonClass } from '../ui/buttonClass'
 /**
  * 授業の予定のカードの欠席の数（#452・#503）。休むかを決める前に見えるよう、これからの回にも出す。
  * 始まった回（今日まで）は「欠席にする」「欠席を取り消す」を押せる。
- * 出すのは、時間割の授業（追加機能の時間割がオン）か、授業の欠席の一覧にある名前の予定（追加機能の学校がオン。Google カレンダーの予定も）だけ
+ * 出すのは追加機能の学校がオンのときの、時間割の授業か、授業の欠席の一覧にある名前の予定（Google カレンダーの予定も）だけ
  */
 export function ClassAttendance({ title, date, task }: { title: string; date: string; task?: Task }) {
   const { t } = useTranslation()
@@ -21,9 +21,8 @@ export function ClassAttendance({ title, date, task }: { title: string; date: st
   const timetable = useTaskStore((s) => s.timetable)
   const courses = useTaskStore((s) => s.addons.absenceCourses)
   const setCourseAbsent = useTaskStore((s) => s.setCourseAbsent)
-  const timetableOn = useAddonOn('timetable')
   const schoolOn = useAddonOn('school')
-  const isClass = timetableOn && !!task && isClassTask(task, timetable)
+  const isClass = schoolOn && !!task && isClassTask(task, timetable)
   const listed = schoolOn && hasAbsenceCourse(courses, title)
   const a = useMemo<Attendance | null>(() => {
     if (isClass) {

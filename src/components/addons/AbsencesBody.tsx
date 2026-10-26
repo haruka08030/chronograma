@@ -6,7 +6,6 @@ import { ABSENCE_COURSE_TITLE_MAX, courseAttendance, hasAbsenceCourse, type Atte
 import { courseKey } from '../../lib/courseLinks'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { useAppTodayKey } from '../../hooks/useAppClock'
-import { useAddonOn } from '../../hooks/useAddon'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { DateField } from '../DateField'
@@ -28,10 +27,10 @@ type Row = {
 }
 
 /**
- * 授業の欠席の一覧（#503、追加機能「学校」の「開く」）。授業ごとに「欠席 N / M 回」と、今日の欠席を 1 回で付ける「今日欠席」。
- * 押すと休める回数・休んだ日を直す。時間割の授業（時間割がオン）も同じ一覧に出る。あと何回休めるかが少ない順
+ * 授業の欠席の一覧（#503、追加機能「学校」のページ）。授業ごとに「欠席 N / M 回」と、今日の欠席を 1 回で付ける「今日欠席」。
+ * 押すと休める回数・休んだ日を直す。時間割の授業も同じ一覧に出る。あと何回休めるかが少ない順
  */
-export function AbsencesDialog({ onClose }: { onClose: () => void }) {
+export function AbsencesBody() {
   const { t } = useTranslation()
   const df = useDateFormat()
   const today = useAppTodayKey()
@@ -39,17 +38,14 @@ export function AbsencesDialog({ onClose }: { onClose: () => void }) {
   const timetable = useTaskStore((s) => s.timetable)
   const courses = useTaskStore((s) => s.addons.absenceCourses)
   const setCourseAbsent = useTaskStore((s) => s.setCourseAbsent)
-  const timetableOn = useAddonOn('timetable')
   const [editing, setEditing] = useState<Row | 'new' | null>(null)
 
   const rows = useMemo(() => {
     const out = new Map<string, Row>()
-    if (timetableOn) {
-      for (const task of tasks) {
-        if (!isClassTask(task, timetable) || out.has(courseKey(task.title))) continue
-        const attendance = classAttendance(tasks, timetable, task.title)
-        out.set(courseKey(task.title), { title: task.title, fromTimetable: true, attendance, total: attendance.total })
-      }
+    for (const task of tasks) {
+      if (!isClassTask(task, timetable) || out.has(courseKey(task.title))) continue
+      const attendance = classAttendance(tasks, timetable, task.title)
+      out.set(courseKey(task.title), { title: task.title, fromTimetable: true, attendance, total: attendance.total })
     }
     for (const title of courses) {
       if (!out.has(courseKey(title)))
@@ -59,60 +55,50 @@ export function AbsencesDialog({ onClose }: { onClose: () => void }) {
     return [...out.values()].sort(
       (a, b) => (a.attendance.remaining ?? Infinity) - (b.attendance.remaining ?? Infinity) || a.title.localeCompare(b.title),
     )
-  }, [timetableOn, tasks, timetable, courses])
+  }, [tasks, timetable, courses])
   const todayInTerm = inTerm(today, timetable)
   const term = timetable.termStart && timetable.termEnd ? `${df.monthDay(timetable.termStart)}–${df.monthDay(timetable.termEnd)}` : null
 
   return (
-    <Modal onClose={onClose} labelledBy="absences-title" width="md" className="flex max-h-[min(90vh,720px)] flex-col overflow-hidden">
-      <div className="border-b border-zinc-200 px-4 pb-3 pt-5 dark:border-zinc-700 sm:px-6">
-        <ModalTitle id="absences-title">{t('absences.title')}</ModalTitle>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-4">
-        {rows.length === 0 && <p className={`px-2 py-3 ${HINT_TEXT}`}>{t('absences.empty')}</p>}
-        <ul aria-label={t('absences.title')}>
-          {rows.map((row) => {
-            const absentToday = isAbsent(timetable, row.title, today)
-            return (
-              <li key={courseKey(row.title)} className="flex items-center gap-2">
+    <>
+      {rows.length === 0 && <p className={`px-2 py-3 ${HINT_TEXT}`}>{t('absences.empty')}</p>}
+      <ul aria-label={t('absences.title')}>
+        {rows.map((row) => {
+          const absentToday = isAbsent(timetable, row.title, today)
+          return (
+            <li key={courseKey(row.title)} className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEditing(row)}
+                className="flex min-w-0 flex-1 flex-col rounded-lg px-2 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+              >
+                <span className="block truncate text-sm text-zinc-800 dark:text-zinc-100">{row.title}</span>
+                <span className={`block text-xs tabular-nums ${DUE_TONE_CLASS[attendanceTone(row.attendance)]}`}>
+                  {attendanceText(row.attendance, t)}
+                </span>
+              </button>
+              {todayInTerm && (
                 <button
                   type="button"
-                  onClick={() => setEditing(row)}
-                  className="flex min-w-0 flex-1 flex-col rounded-lg px-2 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+                  aria-pressed={absentToday}
+                  aria-label={t('absences.absentTodayAria', { name: row.title })}
+                  onClick={() => setCourseAbsent(row.title, today, !absentToday)}
+                  className={buttonClass({ variant: absentToday ? 'secondary' : 'ghost', size: 'sm' }, 'shrink-0')}
                 >
-                  <span className="block truncate text-sm text-zinc-800 dark:text-zinc-100">{row.title}</span>
-                  <span className={`block text-xs tabular-nums ${DUE_TONE_CLASS[attendanceTone(row.attendance)]}`}>
-                    {attendanceText(row.attendance, t)}
-                  </span>
+                  {absentToday ? t('absences.absentTodayDone') : t('absences.absentToday')}
                 </button>
-                {todayInTerm && (
-                  <button
-                    type="button"
-                    aria-pressed={absentToday}
-                    aria-label={t('absences.absentTodayAria', { name: row.title })}
-                    onClick={() => setCourseAbsent(row.title, today, !absentToday)}
-                    className={buttonClass({ variant: absentToday ? 'secondary' : 'ghost', size: 'sm' }, 'shrink-0')}
-                  >
-                    {absentToday ? t('absences.absentTodayDone') : t('absences.absentToday')}
-                  </button>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-        <button type="button" onClick={() => setEditing('new')} className={buttonClass({ variant: 'ghost', size: 'sm' }, 'mt-1')}>
-          <PlusIcon className="h-3.5 w-3.5" />
-          {t('absences.add')}
-        </button>
-        {term && <p className={`px-2 pt-3 ${HINT_TEXT}`}>{t('absences.termHint', { term })}</p>}
-      </div>
-      <div className="flex justify-end border-t border-zinc-200 px-4 py-3 dark:border-zinc-700 sm:px-6">
-        <button type="button" onClick={onClose} className={buttonClass({ variant: 'primary', size: 'md' })}>
-          {t('timetable.done')}
-        </button>
-      </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      <button type="button" onClick={() => setEditing('new')} className={buttonClass({ variant: 'ghost', size: 'sm' }, 'mt-1')}>
+        <PlusIcon className="h-3.5 w-3.5" />
+        {t('absences.add')}
+      </button>
+      {term && <p className={`px-2 pt-3 ${HINT_TEXT}`}>{t('absences.termHint', { term })}</p>}
       {editing && <CourseEditor row={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
-    </Modal>
+    </>
   )
 }
 

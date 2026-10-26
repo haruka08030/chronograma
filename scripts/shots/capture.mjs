@@ -90,8 +90,8 @@ const SCHOOL_ON = {
     absenceLimits: { 統計学: 4, ゼミ: 3, 英語コミュニケーション: 5 },
   },
 }
-/** 時間割は追加機能（#453）。撮るときはオンにしておく */
-const TIMETABLE_ON = { addons: { enabled: { timetable: true }, dues: [] } }
+/** 時間割は追加機能の学校（#453・#617）。撮るときはオンにしておく */
+const TIMETABLE_ON = { addons: { enabled: { school: true }, dues: [] } }
 const addClass = (cell, title) => [
   { click: `[data-timetable-cell="${cell}"]` },
   { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: title } },
@@ -562,17 +562,21 @@ const SCREENS = [
     ],
   },
   // 引き落とし・期限の日（#454）: 一覧・今日の計画の行・月と週のカレンダーの印
-  { name: 'addons-dues', view: 'addons', state: DUES_ON, steps: [{ click: '[data-addon="dues"] button:has-text("開く")' }] },
+  { name: 'addons-dues', view: 'addons', state: DUES_ON, steps: [{ click: '[data-addon="dues"] button:has-text("引き落とし・期限")' }] },
   { name: 'planner-dues', view: 'planner', state: DUES_ON },
   { name: 'calendar-month-dues', view: 'calendar', calendarMode: 'month', state: DUES_ON },
   { name: 'calendar-week-dues', view: 'calendar', state: DUES_ON },
-  // 追加機能（#453）: 最初はどれもオフ・時間割をオンにしたところ・設定の「追加機能」
-  { name: 'addons-school', view: 'addons', state: SCHOOL_ON, steps: [{ click: '[data-addon="school"] button:has-text("開く")' }] },
+  // 追加機能（#453・#617）: 最初はどれもオフ・学校をオンにしたところ・学校のページ・説明のポップアップ・設定の「追加機能」
+  { name: 'addons-school', view: 'addons', state: SCHOOL_ON, steps: [{ click: '[data-addon="school"] button:has-text("学校")' }] },
+  { name: 'addons-info', view: 'addons', steps: [{ click: '[data-addon="school"] button[aria-label="学校の説明"]' }] },
   {
     name: 'addons-school-edit',
     view: 'addons',
     state: SCHOOL_ON,
-    steps: [{ click: '[data-addon="school"] button:has-text("開く")' }, { click: '[role=dialog] button:has-text("統計学")' }],
+    steps: [
+      { click: '[data-addon="school"] button:has-text("学校")' },
+      { click: 'section[aria-labelledby="school-absences"] button:has-text("統計学")' },
+    ],
   },
   {
     name: 'calendar-event-card-absence',
