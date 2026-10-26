@@ -2,7 +2,7 @@ import { memo, type Dispatch, type MutableRefObject, type RefObject, type SetSta
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
 import { formatDuration, HOUR_HEIGHT, HOURS, timeToMinutes, yToTime } from '../../lib/timeGrid'
-import type { CreateIntent, CreatePopup, DragPreview, useTimelineDrag } from '../../lib/useTimelineDrag'
+import type { CreateIntent, CreatePopup, CreateStop, DragPreview, useTimelineDrag } from '../../lib/useTimelineDrag'
 import type { DropPreview, useTimelineDrop } from '../../lib/useTimelineDrop'
 import { canEditGoogleEvent } from '../../lib/googleEventEdit'
 import type { CalendarEvent } from '../../types/calendarEvent'
@@ -227,29 +227,29 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     const lane = laneAt(clientX, el)
     return lane === 'log' && isFullAt(timeToMinutes(yToTime(getRelativeY(clientY, key)))) ? 'schedule' : lane
   }
+  const planBlocks = [
+    ...shownTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
+    ...shownHabitSlots.map(({ slot, seg }) => ({
+      id: slot.id,
+      ...blockGeometry({ id: slot.id, title: slot.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
+    })),
+    ...dayMovedPlans.map((m) => ({
+      id: m.id,
+      ...blockGeometry({ id: m.id, title: m.task.title, startTime: m.startTime, endTime: m.endTime, completed: false }, key, false),
+    })),
+    ...shownTimedEvents.map(({ e, seg }) => ({
+      id: `event-${e.id}`,
+      ...blockGeometry({ id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
+    })),
+  ]
+  const logBlocks = [
+    ...dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
+    ...(runningLog ? [{ id: RUNNING_LOG_ID, ...blockGeometry(runningLog as TimeBlockTask, key, true) }] : []),
+  ]
   const blockStyles = layoutPlanAndLog(
+    planBlocks,
     [
-      ...shownTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
-      ...shownHabitSlots.map(({ slot, seg }) => ({
-        id: slot.id,
-        ...blockGeometry(
-          { id: slot.id, title: slot.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false },
-          key,
-          false,
-        ),
-      })),
-      ...dayMovedPlans.map((m) => ({
-        id: m.id,
-        ...blockGeometry({ id: m.id, title: m.task.title, startTime: m.startTime, endTime: m.endTime, completed: false }, key, false),
-      })),
-      ...shownTimedEvents.map(({ e, seg }) => ({
-        id: `event-${e.id}`,
-        ...blockGeometry({ id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
-      })),
-    ],
-    [
-      ...dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
-      ...(runningLog ? [{ id: RUNNING_LOG_ID, ...blockGeometry(runningLog as TimeBlockTask, key, true) }] : []),
+      ...logBlocks,
       // 記録の無い時間も記録の列のもの（週表示でも予定と左右に分け、枠が予定の下に隠れないように）
       ...gaps.map((g) => {
         const top = (g.start / 60) * HOUR_HEIGHT
@@ -261,6 +261,15 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     fixedLanes,
     { fromTop: fullFromTop, logIds: fullLogIds },
   )
+  /**
+   * ドラッグで作る枠を止める、押した列のブロックの上下（予定の列は予定・習慣・Google の予定と全幅の記録、記録の列は記録）。
+   * 移した予定の跡と記録の無い時間の枠は止めない
+   */
+  const createStops = (lane: CreateIntent): CreateStop[] =>
+    (lane === 'log'
+      ? logBlocks
+      : [...planBlocks.filter((b) => !b.id.startsWith('moved-')), ...logBlocks.filter((b) => fullLogIds.has(b.id))]
+    ).map((b) => ({ top: b.top, bottom: b.top + b.span }))
   const planStyle = (id: string) => blockStyles.get(`plan:${id}`)
   const logStyle = (id: string) => blockStyles.get(`log:${id}`)
 
@@ -278,7 +287,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         onSelectDate?.(key)
         const lane = laneAtPoint(e.clientX, e.clientY, e.currentTarget)
         const limit = lane === 'log' ? logLimitMin(key) : null
-        handleCreatePointerDown(e, key, lane, limit === null ? undefined : (limit / 60) * HOUR_HEIGHT)
+        handleCreatePointerDown(e, key, lane, limit === null ? undefined : (limit / 60) * HOUR_HEIGHT, createStops(lane))
       }}
       onDragEnter={handleDragEnter}
       onDragOver={(e) => {
