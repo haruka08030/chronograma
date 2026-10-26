@@ -31,7 +31,7 @@ beforeAll(() => {
 function planToday() {
   const today = toDateKey(appToday())
   const store = useTaskStore.getState()
-  store.setSelectedCalendarDateKey(today)
+  store.setPlannerDateKey(today)
   for (const title of ['Read paper', 'Write essay']) {
     const id = store.addTask(title)!
     useTaskStore.getState().updateTask(id, { scheduledDate: today })
@@ -106,7 +106,7 @@ describe('TodayPlannerView: 見出しは振り返るときだけラベル別の�
         task('yt', { kind: 'log', title: 'YouTube', dueDate: day, startTime: '20:00', endTime: '21:00', completed: true }),
       ],
     })
-    useTaskStore.getState().setSelectedCalendarDateKey(day)
+    useTaskStore.getState().setPlannerDateKey(day)
     const { container } = render(<TodayPlannerView />)
     const header = container.querySelector('header')!
     expect(within(header).getByRole('button', { name: 'Time by label' })).toBeInTheDocument()
@@ -124,7 +124,7 @@ describe('TodayPlannerView: 見出しは振り返るときだけラベル別の�
       useTaskStore.setState({
         tasks: [task('yt', { kind: 'log', title: 'YouTube', dueDate: day, startTime: '09:00', endTime: '10:00', completed: true })],
       })
-      useTaskStore.getState().setSelectedCalendarDateKey(day)
+      useTaskStore.getState().setPlannerDateKey(day)
       const { container } = render(<TodayPlannerView />)
       const header = container.querySelector('header')!
       expect(within(header).queryByRole('button', { name: 'Time by label' })).toBeNull()
@@ -169,13 +169,13 @@ describe('TodayPlannerView: 続けて持ち越した日数（#300）', () => {
         todo('Late', { scheduledDate: today, carriedDays: 4, dueDate: yesterday }),
       ],
     })
-    useTaskStore.getState().setSelectedCalendarDateKey(today)
+    useTaskStore.getState().setPlannerDateKey(today)
     const { unmount } = render(<TodayPlannerView />)
     const shown = [...document.querySelectorAll('[data-carry-days]')]
     expect(shown.map((x) => x.closest('[data-task-row]')?.getAttribute('data-task-row'))).toEqual(['ES'])
     expect(shown[0]!.textContent).toMatch(/^Day 3/)
     unmount()
-    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(addDays(appToday(), 1)))
+    useTaskStore.getState().setPlannerDateKey(toDateKey(addDays(appToday(), 1)))
     useTaskStore.setState({ tasks: [todo('ES', { scheduledDate: toDateKey(addDays(appToday(), 1)), carriedDays: 2 })] })
     render(<TodayPlannerView />)
     expect(document.querySelector('[data-carry-days]')).toBeNull()
@@ -187,7 +187,7 @@ describe('TodayPlannerView: 親の下の子の締切（#308）', () => {
     const today = toDateKey(appToday())
     const yesterday = toDateKey(addDays(appToday(), -1))
     const store = useTaskStore.getState()
-    store.setSelectedCalendarDateKey(today)
+    store.setPlannerDateKey(today)
     const parent = store.addTask('A Inc.')!
     const child = useTaskStore.getState().addTask('Web test', undefined, parent)!
     useTaskStore.getState().updateTask(child, { dueDate: yesterday })
@@ -200,7 +200,7 @@ describe('TodayPlannerView: 親の下の子の締切（#308）', () => {
   it('子の締切は子の行で出し、親の行には重ねない', async () => {
     const today = toDateKey(appToday())
     const store = useTaskStore.getState()
-    store.setSelectedCalendarDateKey(today)
+    store.setPlannerDateKey(today)
     const parent = store.addTask('B Corp')!
     const child = useTaskStore.getState().addTask('ES', undefined, parent)!
     useTaskStore.getState().updateTask(child, { dueDate: toDateKey(addDays(appToday(), 2)) })
@@ -247,7 +247,7 @@ describe('TodayPlannerView: 締切の見出しの「入りきらない」（#332
       plannerCandidateView: { ...useTaskStore.getState().plannerCandidateView, sort: 'dueDate' },
       tasks: [todo('Report', { dueDate: inTwo, estimateMinutes: 600 }), todo('Memo', { dueDate: inThree })],
     })
-    useTaskStore.getState().setSelectedCalendarDateKey(today)
+    useTaskStore.getState().setPlannerDateKey(today)
     const user = userEvent.setup()
     render(<TodayPlannerView />)
     const toggle = screen.getByRole('button', { name: /Due soon/ })
@@ -273,7 +273,7 @@ describe('TodayPlannerView: 締切の見出しの「入りきらない」（#332
         todo('Essay', { dueDate: inFive, estimateMinutes: 60, order: 2 }),
       ],
     })
-    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    useTaskStore.getState().setPlannerDateKey(toDateKey(appToday()))
     const user = userEvent.setup()
     render(<TodayPlannerView />)
     const toggle = screen.getByRole('button', { name: /Add from to-dos|Due soon/ })
@@ -321,7 +321,7 @@ describe('TodayPlannerView: 候補は「さらに表示」で足す（#372）', 
           }) as Task,
       ),
     })
-    useTaskStore.getState().setSelectedCalendarDateKey(today)
+    useTaskStore.getState().setPlannerDateKey(today)
     const user = userEvent.setup()
     render(<TodayPlannerView />)
     await user.click(screen.getByRole('button', { name: /Add from to-dos/ }))
@@ -337,7 +337,7 @@ describe('TodayPlannerView: 締切切れの行の「今日やる」（#373）', 
     const today = toDateKey(appToday())
     const yesterday = toDateKey(addDays(appToday(), -1))
     const store = useTaskStore.getState()
-    store.setSelectedCalendarDateKey(today)
+    store.setPlannerDateKey(today)
     const id = store.addTask('Late report')!
     useTaskStore.getState().updateTask(id, { dueDate: yesterday })
     const user = userEvent.setup()
@@ -354,7 +354,7 @@ describe('TodayPlannerView: 候補の「すべて追加」（#375）', () => {
     const inTwo = toDateKey(addDays(appToday(), 2))
     const inThree = toDateKey(addDays(appToday(), 3))
     const store = useTaskStore.getState()
-    store.setSelectedCalendarDateKey(today)
+    store.setPlannerDateKey(today)
     useTaskStore.setState({ plannerCandidateView: { ...store.plannerCandidateView, sort: 'dueDate' } })
     for (const title of ['Slides', 'Essay']) {
       const id = useTaskStore.getState().addTask(title)!
@@ -373,7 +373,7 @@ describe('TodayPlannerView: 完了の行もキーで（#377）', () => {
   it('完了の欄を開くと ↓ で完了の行に行け、Space で完了を外す', async () => {
     const today = toDateKey(appToday())
     const store = useTaskStore.getState()
-    store.setSelectedCalendarDateKey(today)
+    store.setPlannerDateKey(today)
     const open = store.addTask('Open one')!
     useTaskStore.getState().updateTask(open, { scheduledDate: today })
     const done = useTaskStore.getState().addTask('Done one')!
@@ -398,7 +398,7 @@ describe('TodayPlannerView: 記録中の枠（#530）', () => {
     // 0 時すぎに流すと 1 時間前が前の日になる。昼に固定する
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(new Date().setHours(13, 0, 0, 0)))
-    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    useTaskStore.getState().setPlannerDateKey(toDateKey(appToday()))
     useTaskStore.setState({ onboardingDone: true })
     useTaskStore.getState().startTimer('Essay', [])
     // 始めた時刻を 1 時間前にする（短い枠は 1 行で、終わりの「記録中」を出さない）
@@ -420,7 +420,7 @@ describe('TodayPlannerView: 記録中の枠（#530）', () => {
 
 describe('TodayPlannerView: 足したばかりの行の締切（#533）', () => {
   it('追加欄から足した行は先の締切も出し、画面を開き直すと今日やる行の決まり（先の締切は出さない）に戻る', async () => {
-    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    useTaskStore.getState().setPlannerDateKey(toDateKey(appToday()))
     useTaskStore.setState({ onboardingDone: true })
     const user = userEvent.setup()
     const { unmount } = render(<TodayPlannerView />)

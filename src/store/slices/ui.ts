@@ -15,6 +15,8 @@ type UiActions = Pick<
   | 'clearSectionScrollTarget'
   | 'setCalendarMode'
   | 'setSelectedCalendarDateKey'
+  | 'setPlannerDateKey'
+  | 'setHabitsDateKey'
   | 'setSearchQuery'
   | 'setSortMode'
   | 'setSectionGrouping'
@@ -91,8 +93,10 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
       pushUndo()
       set({ calendarMode: mode })
     },
-    // 見ている日は画面の状態（取り消しの対象にしない）。今日の計画・カレンダー・習慣で共有する
+    // 見ている日は画面の状態（取り消しの対象にしない）。カレンダー・今日の計画・習慣でそれぞれ持つ
     setSelectedCalendarDateKey: (key) => set({ selectedCalendarDateKey: key }),
+    setPlannerDateKey: (key) => set({ plannerDateKey: key }),
+    setHabitsDateKey: (key) => set({ habitsDateKey: key }),
     setSearchQuery: (q) => set({ searchQuery: q }),
     setSortMode: (mode) => {
       pushUndo()

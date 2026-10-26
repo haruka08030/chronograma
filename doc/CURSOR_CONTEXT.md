@@ -294,8 +294,8 @@
   が該当セクションへスクロールし、直後にクリア（永続化しない）
 - `calendarMode`（`month` | `week`）—
   カレンダースマートビュー内の表示切替（永続化）
-- `selectedCalendarDateKey`（`yyyy-MM-dd`）—
-  カレンダーハブの選択日と習慣一覧のフォーカス日を共有（`setSelectedCalendarDateKey`、永続化）
+- `selectedCalendarDateKey` / `plannerDateKey` / `habitsDateKey`（`yyyy-MM-dd`）—
+  見ている日。カレンダー・今日の計画・習慣でそれぞれ持ち、画面をまたいで共有しない（永続化しない。開き直したら今日）
 - `theme`, `searchQuery`, `sortMode`, `filterTag`）
 - `timeLogTagPresets`（活動ログ用タグの候補リスト・設定で編集、`setTimeLogTagPresets`）
 - `deletedTasks`（削除トースト用）、`undoLastOperation()`（⌘Z

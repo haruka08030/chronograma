@@ -30,7 +30,7 @@ const DAY = '2026-10-08'
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date(2026, 9, 8, 13, 0, 0))
-  useTaskStore.getState().setSelectedCalendarDateKey(DAY)
+  useTaskStore.getState().setPlannerDateKey(DAY)
 })
 afterEach(() => vi.useRealTimers())
 
@@ -71,7 +71,7 @@ describe('後から記録', () => {
 
   it('過ぎた日はボタンを出さない', () => {
     useTaskStore.setState({ tasks: [log('読書', '09:00', '10:30', { dueDate: '2026-10-07' })], activeTimer: null })
-    useTaskStore.getState().setSelectedCalendarDateKey('2026-10-07')
+    useTaskStore.getState().setPlannerDateKey('2026-10-07')
     render(<TodayPlannerView />)
     expect(screen.queryByRole('button', { name: 'Log past time' })).toBeNull()
   })

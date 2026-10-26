@@ -53,6 +53,18 @@ describe('useFollowToday（開いたまま日をまたぐ）', () => {
     expect(selected()).toBe('2026-10-10')
   })
 
+  it('画面ごとに見ている日を持つ: 今日を見ていた画面だけ進め、別の日を選んでいた画面は動かさない', () => {
+    useTaskStore.setState({ plannerDateKey: '2026-10-06', selectedCalendarDateKey: '2026-10-20', habitsDateKey: '2026-10-06' })
+    renderHook(() => useFollowToday())
+    act(() => {
+      vi.advanceTimersByTime(2 * 60_000)
+    })
+    const s = useTaskStore.getState()
+    expect(s.plannerDateKey).toBe('2026-10-07')
+    expect(s.selectedCalendarDateKey).toBe('2026-10-20')
+    expect(s.habitsDateKey).toBe('2026-10-07')
+  })
+
   it('今の時刻は分の境目にそろって進む（60 秒のずれを持たない）', () => {
     vi.setSystemTime(new Date(2026, 9, 6, 10, 0, 50))
     refreshAppClock()

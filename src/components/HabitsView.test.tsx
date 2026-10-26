@@ -75,7 +75,7 @@ describe('習慣の画面: 休み', () => {
     const user = userEvent.setup()
     const todayKey = appTodayKey()
     useTaskStore.setState({
-      selectedCalendarDateKey: todayKey,
+      habitsDateKey: todayKey,
       habits: [
         {
           id: 'h',
@@ -126,7 +126,7 @@ describe('習慣の画面: 曜日ごとの時間', () => {
 
   it('曜日ごとに時間を変えた習慣は、同じ時間の曜日をまとめて出す', () => {
     useTaskStore.setState({
-      selectedCalendarDateKey: appTodayKey(),
+      habitsDateKey: appTodayKey(),
       habits: [
         {
           id: 'gym',
@@ -156,7 +156,7 @@ describe('習慣の画面: 曜日ごとの時間', () => {
 describe('習慣の画面: 時間の目標', () => {
   it('一覧の行に「Daily · 30 min」と並べる', () => {
     useTaskStore.setState({
-      selectedCalendarDateKey: appTodayKey(),
+      habitsDateKey: appTodayKey(),
       habits: [
         {
           id: 'v',
@@ -183,7 +183,7 @@ describe('習慣の画面: 週に◯回の行（#609）', () => {
   it('7 日の丸ではなく回数分の丸を出し、空いた丸で今日やった・塗った丸で外す', async () => {
     const user = userEvent.setup()
     useTaskStore.setState({
-      selectedCalendarDateKey: appTodayKey(),
+      habitsDateKey: appTodayKey(),
       habits: [
         {
           id: 'pack',

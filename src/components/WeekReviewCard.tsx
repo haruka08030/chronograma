@@ -91,7 +91,7 @@ export function WeekReviewCard() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore(selectLiveHabits)
-  const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
+  const setPlannerDateKey = useTaskStore((s) => s.setPlannerDateKey)
   const selectView = useTaskStore((s) => s.selectView)
   const [period, setPeriod] = useState<ReviewPeriod>('week')
   const todayKey = useAppTodayKey()
@@ -148,7 +148,7 @@ export function WeekReviewCard() {
   const estimateMax = Math.max(1, ...estimateRows.map((r) => Math.max(r.estimateMinutes, r.loggedMinutes)))
   const weekStart = reviewPeriodStart(period, anchor)
   const openDay = (key: string) => {
-    setSelectedCalendarDateKey(key)
+    setPlannerDateKey(key)
     selectView('planner')
   }
 

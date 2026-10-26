@@ -44,7 +44,7 @@ function at(hour: number, minute = 0) {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   at(10)
-  useTaskStore.getState().setSelectedCalendarDateKey(DAY)
+  useTaskStore.getState().setPlannerDateKey(DAY)
 })
 
 afterEach(() => {
@@ -102,11 +102,11 @@ describe('夜のまとめの通知から開いたとき', () => {
 
   it('通知を押してから今日の計画を描いても受け取る（起動したとき）', () => {
     useTaskStore.setState({ tasks: [todo('a'), todo('b')] })
-    useTaskStore.getState().setSelectedCalendarDateKey('2026-10-01')
+    useTaskStore.getState().setPlannerDateKey('2026-10-01')
     openWrapUpFromNotification()
     expect(useTaskStore.getState().selectedView).toBe('planner')
     // 見ている日は今日に戻る
-    expect(useTaskStore.getState().selectedCalendarDateKey).toBe(DAY)
+    expect(useTaskStore.getState().plannerDateKey).toBe(DAY)
     render(<TodayPlannerView />)
     expect(mood()).toBeInTheDocument()
   })

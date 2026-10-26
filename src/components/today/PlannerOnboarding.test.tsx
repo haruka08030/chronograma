@@ -29,7 +29,7 @@ beforeAll(() => {
 const guide = () => screen.queryByRole('region', { name: 'Getting started' })
 
 function openToday() {
-  useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+  useTaskStore.getState().setPlannerDateKey(toDateKey(appToday()))
   render(<TodayPlannerView />)
 }
 
@@ -168,7 +168,7 @@ describe('はじめの 3 ステップ', () => {
   })
 
   it('今日以外の日には出さない', () => {
-    useTaskStore.getState().setSelectedCalendarDateKey('2020-01-01')
+    useTaskStore.getState().setPlannerDateKey('2020-01-01')
     render(<TodayPlannerView />)
     expect(guide()).toBeNull()
   })

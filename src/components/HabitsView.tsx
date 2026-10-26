@@ -45,8 +45,8 @@ export function HabitsView() {
   const archivedHabits = useMemo(() => allHabits.filter((h) => !isHabitActive(h)), [allHabits])
   const tasks = useTaskStore((s) => s.tasks)
   const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
-  const selectedCalendarDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
-  const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
+  const habitsDateKey = useTaskStore((s) => s.habitsDateKey)
+  const setHabitsDateKey = useTaskStore((s) => s.setHabitsDateKey)
   const todayKey = useAppTodayKey()
 
   // 追加フォームの中身は閉じても・画面を離れても残す（`useDialogDraft`）。足したら書きかけを捨て、名前だけ消して続けて足せるようにする
@@ -71,19 +71,19 @@ export function HabitsView() {
   /** いま足した習慣。足したらカードを閉じ、今週の表のその行までスクロールしてふわっと出す */
   const [addedId, setAddedId] = useState<string | null>(null)
 
-  const focusDate = useMemo(() => fromDateKey(selectedCalendarDateKey), [selectedCalendarDateKey])
+  const focusDate = useMemo(() => fromDateKey(habitsDateKey), [habitsDateKey])
   const weekDates = useMemo(() => habitWeekDates(focusDate), [focusDate])
   const atThisWeek = weekDates.some((d) => toDateKey(d) === todayKey)
 
   const shiftWeek = useCallback(
     (delta: number) => {
-      setSelectedCalendarDateKey(toDateKey(addDays(focusDate, delta * 7)))
+      setHabitsDateKey(toDateKey(addDays(focusDate, delta * 7)))
     },
-    [focusDate, setSelectedCalendarDateKey],
+    [focusDate, setHabitsDateKey],
   )
   const goToday = useCallback(() => {
-    setSelectedCalendarDateKey(todayKey)
-  }, [setSelectedCalendarDateKey, todayKey])
+    setHabitsDateKey(todayKey)
+  }, [setHabitsDateKey, todayKey])
   const onAdded = useCallback(
     (habitId: string) => {
       discardNewForm({ ...newForm, title: '' })

@@ -97,8 +97,12 @@ export interface TaskState {
   sectionScrollTarget: string | null
   /** カレンダーハブ内の月 / 週表示（永続化） */
   calendarMode: CalendarMode
-  /** カレンダーハブ・習慣一覧などで共有するフォーカス日（yyyy-MM-dd） */
+  /** 見ている日（yyyy-MM-dd）。画面ごとに持ち、ほかの画面とは共有しない。カレンダー */
   selectedCalendarDateKey: string
+  /** 今日の計画で見ている日 */
+  plannerDateKey: string
+  /** 習慣で見ている日（その日を含む週を出す） */
+  habitsDateKey: string
   /** `system` は OS のライト/ダークに合わせる */
   theme: 'light' | 'dark' | 'system'
   searchQuery: string
@@ -296,6 +300,8 @@ export interface TaskState {
   selectListTag: (listId: string, tag: string) => void
   setCalendarMode: (mode: CalendarMode) => void
   setSelectedCalendarDateKey: (key: string) => void
+  setPlannerDateKey: (key: string) => void
+  setHabitsDateKey: (key: string) => void
   setSearchQuery: (q: string) => void
   /** いま開いているリスト・ビューの並び順を変える */
   setSortMode: (mode: SortMode) => void

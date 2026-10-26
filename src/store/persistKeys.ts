@@ -70,6 +70,8 @@ export const VIEW_KEYS = [
 export const TRANSIENT_KEYS = [
   // 開き直したら今日から（保存すると翌日に開いたとき昨日が選ばれている）
   'selectedCalendarDateKey',
+  'plannerDateKey',
+  'habitsDateKey',
   'filterTag',
   'filterColor',
   'quickAddSectionId',

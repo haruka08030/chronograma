@@ -96,7 +96,7 @@ describe('気分の記号（#324）', () => {
 
 describe('今日の計画での出し方', () => {
   function openDay(key: string) {
-    S().setSelectedCalendarDateKey(key)
+    S().setPlannerDateKey(key)
     return render(<TodayPlannerView />)
   }
 
@@ -124,7 +124,17 @@ describe('今日の計画での出し方', () => {
     vi.setSystemTime(new Date(new Date().setHours(9, 0, 0, 0)))
     const today = appToday()
     openDay(toDateKey(today))
-    for (let i = 1; i <= 3; i++) act(() => S().setSelectedCalendarDateKey(toDateKey(addDays(today, -i))))
+    for (let i = 1; i <= 3; i++) act(() => S().setPlannerDateKey(toDateKey(addDays(today, -i))))
     expect(screen.getAllByText('Sleep')).toHaveLength(1)
+  })
+
+  it('今日の計画で日を変えても、カレンダー・習慣の見ている日は変わらない', () => {
+    const today = toDateKey(appToday())
+    useTaskStore.setState({ selectedCalendarDateKey: today, habitsDateKey: today })
+    openDay(today)
+    act(() => screen.getAllByRole('button', { name: 'Previous day' })[0].click())
+    expect(S().plannerDateKey).not.toBe(today)
+    expect(S().selectedCalendarDateKey).toBe(today)
+    expect(S().habitsDateKey).toBe(today)
   })
 })

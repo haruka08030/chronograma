@@ -60,16 +60,16 @@ describe('openTaskFromNotification', () => {
     openTaskFromNotification('es', '2026-10-11')
     const s = useTaskStore.getState()
     expect(s.selectedView).toBe('planner')
-    expect(s.selectedCalendarDateKey).toBe('2026-10-11')
+    expect(s.plannerDateKey).toBe('2026-10-11')
     expect(useOverlays.getState().detailTaskId).toBe('es')
   })
 
   it('消した件は今日の計画（今日）を開くだけ', () => {
     useTaskStore.setState({ tasks: [task('gone', { dueDate: '2026-10-11', deletedAt: '2026-10-08T00:00:00Z' })] })
-    useTaskStore.getState().setSelectedCalendarDateKey('2026-10-01')
+    useTaskStore.getState().setPlannerDateKey('2026-10-01')
     openTaskFromNotification('gone', '2026-10-11')
     expect(useTaskStore.getState().selectedView).toBe('planner')
-    expect(useTaskStore.getState().selectedCalendarDateKey).toBe(appTodayKey())
+    expect(useTaskStore.getState().plannerDateKey).toBe(appTodayKey())
     expect(useOverlays.getState().detailTaskId).toBeNull()
   })
 
@@ -79,7 +79,7 @@ describe('openTaskFromNotification', () => {
     expect(useOverlays.getState().detailTaskId).toBeNull()
     useTaskStore.setState({ tasks: [task('later', { scheduledDate: '2026-10-12', startTime: '13:00', endTime: '14:00' })] })
     expect(useOverlays.getState().detailTaskId).toBe('later')
-    expect(useTaskStore.getState().selectedCalendarDateKey).toBe('2026-10-12')
+    expect(useTaskStore.getState().plannerDateKey).toBe('2026-10-12')
   })
 
   it('待つ間に別の画面へ移ったら、届いても開かない（時間切れでもやめる）', () => {
@@ -148,12 +148,12 @@ describe('stopTimerFromNotification', () => {
 
 describe('openWrapUpFromNotification（夜のまとめ）', () => {
   it('今日の計画（今日）を開き、受け取っている今日の計画に 1 回だけ知らせる', () => {
-    useTaskStore.getState().setSelectedCalendarDateKey('2020-01-01')
+    useTaskStore.getState().setPlannerDateKey('2020-01-01')
     const fn = vi.fn()
     const stop = onWrapUpRequest(fn)
     openWrapUpFromNotification()
     expect(useTaskStore.getState().selectedView).toBe('planner')
-    expect(useTaskStore.getState().selectedCalendarDateKey).toBe(appTodayKey())
+    expect(useTaskStore.getState().plannerDateKey).toBe(appTodayKey())
     expect(fn).toHaveBeenCalledTimes(1)
     // 受け取った頼みは消える（あとで受け取り始めた所へもう一度は行かない）
     const later = vi.fn()

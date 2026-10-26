@@ -88,9 +88,9 @@ export function TodayPlannerView() {
   const isCoarse = useIsCoarsePointer()
   const isDesktop = useIsDesktop()
 
-  // 見ている日はカレンダー・習慣と共有する（d / w / m で切り替えても同じ日・その日を含む週と月が出る）
-  const dateKey = useTaskStore((s) => s.selectedCalendarDateKey)
-  const setDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
+  // 見ている日はこの画面だけのもの（カレンダー・習慣で日を動かしても変わらない）
+  const dateKey = useTaskStore((s) => s.plannerDateKey)
+  const setDateKey = useTaskStore((s) => s.setPlannerDateKey)
   useNavShortcut({
     today: () => setDateKey(toDateKey(appToday())),
     prev: () => setDateKey(toDateKey(addDays(fromDateKey(dateKey), -1))),

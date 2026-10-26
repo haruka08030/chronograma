@@ -37,7 +37,7 @@ beforeEach(() => {
 const guide = () => screen.queryByRole('region', { name: 'Getting started' })
 
 function openToday() {
-  useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+  useTaskStore.getState().setPlannerDateKey(toDateKey(appToday()))
   return render(<TodayPlannerView />)
 }
 

@@ -37,7 +37,7 @@ const DAY = '2026-10-08'
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date(2026, 9, 8, 7, 0, 0))
-  useTaskStore.getState().setSelectedCalendarDateKey(DAY)
+  useTaskStore.getState().setPlannerDateKey(DAY)
   useTaskStore.setState({ dailyCapacityMinutes: 8 * 60 })
 })
 
@@ -128,7 +128,7 @@ describe('今日の計画の「予定 / 空き」', () => {
   })
 
   it('過ぎた日は置いた時間も空きも出さない（計画しているときだけ）', () => {
-    useTaskStore.getState().setSelectedCalendarDateKey('2026-10-07')
+    useTaskStore.getState().setPlannerDateKey('2026-10-07')
     useTaskStore.setState({
       tasks: [{ ...todo('done', { estimateMinutes: 60 }), scheduledDate: '2026-10-07' }],
     })

@@ -80,7 +80,7 @@ describe('案内のあとのホーム画面への追加の誘い', () => {
     try {
       const id = useTaskStore.getState().addTask('Essay')!
       useTaskStore.getState().updateTask(id, { scheduledDate: toDateKey(appToday()), startTime: '15:00', endTime: '16:00' })
-      useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+      useTaskStore.getState().setPlannerDateKey(toDateKey(appToday()))
       render(<TodayPlannerView />)
       expect(installCard()).toBeNull()
       act(() => useTaskStore.getState().startTimer('Essay', [], id))
@@ -209,7 +209,7 @@ describe('案内のあとの通知の誘い（予定のあとの確認）', () =
     completed()
     const id = useTaskStore.getState().addTask('Essay')!
     useTaskStore.getState().updateTask(id, { scheduledDate: toDateKey(appToday()) })
-    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    useTaskStore.getState().setPlannerDateKey(toDateKey(appToday()))
     const { unmount } = render(<TodayPlannerView />)
     expect(card()).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Turn on$/ })).toBeNull()
@@ -321,7 +321,7 @@ describe('案内のあとのログインの誘い（ログインしていない�
     completed()
     const id = useTaskStore.getState().addTask('Essay')!
     useTaskStore.getState().updateTask(id, { scheduledDate: toDateKey(appToday()) })
-    useTaskStore.getState().setSelectedCalendarDateKey(toDateKey(appToday()))
+    useTaskStore.getState().setPlannerDateKey(toDateKey(appToday()))
     render(<TodayPlannerView />)
     expect(card()).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Turn on$/ })).toBeNull()

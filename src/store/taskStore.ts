@@ -155,6 +155,8 @@ export const useTaskStore = create<TaskState>()(
         sectionScrollTarget: null as string | null,
         calendarMode: 'week' as CalendarMode,
         selectedCalendarDateKey: appTodayKey(),
+        plannerDateKey: appTodayKey(),
+        habitsDateKey: appTodayKey(),
         theme: 'system' as 'light' | 'dark' | 'system',
         searchQuery: '',
         sortByKey: {} as Record<string, SortMode>,
