@@ -1040,6 +1040,8 @@ export default {
     title: '締切を選択',
     prevMonth: '前の月',
     nextMonth: '次の月',
+    prevYear: '前の年',
+    nextYear: '次の年',
     today: '今日',
     tomorrow: '明日',
     clear: '締切なし',

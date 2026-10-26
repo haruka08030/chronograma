@@ -60,7 +60,7 @@
 | 日付の移動 | `DayNav`（今日 ＜ ＞）。今日を見ているときは「今日」を押せないだけで消さない。T / K / J のヒント | `components/ui/DayNav.tsx` |
 | 濃い色の浮く面 | `INVERSE_SURFACE`（元に戻す・移動のトースト・選択中の件数・ヒント） | `components/ui/surface.ts` |
 | ポップオーバー | 面は `FLOATING_SURFACE`・`POPOVER_PANEL`・`anchoredCardClass`。ダークの背景は zinc-800（下の画面より一段明るく） | `components/ui/surface.ts` |
-| 月のカレンダー（日付を選ぶ） | 月の切り替え・日付・今日/明日/なし。期限のポップオーバー・タスクの右クリックメニュー・カレンダー画面の見出しの日付ジャンプ（`footer={false}`・`month` で見ている月から始める）で共通 | `components/DatePickerBody.tsx` |
+| 月のカレンダー（日付を選ぶ） | 年（« »）と月（‹ ›）の切り替え・常に 6 週の日付・今日/明日/なし。期限のポップオーバー・タスクの右クリックメニュー・カレンダー画面の見出しの日付ジャンプ（`footer={false}`・`month` で見ている月から始める）で共通 | `components/DatePickerBody.tsx` |
 | マウスを乗せたときのヒント | アイコンだけのボタンは `aria-label` を、`tip(説明, キー)` を付けたものはその説明＋キーを、0.5 秒後に出す（マウスのある端末だけ）。アイコンだけのボタンの名前とヒントは `tip(説明, { name: true })` で 1 回だけ書く（`aria-label` も付く。キーも添えるなら `{ key, name: true }`）。ボタンに `title` は使わない | `lib/tooltip.ts`・`components/ui/Tooltip.tsx` |
 | タスクのまとめて操作 | 完了・削除・アーカイブ・期限・優先度・リスト移動。何件に何をしたかをトーストで出す | `hooks/useBulkTaskActions.ts` |
 

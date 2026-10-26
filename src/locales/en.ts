@@ -1070,6 +1070,8 @@ export default {
     title: 'Choose due date',
     prevMonth: 'Previous month',
     nextMonth: 'Next month',
+    prevYear: 'Previous year',
+    nextYear: 'Next year',
     today: 'Today',
     tomorrow: 'Tomorrow',
     clear: 'No date',
