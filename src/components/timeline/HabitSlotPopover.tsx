@@ -66,7 +66,10 @@ export function HabitSlotPopover({
   // 時間なしは今日と過ぎた日に ✓、▶ は今日だけ
   const limit = logLimitAt(now)(dateKey)
   const started = !times ? limit === null || limit > 0 : limit === null || timeToMinutes(times.startTime) < limit
-  const ended = !times ? limit === null : limit === null || (times.endTime !== '00:00' && timeToMinutes(times.endTime) <= limit)
+  // 0:00 終わり・日をまたぐ枠（睡眠の 23:00–7:00 など）は、始まった日のうちには終わらない
+  const ended = !times
+    ? limit === null
+    : limit === null || (timeToMinutes(times.endTime) > timeToMinutes(times.startTime) && timeToMinutes(times.endTime) <= limit)
   const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 170)
   const start = () => {
     const { timeLogTagPresets, logCategoryColors, startTimer } = useTaskStore.getState()

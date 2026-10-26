@@ -11,7 +11,7 @@ import { layoutPlanAndLog } from '../../lib/overlapLayout'
 import { recordHex } from '../../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex } from '../../lib/planVisual'
-import { habitToPlannedItem, isPointHabitOn } from '../../lib/habitSlots'
+import { habitSlotsOnDay } from '../../lib/habitSlots'
 import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
 import { fromAppWall, isAppToday, isNowOnDay } from '../../lib/timeZone'
 import { SELECTED_COLUMN, TODAY_COLUMN } from '../../lib/dayMarker'
@@ -165,11 +165,11 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   }))
   const today = isAppToday(day)
   // 始まりと終わりを決めた習慣は予定の列に出す（✓ で予定どおりの記録を作って達成）。時刻ひとつの習慣は習慣の段（`WeekHabitRow`）
-  const dayHabitSlots = habits.flatMap((h) => {
-    if (isPointHabitOn(h, key)) return []
-    const slot = habitToPlannedItem(h, key, habitIndex)
-    return slot ? [{ habit: h, slot, done: habitDayStatus(h, key, habitIndex) !== 'missed' }] : []
-  })
+  // 日をまたぐ習慣（睡眠など）は、この日にかかる区間だけ描く（前の日に始まった枠も 0:00 から）
+  const dayHabitSlots = habitSlotsOnDay(habits, key, habitIndex).map((s) => ({
+    ...s,
+    done: habitDayStatus(s.habit, s.slotDate, habitIndex) !== 'missed',
+  }))
   // 移した予定は元の時間に点線の枠で残す（過ぎた日だけ。振り返りで「予定どおりだったか」を見る、#158）
   const dayMovedPlans = dayMoved.flatMap((t) => {
     const plan = t.movedPlans?.find((p) => p.date === key && p.startTime && p.endTime)
@@ -204,7 +204,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         source: isEventTask(t) ? ('scheduled-event' as const) : ('scheduled-task' as const),
         taskId: t.id,
       })),
-      ...dayHabitSlots.map(({ slot }) => slot),
+      ...dayHabitSlots.map(({ slot, seg }) => ({ ...slot, ...seg })),
       ...dayTimedEvents.map(({ e, seg }) => ({ id: `event-${e.id}`, summary: e.summary, ...seg, source: 'google' as const })),
     ]
     for (const pair of matchPlanAndActualForDate(
@@ -230,10 +230,10 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const blockStyles = layoutPlanAndLog(
     [
       ...shownTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
-      ...shownHabitSlots.map(({ slot }) => ({
+      ...shownHabitSlots.map(({ slot, seg }) => ({
         id: slot.id,
         ...blockGeometry(
-          { id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false },
+          { id: slot.id, title: slot.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false },
           key,
           false,
         ),
@@ -458,43 +458,47 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           />
         </div>
       )}
-      {shownHabitSlots.map(({ habit, slot, done }) => (
-        <div className="group/slot" key={slot.id} style={{ opacity: movingTaskId === slot.id ? 0.3 : 1 }}>
-          <TimeBlock
-            task={{ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: done }}
-            dayKey={key}
-            hStyle={planStyle(slot.id)}
-            colorHex={habit.color}
-            onPointerDown={(evt) => {
-              // まだの枠は動かす・伸ばすと、その日だけの時間になる（済んだ枠は記録のほうを動かす）
-              if (done) {
-                evt.preventDefault()
-                evt.stopPropagation()
-                return
-              }
-              handleBlockPointerDown(evt, slot.id, key, slot.startTime, slot.endTime, gridRef.current)
-            }}
-            // 済んだ枠は動かせないので押すとそのままカード（まだの枠はドラッグの仕組みが押したと判断して開く）
-            onTap={done ? () => openHabitCard(slot.id) : undefined}
-            onOpenDetail={() => openHabitCard(slot.id)}
-            withCheck={done || hasStarted(slot.startTime)}
-          />
-          {(done || hasStarted(slot.startTime)) && (
-            // 習慣画面・今日画面と同じく、もう一度押すと外す（その日の記録も外れる）
-            <SlotCheck
-              {...blockGeometry(
-                { id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: false },
-                key,
-                false,
-              )}
+      {shownHabitSlots.map(({ habit, slot, slotDate, seg, crossesDay, done }) => {
+        // 日をまたぐ枠は列ごとに区間しか描いていないので、済んだ枠と同じくドラッグでは動かさない（押すとカード）
+        const fixed = done || crossesDay
+        return (
+          <div className="group/slot" key={slot.id} style={{ opacity: movingTaskId === slot.id ? 0.3 : 1 }}>
+            <TimeBlock
+              task={{ id: slot.id, title: slot.summary, startTime: slot.startTime, endTime: slot.endTime, completed: done, segment: seg }}
+              dayKey={key}
               hStyle={planStyle(slot.id)}
-              done={done}
-              label={done ? t('weekCalendar.habitUndo') : t('weekCalendar.habitDoneAsPlanned')}
-              onCheck={() => toggleHabitDate(habit.id, key)}
+              colorHex={habit.color}
+              onPointerDown={(evt) => {
+                // まだの枠は動かす・伸ばすと、その日だけの時間になる（済んだ枠は記録のほうを動かす）
+                if (fixed) {
+                  evt.preventDefault()
+                  evt.stopPropagation()
+                  return
+                }
+                handleBlockPointerDown(evt, slot.id, key, slot.startTime, slot.endTime, gridRef.current)
+              }}
+              // 動かせない枠は押すとそのままカード（まだの枠はドラッグの仕組みが押したと判断して開く）
+              onTap={fixed ? () => openHabitCard(slot.id) : undefined}
+              onOpenDetail={() => openHabitCard(slot.id)}
+              withCheck={done || hasStarted(seg.startTime)}
             />
-          )}
-        </div>
-      ))}
+            {(done || hasStarted(seg.startTime)) && (
+              // 習慣画面・今日画面と同じく、もう一度押すと外す（その日の記録も外れる）
+              <SlotCheck
+                {...blockGeometry(
+                  { id: slot.id, title: slot.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false },
+                  key,
+                  false,
+                )}
+                hStyle={planStyle(slot.id)}
+                done={done}
+                label={done ? t('weekCalendar.habitUndo') : t('weekCalendar.habitDoneAsPlanned')}
+                onCheck={() => toggleHabitDate(habit.id, slotDate)}
+              />
+            )}
+          </div>
+        )
+      })}
       {shownTimedEvents.map(({ e, seg }) => {
         // Google の予定も予定。記録にしたら完了（✓・グレー）、時間が過ぎたらグレー。やらなかった予定（#528）は薄く・取り消し線で、✓ は出さない
         const recorded = dayLogs.some((l) => l.title === e.summary)

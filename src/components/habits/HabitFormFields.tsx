@@ -12,7 +12,7 @@ import {
 import { toggleHabitWeekdaySelection } from '../../lib/habitDraft'
 import { HABIT_ON_TIME_TOLERANCE_MIN } from '../../lib/habitTiming'
 import { labelForHex } from '../../lib/logCategoryColors'
-import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
+import { addClockMinutes, toMinutes } from '../../lib/clockTime'
 import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
 import { TimeInput } from '../TimeInput'
 import { ColorPalette } from '../labels/ColorPalette'
@@ -124,6 +124,19 @@ function TimesPerWeekPicker({ count, onChange }: { count: number; onChange: (cou
 
 const TIME_FIELD = fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')
 
+/**
+ * 時間帯の開始を動かしたあとの終わり。長さを保ってずらす（習慣は日をまたげるので 23:59 で止めない）。
+ * 終わりが空なら既定の予定の長さで埋める
+ */
+function habitEndAfterStartEdit(startTime: string, endTime: string, nextStart: string, fillMinutes: number): string {
+  const s = toMinutes(startTime)
+  const e = toMinutes(endTime)
+  if (toMinutes(nextStart) === null) return endTime
+  if (e === null) return addClockMinutes(nextStart, fillMinutes)
+  if (s === null || nextStart === startTime) return endTime
+  return addClockMinutes(nextStart, (e - s + 1440) % 1440 || fillMinutes)
+}
+
 /** 開始（と時間帯なら終了）の欄 */
 function TimeRangeInputs({
   mode,
@@ -140,12 +153,14 @@ function TimeRangeInputs({
   const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   return (
     <>
-      {/* 時間帯は開始を動かしたら長さを保って終わりもずらす（予定の欄と同じ） */}
+      {/* 時間帯は開始を動かしたら長さを保って終わりもずらす（予定の欄と同じ。日をまたいでもよい） */}
       <TimeInput
         value={startTime}
         onChange={(v) =>
           onTimesChange(
-            mode === 'range' ? { startTime: v, endTime: endAfterStartEdit(startTime, endTime, v, defaultBlockMinutes) } : { startTime: v },
+            mode === 'range'
+              ? { startTime: v, endTime: habitEndAfterStartEdit(startTime, endTime, v, defaultBlockMinutes) }
+              : { startTime: v },
           )
         }
         className={TIME_FIELD}
@@ -158,6 +173,7 @@ function TimeRangeInputs({
             onChange={(v) => onTimesChange({ endTime: v })}
             pickerDefault={startTime ? addClockMinutes(startTime, defaultBlockMinutes) : undefined}
             durationFrom={startTime || undefined}
+            overnight
             className={TIME_FIELD}
           />
         </>

@@ -82,7 +82,7 @@ describe('曜日ごとの時間', () => {
       },
     })
     expect(canSubmitHabitForm(f)).toBe(true)
-    expect(canSubmitHabitForm({ ...f, weekdayTimes: { ...f.weekdayTimes, 6: { startTime: '11:00', endTime: '10:00' } } })).toBe(false)
+    expect(canSubmitHabitForm({ ...f, weekdayTimes: { ...f.weekdayTimes, 6: { startTime: '10:00', endTime: '10:00' } } })).toBe(false)
   })
 
   it('時刻ひとつの習慣は終わりを持たず、毎日・時間なしにしたら曜日ごとの時間を外す', () => {

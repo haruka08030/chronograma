@@ -15,7 +15,8 @@ vi.mock('../i18n/config', () => ({
 
 const { useTaskStore } = await import('../store/taskStore')
 const { buildHabitRecordIndex, habitDayStatus, habitTimesOn, plannedRecordTimes } = await import('./habitTiming')
-const { habitSlotId, habitToPlannedItem, isPointHabitOn, parseHabitSlotId } = await import('./habitSlots')
+const { habitSlotId, habitSlotsOnDay, habitToPlannedItem, isPointHabitOn, parseHabitSlotId } = await import('./habitSlots')
+const { canSubmitHabitDraft } = await import('./habitDraft')
 const { normalizeHabitRow } = await import('./backupFormat')
 const { readHabitTimeOverrides } = await import('../types/habit')
 
@@ -150,5 +151,32 @@ describe('読み込み', () => {
     const withDay = normalizeHabitRow({ ...gym(), timeOverrides: { [DAY]: { startTime: '20:00', endTime: '21:00' } } })
     expect(withDay?.timeOverrides).toEqual({ [DAY]: { startTime: '20:00', endTime: '21:00' } })
     expect(normalizeHabitRow(gym())).not.toHaveProperty('timeOverrides')
+  })
+})
+
+describe('日をまたぐ時間帯（睡眠の 23:00–7:00 など）', () => {
+  const sleep = (patch: Partial<Habit> = {}) => gym({ id: 'sleep', title: '睡眠', startTime: '23:00', endTime: '07:00', ...patch })
+  const draft = { title: '睡眠', freq: 'daily' as const, weekdays: [], timesPerWeek: 3, timeMode: 'range' as const }
+
+  it('終わりが開始より前でも保存でき、同じ時刻だけは保存できない', () => {
+    expect(canSubmitHabitDraft({ ...draft, startTime: '23:00', endTime: '07:00' })).toBe(true)
+    expect(canSubmitHabitDraft({ ...draft, startTime: '23:00', endTime: '23:00' })).toBe(false)
+  })
+
+  it('始まった日は 24:00 まで、次の日は 0:00 から終わりまでの枠を描く（達成はどちらも始まった日）', () => {
+    const rows = (key: string) => habitSlotsOnDay([sleep()], key).map(({ slotDate, seg, crossesDay }) => ({ slotDate, seg, crossesDay }))
+    expect(rows(OTHER)).toEqual([
+      { slotDate: DAY, seg: { startTime: '00:00', endTime: '07:00' }, crossesDay: true },
+      { slotDate: OTHER, seg: { startTime: '23:00', endTime: '24:00' }, crossesDay: true },
+    ])
+  })
+
+  it('日をまたがない枠・0:00 終わりの枠はその日だけ', () => {
+    expect(habitSlotsOnDay([gym()], OTHER).map((r) => [r.slotDate, r.seg, r.crossesDay])).toEqual([
+      [OTHER, { startTime: '18:00', endTime: '19:30' }, false],
+    ])
+    expect(habitSlotsOnDay([sleep({ endTime: '00:00' })], OTHER).map((r) => [r.slotDate, r.seg, r.crossesDay])).toEqual([
+      [OTHER, { startTime: '23:00', endTime: '24:00' }, false],
+    ])
   })
 })

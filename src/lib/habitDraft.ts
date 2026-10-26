@@ -31,8 +31,8 @@ export function canSubmitHabitDraft(d: HabitDraftFields): boolean {
   if (d.timeMode === 'none') return !hasStartTime && !hasEndTime
   if (d.timeMode === 'fixed') return hasStartTime && !hasEndTime
   if (!hasStartTime || !hasEndTime) return false
-  if (d.startTime >= d.endTime) return false
-  return true
+  // 終わりが開始以前なら翌日の終わり（睡眠の 23:00–7:00 など）。同じ時刻だけは長さが決まらない
+  return d.startTime !== d.endTime
 }
 
 /** フォームの頻度の欄から頻度を作る。曜日・回数は選んでいる頻度の分だけ使う */
