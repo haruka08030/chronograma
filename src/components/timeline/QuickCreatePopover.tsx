@@ -11,6 +11,8 @@ import { TimeLogTagField } from '../TimeLogTagField'
 import { LogTitleInput } from '../LogTitleInput'
 import { useLogDraft } from '../../hooks/useLogDraft'
 import { addGoogleEvent } from '../../lib/googleEventEdit'
+import { inferEventDestination } from '../../lib/eventDestination'
+import { googleSkipKey } from '../../lib/googleSkip'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { appTimeZone, gmtLabel, zoneCityName, zoneLongName, zoneOptionLabel } from '../../lib/timeZone'
 import { timesPatchFromZone } from '../../lib/taskTimeZone'
@@ -69,7 +71,9 @@ const TITLE_INPUT =
  * 空き時間をクリック / ドラッグしたときの作成カード（Google カレンダーのクイック作成相当）。
  * 上で To-Do（完了の丸つき）か予定（バイト・授業など。完了の丸なし）かを選び、タイトルとリストだけ決めて保存。
  * Google とつないで書き込めるときは、予定のリストの欄に「Google カレンダー」も並ぶ（Google の予定として作る）。
- * 選んだもの（To-Do / 予定、予定を Google に作るか）は次に開いたときも同じ。
+ * リストを選んだ予定はアプリの中だけ（Google には送らない）。予定の名前を打つと、前のその名前の予定から作成先を先に選ぶ
+ * （`inferEventDestination`。自分で選び直したら、その名前を打っている間は変えない）。
+ * 選んだもの（To-Do / 予定、予定を Google に作るか）は次に開いたときも同じ（名前から分からないときの作成先）。
  * 日時を押すと開始・終了の時刻欄になり、その場で分単位に直せる（Google と同じ。仮の枠も動く）。
  * 細かい設定は「その他のオプション」で作ってから詳細を開く。外側クリック・Esc は破棄（Google と同じ）。
  * `asLog`（「今日」の記録の列）では、リストの代わりに分類を選んで記録として保存する。
@@ -104,13 +108,23 @@ export function QuickCreatePopover({
   const googleWritable = useTaskStore((s) => s.googleConnected && s.googleCanWrite)
   const [choice, setChoice] = useState<QuickCreateChoice>(readChoice)
   const asEvent = !asLog && choice.kind === 'event'
-  const toGoogle = asEvent && googleWritable && choice.eventToGoogle
+  const tasks = useTaskStore((s) => s.tasks)
+  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  const skipNames = useTaskStore((s) => s.addons.googleSkip)
+  // 自分で作成先を選んだときの名前（その名前の間は名前から選び直さない）
+  const nameKey = googleSkipKey(title)
+  const [pickedFor, setPickedFor] = useState<string | null>(null)
+  const inferred = useMemo(
+    () => (asEvent && pickedFor !== nameKey ? inferEventDestination(title, tasks, calendarEvents, skipNames) : null),
+    [asEvent, pickedFor, nameKey, title, tasks, calendarEvents, skipNames],
+  )
+  const inferredGoogle = inferred?.kind === 'google' && googleWritable
+  const toGoogle = asEvent && googleWritable && (inferred ? inferredGoogle : choice.eventToGoogle)
   const [editingTime, setEditingTime] = useState(false)
   /** 別のタイムゾーンで作る（Google と同じく、時刻の数字はそのままでそのタイムゾーンの時刻になる）。記録はいつも手元の時刻 */
   const [zone, setZone] = useState<string | null>(null)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const plannable = useMemo(() => [...lists].filter((l) => !excludedListIds.has(l.id)).sort(compareByOrder), [lists, excludedListIds])
-  const tasks = useTaskStore((s) => s.tasks)
   const slotStart = toMinutes(startTime) ?? 0
   const slotMinutes = (toMinutes(endTime) ?? 0) - slotStart
   // 枠に入る To-Do を 1 件だけ（記録の列では出さない。書き始めたら消す）
@@ -119,7 +133,10 @@ export function QuickCreatePopover({
     [asLog, tasks, dateKey, slotMinutes, excludedListIds],
   )
   const showFit = fit != null && title.trim() === ''
-  const [listId, setListId] = useState(() => (plannable.some((l) => l.id === lastListId) ? lastListId : INBOX_LIST_ID))
+  const [pickedListId, setListId] = useState(() => (plannable.some((l) => l.id === lastListId) ? lastListId : INBOX_LIST_ID))
+  // 名前からアプリの予定と分かったら、その予定のリスト（選べないリストなら今のまま）
+  const inferredList = inferred?.kind === 'app' ? inferred.listId : null
+  const listId = inferredList && plannable.some((l) => l.id === inferredList) ? inferredList : pickedListId
   const ref = useRef<HTMLDivElement>(null)
   const exitRef = useExitGhost(ref)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -178,7 +195,7 @@ export function QuickCreatePopover({
       })
     })
     if (!id) return
-    lastListId = listId
+    lastListId = pickedListId
     onCreated(id, openDetail)
   }
 
@@ -361,7 +378,10 @@ export function QuickCreatePopover({
             onChange={(e) => {
               const v = e.target.value
               // Google の予定のカレンダー選びと同じく、予定の作成先はリストの欄で選ぶ（To-Do のリスト選びでは変えない）
-              if (asEvent) setChoice((c) => ({ ...c, eventToGoogle: v === GOOGLE_TARGET }))
+              if (asEvent) {
+                setChoice((c) => ({ ...c, eventToGoogle: v === GOOGLE_TARGET }))
+                setPickedFor(nameKey)
+              }
               if (v !== GOOGLE_TARGET) setListId(v)
             }}
             className="min-w-0 flex-1 rounded-md bg-transparent py-1 outline-none hover:bg-zinc-50 dark:hover:bg-zinc-700"

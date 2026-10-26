@@ -526,8 +526,6 @@ export interface TaskState {
   renameAddedCourse: (from: string, to: string) => void
   /** 授業を学期の一覧から外す（欠席・休める回数も消す。Canvas・Moodle の科目は外した印を付ける。⌘Z で戻せる） */
   removeCourse: (termId: string, title: string, lms: boolean) => void
-  /** この名前の予定を Google カレンダーに送らない・送る（#461） */
-  setGoogleSkip: (title: string, skip: boolean) => void
   /** 時間割の設定を保存する（同じ中身なら何もしない） */
   saveTimetable: (timetable: Timetable) => void
   /**

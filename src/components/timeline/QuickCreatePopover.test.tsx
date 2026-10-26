@@ -106,3 +106,74 @@ describe('QuickCreatePopover: 記録の列の「＋ 記録なし」', () => {
     expect(document.querySelector('[data-recent-log-chips]')).toBeNull()
   })
 })
+
+describe('QuickCreatePopover: 予定の作成先を名前から選ぶ（#626）', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    // 前回は予定を Google に作った
+    localStorage.setItem('chronograma-quick-create-v1', JSON.stringify({ kind: 'event', eventToGoogle: true }))
+    useTaskStore.setState({
+      googleConnected: true,
+      googleCanWrite: true,
+      addons: { ...useTaskStore.getState().addons, googleSkip: ['面接対策'] },
+      calendarEvents: [
+        { id: 'g1', summary: 'ゼミ', start: '', end: '', date: '2026-10-01', startTime: '10:00', endTime: '11:00', isAllDay: false },
+      ],
+      tasks: [
+        {
+          ...makeTask({ title: '移動', listId: INBOX_LIST_ID, scheduledDate: '2026-10-01', startTime: '09:00', endTime: '09:30' }, 0),
+          id: 'm',
+          kind: 'event',
+        },
+      ],
+    })
+  })
+
+  const openCard = () =>
+    render(
+      <QuickCreatePopover
+        anchor={anchor}
+        dateKey={today()}
+        startTime="10:00"
+        endTime="11:00"
+        onTimesChange={() => {}}
+        onClose={() => {}}
+        onCreated={() => {}}
+      />,
+    )
+  const google = () => i18n.t('googleEdit.destGoogle')
+  const selectedText = (view: ReturnType<typeof openCard>) => {
+    const select = view.getByRole('combobox') as HTMLSelectElement
+    return select.options[select.selectedIndex].textContent
+  }
+
+  it('アプリの予定の名前ならリスト、Google の予定の名前なら Google、分からなければ前回のまま', () => {
+    const view = openCard()
+    const input = view.getByPlaceholderText(i18n.t('quickCreate.titlePlaceholder'))
+    expect(selectedText(view)).toBe(google())
+    fireEvent.change(input, { target: { value: ' 移動' } })
+    expect(selectedText(view)).not.toBe(google())
+    fireEvent.change(input, { target: { value: 'ゼミ' } })
+    expect(selectedText(view)).toBe(google())
+    fireEvent.change(input, { target: { value: '面接対策' } })
+    expect(selectedText(view)).not.toBe(google())
+    fireEvent.change(input, { target: { value: '買い物' } })
+    expect(selectedText(view)).toBe(google())
+  })
+
+  it('自分で選び直したら、その名前の間は名前から変えない', () => {
+    const view = openCard()
+    const input = view.getByPlaceholderText(i18n.t('quickCreate.titlePlaceholder'))
+    fireEvent.change(input, { target: { value: '移動' } })
+    const select = view.getByRole('combobox') as HTMLSelectElement
+    fireEvent.change(select, { target: { value: '__google__' } })
+    expect(selectedText(view)).toBe(google())
+  })
+
+  it('アプリの予定の名前で保存すると Google ではなくアプリの予定になる', () => {
+    const view = openCard()
+    fireEvent.change(view.getByPlaceholderText(i18n.t('quickCreate.titlePlaceholder')), { target: { value: '移動' } })
+    fireEvent.click(view.getByRole('button', { name: i18n.t('common.save') }))
+    expect(useTaskStore.getState().tasks.filter((x) => x.title === '移動' && x.kind === 'event')).toHaveLength(2)
+  })
+})

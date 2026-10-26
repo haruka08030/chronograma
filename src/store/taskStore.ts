@@ -77,7 +77,6 @@ import { DEFAULT_TIMETABLE, type Timetable } from '../lib/timetable'
 import { DEFAULT_ADDONS, withAddonOn, type Addons } from '../lib/addons'
 import type { SleepTimer } from '../lib/sleepTimer'
 import { normalizeDues } from '../lib/dues'
-import { withGoogleSkip } from '../lib/googleSkip'
 import { renameCourse, withAbsence, withAbsenceLimit, withAddedCourse, withRemovedCourse } from '../lib/schoolTerms'
 import { schoolOfState } from './schoolOfState'
 import { createEventSeriesSlice } from './slices/eventSeries'
@@ -335,12 +334,6 @@ export const useTaskStore = create<TaskState>()(
             undo.pushUndo({ key: 'undo.absenceCourseRemoved', params: { name: title } })
             set({ addons: { ...get().addons, school: next } })
           }),
-        setGoogleSkip: (title, skip) => {
-          const cur = get().addons
-          const googleSkip = withGoogleSkip(cur.googleSkip, title, skip)
-          if (sameValue(googleSkip, cur.googleSkip)) return
-          set({ addons: { ...cur, googleSkip } })
-        },
         ...createDayMoodsSlice(ctx),
         ...createEventSeriesSlice(ctx),
         ...undo.actions,

@@ -51,7 +51,7 @@ export function retryGooglePush(): void {
 }
 
 /**
- * この端末で作った・直した・消したアプリの予定を Google カレンダーにも反映する（`lib/googlePush.ts`）。
+ * この端末で直した・消したアプリの予定を Google カレンダーにも反映する（`GOOGLE_PUSH_UNTIL` より前に作った予定だけ、`lib/googlePush.ts`）。
  * Google につないでいれば（切れていても）変えた予定は待ちに入れて端末に覚え（`lib/googlePushQueue.ts`）、
  * 送るのは書き込みを許可しているときだけ。同期・ほかのタブで届いた変更は、変えた端末が送るので送らない。
  * 送れなかったものは、つながったとき・画面に戻ったとき・次に開いたときに送り直す。

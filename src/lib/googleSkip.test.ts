@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { isGoogleSkipped, normalizeGoogleSkip, withGoogleSkip } from './googleSkip'
+import { googleSkipKey, googleSkipKeys, normalizeGoogleSkip } from './googleSkip'
 
 describe('googleSkip', () => {
-  it('切り替えると足す・外す。同じ名前（全角半角・大文字小文字・空白の違い）は 1 つ', () => {
-    const one = withGoogleSkip([], '移動', true)
-    expect(one).toEqual(['移動'])
-    expect(withGoogleSkip(one, ' 移動 ', true)).toEqual(['移動'])
-    expect(isGoogleSkipped(one, '移動 ')).toBe(true)
-    expect(isGoogleSkipped(one, '新宿へ移動')).toBe(false)
-    expect(withGoogleSkip(['ＳＰＩ 対策', '移動'], 'spi  対策', false)).toEqual(['移動'])
-    expect(withGoogleSkip(one, '  ', true)).toEqual(['移動'])
+  it('同じ名前（全角半角・大文字小文字・空白の違い）は 1 つ。部分一致はしない', () => {
+    const keys = googleSkipKeys(['ＳＰＩ 対策', '移動'])
+    expect(keys.has(googleSkipKey('spi  対策'))).toBe(true)
+    expect(keys.has(googleSkipKey(' 移動 '))).toBe(true)
+    expect(keys.has(googleSkipKey('新宿へ移動'))).toBe(false)
   })
 
   it('読んだ値は文字以外・空・重なりを落とす', () => {
