@@ -30,6 +30,29 @@ const noRawEnterEscape = {
     'Enter / Esc は isSubmitEnter(e) / isCancelEscape(e)（src/lib/keyboard.ts）で見る（日本語の変換の Enter / Esc を除くため）。入力欄でないボタンなどは理由を書いて eslint-disable-next-line',
 }
 
+/**
+ * アイコンの形は icons.tsx の部品と lib/iconPaths.ts の ICON_PATHS にまとめる（doc/UI_CONSISTENCY.md「アイコン」）。
+ * 画面ごとに切り替わる形は PathIcon に path を渡す
+ */
+const noRawPath = {
+  selector: "JSXOpeningElement[name.name='path']",
+  message: 'コンポーネントに <path> を直書きしない。icons.tsx の部品か、lib/iconPaths.ts の ICON_PATHS ＋ PathIcon を使う',
+}
+
+/** ボタンのヒントは tip()（src/lib/tooltip.ts）。title はマウスのある端末でしか出ず、出る早さも見た目も揃わない */
+const noButtonTitle = {
+  selector: "JSXOpeningElement[name.name='button'] > JSXAttribute[name.name='title']",
+  message: 'ボタンに title は使わない。tip(説明, キー) / tip(説明, { name: true })（src/lib/tooltip.ts）でヒントを付ける',
+}
+
+/** 色の丸・色の塗りは gc-dot / gc-plan ＋ colorVars で（抜け感の薄い塗り＋くっきり縁・ダークの色も揃う） */
+const noInlineBackground = {
+  selector:
+    "JSXAttribute[name.name='style'] Property[key.name=/^(background|backgroundColor)$/], JSXAttribute[name.name='style'] Property[key.value=/^(background|backgroundColor)$/]",
+  message:
+    'style で背景色を直に塗らない。色の丸・塗りは gc-dot / gc-plan ＋ colorVars（src/lib）で付ける。色を選ぶ部品などは理由を書いて eslint-disable-next-line',
+}
+
 /** date-fns の「今日」「過去」は端末のタイムゾーンで見るので、アプリの今日（isAppToday・appTodayKey など）を使う */
 const deviceTodayImports = {
   name: 'date-fns',
@@ -96,7 +119,15 @@ export default defineConfig([
     files: ['src/components/**/*.{ts,tsx}', 'src/hooks/**/*.{ts,tsx}'],
     ignores: ['**/*.test.{ts,tsx}'],
     rules: {
-      'no-restricted-syntax': ['error', noDeviceNow, noRawEnterEscape],
+      'no-restricted-syntax': ['error', noDeviceNow, noRawEnterEscape, noButtonTitle, noInlineBackground],
+    },
+  },
+  {
+    // 画面のコード: アイコンの <path> は icons.tsx / PathIcon の中だけ
+    files: ['src/components/**/*.tsx'],
+    ignores: ['**/*.test.tsx', 'src/components/icons.tsx', 'src/components/PathIcon.tsx'],
+    rules: {
+      'no-restricted-syntax': ['error', noDeviceNow, noRawEnterEscape, noButtonTitle, noInlineBackground, noRawPath],
     },
   },
   {

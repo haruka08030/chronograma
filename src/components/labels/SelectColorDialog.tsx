@@ -121,6 +121,7 @@ export function SelectColorDialog({
             if (e.buttons) pickOnSquare(e)
           }}
           className="relative h-36 min-w-0 flex-1 cursor-crosshair touch-none rounded-lg"
+          // eslint-disable-next-line no-restricted-syntax -- 色を選ぶ四角（彩度×明度のグラデーション）で、色の丸・塗りではない
           style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hueHex})` }}
         >
           <span

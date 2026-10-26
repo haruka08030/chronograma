@@ -30,6 +30,7 @@ import { eventSpansOnDay, unrecordedGapsForDay } from '../../lib/unrecordedGaps'
 import { useAbsentOn } from '../../hooks/useAbsentOn'
 import { matchPlanAndActualForDate } from '../../lib/matchEvents'
 import type { PlannedItem } from '../../types/plannedItem'
+import { tip } from '../../lib/tooltip'
 
 type TimelineDrag = ReturnType<typeof useTimelineDrag>
 type TimelineDrop = ReturnType<typeof useTimelineDrop>
@@ -350,8 +351,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               top: (g.start / 60) * HOUR_HEIGHT + 1,
               height: ((g.end - g.start) / 60) * HOUR_HEIGHT - 2,
             }}
-            aria-label={t('weekCalendar.unrecordedGapAria', { start: startTime, end: endTime })}
-            title={t('weekCalendar.unrecordedGapAria', { start: startTime, end: endTime })}
+            {...tip(t('weekCalendar.unrecordedGapAria', { start: startTime, end: endTime }), { name: true })}
             // 列の「押して作る」を始めない（押すと枠の時間そのままで後から記録のカードを出す）
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => {
@@ -362,7 +362,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           >
             <span className="truncate px-1 tabular-nums">
               <span aria-hidden>+</span>
-              {/* 週表示は列が狭いので「+」だけ（長さは押す前に title で分かる） */}
+              {/* 週表示は列が狭いので「+」だけ（長さは押す前にヒントで分かる） */}
               {mode === 'columns' && <span> {t('weekCalendar.unrecordedGap', { time: formatDuration(g.end - g.start) })}</span>}
             </span>
           </button>
@@ -388,8 +388,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               text-left text-[10px] leading-tight text-zinc-400 hover:border-zinc-400 focus-visible:border-accent-500
               focus-visible:outline-none dark:border-zinc-600 dark:text-zinc-500 dark:hover:border-zinc-500"
             style={{ left: 2, right: 2, ...planStyle(m.id), top: geo.top + 1, height: Math.max(geo.height - 2, 14) }}
-            aria-label={t('weekCalendar.movedPlanAria', { title: m.task.title, start: m.startTime, end: m.endTime, date: to })}
-            title={t('weekCalendar.movedPlanAria', { title: m.task.title, start: m.startTime, end: m.endTime, date: to })}
+            {...tip(t('weekCalendar.movedPlanAria', { title: m.task.title, start: m.startTime, end: m.endTime, date: to }), { name: true })}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => openCard(m.task.id, e.currentTarget)}
           >

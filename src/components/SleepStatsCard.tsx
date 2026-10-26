@@ -282,6 +282,7 @@ function SleepClock({ nights }: { nights: readonly (SleepNight | null)[] }) {
       })}
       {nights.map((n, i) =>
         n ? (
+          // eslint-disable-next-line no-restricted-syntax -- アイコンではなく、夜ごとの寝た〜起きた時刻を描くグラフの弧
           <path
             key={n.dateKey}
             d={arc(14 + i * 3.4, n.bedOffset, n.wakeOffset)}

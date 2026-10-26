@@ -185,7 +185,7 @@ function PeriodRow({
             data-timetable-cell={cellKey(d, index)}
             onClick={() => onCell(d)}
             aria-label={c ? `${place} ${c.title}${absences ? ` ${attendanceText(absences, t)}` : ''}` : `${place} ${t('timetable.empty')}`}
-            title={c ? `${c.title}  ${c.startTime}${sep}${c.endTime}` : undefined}
+            {...tip(c ? `${c.title}  ${c.startTime}${sep}${c.endTime}` : undefined)}
             className={`min-h-[3.25rem] rounded-md p-1 text-left text-[11px] leading-tight transition-colors sm:min-h-[3.75rem] sm:text-xs ${
               c
                 ? 'gc-plan hover:brightness-95'
