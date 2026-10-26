@@ -12,6 +12,8 @@ const MIN_BLOCK_MINUTES = SNAP_MINUTES
 const CREATE_MIN_PX = 5
 const CREATE_MIN_COARSE_PX = 20
 const TAP_SLOP_PX = 10
+/** 作る枠を隣のブロックの境目でいったん止めておく距離（px）。これより先まで引いたら指・カーソルに合わせる */
+const CREATE_STICK_PX = 20
 /** タッチで長押しして持ち上げたブロックの、長さを変える下の端の幅（指は太いので広め。短いブロックは高さの 1/3） */
 const TOUCH_RESIZE_EDGE_PX = 20
 
@@ -27,6 +29,13 @@ export interface CreateDrag {
   intent: CreateIntent
   /** これより下（後の時刻）には伸ばせない（記録は今より先に作れない） */
   maxY?: number
+  /** 同じ列にあるブロックの上下（px）。作る枠の端がぶつかったら境目でいったん止める（押した日の列にいる間だけ） */
+  stops?: { dateKey: string; blocks: readonly CreateStop[] }
+}
+
+export interface CreateStop {
+  top: number
+  bottom: number
 }
 
 export interface MoveDrag {
@@ -84,12 +93,56 @@ export function createRangeMinutes(drag: CreateDrag): { startMin: number; endMin
   const bottom = toMin(Math.max(drag.startY, drag.currentY))
   let startMin = Math.min(Math.floor(top / SNAP_MINUTES) * SNAP_MINUTES, DAY - 2 * SNAP_MINUTES)
   let endMin = Math.min(Math.max(Math.ceil(bottom / SNAP_MINUTES) * SNAP_MINUTES, startMin + SNAP_MINUTES), DAY - SNAP_MINUTES)
+  if (drag.stops?.dateKey === drag.dateKey) ({ startMin, endMin } = stickToStops(drag, drag.stops.blocks, startMin, endMin))
   if (drag.maxY !== undefined) {
     // 15 分に丸めると今より先にはみ出すので、終わりは「今」で止める
     endMin = Math.min(endMin, Math.floor(toMin(drag.maxY)))
   }
   startMin = Math.max(0, startMin)
   return { startMin, endMin }
+}
+
+/**
+ * 作る枠の端が同じ列のブロックにぶつかったら、その境目（15 分でなくても）で止める。
+ * 境目から `CREATE_STICK_PX` より先まで引いたら止めずに合わせる（戻せばまた止まる）。
+ * 押した 15 分枠の頭（上へ引くときは終わり）が隣のブロックに食い込むときも境目にそろえる
+ */
+function stickToStops(
+  drag: CreateDrag,
+  stops: readonly CreateStop[],
+  startMin: number,
+  endMin: number,
+): { startMin: number; endMin: number } {
+  const toMin = (y: number) => (y / HOUR_HEIGHT) * 60
+  const press = toMin(drag.startY)
+  const at = toMin(drag.currentY)
+  const stick = toMin(CREATE_STICK_PX)
+  const blocks = stops.map((b) => ({ s: Math.round(toMin(b.top)), e: Math.round(toMin(b.bottom)) }))
+  /** 上のブロック（終わりの遅い順）と下のブロック（始まりの早い順）。押した位置にかかるものは数えない */
+  const above = blocks.filter((b) => b.e <= press).sort((a, b) => b.e - a.e)
+  const below = blocks.filter((b) => b.s > press).sort((a, b) => a.s - b.s)
+  let start = startMin
+  let end = endMin
+  if (drag.currentY >= drag.startY) {
+    if (above[0] && above[0].e > start) start = above[0].e
+    for (const b of below) {
+      if (b.s >= end) break
+      if (at < b.s + stick) {
+        end = b.s
+        break
+      }
+    }
+  } else {
+    if (below[0] && below[0].s < end) end = below[0].s
+    for (const b of above) {
+      if (b.e <= start) break
+      if (at > b.e - stick) {
+        start = b.e
+        break
+      }
+    }
+  }
+  return end - start >= 5 ? { startMin: start, endMin: end } : { startMin, endMin }
 }
 
 /**
@@ -180,7 +233,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   }, [])
 
   const handleCreatePointerDown = useCallback(
-    (e: React.PointerEvent, dateKey: string, intent: CreateIntent = defaultCreateIntent, maxY?: number) => {
+    (e: React.PointerEvent, dateKey: string, intent: CreateIntent = defaultCreateIntent, maxY?: number, stops?: readonly CreateStop[]) => {
       if (popup) return
       if (maxY !== undefined && getRelativeY(e.clientY, dateKey) >= maxY) return
       // タッチでは capture を遅らせず、十分なドラッグ幅が出るまで作成扱いにしない（スクロール優先）
@@ -190,7 +243,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       didMoveRef.current = false
       beyondTapSlopRef.current = false
       pointerStartRef.current = { x: e.clientX, y: e.clientY }
-      setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent, maxY })
+      setDrag({ kind: 'create', dateKey, startY: y, currentY: y, intent, maxY, stops: stops && { dateKey, blocks: stops } })
       if (coarse) {
         // タッチの長押し: 押した 15 分枠の頭から既定の長さ（無ければ 1 時間）の範囲を出し、指を上下に動かすと終わりが動く
         window.clearTimeout(createPressTimerRef.current)
@@ -199,6 +252,8 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
           const startY = Math.floor(y / slotPx) * slotPx
           let endY = startY + ((clickCreateMinutes ?? 60) / 60) * HOUR_HEIGHT
           if (maxY !== undefined) endY = Math.min(endY, maxY)
+          // 下のブロックの始まりで止める（そこから引けば伸ばせる）
+          for (const b of stops ?? []) if (b.top > y && b.top < endY) endY = b.top
           createOffsetRef.current = endY - y
           touchLiftedRef.current = true
           setTouchLifted(true)
@@ -338,7 +393,11 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         const cy = y + createOffsetRef.current
         setDrag((prev) =>
           prev && prev.kind === 'create'
-            ? nextDrag(prev, { ...prev, currentY: prev.maxY !== undefined ? Math.min(cy, prev.maxY) : cy, dateKey })
+            ? nextDrag(prev, {
+                ...prev,
+                currentY: prev.maxY !== undefined ? Math.min(cy, prev.maxY) : cy,
+                dateKey,
+              })
             : prev,
         )
       } else if (current.kind === 'move') {
