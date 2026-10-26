@@ -405,6 +405,8 @@ const SCREENS = [
   { name: 'calendar-date-jump', view: 'calendar', click: 'button[aria-label="日付を選択"]' },
   // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
   { name: 'calendar-event-card', view: 'calendar', click: '[data-block-id="s6"] >> visible=true' },
+  // 習慣の枠のカード（上の並びに ✎・この日は休む・アーカイブ・✕、#616）
+  { name: 'calendar-habit-card', view: 'calendar', click: '[data-block-id^="habit-slot::r1::"] >> visible=true >> nth=-1' },
   // 習慣の枠のカードで時間を直す（この日だけ / これ以降の◯曜日・期限。#612）
   {
     name: 'calendar-habit-time',
