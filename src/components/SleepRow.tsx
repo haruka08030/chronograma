@@ -9,7 +9,8 @@ import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
 import { clockOf } from '../lib/clockTime'
 import { toAppWall } from '../lib/timeZone'
-import { CloseIcon, PlayIcon, SunIcon } from './icons'
+import { CloseIcon, PencilIcon, PlayIcon, SunIcon } from './icons'
+import type { Task } from '../types/task'
 import { SLEEP_ICON_BUTTON, SleepBar, SleepMoonIcon, SleepTimesField } from './SleepTimesField'
 import { minutesOfDay } from '../lib/clockTime'
 
@@ -22,6 +23,7 @@ const PROMPT_FROM_MIN = 5 * 60
  * まだ無ければ前回の時刻を入れた入力欄（同じなら ✓ のワンタップで記録）、あれば時刻と長さだけを薄く出す。
  * 今日の分は朝 5 時を過ぎてから聞く。
  * 今日の夜（20 時〜朝 5 時）は寝る（▶）を出し、押すと睡眠のタイマー（#519）。寝ている間は起きた（☀）で睡眠にする。
+ * 寝ている間もその朝の記録の行は上に残す。記録の行は ✎ で直せると見せ、まだ記録の無い朝の欄は前回の時刻を下書きとして薄く出す（#627）。
  * 入力欄は統計の睡眠の図と同じ部品（SleepTimesField）。月のアイコンは行頭の 1 つだけ。
  */
 export function SleepRow({ dateKey }: { dateKey: string }) {
@@ -38,7 +40,6 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   const nowMin = minutesOfDay(now)
   if (dateKey > todayKey) return null
   const isToday = dateKey === todayKey
-  if (isToday && sleepTimer) return <SleepingRow timer={sleepTimer} dateKey={dateKey} />
 
   const bedButton = isToday && isBedtime(nowMin) && (
     <button type="button" onClick={goToBed} {...tip(t('sleep.goToBed'), { name: true })} className={SLEEP_ICON_BUTTON}>
@@ -55,28 +56,33 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
       </div>
     ) : null
 
+  // 寝ている間も、その朝の記録は上の行に残す（今夜の行で置き換えると、記録を上書きしたように見える）
+  if (isToday && sleepTimer)
+    return (
+      <div className="flex flex-col gap-1">
+        {record?.startTime && record.endTime && <RecordedSleep record={record} onEdit={() => setEditing(true)} />}
+        {editing && record ? (
+          <SleepTimesField
+            key={record.id}
+            dateKey={dateKey}
+            record={record}
+            label={<span className="sr-only">{t('sleep.title')}</span>}
+            onSaved={() => setEditing(false)}
+            onCancel={() => setEditing(false)}
+          />
+        ) : null}
+        <SleepingRow timer={sleepTimer} dateKey={dateKey} />
+      </div>
+    )
+
   if (record && !editing && record.startTime && record.endTime) {
-    const duration = formatDuration(sleepMinutes(record.startTime, record.endTime))
     return (
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          {...tip(t('sleep.edit'))}
-          aria-label={`${t('sleep.edit')} ${record.startTime}–${record.endTime} ${duration}`}
-          className="-mx-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs tabular-nums text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-        >
-          <SleepMoonIcon />
-          <span>{record.startTime}</span>
-          <SleepBar />
-          <span>{record.endTime}</span>
-          <span className="text-zinc-400 dark:text-zinc-500">{duration}</span>
-        </button>
+        <RecordedSleep record={record} onEdit={() => setEditing(true)} />
         {bedButton}
       </div>
     )
   }
-
   return (
     <div className="flex items-center gap-2">
       <SleepTimesField
@@ -90,6 +96,31 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
       />
       {bedButton}
     </div>
+  )
+}
+
+/**
+ * 記録した睡眠の 1 行（☾ 23:30 ━ 07:00 7時間30分 ✎）。行ごと押すと時刻を直せる。
+ * ホバーの無いスマホでも直せると分かるよう、行の終わりに薄い ✎ を置く
+ */
+function RecordedSleep({ record, onEdit }: { record: Task; onEdit: () => void }) {
+  const { t } = useTranslation()
+  const duration = formatDuration(sleepMinutes(record.startTime!, record.endTime!))
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      {...tip(t('sleep.edit'))}
+      aria-label={`${t('sleep.edit')} ${record.startTime}–${record.endTime} ${duration}`}
+      className="-mx-1.5 flex items-center gap-1.5 self-start rounded-md px-1.5 py-1 text-xs tabular-nums text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+    >
+      <SleepMoonIcon />
+      <span>{record.startTime}</span>
+      <SleepBar />
+      <span>{record.endTime}</span>
+      <span className="text-zinc-400 dark:text-zinc-500">{duration}</span>
+      <PencilIcon className="ml-0.5 h-3 w-3 text-zinc-300 dark:text-zinc-600" strokeWidth={2} />
+    </button>
   )
 }
 
@@ -131,24 +162,27 @@ function SleepingRow({ timer, dateKey }: { timer: SleepTimer; dateKey: string })
       <SleepBar open />
       {/* 経った時間（寝た直後の「0分」は出さない） */}
       {elapsedMin >= 1 && <span className="text-zinc-400 dark:text-zinc-500">{formatDuration(elapsedMin)}</span>}
-      <button
-        type="button"
-        onClick={() => {
-          if (wakeUp() === 'short') showMoveBanner({ key: 'sleep.timerShort' })
-        }}
-        {...tip(t('sleep.wakeUp'), { name: true })}
-        className={`ml-1 ${SLEEP_ICON_BUTTON}`}
-      >
-        <SunIcon className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        onClick={() => cancelSleep(true)}
-        {...tip(t('sleep.cancelTimer'), { name: true })}
-        className="rounded-md p-2 text-zinc-400 hover:bg-zinc-100 md:p-1 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-      >
-        <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
-      </button>
+      {/* 起きた（☀）と取り消し（×）は寝ている間の操作の組。離して置くと × が「行を閉じる」「記録を消す」に読める */}
+      <span className="ml-1 inline-flex items-center">
+        <button
+          type="button"
+          onClick={() => {
+            if (wakeUp() === 'short') showMoveBanner({ key: 'sleep.timerShort' })
+          }}
+          {...tip(t('sleep.wakeUp'), { name: true })}
+          className={SLEEP_ICON_BUTTON}
+        >
+          <SunIcon className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => cancelSleep(true)}
+          {...tip(t('sleep.cancelTimer'), { name: true })}
+          className="rounded-md p-2 text-zinc-400 hover:bg-zinc-100 md:p-1 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+        >
+          <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
+        </button>
+      </span>
     </div>
   )
 }

@@ -43,6 +43,9 @@ export function SleepBar({ open = false }: { open?: boolean }) {
 export const SLEEP_ICON_BUTTON =
   'relative isolate inline-flex h-8 w-8 shrink-0 items-center justify-center text-sleep before:absolute before:inset-1 before:-z-10 before:rounded-full before:border before:border-zinc-200 before:transition-colors hover:before:bg-zinc-100 disabled:opacity-40 disabled:hover:before:bg-transparent md:h-6 md:w-6 md:before:inset-0 dark:before:border-zinc-700 dark:hover:before:bg-zinc-800'
 
+/** 保存（✓）。欄でいちばん押してほしいボタンなので、睡眠の色の薄い塗りとくっきりした縁にする */
+const SLEEP_SAVE_BUTTON = `${SLEEP_ICON_BUTTON} before:!border-sleep before:bg-sleep/10 hover:before:!bg-sleep/20 dark:before:bg-sleep/20 dark:hover:before:!bg-sleep/30`
+
 interface SleepTimesFieldProps {
   /** 起きた日（この日の朝に起きた睡眠を入れる・直す） */
   dateKey: string
@@ -87,6 +90,8 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
   const [bed, setBed] = useState(draft.bed)
   const [wake, setWake] = useState(draft.wake)
 
+  // まだ記録の無い夜で、入れておいた時刻（前回の時刻）のまま: 下書きとして薄く出し、長さは出さない（記録済みに見せない）
+  const isDraft = !record && bed === draft.bed && wake === draft.wake
   const inFuture = isToday && Boolean(wake) && timeToMinutes(wake) > nowMin
   const canSave = Boolean(bed && wake && bed !== wake && !inFuture)
   const save = () => {
@@ -95,7 +100,9 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
     onSaved()
   }
   // 行に溶け込む小さな欄なので fieldClass は使わないが、フォーカスは他の入力欄と同じリングで見せる
-  const inputClass = `w-[3.75rem] rounded-md bg-zinc-50 px-1.5 py-1 text-xs tabular-nums text-zinc-900 outline-none dark:bg-zinc-800 dark:text-zinc-100 ${FIELD_FOCUS_RING}`
+  const inputClass = `w-[3.75rem] rounded-md bg-zinc-50 px-1.5 py-1 text-xs tabular-nums outline-none dark:bg-zinc-800 ${
+    isDraft ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-900 dark:text-zinc-100'
+  } ${FIELD_FOCUS_RING}`
 
   return (
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 中の入力欄の Enter・Esc をまとめて受ける
@@ -120,6 +127,7 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
       {inFuture ? (
         <span className={ERROR_TEXT}>{t('sleep.noFuture')}</span>
       ) : (
+        !isDraft &&
         bed &&
         wake &&
         bed !== wake && <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(sleepMinutes(bed, wake))}</span>
@@ -135,7 +143,7 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
             <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
           </button>
         )}
-        <button type="button" onClick={save} disabled={!canSave} {...tip(t('sleep.save'), { name: true })} className={SLEEP_ICON_BUTTON}>
+        <button type="button" onClick={save} disabled={!canSave} {...tip(t('sleep.save'), { name: true })} className={SLEEP_SAVE_BUTTON}>
           <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
         </button>
       </span>

@@ -34,6 +34,16 @@ describe('寝る・起きた', () => {
     expect(screen.getByRole('button', { name: /23:30–07:00/ })).toBeInTheDocument()
   })
 
+  it('寝ている間も、その朝の睡眠の行は残す', () => {
+    at(8, 7, 0)
+    useTaskStore.getState().logSleep('2026-10-08', '23:30', '07:00')
+    at(8, 23, 40)
+    render(<SleepRow dateKey="2026-10-08" />)
+    act(() => screen.getByRole('button', { name: 'Go to bed' }).click())
+    expect(screen.getByText('Asleep since 23:40')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /23:30–07:00/ })).toBeInTheDocument()
+  })
+
   it('寝たまま 16 時間を過ぎたら、寝た時刻を入れた欄で起きた時刻を聞く', () => {
     at(7, 23, 0)
     useTaskStore.getState().goToBed()
