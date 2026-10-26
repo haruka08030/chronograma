@@ -12,7 +12,7 @@ import {
   type HabitStreak,
 } from '../../lib/habitStats'
 import { isHabitDueOnDate } from '../../lib/habitSchedule'
-import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
+import { habitDayStatus, habitTimesOn, type HabitRecordIndex } from '../../lib/habitTiming'
 import { HABIT_DONE_FILL, HABIT_OFF_TIME_FILL } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
 import { TODAY_TEXT } from '../../lib/dayMarker'
@@ -24,6 +24,7 @@ import { buttonClass } from '../ui/buttonClass'
 import { CARD_TITLE_CLASS } from '../ui/headingClass'
 import { ArchiveIcon, CheckIcon, PencilIcon, TrashIcon } from '../icons'
 import { HabitFormFields } from './HabitFormFields'
+import { HabitTimeEditor } from '../timeline/HabitTimeEditor'
 import { canSubmitHabitForm, habitFormFrom, habitFromForm, useHabitFormDraft } from './habitFormState'
 import { useHabitGoalText } from './useHabitGoalText'
 import { useWeekStartsOn } from '../../hooks/useWeekStartsOn'
@@ -41,6 +42,7 @@ export function HabitDetailSheet({
   todayKey,
   closing,
   startEditing = false,
+  dateKey = null,
   onClose,
 }: {
   habit: Habit
@@ -49,6 +51,8 @@ export function HabitDetailSheet({
   closing: boolean
   /** 編集から開く（右クリックのメニューの「編集」） */
   startEditing?: boolean
+  /** タイムラインで押した日。編集の上に、その日の時間を直す欄を出す（#621） */
+  dateKey?: string | null
   onClose: () => void
 }) {
   const [editing, setEditing] = useState(startEditing)
@@ -60,7 +64,7 @@ export function HabitDetailSheet({
       returnFocus={() => document.querySelector<HTMLElement>(`[data-habit-row="${CSS.escape(habit.id)}"] button`)}
     >
       {editing ? (
-        <HabitDetailEdit habit={habit} onDone={() => setEditing(false)} />
+        <HabitDetailEdit habit={habit} dateKey={dateKey} todayKey={todayKey} onDone={() => setEditing(false)} />
       ) : (
         <HabitDetailView habit={habit} habitRecords={habitRecords} todayKey={todayKey} onEdit={() => setEditing(true)} onClose={onClose} />
       )}
@@ -271,7 +275,17 @@ function HabitMonth({ habit: h, habitRecords, todayKey }: { habit: Habit; habitR
  * 編集（シートの中身を入れ替える）。中身は開いたときの習慣の値から始める。
  * シートを閉じる・Esc で戻っても書きかけは残し、次に編集を開いたら続きから（習慣ごと、`useDialogDraft`）。保存・キャンセルで捨てる
  */
-function HabitDetailEdit({ habit, onDone }: { habit: Habit; onDone: () => void }) {
+function HabitDetailEdit({
+  habit,
+  dateKey,
+  todayKey,
+  onDone,
+}: {
+  habit: Habit
+  dateKey: string | null
+  todayKey: string
+  onDone: () => void
+}) {
   const { t } = useTranslation()
   const updateHabit = useTaskStore((s) => s.updateHabit)
   const [form, patch, discardDraft] = useHabitFormDraft(`habit-edit:${habit.id}`, () => habitFormFrom(habit))
@@ -289,6 +303,8 @@ function HabitDetailEdit({ habit, onDone }: { habit: Habit; onDone: () => void }
   return (
     <div className="space-y-4 p-6">
       <h2 className={CARD_TITLE_CLASS}>{t('habits.editTitle')}</h2>
+      {/* タイムラインから開いたら、その日の時間を直す欄（この日だけ / これ以降の◯曜日。終わった日は変えない） */}
+      {dateKey && dateKey >= todayKey && habitTimesOn(habit, dateKey) ? <HabitDayTime habit={habit} dateKey={dateKey} /> : null}
       <HabitFormFields
         form={form}
         onChange={patch}
@@ -308,5 +324,31 @@ function HabitDetailEdit({ habit, onDone }: { habit: Habit; onDone: () => void }
         </button>
       </div>
     </div>
+  )
+}
+
+/** タイムラインで押した日の時間と「時間を変える」。押すとその場で直す欄を開き、保存・キャンセルで閉じる（#621） */
+function HabitDayTime({ habit, dateKey }: { habit: Habit; dateKey: string }) {
+  const { t } = useTranslation()
+  const df = useDateFormat()
+  const [open, setOpen] = useState(false)
+  const times = habitTimesOn(habit, dateKey)
+  if (!times) return null
+  return (
+    <section className="rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-700">
+      <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">{t('habits.dayTime', { date: df.monthDayWeekday(dateKey) })}</p>
+      {open ? (
+        <HabitTimeEditor habit={habit} dateKey={dateKey} onDone={() => setOpen(false)} />
+      ) : (
+        <div className="mt-1 flex items-center gap-3">
+          <span className="text-sm tabular-nums text-zinc-600 dark:text-zinc-300">
+            {times.endTime ? `${times.startTime} – ${times.endTime}` : times.startTime}
+          </span>
+          <button type="button" onClick={() => setOpen(true)} className={buttonClass({ variant: 'link', size: 'xs' })}>
+            {t('weekCalendar.habitChangeTime')}
+          </button>
+        </div>
+      )}
+    </section>
   )
 }

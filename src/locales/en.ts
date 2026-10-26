@@ -782,6 +782,7 @@ export default {
     rest: 'Rest',
     restOneDay: 'This day only',
     restThisDay: 'Rest this day',
+    dayTime: 'Time on {{date}}',
     restUntil: 'Rest until',
     restClear: 'End rest',
     restDayAria: '{{date}} rest',

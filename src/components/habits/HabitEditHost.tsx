@@ -15,7 +15,7 @@ export function HabitEditHost() {
   const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
   const todayKey = useAppTodayKey()
   // 消した・アーカイブした習慣は閉じる。閉じたあとも右へ引っ込む動きのあいだは残す
-  const value = useMemo(() => (req && habit ? { seq: req.seq, habit } : null), [req, habit])
+  const value = useMemo(() => (req && habit ? { seq: req.seq, dateKey: req.dateKey, habit } : null), [req, habit])
   const sheet = usePresence(value)
   if (!sheet.shown) return null
   return (
@@ -26,6 +26,7 @@ export function HabitEditHost() {
       todayKey={todayKey}
       closing={sheet.closing}
       startEditing
+      dateKey={sheet.shown.dateKey}
       onClose={closeHabitEdit}
     />
   )
