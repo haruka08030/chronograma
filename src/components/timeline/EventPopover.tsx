@@ -25,7 +25,8 @@ import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
 import { MemoPreview } from '../ui/MemoPreview'
 import { isEventTask, isLogTask, type Task } from '../../types/task'
-import { isClassTask } from '../../lib/timetable'
+import { isClassTask } from '../../lib/schoolTerms'
+import { useSchool } from '../../hooks/useSchool'
 import { useAddonOn } from '../../hooks/useAddon'
 import { endKeepingLength } from '../../lib/clockTime'
 import { isOvernightTimeLog } from '../../lib/taskTimeRange'
@@ -111,6 +112,7 @@ function EventPopoverBody({
   const timeLogTagPresets = useTaskStore((s) => s.timeLogTagPresets)
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const timetable = useTaskStore((s) => s.timetable)
+  const school = useSchool()
   const schoolOn = useAddonOn('school')
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
@@ -139,7 +141,7 @@ function EventPopoverBody({
     updateTimes({ startTime: v, endTime: endKeepingLength(tv.startTime!, tv.endTime!, v) })
   }
   // 時間割の授業は欠席の行（#452）の分だけ高い
-  const attendanceRow = schoolOn && isClassTask(task, timetable) ? 42 : 0
+  const attendanceRow = schoolOn && isClassTask(task, timetable.periods, school) ? 42 : 0
   const { style, sheet } = anchoredCardStyle(
     anchor,
     WIDTH,

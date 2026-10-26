@@ -12,6 +12,7 @@ import type { EventTemplate } from '../lib/eventTemplates'
 import type { CourseLink } from '../lib/courseLinks'
 import type { SkippedEvent } from '../lib/skippedEvents'
 import type { Timetable } from '../lib/timetable'
+import type { School } from '../lib/schoolTerms'
 import type { AddonId, Addons } from '../lib/addons'
 import type { SleepTimer } from '../lib/sleepTimer'
 import type { DueItem } from '../lib/dues'
@@ -494,15 +495,18 @@ export interface TaskState {
   saveDue: (item: DueItem) => void
   /** 引き落とし・期限の日を消す */
   deleteDue: (id: string) => void
-  /**
-   * 授業の欠席の一覧（#503）に授業を足す（`from` が null）・直す。休める回数（null は決めない）も一緒に決める。
-   * 名前を直したら休んだ日・休める回数も新しい名前に移す
-   */
-  saveAbsenceCourse: (from: string | null, title: string, limit: number | null) => void
-  /** 授業を欠席の一覧から外す（休んだ日・休める回数も消す。⌘Z で戻せる） */
-  removeAbsenceCourse: (title: string) => void
-  /** 授業名・日付で欠席にする・取り消す（Google カレンダーの予定・一覧から。`lib/timetable.ts` の `withAbsence`） */
+  /** 学校の学期と授業を保存する（#622、`lib/schoolTerms.ts`。同じ中身なら何もしない。⌘Z で戻せる） */
+  saveSchool: (school: School) => void
+  /** 授業名・日付で欠席にする・取り消す（その日の学期に数える。学期が無ければ何もしない） */
   setCourseAbsent: (title: string, date: string, absent: boolean) => void
+  /** 授業の休める回数を決める（null は決めない。時間割の授業は学期の回数の 1/3） */
+  setCourseAbsenceLimit: (termId: string, title: string, limit: number | null) => void
+  /** 学期に授業を足す（「授業を追加」。時間割・LMS に無くても並ぶ） */
+  addCourse: (termId: string, title: string) => void
+  /** 追加した授業の名前を直す（欠席・休める回数も新しい名前に移す） */
+  renameAddedCourse: (from: string, to: string) => void
+  /** 授業を学期の一覧から外す（欠席・休める回数も消す。Canvas・Moodle の科目は外した印を付ける。⌘Z で戻せる） */
+  removeCourse: (termId: string, title: string, lms: boolean) => void
   /** この名前の予定を Google カレンダーに送らない・送る（#461） */
   setGoogleSkip: (title: string, skip: boolean) => void
   /** 時間割の設定を保存する（同じ中身なら何もしない） */
@@ -510,13 +514,14 @@ export interface TaskState {
   /**
    * 時間割のマスに授業を入れる。学期の間（今日より前は作らない）の、その曜日の毎週の予定を作る。作った回の数を返す
    */
-  addTimetableClass: (cls: { weekday: number; startTime: string; endTime: string; title: string; color: string | null }) => number
+  addTimetableClass: (
+    cls: { weekday: number; startTime: string; endTime: string; title: string; color: string | null },
+    term: { termStart: string; termEnd: string },
+  ) => number
   /** 時間割の授業（その回から後）の名前・ラベルを直す */
   updateTimetableClass: (firstTaskId: string, patch: { title?: string; color?: string | null }) => void
   /** 授業の回（その予定の名前・日付）を欠席にする・取り消す（#452、`lib/timetable.ts` の `withAbsence`） */
   setClassAbsent: (taskId: string, absent: boolean) => void
-  /** 授業の休める回数を決める（null は学期の回数の 1/3） */
-  setClassAbsenceLimit: (title: string, limit: number | null) => void
   /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
   updateTask: (

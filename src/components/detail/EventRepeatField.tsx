@@ -4,6 +4,8 @@ import { defaultSeriesUntil, isSeriesEvent, liveSeriesRows, maxSeriesUntil, type
 import { isoWeekday } from '../../lib/recurrence'
 import { fromDateKey } from '../../lib/dateKey'
 import { askConfirm } from '../../lib/confirmDialog'
+import { termOn } from '../../lib/schoolTerms'
+import { useSchool } from '../../hooks/useSchool'
 import type { Task } from '../../types/task'
 import { DateField } from '../DateField'
 import { PillToggle } from '../ui/PillToggle'
@@ -23,6 +25,7 @@ export function EventRepeatField({ task, date }: { task: Task; date: string }) {
   const { t } = useTranslation()
   const setEventRepeat = useTaskStore((s) => s.setEventRepeat)
   const timetable = useTaskStore((s) => s.timetable)
+  const school = useSchool()
   const labels = t('habits.weekdays', { returnObjects: true }) as string[]
   const series = isSeriesEvent(task) ? task.series : null
 
@@ -57,7 +60,7 @@ export function EventRepeatField({ task, date }: { task: Task; date: string }) {
             else
               setEventRepeat(task.id, {
                 weekdays: [isoWeekday(fromDateKey(date))],
-                until: defaultSeriesUntil(date, timetable.termEnd),
+                until: defaultSeriesUntil(date, termOn(school, date)?.termEnd ?? null),
                 skipHolidays: timetable.skipHolidays,
               })
           }}

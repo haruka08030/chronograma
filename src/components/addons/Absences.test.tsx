@@ -4,58 +4,110 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../../i18n/config'
 import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_ADDONS } from '../../lib/addons'
-import { DEFAULT_TIMETABLE } from '../../lib/timetable'
+import { emptyTerm } from '../../lib/schoolTerms'
+import { DEFAULT_TIMETABLE, suggestTerm } from '../../lib/timetable'
 import { appTodayKey } from '../../lib/timeZone'
+import { TASK_DEFAULTS } from '../../lib/taskDefaults'
+import type { Task } from '../../types/task'
 import { AddonsView } from './AddonsView'
 import { GoogleEventPopover } from '../timeline/GoogleEventPopover'
 
 const S = () => useTaskStore.getState()
+const term0 = () => S().addons.school!.terms[0]!
 
 beforeEach(async () => {
   await i18n.changeLanguage('ja')
-  useTaskStore.setState({ tasks: [], addons: DEFAULT_ADDONS, addonsUpdatedAt: null, timetable: DEFAULT_TIMETABLE, calendarEvents: [] })
+  useTaskStore.setState({
+    tasks: [],
+    addons: DEFAULT_ADDONS,
+    addonsUpdatedAt: null,
+    timetable: DEFAULT_TIMETABLE,
+    calendarEvents: [],
+    courseLinks: [],
+  })
 })
 
-describe('追加機能「学校」の授業の欠席（#503）', () => {
-  it('オンにして授業を足し、今日欠席を付けると数と残りが出る。直すと休める回数が変わり、外すと消える', async () => {
+describe('追加機能「学校」の学期と授業（#503・#622）', () => {
+  it('学期を足し、授業を足して今日欠席を付けると数が出る。授業のページで休める回数・名前を直し、外すと消える', async () => {
     const user = userEvent.setup()
     const today = appTodayKey()
     render(<AddonsView />)
     await user.click(screen.getByRole('switch', { name: '学校を使う' }))
-    expect(S().addons.enabled).toEqual({ school: true })
     await user.click(screen.getByRole('button', { name: '学校' }))
-    const dialog = screen.getByRole('region', { name: '授業の欠席' })
-    await user.click(within(dialog).getByRole('button', { name: '授業を追加' }))
+    await user.click(screen.getByRole('button', { name: '学期を追加' }))
+    await user.click(within(screen.getByRole('dialog', { name: '学期を追加' })).getByRole('button', { name: '保存' }))
+    expect(S().addons.school?.terms).toMatchObject([suggestTerm(today)])
+
+    await user.click(screen.getByRole('button', { name: '授業を追加' }))
     await user.type(screen.getByLabelText('授業の名前'), '統計学')
-    await user.type(screen.getByLabelText('休める回数（空なら決めない）'), '2')
     await user.click(screen.getByRole('button', { name: '保存' }))
-    expect(S().addons.absenceCourses).toEqual(['統計学'])
-    expect(S().timetable.absenceLimits).toEqual({ 統計学: 2 })
+    expect(term0().courses).toEqual(['統計学'])
 
-    const list = within(dialog).getByRole('list', { name: '授業の欠席' })
-    expect(list.textContent).toContain('欠席 0 / 2 回')
+    const list = screen.getByRole('list', { name: '授業' })
+    expect(list.textContent).toContain('欠席 0 回')
     await user.click(within(list).getByRole('button', { name: '統計学を今日欠席にする' }))
-    expect(S().timetable.absences).toEqual({ 統計学: [today] })
-    expect(list.textContent).toContain('欠席 1 / 2 回 · あと 1 回')
+    expect(term0().absences).toEqual({ 統計学: [today] })
 
-    // 名前を直すと休んだ日も移る
-    await user.click(within(list).getByRole('button', { name: /^統計学欠席/ }))
+    // 授業のページ
+    await user.click(within(list).getByRole('button', { name: /^統計学欠席 1 回/ }))
+    expect(screen.getByRole('heading', { level: 1, name: '統計学' })).toBeTruthy()
+    await user.type(screen.getByLabelText('休める回数（空なら決めない）'), '2')
+    await user.tab()
+    expect(term0().absenceLimits).toEqual({ 統計学: 2 })
+    expect(screen.getByText('欠席 1 / 2 回 · あと 1 回')).toBeTruthy()
+
     const name = screen.getByLabelText('授業の名前')
     await user.clear(name)
     await user.type(name, '統計学 I')
-    await user.click(screen.getByRole('button', { name: '保存' }))
-    expect(S().addons.absenceCourses).toEqual(['統計学 I'])
-    expect(S().timetable.absences).toEqual({ '統計学 i': [today] })
-    expect(S().timetable.absenceLimits).toEqual({ '統計学 i': 2 })
+    await user.tab()
+    expect(term0().courses).toEqual(['統計学 I'])
+    expect(term0().absences).toEqual({ '統計学 i': [today] })
+    expect(screen.getByRole('heading', { level: 1, name: '統計学 I' })).toBeTruthy()
 
-    await user.click(within(list).getByRole('button', { name: /^統計学 I欠席/ }))
     await user.click(screen.getByRole('button', { name: '一覧から外す' }))
-    expect(S().addons.absenceCourses).toEqual([])
-    expect(S().timetable.absences).toEqual({})
-    expect(S().timetable.absenceLimits).toEqual({})
+    expect(term0().courses).toEqual([])
+    expect(term0().absences).toEqual({})
+    // 一覧へ戻る
+    expect(screen.getByRole('heading', { level: 1, name: '学校' })).toBeTruthy()
   })
 
-  it('一覧の授業と同じ名前の Google カレンダーの予定のカードに数と「欠席にする」が出る。一覧に無い予定・オフなら出ない', async () => {
+  it('学期の間に課題のある Canvas・Moodle の科目は授業として並び、授業のページに未完了の課題が出る', async () => {
+    const user = userEvent.setup()
+    const today = appTodayKey()
+    const term = emptyTerm('t1', suggestTerm(today), '後期')
+    const lms = (id: string, title: string, extra: Partial<Task> = {}) =>
+      ({
+        ...TASK_DEFAULTS,
+        id: `canvas-s1-assignment-${id}`,
+        title,
+        tags: ['econ'],
+        dueDate: today,
+        parentId: null,
+        completed: false,
+        createdAt: today,
+        updatedAt: today,
+        ...extra,
+      }) as Task
+    useTaskStore.setState({
+      tasks: [lms('1', 'レポート 1'), lms('2', 'レポート 0', { completed: true })],
+      addons: { ...DEFAULT_ADDONS, enabled: { school: true }, school: { terms: [term] } },
+    })
+    render(<AddonsView />)
+    await user.click(screen.getByRole('button', { name: '学校' }))
+    const list = screen.getByRole('list', { name: '授業' })
+    expect(list.textContent).toContain('econ')
+    expect(list.textContent).toContain('課題 1')
+    await user.click(within(list).getByRole('button', { name: /^econ欠席/ }))
+    const section = screen.getByRole('region', { name: '課題' })
+    expect(section.textContent).toContain('レポート 1')
+    expect(section.textContent).not.toContain('レポート 0')
+    // 要らない科目は外せる（外した印が残り、並ばない）
+    await user.click(screen.getByRole('button', { name: '一覧から外す' }))
+    expect(term0().hidden).toEqual(['econ'])
+    expect(screen.getByRole('list', { name: '授業' }).textContent).not.toContain('econ')
+  })
+
+  it('学期の授業と同じ名前の Google カレンダーの予定のカードに数と「欠席にする」が出る。授業でない予定・オフなら出ない', async () => {
     const user = userEvent.setup()
     const ev = (id: string, summary: string) => ({
       id,
@@ -69,14 +121,18 @@ describe('追加機能「学校」の授業の欠席（#503）', () => {
       isAllDay: false,
     })
     S().setCalendarEvents([ev('g1', '統計学'), ev('g2', 'ゼミの打ち合わせ')])
-    useTaskStore.setState({ addons: { ...DEFAULT_ADDONS, enabled: { school: true }, absenceCourses: ['統計学'] } })
-    S().saveTimetable({ ...S().timetable, absenceLimits: { 統計学: 4 } })
+    const term = {
+      ...emptyTerm('t1', { termStart: '2026-10-01', termEnd: '2027-01-31' }),
+      courses: ['統計学'],
+      absenceLimits: { 統計学: 4 },
+    }
+    useTaskStore.setState({ addons: { ...DEFAULT_ADDONS, enabled: { school: true }, school: { terms: [term] } } })
 
     const anchor = { top: 100, left: 100, right: 200, bottom: 140 }
     const view = render(<GoogleEventPopover eventId="g1" anchor={anchor} onClose={() => {}} />)
     expect(screen.getByText('欠席 0 / 4 回')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '欠席にする' }))
-    expect(S().timetable.absences).toEqual({ 統計学: ['2026-10-05'] })
+    expect(term0().absences).toEqual({ 統計学: ['2026-10-05'] })
     expect(screen.getByText('欠席 1 / 4 回')).toBeTruthy()
     view.unmount()
 

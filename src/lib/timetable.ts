@@ -138,8 +138,8 @@ export function suggestTerm(today: string): { termStart: string; termEnd: string
 }
 
 /** 授業を入れ始める日（学期の始まりと今日の遅いほう。過ぎた回は作らない） */
-export function classStartDate(timetable: Pick<Timetable, 'termStart'>, today: string): string {
-  return timetable.termStart && timetable.termStart > today ? timetable.termStart : today
+export function classStartDate(term: { termStart: string | null }, today: string): string {
+  return term.termStart && term.termStart > today ? term.termStart : today
 }
 
 /** その時刻が入る時限（始まり ≤ 時刻 < 終わり）。無ければ -1 */
@@ -170,9 +170,14 @@ export const cellKey = (weekday: number, period: number) => `${weekday}:${period
  * 時間割のマスの中身。学期の間（今日より前は除く）の毎週の予定を、曜日と始まりの時刻の時限で並べる。
  * 同じマスに 2 つあれば先に始まる回のもの。どの時限にも入らない時刻の授業はマスに出さない
  */
-export function timetableClasses(tasks: readonly Task[], timetable: Timetable, today: string): Map<string, TimetableClass> {
-  const from = classStartDate(timetable, today)
-  const to = timetable.termEnd
+export function timetableClasses(
+  tasks: readonly Task[],
+  periods: readonly TimetablePeriod[],
+  term: { termStart: string | null; termEnd: string | null },
+  today: string,
+): Map<string, TimetableClass> {
+  const from = classStartDate(term, today)
+  const to = term.termEnd
   const bySeriesDay = new Map<string, TimetableClass>()
   const rows = tasks
     .filter(
@@ -195,7 +200,7 @@ export function timetableClasses(tasks: readonly Task[], timetable: Timetable, t
       hit.count++
       continue
     }
-    const period = periodIndexOf(timetable.periods, t.startTime)
+    const period = periodIndexOf(periods, t.startTime)
     if (period < 0) continue
     bySeriesDay.set(key, {
       seriesId: t.series!.id,
@@ -215,95 +220,6 @@ export function timetableClasses(tasks: readonly Task[], timetable: Timetable, t
     if (!out.has(key)) out.set(key, c)
   }
   return out
-}
-
-/**
- * 時間割の授業の回か（#452）。毎週の予定で、学期の中（学期を決めていれば）、月〜土のどこかの時限に始まる回。
- * 欠席を数えるのはこの回だけ（毎週のほかの予定、1 回だけの予定は数えない）
- */
-export function isClassTask(t: Task, timetable: Timetable): boolean {
-  if (!isEventTask(t) || !t.series || t.deletedAt || !t.scheduledDate || !t.startTime) return false
-  if (!inTerm(t.scheduledDate, timetable)) return false
-  const weekday = isoWeekday(fromDateKey(t.scheduledDate))
-  if (!(TIMETABLE_WEEKDAYS as readonly number[]).includes(weekday)) return false
-  return periodIndexOf(timetable.periods, t.startTime) >= 0
-}
-
-export type ClassAttendance = {
-  /** 学期の中のこの授業の回の数（消した回・休講は数えない） */
-  total: number
-  /** 欠席した回の数 */
-  absent: number
-  /** 休める回数（決めていなければ `total` の 1/3、切り捨て） */
-  limit: number
-  /** 休める回数を自分で決めたか */
-  limitSet: boolean
-  /** あと何回休めるか（超えたら負） */
-  remaining: number
-}
-
-/**
- * 授業の欠席の数と休める回数。授業名（`courseKey`）が同じ授業の回を合わせて数える。
- * 回の数は、その名前の回がある毎週の予定の回すべて（途中で名前を直しても、前の名前の過ぎた回も数える）
- */
-export function classAttendance(tasks: readonly Task[], timetable: Timetable, title: string): ClassAttendance {
-  const key = courseKey(title)
-  const classes = tasks.filter((t) => isClassTask(t, timetable))
-  const seriesIds = new Set(classes.filter((t) => courseKey(t.title) === key).map((t) => t.series!.id))
-  const total = classes.filter((t) => seriesIds.has(t.series!.id)).length
-  const absent = timetable.absences[key]?.length ?? 0
-  const set = timetable.absenceLimits[key]
-  const limit = set ?? Math.floor(total / 3)
-  return { total, absent, limit, limitSet: set !== undefined, remaining: limit - absent }
-}
-
-/** その日の回を欠席にしたか */
-export function isAbsent(timetable: Timetable, title: string, date: string): boolean {
-  return timetable.absences[courseKey(title)]?.includes(date) ?? false
-}
-
-/** その回を欠席にしたか、を予定の題名と日で聞く形（記録の無い時間で、欠席した回の時間を埋めない） */
-export function absentOnOf(timetable: Pick<Timetable, 'absences'>): (title: string, date: string) => boolean {
-  return (title, date) => timetable.absences[courseKey(title)]?.includes(date) ?? false
-}
-
-/** 欠席の印を付けた・外した時間割の設定（`normalizeTimetable` で学期の外の日付は落ちる） */
-export function withAbsence(timetable: Timetable, title: string, date: string, absent: boolean): Timetable {
-  const key = courseKey(title)
-  if (!key) return timetable
-  const cur = timetable.absences[key] ?? []
-  const nextDates = absent ? [...new Set([...cur, date])] : cur.filter((d) => d !== date)
-  const absences = { ...timetable.absences }
-  if (nextDates.length > 0) absences[key] = nextDates
-  else delete absences[key]
-  return normalizeTimetable({ ...timetable, absences })
-}
-
-/** 休める回数を決めた（null は決めない＝学期の回数の 1/3） */
-export function withAbsenceLimit(timetable: Timetable, title: string, limit: number | null): Timetable {
-  const key = courseKey(title)
-  if (!key) return timetable
-  const absenceLimits = { ...timetable.absenceLimits }
-  if (limit === null) delete absenceLimits[key]
-  else absenceLimits[key] = Math.min(ABSENCE_LIMIT_MAX, Math.max(0, Math.round(limit)))
-  return normalizeTimetable({ ...timetable, absenceLimits })
-}
-
-/** 授業名を直したとき、欠席と休める回数を新しい名前に移す（新しい名前にもあれば欠席は合わせ、回数は新しい名前のもの） */
-export function renameAttendance(timetable: Timetable, from: string, to: string): Timetable {
-  const a = courseKey(from)
-  const b = courseKey(to)
-  if (!a || !b || a === b) return timetable
-  if (!(a in timetable.absences) && !(a in timetable.absenceLimits)) return timetable
-  const absences = { ...timetable.absences }
-  const moved = absences[a]
-  delete absences[a]
-  if (moved) absences[b] = [...new Set([...(absences[b] ?? []), ...moved])]
-  const absenceLimits = { ...timetable.absenceLimits }
-  const limit = absenceLimits[a]
-  delete absenceLimits[a]
-  if (limit !== undefined && absenceLimits[b] === undefined) absenceLimits[b] = limit
-  return normalizeTimetable({ ...timetable, absences, absenceLimits })
 }
 
 /** 「欠席 2 / 5 回」と、残りが少ないときの一言（あと 1 回 / もう休めません / N 回超えています） */

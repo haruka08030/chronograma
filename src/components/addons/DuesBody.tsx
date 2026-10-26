@@ -8,6 +8,7 @@ import { useAppTodayKey } from '../../hooks/useAppClock'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { useDueWhenText } from '../../hooks/useDueWhenText'
 import { Modal, ModalTitle } from '../ui/Modal'
+import { SettingsSubPage } from '../settings/SettingsSubPage'
 import { Segmented } from '../ui/Segmented'
 import { DateField } from '../DateField'
 import { PlusIcon } from '../icons'
@@ -177,5 +178,17 @@ function DueEditor({ item, today, onClose }: { item: DueItem | null; today: stri
         </button>
       </div>
     </Modal>
+  )
+}
+
+/** 追加機能「引き落とし・期限」のページ（上に「‹ 追加機能」） */
+export function DuesPage({ onBack }: { onBack: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <SettingsSubPage title={t('addons.dues.name')} backLabel={t('addons.title')} onBack={onBack}>
+      <div className="-mx-2">
+        <DuesBody />
+      </div>
+    </SettingsSubPage>
   )
 }

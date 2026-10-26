@@ -99,7 +99,12 @@ describe('毎週の予定の同期（#279）', () => {
     await untilSynced()
     act(() => {
       useTaskStore.getState().saveTimetable(term)
-      useTaskStore.getState().addTimetableClass({ weekday: 1, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: null })
+      useTaskStore
+        .getState()
+        .addTimetableClass(
+          { weekday: 1, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: null },
+          { termStart: term.termStart!, termEnd: term.termEnd! },
+        )
     })
     await afterDebounce()
     // 10/5〜11/30 の月曜（10/12 スポーツの日・11/23 勤労感謝の日を除く）
@@ -153,7 +158,12 @@ describe('毎週の予定の同期（#279）', () => {
     await untilSynced()
     act(() => {
       useTaskStore.getState().saveTimetable(term)
-      useTaskStore.getState().addTimetableClass({ weekday: 1, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: null })
+      useTaskStore
+        .getState()
+        .addTimetableClass(
+          { weekday: 1, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: null },
+          { termStart: term.termStart!, termEnd: term.termEnd! },
+        )
     })
     await afterDebounce()
     const third = liveLocal().sort((a, b) => a.scheduledDate!.localeCompare(b.scheduledDate!))[2]!
@@ -169,7 +179,12 @@ describe('毎週の予定の同期（#279）', () => {
     await untilSynced()
     act(() => {
       useTaskStore.getState().saveTimetable(term)
-      useTaskStore.getState().addTimetableClass({ weekday: 1, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: null })
+      useTaskStore
+        .getState()
+        .addTimetableClass(
+          { weekday: 1, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: null },
+          { termStart: term.termStart!, termEnd: term.termEnd! },
+        )
     })
     await afterDebounce()
     const rows = liveLocal().sort((a, b) => a.scheduledDate!.localeCompare(b.scheduledDate!))

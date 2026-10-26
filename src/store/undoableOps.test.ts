@@ -132,12 +132,13 @@ describe('取り消せなかった操作をトーストから戻す（#490）', 
     expect(S().undoLastOperation()).toBe(true)
     expect(S().eventTemplates).toEqual([])
 
-    const before = S().timetable
-    S().setClassAbsenceLimit('経済学入門', 4)
+    useTaskStore.setState({ timetable: { ...S().timetable, termStart: '2026-10-01', termEnd: '2027-01-31' } })
+    const before = S().addons.school
+    S().setCourseAbsenceLimit('legacy', '経済学入門', 4)
     await tick()
-    expect(S().timetable).not.toBe(before)
+    expect(S().addons.school).not.toBe(before)
     expect(S().undoLastOperation()).toBe(true)
-    expect(S().timetable).toEqual(before)
+    expect(S().addons.school).toEqual(before)
   })
 
   it('バックアップ（取り込みの控え）にラベルの週の目安も入る', () => {

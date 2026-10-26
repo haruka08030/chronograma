@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { useTaskStore } from './taskStore'
 import { BACKUP_KEYS } from './slices/data'
 import { BACKUP_SCHEMA_VERSION, buildBackupPayload } from '../lib/backupFormat'
-import { DEFAULT_TIMETABLE, normalizeTimetable, withAbsence } from '../lib/timetable'
+import { DEFAULT_TIMETABLE, normalizeTimetable, type Timetable } from '../lib/timetable'
+import { courseKey } from '../lib/courseLinks'
 import { DEFAULT_ADDONS, withAddonOn } from '../lib/addons'
 import { clearImportRollback } from '../lib/importRollback'
 
@@ -41,6 +42,17 @@ beforeEach(() => {
   clearImportRollback()
   useTaskStore.setState({ theme: 'system', weekStartsOn: 1 })
 })
+
+/** 前の版の時間割の欠席の印（学期の中の日だけ） */
+function withAbsence(tt: Timetable, name: string, date: string, absent: boolean): Timetable {
+  const key = courseKey(name)
+  const cur = tt.absences[key] ?? []
+  const next = absent ? [...new Set([...cur, date])] : cur.filter((d) => d !== date)
+  const absences = { ...tt.absences }
+  if (next.length > 0) absences[key] = next
+  else delete absences[key]
+  return normalizeTimetable({ ...tt, absences })
+}
 
 describe('書き出し・取り込み・自動バックアップの気分・時間割・追加機能（版 4）', () => {
   it('書き出しに保存する値が入り、取り込むと戻る（気分・欠席・支払い・よく入れる予定・つながり・他のタイムゾーン）', () => {

@@ -78,25 +78,80 @@ const DUES_ON = {
     ],
   },
 }
-/** 追加機能「学校」（#503）をオンにして、授業の欠席の一覧に残りの違う授業を入れた状態（ゼミは今日の予定と同じ名前） */
+/** 今日の学期（前期・後期。`suggestTerm` と同じ） */
+const SHOT_TERM = (() => {
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = today.getMonth() + 1
+  return m >= 3 && m <= 8
+    ? { termStart: `${y}-04-01`, termEnd: `${y}-07-31`, name: `${y} 前期` }
+    : m >= 9
+      ? { termStart: `${y}-10-01`, termEnd: `${y + 1}-01-31`, name: `${y} 後期` }
+      : { termStart: `${y - 1}-10-01`, termEnd: `${y}-01-31`, name: `${y - 1} 後期` }
+})()
+const shotTerm = (extra = {}) => ({ id: 'shot-term', ...SHOT_TERM, absences: {}, absenceLimits: {}, courses: [], hidden: [], ...extra })
+/**
+ * 追加機能「学校」（#503・#622）をオンにして、今日の学期に授業を入れた状態。体育・ゼミは「授業を追加」で入れた授業（ゼミは今日の予定と同じ名前）、
+ * 統計学は時間割の授業で Canvas の科目 stat につないだもの、econ は課題のある科目から自動で並んだもの
+ */
 const SCHOOL_ON = {
-  addons: { enabled: { school: true }, dues: [], absenceCourses: ['統計学', 'ゼミ', '英語コミュニケーション', '体育'] },
-  timetable: {
-    periods: [],
-    termStart: null,
-    termEnd: null,
-    skipHolidays: false,
-    absences: { 統計学: [tzDayKey(-14), tzDayKey(-7), tzDayKey(-3)], ゼミ: [tzDayKey(-7)], 英語コミュニケーション: [tzDayKey(-1)] },
-    absenceLimits: { 統計学: 4, ゼミ: 3, 英語コミュニケーション: 5 },
+  addons: {
+    enabled: { school: true },
+    dues: [],
+    school: {
+      terms: [
+        shotTerm({
+          courses: ['体育', 'ゼミ'],
+          absences: { 統計学: [tzDayKey(-14), tzDayKey(-7), tzDayKey(-3)], ゼミ: [tzDayKey(-7)] },
+          absenceLimits: { 統計学: 4, ゼミ: 3 },
+        }),
+      ],
+    },
   },
+  courseLinks: [{ title: '統計学', course: 'stat' }],
 }
-/** 時間割は追加機能の学校（#453・#617）。撮るときはオンにしておく */
-const TIMETABLE_ON = { addons: { enabled: { school: true }, dues: [] } }
+/** 学校のページで撮る Canvas の課題（科目 stat・econ） */
+const lmsTask = (id, title, course, days) => ({
+  id: `canvas-shot-assignment-${id}`,
+  title,
+  tags: [course],
+  dueDate: tzDayKey(days),
+  dueTime: '23:59',
+  listId: '__inbox__',
+})
+const SCHOOL_LMS = [
+  lmsTask('1', '第 5 回 小テスト', 'stat', 1),
+  lmsTask('2', '中間レポート', 'econ', 3),
+  lmsTask('3', '第 6 回 課題', 'econ', 10),
+]
+const SCHOOL_CLASSES = () => [...addClass('2:0', '統計学'), ...addClass('4:1', '英語コミュニケーション')]
+/** 時間割は追加機能の学校（#453・#617）。撮るときはオンにし、今日の学期を入れておく */
+const TIMETABLE_ON = { addons: { enabled: { school: true }, dues: [], school: { terms: [shotTerm()] } } }
+/** 前の版の時間割（学期・欠席を時間割の設定に持っていた）のまま学校をオンにした状態。学校は時間割の設定から 1 つめの学期を作る */
+const LEGACY_SCHOOL_ON = { addons: { enabled: { school: true }, dues: [] } }
 const addClass = (cell, title) => [
   { click: `[data-timetable-cell="${cell}"]` },
   { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: title } },
   { click: '[role=dialog] button:has-text("保存")' },
 ]
+/** 足す To-Do で種データの To-Do から引き継がない値 */
+const BLANK_TASK = {
+  description: '',
+  completed: false,
+  completedAt: null,
+  parentId: null,
+  sectionId: null,
+  scheduledDate: null,
+  startTime: null,
+  endTime: null,
+  kind: 'task',
+  series: null,
+  recurrence: null,
+  deletedAt: null,
+  archivedAt: null,
+  color: null,
+  priority: 'none',
+}
 const SEED_CLASSES = [
   ...addClass('1:0', '経済学入門'),
   ...addClass('3:1', '英語コミュニケーション'),
@@ -147,7 +202,7 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする、`lang` は表示の言語（既定は 'ja'）、`mobileWidth` はスマホ幅の横幅（既定 390）。手の `select` は <select> の選択肢を選ぶ */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`extraTasks` は種データに足す To-Do、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする、`lang` は表示の言語（既定は 'ja'）、`mobileWidth` はスマホ幅の横幅（既定 390）。手の `select` は <select> の選択肢を選ぶ */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -568,7 +623,30 @@ const SCREENS = [
   { name: 'calendar-month-dues', view: 'calendar', calendarMode: 'month', state: DUES_ON },
   { name: 'calendar-week-dues', view: 'calendar', state: DUES_ON },
   // 追加機能（#453・#617）: 最初はどれもオフ・学校をオンにしたところ・学校のページ・説明のポップアップ・設定の「追加機能」
-  { name: 'addons-school', view: 'addons', state: SCHOOL_ON, steps: [{ click: '[data-addon="school"] button:has-text("学校")' }] },
+  {
+    name: 'addons-school',
+    view: 'addons',
+    state: SCHOOL_ON,
+    extraTasks: SCHOOL_LMS,
+    steps: [{ click: '[data-addon="school"] button:has-text("学校")' }, ...SCHOOL_CLASSES()],
+  },
+  {
+    name: 'addons-school-course',
+    view: 'addons',
+    state: SCHOOL_ON,
+    extraTasks: SCHOOL_LMS,
+    steps: [
+      { click: '[data-addon="school"] button:has-text("学校")' },
+      ...SCHOOL_CLASSES(),
+      { click: 'ul[aria-labelledby="school-courses"] button:has-text("統計学") >> nth=0' },
+    ],
+  },
+  {
+    name: 'addons-school-term',
+    view: 'addons',
+    state: SCHOOL_ON,
+    steps: [{ click: '[data-addon="school"] button:has-text("学校")' }, { click: 'button:has-text("学期を追加")' }],
+  },
   { name: 'addons-info', view: 'addons', steps: [{ click: '[data-addon="school"] button[aria-label="学校の説明"]' }] },
   {
     name: 'addons-school-edit',
@@ -576,7 +654,7 @@ const SCREENS = [
     state: SCHOOL_ON,
     steps: [
       { click: '[data-addon="school"] button:has-text("学校")' },
-      { click: 'section[aria-labelledby="school-absences"] button:has-text("統計学")' },
+      { click: 'ul[aria-labelledby="school-courses"] button:has-text("体育") >> nth=0' },
     ],
   },
   {
@@ -593,21 +671,21 @@ const SCREENS = [
     name: 'calendar-timetable-absence',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
-    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
+    state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
     steps: SEED_CLASSES,
   },
   {
     name: 'calendar-timetable-limit',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
-    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
+    state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
     steps: [...SEED_CLASSES, { click: '[data-timetable-cell="5:2"]' }],
   },
   {
     name: 'calendar-class-card',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
-    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
+    state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
     // 日曜は時間割に無いので、日曜に撮るときは次の月曜の回（週表示は次の週・スマホは翌日へ）
     steps: [
       ...addClass(`${TODAY_WEEKDAY === 0 ? 1 : TODAY_WEEKDAY}:3`, '経済学入門'),
@@ -1286,6 +1364,8 @@ async function main() {
             seed.state.tasks = seed.state.tasks.filter((x) => !roots.has(x.parentId) && !x.dreamId)
             for (const x of seed.state.tasks) delete x.somedayTier
           }
+          // Canvas・Moodle の課題など、種データに足す To-Do（無い項目は種データの最初の To-Do から）
+          for (const extra of screen.extraTasks ?? []) seed.state.tasks.push({ ...seed.state.tasks[0], ...BLANK_TASK, ...extra })
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedInstant.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedInstant.toISOString()
