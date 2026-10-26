@@ -9,7 +9,7 @@ import { TodayPlannerView } from './TodayPlannerView'
 /**
  * スマホの今日の計画で最初に出す面: 選ぶ前（今日の締めの時刻まで・先の日）は「やること」、
  * 決めた後（過ぎた日・今日の締めの時刻から・夜の通知から）は予定と記録が並ぶ「タイムライン」。
- * タブで選んだら、その日のうちはそれに従う
+ * タブで選んだら、その日のうちはそれに従う。はじめの案内を終えるまでは「やること」
  */
 
 beforeAll(() => {
@@ -40,7 +40,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   at(10)
   forgetPlannerPane()
-  useTaskStore.setState({ tasks: [], dailyReminders: { planTime: null, wrapUpTime: null } })
+  useTaskStore.setState({ tasks: [], onboardingDone: true, dailyReminders: { planTime: null, wrapUpTime: null } })
   useTaskStore.getState().setSelectedCalendarDateKey(TODAY)
 })
 
@@ -68,6 +68,13 @@ describe('スマホで最初に出す面', () => {
     at(17)
     render(<TodayPlannerView />)
     expect(shownPane()).toBe('Timeline')
+  })
+
+  it('はじめの案内を終えるまでは、締めの時刻を過ぎても「やること」から（案内はそちらにある）', () => {
+    useTaskStore.setState({ onboardingDone: false })
+    at(21)
+    render(<TodayPlannerView />)
+    expect(shownPane()).toBe('To do')
   })
 
   it('夜のまとめの時刻を決めていれば、その時刻から', () => {
