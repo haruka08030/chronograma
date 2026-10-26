@@ -216,16 +216,18 @@ const SCREENS = [
     view: 'planner',
     click: ['button:has-text("後から記録") >> visible=true', 'button[aria-label="色とラベル"] >> visible=true'],
   },
-  // 名前を付けた色はすぐパレットにラベル名のチップで出る（#596）
+  // 名前の無い色に名前を付けると、パレットの丸のヒントにその名前が出る（#596）
   {
-    name: 'record-label-named',
+    name: 'record-label-named-hover',
     view: 'planner',
+    desktopOnly: true,
     click: ['button:has-text("後から記録") >> visible=true', 'button[aria-label="色とラベル"] >> visible=true'],
     steps: [
       { click: 'button[aria-label="ラベルを編集"] >> visible=true' },
       { fill: { selector: '[role=dialog] input[placeholder="ラベルを追加"][value=""] >> nth=0', text: '趣味' } },
       { click: '[role=dialog] button:has-text("保存")' },
       { wait: 400 },
+      { hover: '[role=radiogroup][aria-label="色とラベル"] [role=radio] >> nth=0' },
     ],
   },
   // 記録の名前を打つと過去の記録が候補に出る（#415）。後から記録と、記録中に題名を直すところ
@@ -1354,6 +1356,10 @@ async function main() {
                 await page.click(step.rightClick, { button: 'right' })
               } else if (step.click) {
                 await page.click(step.click)
+              } else if (step.hover && !vp.hasTouch) {
+                // マウスを乗せる（ヒントが出るまで待つ。PC 幅だけ）
+                await page.hover(step.hover)
+                await page.waitForTimeout(800)
               } else if (step.wait) {
                 // 待つ（ミリ秒。閉じる動きが終わるまでなど）
                 await page.waitForTimeout(step.wait)

@@ -2,22 +2,19 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { CALENDAR_COLORS } from '../../lib/googleColors'
-import { categoryHex, colorVars } from '../../lib/logCategoryColors'
+import { categoryHex, colorKeyForHex, labelForHex } from '../../lib/logCategoryColors'
 import { lazyNamed } from '../../lib/lazyComponent'
 import { OverlaySuspense } from '../ui/OverlaySuspense'
 import { PencilIcon } from '../icons'
 import { ColorSwatches } from '../ui/ColorSwatches'
-import { ColorDot } from '../ui/FilterChips'
-import { chipClass } from '../ui/chipClass'
 import { tip } from '../../lib/tooltip'
 
 /** ラベルの編集（✎ で開いたときだけ読む。色の一覧は起動時の画面にもある） */
 const LabelsDialog = lazyNamed(() => import('./LabelsDialog'), 'LabelsDialog')
 
 /**
- * Google カレンダーの色選択と同じパネル: ✎（ラベルを編集）・名前の付いたラベルのチップ・名前の無い色の丸・下の「既定」ボタン。
- * ラベル名は丸のヒントに隠さず、「● 名前」のチップで見せる（スマホにはヒントが無い。#596）。丸は同じ色を 2 か所に出さないよう、名前の無い色だけ。
- * 記録・予定・習慣の色と Google の予定の色で使う。
+ * Google カレンダーの色選択と同じパネル: ✎（ラベルを編集）・24 色＋自分で作った色・下の「既定」ボタン。
+ * 色の丸のツールチップは「ラベル名（色名）」。記録・予定・習慣の色と Google の予定の色で使う。
  * 色が必ずあるもの（習慣）は `onDefault` を渡さず、既定ボタンを出さない。
  */
 export function ColorPalette({
@@ -45,21 +42,15 @@ export function ColorPalette({
   const colors = useTaskStore((s) => s.logCategoryColors)
   const [editingLabels, setEditingLabels] = useState(false)
 
-  // 名前の付いたラベル（並び順のまま・同じ色は先の名前）と、名前の無い 24 色
-  const { labels, swatches } = useMemo(() => {
-    const labels: { name: string; hex: string }[] = []
-    for (const name of presets) {
-      const hex = categoryHex(name, colors).toUpperCase()
-      if (!labels.some((l) => l.hex === hex)) labels.push({ name, hex })
-    }
-    const named = new Set(labels.map((l) => l.hex))
-    const swatches = CALENDAR_COLORS.filter((c) => !named.has(c.hex.toUpperCase())).map((c) => ({
-      hex: c.hex,
-      name: t(`googleColors.${c.key}`),
-    }))
-    return { labels, swatches }
+  // 24 色の後ろに、24 色に無い色のラベル（自分で作った色）
+  const swatches = useMemo(() => {
+    const base = CALENDAR_COLORS.map((c) => ({ hex: c.hex, colorName: t(`googleColors.${c.key}`) }))
+    const extra = presets
+      .map((n) => categoryHex(n, colors))
+      .filter((hex, i, arr) => !colorKeyForHex(hex) && arr.indexOf(hex) === i)
+      .map((hex) => ({ hex, colorName: hex }))
+    return [...base, ...extra]
   }, [presets, colors, t])
-  const selected = selectedHex?.toUpperCase() ?? null
 
   return (
     <div className={bare ? 'p-1' : 'rounded-2xl bg-zinc-50 p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900/60 dark:ring-zinc-700'}>
@@ -71,27 +62,16 @@ export function ColorPalette({
       >
         <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
       </button>
-      {labels.length > 0 && (
-        <div role="radiogroup" aria-label={t('labels.title')} className="mb-3 flex flex-wrap gap-1.5">
-          {labels.map((l) => (
-            <button
-              key={l.hex}
-              type="button"
-              role="radio"
-              aria-checked={selected === l.hex}
-              onClick={() => onChoose(l.hex)}
-              className={chipClass({ variant: 'outline', size: 'md', selected: selected === l.hex }, 'min-h-8 max-w-full')}
-              style={colorVars(l.hex)}
-            >
-              <ColorDot hex={l.hex} />
-              <span className="truncate">{l.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {swatches.length > 0 && (
-        <ColorSwatches ariaLabel={t('labels.pickerAria')} selectedHex={selectedHex} onChoose={onChoose} fill={fill} swatches={swatches} />
-      )}
+      <ColorSwatches
+        ariaLabel={t('labels.pickerAria')}
+        selectedHex={selectedHex}
+        onChoose={onChoose}
+        fill={fill}
+        swatches={swatches.map((sw) => {
+          const name = labelForHex(sw.hex, presets, colors)
+          return { hex: sw.hex, name: name ? t('common.withNote', { title: name, note: sw.colorName }) : sw.colorName }
+        })}
+      />
       {onDefault && (
         <button
           type="button"
