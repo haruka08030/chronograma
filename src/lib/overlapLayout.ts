@@ -22,39 +22,37 @@ export interface OverlapSlot {
  * 時間が重なるブロックを横に並べるための列割り当て（Google カレンダー方式）。
  * 縦位置で重なる項目を推移的にまとめた「塊」ごとに、空いている最左列へ貪欲に詰める。
  * 塊の列数はその塊内の最大同時数なので、重ならない項目は常に全幅になる。
+ * `longFirst` なら塊の中で長いものから左の列に置く（ずらし重ねで短いものを右・上に出すため）
  */
-export function layoutOverlaps(items: readonly OverlapInput[]): Map<string, OverlapSlot> {
+export function layoutOverlaps(items: readonly OverlapInput[], longFirst = false): Map<string, OverlapSlot> {
   const result = new Map<string, OverlapSlot>()
+  const span = (x: OverlapInput) => x.span ?? x.height
   const sorted = [...items].sort((a, b) => a.top - b.top || b.height - a.height)
 
-  let cluster: { id: string; col: number }[] = []
-  let colEnds: number[] = []
+  const clusters: OverlapInput[][] = []
   let clusterEnd = -Infinity
-
-  const flush = () => {
-    const cols = colEnds.length
-    for (const c of cluster) result.set(c.id, { col: c.col, cols })
-    cluster = []
-    colEnds = []
-  }
-
   for (const item of sorted) {
-    const bottom = item.top + (item.span ?? item.height)
     if (item.top >= clusterEnd) {
-      flush()
+      clusters.push([])
       clusterEnd = -Infinity
     }
-    let col = colEnds.findIndex((end) => end <= item.top)
-    if (col < 0) {
-      col = colEnds.length
-      colEnds.push(bottom)
-    } else {
-      colEnds[col] = bottom
-    }
-    cluster.push({ id: item.id, col })
-    clusterEnd = Math.max(clusterEnd, bottom)
+    clusters[clusters.length - 1]!.push(item)
+    clusterEnd = Math.max(clusterEnd, item.top + span(item))
   }
-  flush()
+
+  for (const cluster of clusters) {
+    const order = longFirst ? [...cluster].sort((a, b) => span(b) - span(a) || a.top - b.top) : cluster
+    const columns: { top: number; bottom: number }[][] = []
+    const placed: { id: string; col: number }[] = []
+    for (const item of order) {
+      const range = { top: item.top, bottom: item.top + span(item) }
+      let col = columns.findIndex((c) => c.every((r) => r.bottom <= range.top || range.bottom <= r.top))
+      if (col < 0) col = columns.push([]) - 1
+      columns[col]!.push(range)
+      placed.push({ id: item.id, col })
+    }
+    for (const p of placed) result.set(p.id, { col: p.col, cols: columns.length })
+  }
   return result
 }
 
@@ -66,7 +64,7 @@ const CASCADE_STEP_PX = 14
  * `laneStart`/`laneWidth` は親の幅に対する %（予定=左半分 などのレーン指定用）。
  * - `columns`: 等幅で横に並べる（1 日表示など列が広いとき）
  * - `cascade`: 少しずつ右へずらして後のものを上に重ねる（週表示など列が狭いとき。
- *   等分すると 1 文字ずつ折り返して読めなくなるため）。ホバーで前面に出る
+ *   等分すると 1 文字ずつ折り返して読めなくなるため）。重ね順は layoutPlanAndLog が決める
  */
 export function overlapSlotStyle(
   slot: OverlapSlot | undefined,
@@ -82,7 +80,6 @@ export function overlapSlotStyle(
     return {
       left: `calc(${laneStart}% + ${gapPx + shift}px)`,
       width: `calc(${laneWidth}% - ${gapPx * 2 + shift}px)`,
-      zIndex: col > 0 ? col : undefined,
     }
   }
   const w = laneWidth / cols
@@ -129,24 +126,28 @@ export function layoutPlanAndLog(
       (p.length === 0 && l.some((x) => full.logIds?.has(x.id)))
     const split = fixedLanes ? !fullWidth : p.length > 0 && l.length > 0
     const place = (items: typeof cluster, start: number, width: number) => {
-      const slots = layoutOverlaps(items)
+      const slots = layoutOverlaps(items, mode === 'cascade')
       for (const it of items) styles.set(`${it.isLog ? 'log' : 'plan'}:${it.id}`, overlapSlotStyle(slots.get(it.id), start, width, 2, mode))
     }
     place(p, 0, split ? 50 : 100)
     place(l, split ? 50 : 0, split ? 50 : 100)
   }
 
-  // 最小高さで引き伸ばした短い項目が次の項目にかぶるときは、後の項目を上に出す（タイトルが隠れないように）
+  // 重ね順。塊の中は、ずらし重ね（週表示）なら短いものほど上（長い予定の下に隠れないように）、
+  // 同じ高さなら後のものが上。最小高さで引き伸ばした短い項目が次の塊にかぶるときは、
+  // 後の塊を上に出す（タイトルが隠れないように）
   let visualEnd = -Infinity
-  let lastZ = 0
-  for (const item of all) {
-    const key = `${item.isLog ? 'log' : 'plan'}:${item.id}`
-    const style = styles.get(key)!
-    const baseZ = Number(style.zIndex ?? 0)
-    const z = item.top < visualEnd ? Math.min(Math.max(baseZ, lastZ + 1), MAX_STACK_Z) : baseZ
-    if (z !== baseZ) styles.set(key, { ...style, zIndex: z })
-    lastZ = z
-    visualEnd = Math.max(visualEnd, item.top + item.height)
+  let lastTop = 0
+  for (const cluster of clusters) {
+    const base = cluster[0]!.top < visualEnd ? lastTop + 1 : 0
+    const order = mode === 'cascade' ? [...cluster].sort((a, b) => b.height - a.height || a.top - b.top) : cluster
+    order.forEach((item, i) => {
+      const key = `${item.isLog ? 'log' : 'plan'}:${item.id}`
+      const z = Math.min(base + i, MAX_STACK_Z)
+      if (z > 0) styles.set(key, { ...styles.get(key)!, zIndex: z })
+      lastTop = z
+    })
+    for (const item of cluster) visualEnd = Math.max(visualEnd, item.top + item.height)
   }
   return styles
 }

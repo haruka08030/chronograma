@@ -82,3 +82,47 @@ describe('layoutPlanAndLog: 予定と記録の左右分け', () => {
     expect(styles.get('log:beside')).toMatchObject({ left: 'calc(50% + 2px)', width: 'calc(50% - 4px)' })
   })
 })
+
+describe('layoutPlanAndLog: ずらし重ねで短いものを上に出す', () => {
+  const z = (styles: Map<string, { zIndex?: unknown }>, key: string) => Number(styles.get(key)?.zIndex ?? 0)
+
+  it('短い予定の後に始まる長い予定は、左の列・下に置く', () => {
+    const styles = layoutPlanAndLog(
+      [
+        { id: 'short', top: 0, height: 30 },
+        { id: 'long', top: 15, height: 240 },
+      ],
+      [],
+      'cascade',
+    )
+    expect(styles.get('plan:long')).toMatchObject({ left: 'calc(0% + 2px)' })
+    expect(styles.get('plan:short')).toMatchObject({ left: 'calc(0% + 16px)' })
+    expect(z(styles, 'plan:short')).toBeGreaterThan(z(styles, 'plan:long'))
+  })
+
+  it('同じ時刻に始まる長い予定に、短い予定が隠れない', () => {
+    const styles = layoutPlanAndLog(
+      [
+        { id: 'short', top: 0, height: 30 },
+        { id: 'long', top: 0, height: 240 },
+      ],
+      [],
+      'cascade',
+    )
+    expect(z(styles, 'plan:short')).toBeGreaterThan(z(styles, 'plan:long'))
+  })
+
+  it('長い予定 2 つに挟まれた短い予定がいちばん上', () => {
+    const styles = layoutPlanAndLog(
+      [
+        { id: 'long', top: 0, height: 240 },
+        { id: 'short', top: 30, height: 30 },
+        { id: 'long2', top: 45, height: 135 },
+      ],
+      [],
+      'cascade',
+    )
+    expect(z(styles, 'plan:short')).toBeGreaterThan(z(styles, 'plan:long2'))
+    expect(z(styles, 'plan:long2')).toBeGreaterThan(z(styles, 'plan:long'))
+  })
+})
