@@ -680,11 +680,17 @@ const SCREENS = [
     click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("曜日を指定")'],
     scrollToBottom: true,
   },
-  // 「曜日を指定」で「曜日ごとに時間を変える」を押した状態（選んだ曜日ごとの時間の行）
+  // 「曜日を指定」で時間を決め、「詳しく設定」の「曜日ごとに時間を変える」を押した状態（選んだ曜日ごとの時間の行）
   {
     name: 'habits-new-weekday-times',
     view: 'habits',
-    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("曜日を指定")', 'button:has-text("曜日ごとに時間を変える")'],
+    click: [
+      'button:has-text("習慣を追加") >> visible=true',
+      'label:has-text("曜日を指定")',
+      'button:has-text("時間を決める")',
+      'button:has-text("詳しく設定")',
+      'button:has-text("曜日ごとに時間を変える")',
+    ],
     scrollToBottom: true,
   },
   // 「回数を指定」（週に◯回）を選んだ状態（回数のピル）
