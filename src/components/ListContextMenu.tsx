@@ -5,6 +5,7 @@ import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 import { ColorSwatches } from './ui/ColorSwatches'
 import { CartIcon, CheckIcon, PencilIcon, StarIcon, TrashIcon } from './icons'
 import { colorVars } from '../lib/logCategoryColors'
+import { useLabeledSwatches } from '../hooks/useLabeledSwatches'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 const KIND_ICON = {
@@ -35,6 +36,7 @@ export function ListContextMenu({
   const updateListColor = useTaskStore((s) => s.updateListColor)
   const setListKind = useTaskStore((s) => s.setListKind)
   const deleteList = useTaskStore((s) => s.deleteList)
+  const swatches = useLabeledSwatches()
   if (!list) return null
   const kind = list.kind ?? 'tasks'
   const entries: ActionEntry[] = [
@@ -50,6 +52,7 @@ export function ListContextMenu({
           ariaLabel={t('sidebar.listColorDialog')}
           columns={6}
           selectedHex={list.color}
+          swatches={swatches}
           onChoose={(hex) => {
             updateListColor(list.id, hex)
             close()

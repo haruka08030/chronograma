@@ -1,8 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore } from '../../store/taskStore'
-import { CALENDAR_COLORS } from '../../lib/googleColors'
-import { categoryHex, colorKeyForHex, labelForHex } from '../../lib/logCategoryColors'
+import { useLabeledSwatches } from '../../hooks/useLabeledSwatches'
 import { lazyNamed } from '../../lib/lazyComponent'
 import { OverlaySuspense } from '../ui/OverlaySuspense'
 import { PencilIcon } from '../icons'
@@ -38,19 +36,10 @@ export function ColorPalette({
   fill?: boolean
 }) {
   const { t } = useTranslation()
-  const presets = useTaskStore((s) => s.timeLogTagPresets)
-  const colors = useTaskStore((s) => s.logCategoryColors)
   const [editingLabels, setEditingLabels] = useState(false)
 
   // 24 色の後ろに、24 色に無い色のラベル（自分で作った色）
-  const swatches = useMemo(() => {
-    const base = CALENDAR_COLORS.map((c) => ({ hex: c.hex, colorName: t(`googleColors.${c.key}`) }))
-    const extra = presets
-      .map((n) => categoryHex(n, colors))
-      .filter((hex, i, arr) => !colorKeyForHex(hex) && arr.indexOf(hex) === i)
-      .map((hex) => ({ hex, colorName: hex }))
-    return [...base, ...extra]
-  }, [presets, colors, t])
+  const swatches = useLabeledSwatches(true)
 
   return (
     <div className={bare ? 'p-1' : 'rounded-2xl bg-zinc-50 p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900/60 dark:ring-zinc-700'}>
@@ -62,16 +51,7 @@ export function ColorPalette({
       >
         <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
       </button>
-      <ColorSwatches
-        ariaLabel={t('labels.pickerAria')}
-        selectedHex={selectedHex}
-        onChoose={onChoose}
-        fill={fill}
-        swatches={swatches.map((sw) => {
-          const name = labelForHex(sw.hex, presets, colors)
-          return { hex: sw.hex, name: name ? t('common.withNote', { title: name, note: sw.colorName }) : sw.colorName }
-        })}
-      />
+      <ColorSwatches ariaLabel={t('labels.pickerAria')} selectedHex={selectedHex} onChoose={onChoose} fill={fill} swatches={swatches} />
       {onDefault && (
         <button
           type="button"
