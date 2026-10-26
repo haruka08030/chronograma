@@ -24,7 +24,7 @@ const PROMPT_FROM_MIN = 5 * 60
  * 今日の分は朝 5 時を過ぎてから聞く。
  * 今日の夜（20 時〜朝 5 時）は寝る（▶）を出し、押すと睡眠のタイマー（#519）。寝ている間は起きた（☀）で睡眠にする。
  * 寝ている間もその朝の記録の行は上に残す。記録の行は ✎ で直せると見せ、まだ記録の無い朝の欄は前回の時刻を下書きとして薄く出す（#627）。
- * 入力欄は統計の睡眠の図と同じ部品（SleepTimesField）。月のアイコンは行頭の 1 つだけ。
+ * 入力欄は睡眠のページの図・一覧と同じ部品（SleepTimesField）。月のアイコンは行頭の 1 つだけで、押すと睡眠のページ（#628）。
  */
 export function SleepRow({ dateKey }: { dateKey: string }) {
   const { t } = useTranslation()
@@ -51,7 +51,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   if (isToday && !record && nowMin < PROMPT_FROM_MIN)
     return bedButton ? (
       <div className="flex items-center gap-1.5">
-        <SleepMoonIcon />
+        <SleepPageButton />
         {bedButton}
       </div>
     ) : null
@@ -90,7 +90,13 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
         key={`${dateKey}|${record?.id ?? ''}`}
         dateKey={dateKey}
         record={record}
-        label={<span className="sr-only">{!record && isToday ? t('sleep.prompt') : t('sleep.title')}</span>}
+        icon={false}
+        label={
+          <>
+            <SleepPageButton />
+            <span className="sr-only">{!record && isToday ? t('sleep.prompt') : t('sleep.title')}</span>
+          </>
+        }
         onSaved={() => setEditing(false)}
         onCancel={record ? () => setEditing(false) : undefined}
       />
@@ -107,19 +113,37 @@ function RecordedSleep({ record, onEdit }: { record: Task; onEdit: () => void })
   const { t } = useTranslation()
   const duration = formatDuration(sleepMinutes(record.startTime!, record.endTime!))
   return (
+    <span className="flex items-center self-start">
+      <SleepPageButton />
+      <button
+        type="button"
+        onClick={onEdit}
+        {...tip(t('sleep.edit'))}
+        aria-label={`${t('sleep.edit')} ${record.startTime}–${record.endTime} ${duration}`}
+        className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs tabular-nums text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+      >
+        <span>{record.startTime}</span>
+        <SleepBar />
+        <span>{record.endTime}</span>
+        <span className="text-zinc-400 dark:text-zinc-500">{duration}</span>
+        <PencilIcon className="ml-0.5 h-3 w-3 text-zinc-300 dark:text-zinc-600" strokeWidth={2} />
+      </button>
+    </span>
+  )
+}
+
+/** 行頭の ☾。押すと睡眠のページ（#628。夜ごとの一覧・週と月の平均・いつもの時刻と目標） */
+function SleepPageButton() {
+  const { t } = useTranslation()
+  const selectView = useTaskStore((s) => s.selectView)
+  return (
     <button
       type="button"
-      onClick={onEdit}
-      {...tip(t('sleep.edit'))}
-      aria-label={`${t('sleep.edit')} ${record.startTime}–${record.endTime} ${duration}`}
-      className="-mx-1.5 flex items-center gap-1.5 self-start rounded-md px-1.5 py-1 text-xs tabular-nums text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+      onClick={() => selectView('sleep')}
+      {...tip(t('sleep.openPage'), { name: true })}
+      className="-ml-1.5 inline-flex shrink-0 rounded-full p-1.5 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
     >
       <SleepMoonIcon />
-      <span>{record.startTime}</span>
-      <SleepBar />
-      <span>{record.endTime}</span>
-      <span className="text-zinc-400 dark:text-zinc-500">{duration}</span>
-      <PencilIcon className="ml-0.5 h-3 w-3 text-zinc-300 dark:text-zinc-600" strokeWidth={2} />
     </button>
   )
 }
@@ -156,7 +180,7 @@ function SleepingRow({ timer, dateKey }: { timer: SleepTimer; dateKey: string })
 
   return (
     <div className="flex items-center gap-1.5 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
-      <SleepMoonIcon />
+      <SleepPageButton />
       <span className="sr-only">{t('sleep.sleeping', { time: bedTime })}</span>
       <span aria-hidden>{bedTime}</span>
       <SleepBar open />

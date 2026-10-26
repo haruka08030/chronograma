@@ -1,4 +1,5 @@
 /** ストア（`taskStore.ts`）の状態と操作の型。中身は `slices/*.ts` に分けて書く */
+import type { SleepPrefs } from '../lib/sleepPrefs'
 import type { Task } from '../types/task'
 import type { ListKind, TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -48,6 +49,7 @@ export type SmartView =
   | 'deleted'
   | 'settings'
   | 'addons'
+  | 'sleep'
 
 /** 設定画面を開いたときの一度きりのスクロール先（永続化しない） */
 export type SettingsScrollTarget = 'appearance' | 'account' | 'install' | 'google' | 'notion' | 'canvas'
@@ -199,6 +201,8 @@ export interface TaskState {
   signInNudgeDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
+  /** 睡眠のいつもの時刻・目標の睡眠時間（`lib/sleepPrefs.ts`、端末に保存） */
+  sleepPrefs: SleepPrefs
   /** 長さを決めずに置いた予定の長さ（分）。空き時間のクリック・ドラッグで置く・時刻だけの入力など */
   defaultBlockMinutes: number
   /** 予定の開始何分前に通知するか（null はオフ） */
@@ -452,6 +456,7 @@ export interface TaskState {
   dismissInstallNudge: () => void
   dismissSignInNudge: () => void
   setDailyCapacityMinutes: (minutes: number) => void
+  setSleepPrefs: (patch: Partial<SleepPrefs>) => void
   setDefaultBlockMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void

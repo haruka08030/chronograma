@@ -35,6 +35,7 @@ export const DATA_KEYS = [
   'installNudgeDismissed',
   'signInNudgeDismissed',
   'dailyCapacityMinutes',
+  'sleepPrefs',
   'defaultBlockMinutes',
   'eventReminderMinutes',
   'appTimeZone',

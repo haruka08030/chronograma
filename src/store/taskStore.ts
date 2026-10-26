@@ -1,3 +1,4 @@
+import { DEFAULT_SLEEP_PREFS } from '../lib/sleepPrefs'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { TaskList } from '../types/list'
@@ -213,6 +214,7 @@ export const useTaskStore = create<TaskState>()(
         installNudgeDismissed: false,
         signInNudgeDismissed: false,
         dailyCapacityMinutes: 480,
+        sleepPrefs: DEFAULT_SLEEP_PREFS,
         defaultBlockMinutes: 60,
         eventReminderMinutes: null as number | null,
         appTimeZone: null as string | null,

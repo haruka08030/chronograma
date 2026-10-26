@@ -117,7 +117,8 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
         <SmartViewRow
           view={STATS_SMART_VIEW.id}
           icon={STATS_SMART_VIEW.icon}
-          isSelected={selectedView === STATS_SMART_VIEW.id}
+          // 睡眠のページは統計の睡眠のカードの先（サイドバーには出さない）
+          isSelected={selectedView === STATS_SMART_VIEW.id || selectedView === 'sleep'}
           onSelect={() => handleNav(() => selectView(STATS_SMART_VIEW.id))}
         />
         <SmartViewRow

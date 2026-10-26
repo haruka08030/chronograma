@@ -82,7 +82,7 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
     const init =
       record?.startTime && record.endTime
         ? { bed: record.startTime, wake: record.endTime }
-        : defaultSleepTimes(useTaskStore.getState().tasks)
+        : defaultSleepTimes(useTaskStore.getState().tasks, useTaskStore.getState().sleepPrefs)
     // いつもの起床時刻より早く開いたら、今を起きた時刻の候補にする（未来の時刻で叱らない）
     const wake = !record && isToday && timeToMinutes(init.wake) > nowMin ? floorTo5(nowMin) : init.wake
     return { bed: bedTime ?? init.bed, wake }

@@ -13,6 +13,7 @@ export const SMART_VIEWS: readonly SmartView[] = [
   'overdue',
   'calendar',
   'stats',
+  'sleep',
   'habits',
   'completed',
   'archived',

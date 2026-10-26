@@ -46,6 +46,7 @@ const TaskBinView = lazyNamed(() => import('./components/TaskBinView'), 'TaskBin
 const CompletedTasksView = lazyNamed(() => import('./components/CompletedTasksView'), 'CompletedTasksView')
 const SettingsView = lazyNamed(() => import('./components/SettingsView'), 'SettingsView')
 const AddonsView = lazyNamed(() => import('./components/addons/AddonsView'), 'AddonsView')
+const SleepView = lazyNamed(() => import('./components/SleepView'), 'SleepView')
 const TaskList = lazyNamed(() => import('./components/TaskList'), 'TaskList')
 const SearchResults = lazyNamed(() => import('./components/SearchResults'), 'SearchResults')
 const ShortcutsHelp = lazyNamed(() => import('./components/ShortcutsHelp'), 'ShortcutsHelp')
@@ -108,6 +109,8 @@ export default function App() {
         return <CalendarHubView />
       case 'stats':
         return <StatsView />
+      case 'sleep':
+        return <SleepView />
       case 'habits':
         return <HabitsView />
       case 'completed':

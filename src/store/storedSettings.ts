@@ -14,6 +14,7 @@ import { normalizeDayMoods } from '../lib/dayMood'
 import { normalizeTimetable } from '../lib/timetable'
 import { normalizeAddons } from '../lib/addons'
 import { normalizeSleepTimer } from '../lib/sleepTimer'
+import { normalizeSleepPrefs } from '../lib/sleepPrefs'
 import { normalizeSkippedEvents } from '../lib/skippedEvents'
 import { normalizeStoredRows } from '../lib/backupFormat'
 import { withTaskDefaults } from '../lib/taskDefaults'
@@ -57,6 +58,7 @@ export const STORED_SETTINGS: Record<SettingDataKey, StoredSetting> = {
   installNudgeDismissed: {},
   signInNudgeDismissed: {},
   dailyCapacityMinutes: {},
+  sleepPrefs: { normalize: normalizeSleepPrefs },
   defaultBlockMinutes: {},
   eventReminderMinutes: {},
   appTimeZone: {},

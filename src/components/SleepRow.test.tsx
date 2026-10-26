@@ -53,3 +53,13 @@ describe('寝る・起きた', () => {
     expect(screen.getAllByRole('combobox')[0]).toHaveValue('23:00')
   })
 })
+
+describe('睡眠のページへ', () => {
+  it('行頭の ☾ を押すと睡眠のページを開く', () => {
+    at(8, 13)
+    useTaskStore.getState().logSleep('2026-10-08', '23:30', '07:00')
+    render(<SleepRow dateKey="2026-10-08" />)
+    act(() => screen.getByRole('button', { name: 'Sleep page' }).click())
+    expect(useTaskStore.getState().selectedView).toBe('sleep')
+  })
+})

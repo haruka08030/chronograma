@@ -22,7 +22,7 @@ const SLEEP_VARS = { '--c': 'var(--color-sleep)' } as CSSProperties
 const SunMark = () => <SunIcon className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
 
 /**
- * 統計の「睡眠」（#577）。上に要約、下に夜ごとの横の帯。
+ * 睡眠のページの直近 14 日（#577・#628）。上に要約、下に夜ごとの横の帯。
  * - 要約: 左に小さい 24 時間の時計（夜ごとの円弧を外へ重ね、いちばん外＝最新を濃く。重なりがそろうほど規則正しい）、
  *   右に平均の睡眠時間を大きく、☾ 寝た・☀ 起きた（平均と ±ばらつき）
  * - 夜ごとの図: 新しい夜が上。行頭は「23 金」、土日の行はうっすら色。時刻の目盛りは上、いつもの寝た・起きたは ☾・☀ の点線。
@@ -31,7 +31,7 @@ const SunMark = () => <SunIcon className="h-3.5 w-3.5 shrink-0 text-amber-500 da
  * 入力欄は今日の計画の睡眠の行と同じ部品（SleepTimesField）。
  * 下の段は「日の違い」（#326）。直近 14 日に睡眠の記録が無くても、日の違いが出せるなら見出しと下の段だけ出す
  */
-export function SleepStatsCard() {
+export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const df = useDateFormat()
@@ -47,7 +47,7 @@ export function SleepStatsCard() {
     if (insights.length === 0) return null
     return (
       <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
-        <h2 className={CARD_TITLE_CLASS}>{t('sleepStats.title')}</h2>
+        {showTitle && <h2 className={CARD_TITLE_CLASS}>{t('sleepStats.title')}</h2>}
         <DayInsightsSection rows={insights} />
       </section>
     )
@@ -81,7 +81,7 @@ export function SleepStatsCard() {
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className={`shrink-0 ${CARD_TITLE_CLASS}`}>{t('sleepStats.title')}</h2>
+        {showTitle && <h2 className={`shrink-0 ${CARD_TITLE_CLASS}`}>{t('sleepStats.title')}</h2>}
         <p className={`min-w-0 text-right ${META_TEXT}`}>{t('sleepStats.range', { days: DAYS, count: summary.count })}</p>
       </div>
 

@@ -880,26 +880,42 @@ const SCREENS = [
     state: { logLabelTargets: SEED_TARGETS },
     click: 'button:has-text("ラベルを編集") >> visible=true',
   },
-  // 統計の睡眠: 記録の無い夜（点線の枠）を押して、図の下の入力欄で埋めるところ
+  // 睡眠のページ（#628）: 直近 14 日の図で記録の無い夜（点線の枠）を押して、図の下の入力欄で埋めるところ
   {
-    name: 'stats-sleep-edit',
-    view: 'stats',
-    click: 'button[aria-label$="の睡眠を入れる"] >> nth=-1',
+    name: 'sleep-page-edit',
+    view: 'sleep',
+    click: 'button[aria-label$="の睡眠を入れる"] >> nth=0',
     scrollTo: 'figure:has(button[aria-expanded="true"])',
   },
-  // 統計の睡眠の下の段「日の違い」（#326）: 過去 2 週間の睡眠・記録・気分を足して、睡眠の長さ・寝た時刻・気分で分けた差
-  { name: 'stats-day-insights', view: 'stats', insightHistory: true, scrollTo: 'section[aria-labelledby="day-insights-title"]' },
-  // 統計の睡眠（#577）: 2 週間ぶんの睡眠で、上の小さい時計・平均と夜ごとの横の帯
-  { name: 'stats-sleep', view: 'stats', insightHistory: true, scrollTo: 'section:has(> figure)' },
+  // 睡眠のページの「日の違い」（#326）: 過去 2 週間の睡眠・記録・気分を足して、睡眠の長さ・寝た時刻・気分で分けた差
+  { name: 'sleep-day-insights', view: 'sleep', insightHistory: true, scrollTo: 'section[aria-labelledby="day-insights-title"]' },
+  // 睡眠のページの上（#577・#628）: 2 週間ぶんの睡眠で、小さい時計・平均と夜ごとの横の帯
+  { name: 'sleep-page', view: 'sleep', insightHistory: true },
   {
-    name: 'stats-sleep-narrow',
-    view: 'stats',
+    name: 'sleep-page-narrow',
+    view: 'sleep',
     insightHistory: true,
     mobileOnly: true,
     mobileWidth: 320,
-    scrollTo: 'section:has(> figure)',
   },
-  { name: 'stats-sleep-en', view: 'stats', insightHistory: true, lang: 'en', scrollTo: 'section:has(> figure)' },
+  { name: 'sleep-page-en', view: 'sleep', insightHistory: true, lang: 'en' },
+  // 週・月ごとの平均と平日と土日の差、夜ごとの一覧（目標 7 時間 30 分で届かなかった夜に差）、睡眠の設定
+  {
+    name: 'sleep-page-lists',
+    view: 'sleep',
+    insightHistory: true,
+    state: { sleepPrefs: { usualBed: '23:30', usualWake: '07:00', goalMinutes: 450 } },
+    scrollTo: 'section:has(> table)',
+  },
+  {
+    name: 'sleep-page-prefs',
+    view: 'sleep',
+    insightHistory: true,
+    state: { sleepPrefs: { usualBed: '23:30', usualWake: '07:00', goalMinutes: 450 } },
+    scrollTo: 'section:has(#sleep-goal)',
+  },
+  // 統計の睡眠は要約だけ（押すと睡眠のページ）
+  { name: 'stats-sleep', view: 'stats', insightHistory: true, scrollTo: 'button[aria-label="睡眠のページを開く"]' },
   { name: 'settings', view: 'settings' },
   // 設定の一番下の「お問い合わせ・フィードバック」を開いたところ（ログインしていない人。Supabase の設定（.env）があるビルドでだけ出る）
   { name: 'settings-feedback', view: 'settings', click: 'button:has-text("お問い合わせ・フィードバック") >> visible=true' },

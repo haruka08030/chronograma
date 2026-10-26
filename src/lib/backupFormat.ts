@@ -1,3 +1,4 @@
+import { normalizeSleepPrefs, type SleepPrefs } from './sleepPrefs'
 import { taskKindFlags, taskKindFromFlags, type Task, type TaskKind, type Priority, type Recurrence } from '../types/task'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -47,6 +48,7 @@ export type BackupPrefs = {
   theme: 'light' | 'dark' | 'system'
   weekStartsOn: WeekStartDay
   dailyCapacityMinutes: number
+  sleepPrefs: SleepPrefs
   defaultBlockMinutes: number
   eventReminderMinutes: number | null
   appTimeZone: string | null
@@ -455,6 +457,7 @@ function readPrefs(raw: unknown): Partial<BackupPrefs> | undefined {
     typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : undefined
   const capacity = minutes(raw.dailyCapacityMinutes, 60, 24 * 60)
   if (capacity !== undefined) out.dailyCapacityMinutes = capacity
+  if (raw.sleepPrefs !== undefined) out.sleepPrefs = normalizeSleepPrefs(raw.sleepPrefs)
   const block = minutes(raw.defaultBlockMinutes, 15, 24 * 60)
   if (block !== undefined) out.defaultBlockMinutes = block
   if (raw.eventReminderMinutes === null) out.eventReminderMinutes = null
