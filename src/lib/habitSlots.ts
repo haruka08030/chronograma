@@ -4,6 +4,8 @@ import { habitAsOf, habitDayStatus, habitTimesOn, habitUsualTimesOn, plannedReco
 import type { PlannedItem } from '../types/plannedItem'
 import { fromDateKey } from './dateKey'
 import { timeToMinutes } from './clockTime'
+import { intervalSegmentClockOnDay } from './taskTimeRange'
+import { dateKeyOfDayIndex, dayIndexOf, wallMinutes } from './wallTime'
 import { habitSlotId } from '../../supabase/functions/_shared/dayResult.ts'
 
 /** タイムラインの習慣の枠の id（`habit-slot::<習慣の id>::<yyyy-MM-dd>`）。通知の数え方（`dayResult.ts`）と同じ */
@@ -24,6 +26,32 @@ export function habitToPlannedItem(habit: Habit, dateKey: string, records?: Habi
     endTime: times.endTime,
     source: 'habit',
   }
+}
+
+/**
+ * その日の列に描く、始まりと終わりを決めた習慣の枠（時刻ひとつの習慣は習慣の段なので除く）。
+ * 日をまたぐ枠（睡眠の 23:00–7:00 など）は、始まった日は 24:00 まで、次の日は 0:00 から終わりまでを `seg` に入れる。
+ * `slotDate` は枠の習慣の日（達成・記録はこの日のもの）、`crossesDay` は次の日までかかるか
+ */
+export function habitSlotsOnDay(
+  habits: Habit[],
+  dateKey: string,
+  records?: HabitRecordIndex,
+): { habit: Habit; slot: PlannedItem; slotDate: string; seg: { startTime: string; endTime: string }; crossesDay: boolean }[] {
+  const prevKey = dateKeyOfDayIndex(dayIndexOf(dateKey) - 1)
+  return habits.flatMap((habit) =>
+    [prevKey, dateKey].flatMap((slotDate) => {
+      if (isPointHabitOn(habit, slotDate)) return []
+      const slot = habitToPlannedItem(habit, slotDate, records)
+      if (!slot) return []
+      const start = wallMinutes(slotDate, slot.startTime)
+      let end = wallMinutes(slotDate, slot.endTime)
+      if (end <= start) end += 24 * 60
+      const seg = intervalSegmentClockOnDay({ start, end }, dateKey)
+      if (!seg) return []
+      return [{ habit, slot, slotDate, seg, crossesDay: end > wallMinutes(slotDate, '24:00') }]
+    }),
+  )
 }
 
 /**
