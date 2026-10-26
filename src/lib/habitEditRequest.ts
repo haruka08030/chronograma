@@ -1,21 +1,37 @@
-import { useTaskStore } from '../store/taskStore'
-import { requestAction, usePendingAction } from './pendingAction'
+import { useSyncExternalStore } from 'react'
 
-/** ほかの画面（タイムラインの習慣のカード・メニュー）から、習慣の画面でその習慣の編集を開く */
-const ACTION = 'edit-habit'
-let pendingHabitId: string | null = null
+/**
+ * ほかの画面（タイムラインの習慣のカード・メニュー）から、習慣の編集を開く。画面は移らず、開いている画面の上に出す
+ * （`HabitEditHost`）。`seq` は開き直すたびに増やし、中身を作り直す
+ */
+export type HabitEditTarget = { habitId: string; seq: number }
 
-export function requestHabitEdit(habitId: string) {
-  pendingHabitId = habitId
-  useTaskStore.getState().selectView('habits')
-  requestAction(ACTION)
+let target: HabitEditTarget | null = null
+const listeners = new Set<() => void>()
+
+function emit(next: HabitEditTarget | null) {
+  target = next
+  for (const l of listeners) l()
 }
 
-/** 習慣の画面で受け取る（画面が出たとき・出ている間に頼まれたとき） */
-export function useHabitEditRequest(open: (habitId: string) => void) {
-  usePendingAction(ACTION, () => {
-    const id = pendingHabitId
-    pendingHabitId = null
-    if (id) open(id)
-  })
+export function requestHabitEdit(habitId: string) {
+  emit({ habitId, seq: (target?.seq ?? 0) + 1 })
+}
+
+export function closeHabitEdit() {
+  if (target) emit(null)
+}
+
+function subscribe(l: () => void) {
+  listeners.add(l)
+  return () => listeners.delete(l)
+}
+
+/** 開いている編集（無ければ null） */
+export function useHabitEditTarget(): HabitEditTarget | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => target,
+    () => null,
+  )
 }

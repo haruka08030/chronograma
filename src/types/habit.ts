@@ -63,7 +63,7 @@ export function readHabitTimeOverrides(raw: unknown): HabitTimeOverrides | undef
   return Object.keys(out).length > 0 ? out : undefined
 }
 
-/** 曜日（1=月）→ その曜日の時間。曜日を指定した習慣で「曜日ごとに時間を変える」ときだけ */
+/** 曜日（1=月）→ その曜日の時間。「曜日ごとに時間を変える」・枠のカードで「これ以降の◯曜日」の時間を変えたときだけ */
 export type HabitWeekdayTimes = Partial<Record<HabitWeekday, HabitTimeOverride>>
 
 /** 保存データ・同期・バックアップの曜日ごとの時間を読む。読めない曜日は捨て、1 つも無ければ undefined */
@@ -114,7 +114,7 @@ export interface Habit {
    */
   restDates?: string[]
   /**
-   * 曜日を指定した習慣の曜日ごとの時間（「曜日ごとに時間を変える」）。無い曜日・ほかの頻度は上の時間。
+   * 曜日ごとの時間（「曜日ごとに時間を変える」、どの頻度でも）。無い曜日は上の時間。
    * その日だけの時間（`timeOverrides`）がさらに優先。使わなければ項目ごと無い
    */
   weekdayTimes?: HabitWeekdayTimes

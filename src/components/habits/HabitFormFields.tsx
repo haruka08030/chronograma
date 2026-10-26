@@ -20,7 +20,7 @@ import { SectionLabel } from '../ui/SectionLabel'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { fieldClass } from '../ui/fieldClass'
 import { HINT_TEXT } from '../ui/textClass'
-import { effectiveHabitForm, formWeekdayTime, usesWeekdayTimes, type HabitFormState } from './habitFormState'
+import { effectiveHabitForm, formTimeDays, formWeekdayTime, usesWeekdayTimes, type HabitFormState } from './habitFormState'
 import { buttonClass } from '../ui/buttonClass'
 import { DisclosureButton } from '../ui/Disclosure'
 import { PlusIcon } from '../icons'
@@ -140,7 +140,7 @@ function habitEndAfterStartEdit(startTime: string, endTime: string, nextStart: s
 }
 
 /** 開始（と時間帯なら終了）の欄 */
-function TimeRangeInputs({
+export function TimeRangeInputs({
   mode,
   startTime,
   endTime,
@@ -184,7 +184,7 @@ function TimeRangeInputs({
   )
 }
 
-/** 曜日ごとの時間の行（選んだ曜日だけ、月曜から） */
+/** 曜日ごとの時間の行（曜日を指定した習慣は選んだ曜日だけ、ほかは 7 日、月曜から） */
 function WeekdayTimeRows({ form, onChange }: { form: HabitFormState; onChange: (patch: Partial<HabitFormState>) => void }) {
   const { t } = useTranslation()
   const labels = t('habits.weekdays', { returnObjects: true }) as string[]
@@ -193,17 +193,15 @@ function WeekdayTimeRows({ form, onChange }: { form: HabitFormState; onChange: (
     onChange({ weekdayTimes: { ...form.weekdayTimes, [d]: { ...formWeekdayTime(form, d), ...patch } } })
   return (
     <div className="space-y-2">
-      {[...form.weekdays]
-        .sort((a, b) => a - b)
-        .map((d) => {
-          const time = formWeekdayTime(form, d)
-          return (
-            <div key={d} role="group" aria-label={labels[d - 1]} className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="w-6 text-zinc-500 dark:text-zinc-400">{labels[d - 1]}</span>
-              <TimeRangeInputs mode={mode} startTime={time.startTime} endTime={time.endTime} onTimesChange={(patch) => set(d, patch)} />
-            </div>
-          )
-        })}
+      {formTimeDays(form).map((d) => {
+        const time = formWeekdayTime(form, d)
+        return (
+          <div key={d} role="group" aria-label={labels[d - 1]} className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="w-6 text-zinc-500 dark:text-zinc-400">{labels[d - 1]}</span>
+            <TimeRangeInputs mode={mode} startTime={time.startTime} endTime={time.endTime} onTimesChange={(patch) => set(d, patch)} />
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -255,13 +253,13 @@ function HabitTimeFields({ form, onChange }: { form: HabitFormState; onChange: (
 }
 
 /**
- * 「詳しく設定」の中: 曜日ごとに時間を変える（曜日を指定して時間を決めたとき）・1 回の目標（習慣だけ）。
+ * 「詳しく設定」の中: 曜日ごとに時間を変える（時間を決めたとき）・1 回の目標（習慣だけ）。
  * どちらも出せないときは何も出さない。使っている習慣を編集するときは最初から開く
  */
 function AdvancedFields({ form, onChange }: { form: HabitFormState; onChange: (patch: Partial<HabitFormState>) => void }) {
   const { t } = useTranslation()
   const routine = form.kind === 'routine'
-  const canPerWeekday = form.freq === 'weekly' && form.timeMode !== 'none'
+  const canPerWeekday = form.timeMode !== 'none'
   const [open, setOpen] = useState(() => (canPerWeekday && form.perWeekday) || (!routine && form.goalMinutes.trim() !== ''))
   if (!canPerWeekday && routine) return null
   return (
