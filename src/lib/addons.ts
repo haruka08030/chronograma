@@ -3,6 +3,7 @@ import { normalizeDues, type DueItem } from './dues'
 import { googleSkipKey, normalizeGoogleSkip } from './googleSkip'
 import { normalizeAbsenceCourses } from './absenceCourses'
 import { mergeSchool, normalizeSchool, type School } from './schoolTerms'
+import { normalizeSleepSchedule, type SleepSchedule } from './sleepSchedule'
 import { courseKey } from './courseLinks'
 import { merge3, merge3ById, merge3Record, merge3Set, type Side } from './settingMerge'
 import { normalizeEventColorChoices, type EventColorChoices } from './googleEventColors'
@@ -36,6 +37,11 @@ export type Addons = {
    * （手元ではストアの `googleEventColors`。`addonsWithEventColors` / `splitEventColors`）。無いのは前の版のアプリが送った値
    */
   googleEventColors?: EventColorChoices
+  /**
+   * 睡眠の予定（#652、`lib/sleepSchedule.ts`）。睡眠は追加機能ではないが、端末間で同期する利用者ごとの設定なのでこの行に置く。
+   * 無いのはまだ決めていない・前の版のアプリが送った値
+   */
+  sleepSchedule?: SleepSchedule
 }
 
 export const DEFAULT_ADDONS: Addons = { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null }
@@ -67,6 +73,7 @@ export function normalizeAddons(raw: unknown): Addons {
     absenceCourses: normalizeAbsenceCourses(x.absenceCourses),
     school: normalizeSchool(x.school),
     ...('googleEventColors' in x ? { googleEventColors: normalizeEventColorChoices(x.googleEventColors) } : {}),
+    ...('sleepSchedule' in x ? { sleepSchedule: normalizeSleepSchedule(x.sleepSchedule) } : {}),
   }
 }
 

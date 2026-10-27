@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDuration } from '../lib/timeGrid'
 import { useTaskStore } from '../store/taskStore'
+import { sleepPlanOn } from '../lib/sleepSchedule'
 import { defaultSleepTimes, napsEndingOn, sleepEndingOn, sleepMinutes } from '../lib/sleep'
 import type { Task } from '../types/task'
 import { TimeInput } from './TimeInput'
@@ -111,7 +112,10 @@ export function SleepTimesField({
   const [bed, setBed] = useState(draft.bed)
   const [wake, setWake] = useState(draft.wake)
   // 空欄の候補を開いたときの最初の位置
-  const [usual] = useState(() => defaultSleepTimes(useTaskStore.getState().tasks, useTaskStore.getState().sleepPrefs))
+  const [usual] = useState(() => {
+    const s = useTaskStore.getState()
+    return defaultSleepTimes(s.tasks, sleepPlanOn(s.addons.sleepSchedule ?? {}, dateKey))
+  })
   const inFuture = isToday && Boolean(wake) && timeToMinutes(wake) > nowMin
   const canSave = Boolean(bed && wake && bed !== wake && !inFuture)
   const save = () => {

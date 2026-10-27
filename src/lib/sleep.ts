@@ -3,7 +3,7 @@ import { isSleepTask, type Task } from '../types/task'
 import { isActiveTask } from './taskLifecycle'
 import { fromDateKey, toDateKey } from './dateKey'
 import { minutesToTime, timeToMinutes } from './clockTime'
-import type { SleepPrefs } from './sleepPrefs'
+import type { SleepPlan } from './sleepSchedule'
 
 /** 睡眠の記録が 1 件も無いときの初期値 */
 export const DEFAULT_BED_TIME = '23:30'
@@ -81,12 +81,9 @@ export function overlappingSleep(tasks: readonly Task[], span: Pick<Task, 'dueDa
   return null
 }
 
-/** 時刻の候補を開いたときの最初の位置: いつもの時刻（睡眠のページで決めたもの）、無ければいちばん最近の夜の睡眠の時刻（昼寝は使わない。それも無ければ 23:30–7:00） */
-export function defaultSleepTimes(
-  tasks: readonly Task[],
-  prefs?: Pick<SleepPrefs, 'usualBed' | 'usualWake'>,
-): { bed: string; wake: string } {
-  if (prefs?.usualBed && prefs.usualWake) return { bed: prefs.usualBed, wake: prefs.usualWake }
+/** 時刻の候補を開いたときの最初の位置: その朝の睡眠の予定（#652）、無ければいちばん最近の夜の睡眠の時刻（昼寝は使わない。それも無ければ 23:30–7:00） */
+export function defaultSleepTimes(tasks: readonly Task[], plan?: SleepPlan | null): { bed: string; wake: string } {
+  if (plan) return { bed: plan.bed, wake: plan.wake }
   // 起きた日ごとにいちばん早く寝た睡眠（夜の睡眠）だけを残し、その中でいちばん新しい日
   const nightOf = new Map<string, Task>()
   for (const t of tasks) {

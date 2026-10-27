@@ -217,6 +217,17 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
 /** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`extraTasks` は種データに足す To-Do（種データから作る関数でもよい）、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする、`lang` は表示の言語（既定は 'ja'）、`mobileWidth` はスマホ幅の横幅（既定 390）。手の `select` は <select> の選択肢を選ぶ */
+/** 撮影用の睡眠の予定（平日は 23:30–7:00、土日の朝は 1:00–9:00） */
+const SLEEP_SCHEDULE = {
+  1: { bed: '23:30', wake: '07:00' },
+  2: { bed: '23:30', wake: '07:00' },
+  3: { bed: '23:30', wake: '07:00' },
+  4: { bed: '23:30', wake: '07:00' },
+  5: { bed: '23:30', wake: '07:00' },
+  6: { bed: '01:00', wake: '09:00' },
+  7: { bed: '01:00', wake: '09:00' },
+}
+
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -965,6 +976,20 @@ const SCREENS = [
     insightHistory: true,
     state: { sleepPrefs: { usualBed: '23:30', usualWake: '07:00', goalMinutes: 450 } },
     scrollTo: 'section:has(#sleep-goal)',
+  },
+  // 睡眠の予定（#652）: 睡眠のページで曜日ごとの寝る・起きる時刻、今日の計画の予定の列に睡眠の枠（朝の分は ✓ 済み、夜の分はまだ）
+  {
+    name: 'sleep-schedule',
+    view: 'sleep',
+    state: { addons: { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null, sleepSchedule: SLEEP_SCHEDULE } },
+    scrollTo: 'section:has(button[aria-label$="の朝の予定を外す"])',
+  },
+  {
+    name: 'sleep-schedule-timeline',
+    view: 'planner',
+    at: '22:30',
+    mobileClick: 'button:has-text("タイムライン") >> visible=true',
+    state: { addons: { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null, sleepSchedule: SLEEP_SCHEDULE } },
   },
   // 統計の睡眠は要約だけ（押すと睡眠のページ）
   { name: 'stats-sleep', view: 'stats', insightHistory: true, scrollTo: 'button[aria-label="睡眠のページを開く"]' },

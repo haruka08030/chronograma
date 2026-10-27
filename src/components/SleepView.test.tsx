@@ -24,16 +24,6 @@ describe('睡眠のページ（#628）', () => {
     expect(screen.getByRole('columnheader', { name: 'vs goal' })).toBeInTheDocument()
   })
 
-  it('いつもの時刻は「決める」で前回の時刻から始まり、「前回の時刻を使う」で外せる', async () => {
-    const user = userEvent.setup()
-    useTaskStore.getState().logSleep(dayKey(0), '00:30', '07:30')
-    render(<SleepView />)
-    await user.click(screen.getByRole('button', { name: 'Set' }))
-    expect(useTaskStore.getState().sleepPrefs).toMatchObject({ usualBed: '00:30', usualWake: '07:30' })
-    await user.click(screen.getByRole('button', { name: 'Use last times' }))
-    expect(useTaskStore.getState().sleepPrefs).toMatchObject({ usualBed: null, usualWake: null })
-  })
-
   it('夜ごとの一覧から記録を消せる（確認なし・「元に戻す」で戻る）', async () => {
     const user = userEvent.setup()
     useTaskStore.getState().logSleep(dayKey(0), '01:00', '07:00')
@@ -48,5 +38,21 @@ describe('睡眠のページ（#628）', () => {
     expect(batch.label).toMatchObject({ key: 'undo.sleepDeleted' })
     useTaskStore.getState().undoOperation(batch.undoId!)
     expect(liveSleep()).toHaveLength(1)
+  })
+})
+
+describe('睡眠の予定（#652）', () => {
+  it('「寝る時間を決める」で前回の時刻を全部の曜日に入れ、曜日ごとに外せる。⌘Z で戻る', async () => {
+    const user = userEvent.setup()
+    useTaskStore.getState().logSleep(dayKey(0), '00:30', '07:30')
+    render(<SleepView />)
+    await user.click(screen.getByRole('button', { name: 'Set bedtimes' }))
+    const schedule = () => useTaskStore.getState().addons.sleepSchedule ?? {}
+    expect(Object.keys(schedule())).toHaveLength(7)
+    expect(schedule()[1]).toEqual({ bed: '00:30', wake: '07:30' })
+    await user.click(screen.getByRole('button', { name: 'Remove Monday morning' }))
+    expect(schedule()[1]).toBeUndefined()
+    useTaskStore.getState().undoLastOperation()
+    expect(schedule()[1]).toEqual({ bed: '00:30', wake: '07:30' })
   })
 })

@@ -2,8 +2,12 @@ import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { defaultSleepTimes, sleepNightOn, sleepPeriods, totalSleepMinutes, weekendGap, type SleepPeriod } from '../lib/sleep'
+import { defaultSleepTimes, sleepMinutes, sleepNightOn, sleepPeriods, totalSleepMinutes, weekendGap, type SleepPeriod } from '../lib/sleep'
 import { SLEEP_GOAL_HOURS } from '../lib/sleepPrefs'
+import { ISO_WEEKDAYS, type IsoWeekday, type SleepPlan, type SleepSchedule } from '../lib/sleepSchedule'
+import { tip } from '../lib/tooltip'
+import { CloseIcon } from './icons'
+import { iconButtonClass } from './ui/iconButtonClass'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
 import { TODAY_TEXT } from '../lib/dayMarker'
@@ -21,6 +25,8 @@ import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { META_TEXT } from './ui/textClass'
 
+/** 睡眠の予定がまだ無いとき（毎回作り直すと購読が止まらない） */
+const NO_SCHEDULE: SleepSchedule = {}
 const CARD_CLASS = 'rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900/50'
 /** 夜ごとの一覧に最初に並べる夜の数（「さらに表示」で同じだけ足す） */
 const NIGHTS_PAGE = 30
@@ -42,6 +48,7 @@ export function SleepView() {
         <h1 className={PAGE_TITLE_CLASS}>{t('sidebar.views.sleep')}</h1>
         {/* ページの題名が「睡眠」なので、カードの見出しは出さない */}
         <SleepStatsCard showTitle={false} />
+        <SleepScheduleCard />
         <SleepPeriodsCard />
         <SleepNightsCard />
         <SleepPrefsCard />
@@ -232,60 +239,116 @@ function SleepNightsCard() {
   )
 }
 
-/** 睡眠の設定: いつもの時刻（まだ記録の無い朝の欄に最初に入る）と目標の睡眠時間 */
+/**
+ * 睡眠の予定（#652）: 曜日（起きる日）ごとの寝る・起きる時刻。決めた曜日は今日の計画・カレンダーの予定の列に睡眠の枠が出て、✓ でその時間の睡眠になる。
+ * まだ何も無ければ「決める」で前回の睡眠の時刻を全部の曜日に入れ、そこから曜日ごとに直す・外す
+ */
+function SleepScheduleCard() {
+  const { t, i18n } = useTranslation()
+  const schedule = useTaskStore((s) => s.addons.sleepSchedule ?? NO_SCHEDULE)
+  const setSleepSchedule = useTaskStore((s) => s.setSleepSchedule)
+  const tasks = useTaskStore((s) => s.tasks)
+  const weekdayName = useMemo(() => {
+    const f = new Intl.DateTimeFormat(i18n.language, { weekday: 'long' })
+    // 2024-01-01 は月曜
+    return (d: IsoWeekday) => f.format(new Date(2024, 0, d))
+  }, [i18n.language])
+  const inputClass = `w-[4.5rem] ${fieldClass({ size: 'sm' })}`
+  const any = ISO_WEEKDAYS.some((d) => schedule[d])
+  const set = (d: IsoWeekday, plan: SleepPlan | null) => {
+    const next = { ...schedule }
+    if (plan) next[d] = plan
+    else delete next[d]
+    setSleepSchedule(next)
+  }
+  return (
+    <section className={CARD_CLASS}>
+      <h2 className={CARD_TITLE_CLASS}>{t('sleepPage.scheduleTitle')}</h2>
+      <p className={`mt-1 ${META_TEXT}`}>{t('sleepPage.scheduleHelp')}</p>
+      {!any ? (
+        <button
+          type="button"
+          onClick={() => {
+            const last = defaultSleepTimes(tasks)
+            setSleepSchedule(Object.fromEntries(ISO_WEEKDAYS.map((d) => [d, { bed: last.bed, wake: last.wake }])))
+          }}
+          className={`mt-3 ${buttonClass({ variant: 'secondary', size: 'sm' })}`}
+        >
+          {t('sleepPage.scheduleSet')}
+        </button>
+      ) : (
+        <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
+          {ISO_WEEKDAYS.map((d) => {
+            const plan = schedule[d]
+            const name = weekdayName(d)
+            return (
+              <li key={d} className="flex min-h-11 items-center gap-2 py-1.5 text-xs tabular-nums">
+                <span className="w-20 shrink-0 text-zinc-600 dark:text-zinc-300">{t('sleepPage.morningOf', { day: name })}</span>
+                {plan ? (
+                  <>
+                    <span role="group" aria-label={t('sleepPage.morningOf', { day: name })} className="inline-flex items-center gap-1.5">
+                      <span className="sr-only">{t('sleep.bedAria')}</span>
+                      <TimeInput
+                        value={plan.bed}
+                        onChange={(v) => v && v !== plan.wake && set(d, { ...plan, bed: v })}
+                        className={inputClass}
+                      />
+                      <SleepBar />
+                      <span className="sr-only">{t('sleep.wakeAria')}</span>
+                      <TimeInput
+                        value={plan.wake}
+                        onChange={(v) => v && v !== plan.bed && set(d, { ...plan, wake: v })}
+                        durationFrom={plan.bed}
+                        overnight
+                        className={inputClass}
+                      />
+                    </span>
+                    <span className="hidden text-zinc-400 sm:inline dark:text-zinc-500">
+                      {formatDuration(sleepMinutes(plan.bed, plan.wake))}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => set(d, null)}
+                      {...tip(t('sleepPage.scheduleRemove', { day: name }), { name: true })}
+                      className={iconButtonClass('ml-auto shrink-0 p-2 md:p-1')}
+                    >
+                      <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-zinc-300 dark:text-zinc-600">{t('sleepPage.scheduleNone')}</span>
+                    <button
+                      type="button"
+                      // 前の曜日（無ければ前回の睡眠）の時刻から始める
+                      onClick={() => {
+                        const prev = ISO_WEEKDAYS.map((x) => schedule[x]).find(Boolean)
+                        set(d, prev ?? defaultSleepTimes(tasks))
+                      }}
+                      className={`ml-auto ${buttonClass({ variant: 'ghost', size: 'xs' })}`}
+                    >
+                      {t('sleepPage.scheduleAdd')}
+                    </button>
+                  </>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+/** 睡眠の設定: 目標の睡眠時間（端末に保存） */
 function SleepPrefsCard() {
   const { t } = useTranslation()
   const prefs = useTaskStore((s) => s.sleepPrefs)
   const setSleepPrefs = useTaskStore((s) => s.setSleepPrefs)
-  const tasks = useTaskStore((s) => s.tasks)
-  const inputClass = `w-[4.5rem] ${fieldClass({ size: 'sm' })}`
-  const usualSet = Boolean(prefs.usualBed && prefs.usualWake)
   return (
     <section className={CARD_CLASS}>
       <h2 className={CARD_TITLE_CLASS}>{t('sleepPage.prefsTitle')}</h2>
       <div className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
-        <SettingsRow label={t('sleepPage.usual')} help={t('sleepPage.usualHelp')}>
-          {usualSet ? (
-            <span className="flex flex-wrap items-center justify-end gap-1.5">
-              <span role="group" aria-label={t('sleepPage.usual')} className="inline-flex items-center gap-1.5">
-                <span className="sr-only">{t('sleep.bedAria')}</span>
-                <TimeInput
-                  value={prefs.usualBed!}
-                  onChange={(v) => v && v !== prefs.usualWake && setSleepPrefs({ usualBed: v })}
-                  className={inputClass}
-                />
-                <SleepBar />
-                <span className="sr-only">{t('sleep.wakeAria')}</span>
-                <TimeInput
-                  value={prefs.usualWake!}
-                  onChange={(v) => v && v !== prefs.usualBed && setSleepPrefs({ usualWake: v })}
-                  durationFrom={prefs.usualBed!}
-                  overnight
-                  className={inputClass}
-                />
-              </span>
-              <button
-                type="button"
-                onClick={() => setSleepPrefs({ usualBed: null, usualWake: null })}
-                className={buttonClass({ variant: 'ghost', size: 'sm' })}
-              >
-                {t('sleepPage.usualClear')}
-              </button>
-            </span>
-          ) : (
-            <button
-              type="button"
-              // 決めるときは前回の時刻から始める
-              onClick={() => {
-                const last = defaultSleepTimes(tasks)
-                setSleepPrefs({ usualBed: last.bed, usualWake: last.wake })
-              }}
-              className={buttonClass({ variant: 'secondary', size: 'sm' })}
-            >
-              {t('sleepPage.usualSet')}
-            </button>
-          )}
-        </SettingsRow>
         <SettingsRow label={t('sleepPage.goal')} help={t('sleepPage.goalHelp')} htmlFor="sleep-goal">
           <select
             id="sleep-goal"

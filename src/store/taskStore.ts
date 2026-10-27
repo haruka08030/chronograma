@@ -1,4 +1,5 @@
 import { DEFAULT_SLEEP_PREFS } from '../lib/sleepPrefs'
+import { normalizeSleepSchedule } from '../lib/sleepSchedule'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { TaskList } from '../types/list'
@@ -296,6 +297,13 @@ export const useTaskStore = create<TaskState>()(
           const cur = get().myEventTimes
           const next = fitMyEventTimes(cur, events)
           if (next !== cur) set({ myEventTimes: next })
+        },
+        setSleepSchedule: (schedule) => {
+          const cur = get().addons
+          const sleepSchedule = normalizeSleepSchedule(schedule)
+          if (sameValue(sleepSchedule, cur.sleepSchedule ?? {})) return
+          undo.pushUndo()
+          set({ addons: { ...cur, sleepSchedule } })
         },
         setAddonOn: (id, on) => {
           const next = withAddonOn(get().addons, id, on)

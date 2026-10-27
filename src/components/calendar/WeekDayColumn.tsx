@@ -32,6 +32,9 @@ import { useAbsentOn } from '../../hooks/useAbsentOn'
 import { matchPlanAndActualForDate } from '../../lib/matchEvents'
 import type { PlannedItem } from '../../types/plannedItem'
 import { tip } from '../../lib/tooltip'
+import { useDateFormat } from '../../hooks/useDateFormat'
+import { sleepSlotsOnDay } from '../../lib/sleepSchedule'
+import { sleepEndingOn } from '../../lib/sleep'
 
 type TimelineDrag = ReturnType<typeof useTimelineDrag>
 type TimelineDrop = ReturnType<typeof useTimelineDrop>
@@ -143,6 +146,10 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const habits = useTaskStore(selectHabitsByDay)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
+  const sleepSchedule = useTaskStore((s) => s.addons.sleepSchedule)
+  const logSleep = useTaskStore((s) => s.logSleep)
+  const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const df = useDateFormat()
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
@@ -150,6 +157,9 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const absentOn = useAbsentOn()
   const key = toDateKey(day)
+  const sleepSlots = sleepSchedule ? sleepSlotsOnDay(sleepSchedule, key) : []
+  // 睡眠の枠の朝の睡眠の記録の id（文字で受けて、ほかの記録が変わっても列を描き直さない）
+  const sleepRecordIds = useTaskStore((s) => sleepSlots.map((x) => sleepEndingOn(s.tasks, x.wakeDate)?.id ?? '').join('|')).split('|')
   // 記録中は、記録の列に始めた時刻から今まで伸びる枠（止めたら入る記録と同じ形。分の境目で描き直す）
   const wallNow = useNowWhile(activeTimer !== null && splitLanes)
   const runningLog = (() => {
@@ -176,6 +186,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     ...s,
     done: habitDayStatus(s.habit, s.slotDate, habitIndex) !== 'missed',
   }))
+  // 睡眠の予定（#652）: その日の朝に起きる睡眠（前の晩から）と、その夜に寝る睡眠の枠。その朝の睡眠の記録があれば済み
+  const daySleepSlots = sleepSlots.map((s, i) => ({ ...s, recordId: sleepRecordIds[i] || null }))
   // 移した予定は元の時間に点線の枠で残す（過ぎた日だけ。振り返りで「予定どおりだったか」を見る、#158）
   const dayMovedPlans = dayMoved.flatMap((t) => {
     const plan = t.movedPlans?.find((p) => p.date === key && p.startTime && p.endTime)
@@ -238,6 +250,10 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     ...shownHabitSlots.map(({ slot, seg }) => ({
       id: slot.id,
       ...blockGeometry({ id: slot.id, title: slot.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
+    })),
+    ...daySleepSlots.map(({ id, seg }) => ({
+      id,
+      ...blockGeometry({ id, title: '', startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
     })),
     ...dayMovedPlans.map((m) => ({
       id: m.id,
@@ -500,6 +516,42 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           />
         </div>
       )}
+      {daySleepSlots.map(({ id, wakeDate, plan, seg, recordId }) => {
+        // ✓ は起きる時刻を過ぎてから（寝ている間に先の時刻まで睡眠にしない）。もう一度押すとその朝の睡眠を外す（「元に戻す」付き）
+        const done = !!recordId
+        const woke = limitMin === null ? wakeDate <= key : wakeDate < key || (wakeDate === key && timeToMinutes(plan.wake) <= limitMin)
+        return (
+          <div key={id}>
+            <TimeBlock
+              task={{ id, title: t('sleep.title'), startTime: plan.bed, endTime: plan.wake, completed: done, segment: seg }}
+              dayKey={key}
+              hStyle={planStyle(id)}
+              colorHex=""
+              sleep
+              onPointerDown={(evt) => {
+                // 睡眠の枠は動かさない（時刻は睡眠のページの予定で決める）
+                evt.preventDefault()
+                evt.stopPropagation()
+              }}
+              onOpenDetail={() => {}}
+              withCheck={done || woke}
+            />
+            {(done || woke) && (
+              <SlotCheck
+                {...blockGeometry({ id, title: '', startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false)}
+                hStyle={planStyle(id)}
+                done={done}
+                label={done ? t('weekCalendar.sleepUndo') : t('weekCalendar.sleepAsPlanned')}
+                onCheck={() =>
+                  recordId
+                    ? deleteTasks([recordId], { key: 'undo.sleepDeleted', params: { day: df.shortDateWeekday(wakeDate) } })
+                    : logSleep(wakeDate, plan.bed, plan.wake)
+                }
+              />
+            )}
+          </div>
+        )
+      })}
       {shownHabitSlots.map(({ habit, slot, slotDate, seg, crossesDay, done }) => {
         // 日をまたぐ枠は列ごとに区間しか描いていないので、済んだ枠と同じくドラッグでは動かさない（押すとカード）
         const fixed = done || crossesDay

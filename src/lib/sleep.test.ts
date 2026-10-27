@@ -180,9 +180,9 @@ describe('sleepPeriods / weekendGap（睡眠のページ、#628）', () => {
     expect(weekendGap([...weekdays, weekend[0]!], '2026-10-26')).toBeNull()
   })
 
-  it('いつもの時刻を決めていれば、入力欄の初期値はそれ', () => {
+  it('睡眠の予定があれば、候補の最初の位置はそれ', () => {
     const tasks = [night('2026-10-26', '01:00', '08:00')]
     expect(defaultSleepTimes(tasks)).toEqual({ bed: '01:00', wake: '08:00' })
-    expect(defaultSleepTimes(tasks, { usualBed: '23:00', usualWake: '06:30' })).toEqual({ bed: '23:00', wake: '06:30' })
+    expect(defaultSleepTimes(tasks, { bed: '23:00', wake: '06:30' })).toEqual({ bed: '23:00', wake: '06:30' })
   })
 })
