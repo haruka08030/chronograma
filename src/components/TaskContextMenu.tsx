@@ -61,7 +61,10 @@ export function TaskContextMenu({
   onOpenDetail,
   above = false,
   quick = false,
+  inDetail = false,
 }: {
+  /** 詳細の … から開いた（「編集」は出さない） */
+  inDetail?: boolean
   /** 指で行を押したときの短いシート（`openTaskMenu` の `quick`） */
   quick?: boolean
   x: number
@@ -333,6 +336,14 @@ export function TaskContextMenu({
       ),
     },
   ]
+  // 行のアーカイブのアイコンと同じ（いつか・チェックリストの行にも出るので、そのメニューにも置く）
+  const archiveEntry: ActionEntry = {
+    kind: 'leaf',
+    id: 'archive',
+    label: t('taskItem.archive'),
+    icon: <ArchiveIcon className={ICON} />,
+    run: done(() => bulk.archive(taskIds)),
+  }
   const deleteEntry: ActionEntry = {
     kind: 'leaf',
     id: 'delete',
@@ -342,7 +353,7 @@ export function TaskContextMenu({
     danger: true,
     run: done(() => bulk.remove(taskIds)),
   }
-  // いつか: 予定する・かなえた・削除だけ（かなえたものは削除だけ）
+  // いつか: 予定する・段を移す・かなえた・アーカイブ・削除だけ（かなえたものはアーカイブ・削除だけ）
   const tierLeaf = (tier: 'dream' | 'wish'): ActionEntry => ({
     kind: 'leaf',
     id: `tier-${tier}`,
@@ -372,9 +383,10 @@ export function TaskContextMenu({
           },
         ]
       : []),
-    { ...deleteEntry, divider: openWishes.length > 0 },
+    { ...archiveEntry, divider: openWishes.length > 0 },
+    deleteEntry,
   ]
-  // チェックリスト（買い物）: チェック（全部済みなら外す）・削除だけ
+  // チェックリスト（買い物）: チェック（全部済みなら外す）・アーカイブ・削除だけ
   const allChecked = targets.every((x) => x.completed)
   const checklistEntries: ActionEntry[] = [
     allChecked
@@ -393,7 +405,8 @@ export function TaskContextMenu({
           keys: shortcutLabel(['mod', '↵']),
           run: done(() => bulk.complete(taskIds)),
         },
-    { ...deleteEntry, divider: true },
+    { ...archiveEntry, divider: true },
+    deleteEntry,
   ]
   // 全部済みなら「未完了に戻す」（済んだものに「完了にする」を出しても何も起きない）
   const allDone = targets.length > 0 && targets.every((x) => x.completed)
@@ -465,13 +478,7 @@ export function TaskContextMenu({
                 },
               ]
             : []),
-          {
-            kind: 'leaf',
-            id: 'archive',
-            label: t('taskItem.archive'),
-            icon: <ArchiveIcon className={ICON} />,
-            run: done(() => bulk.archive(taskIds)),
-          },
+          archiveEntry,
           deleteEntry,
         ]
   // 指で行を押したときの短いシート: よく使う操作（今日やる・明日へ / 記録開始 / 完了）、日付、詳細を開く。ほかは詳細から
@@ -489,9 +496,9 @@ export function TaskContextMenu({
         ]
       : []
   const quickEntries: ActionEntry[] = allWishes
-    ? [...somedayEntries.filter((e) => e.id !== 'delete'), ...openEntry]
+    ? [...somedayEntries.filter((e) => e.id !== 'delete' && e.id !== 'archive'), ...openEntry]
     : allChecklist
-      ? [...checklistEntries.filter((e) => e.id !== 'delete'), ...openEntry]
+      ? [...checklistEntries.filter((e) => e.id !== 'delete' && e.id !== 'archive'), ...openEntry]
       : [
           ...setTimeEntry,
           ...todayToggleEntry,
@@ -522,7 +529,7 @@ export function TaskContextMenu({
           </div>
         )
       }
-      entries={quick ? quickEntries : entries}
+      entries={quick ? quickEntries : inDetail ? entries.filter((e) => e.id !== 'open') : entries}
       onClose={onClose}
       // いつか・チェックリスト・短いシートは項目が少ないので検索欄を出さない
       searchable={!quick && !allWishes && !allChecklist}

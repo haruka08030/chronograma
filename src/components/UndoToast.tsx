@@ -7,10 +7,9 @@ import { undoGoogleDelete } from '../lib/googleEventEdit'
 import { UNDO_WINDOW_MS, toastTitle } from '../lib/undoWindow'
 import { shortcutLabel } from '../lib/keyboard'
 import { toastText } from '../lib/toastText'
-import { INVERSE_SURFACE } from './ui/surface'
+import { Toast } from './ui/Toast'
+import { toastButtonClass } from './ui/toastClass'
 import { usePresence } from '../hooks/usePresence'
-
-const MOBILE_FLOAT_BOTTOM = 'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
 
 /**
  * 取り消せる操作のトースト。
@@ -42,7 +41,6 @@ export function UndoToast() {
   const undoDelete = useTaskStore((s) => s.undoDelete)
   const clearDeletedTasks = useTaskStore((s) => s.clearDeletedTasks)
   const clearUndoBanner = useTaskStore((s) => s.clearUndoBanner)
-  const activeTimer = useTaskStore((s) => s.activeTimer)
   const [visible, setVisible] = useState(false)
 
   const deletedIds = recentDeletes.flatMap((b) => b.ids)
@@ -92,40 +90,32 @@ export function UndoToast() {
     return t('undo.message')
   }
 
-  // タイマー表示中は一段上へずらして重なりを避ける
-  const stacked = activeTimer ? 'bottom-[calc(3.5rem+4.5rem+env(safe-area-inset-bottom))] md:bottom-24' : MOBILE_FLOAT_BOTTOM
-
   return (
-    <div
-      className={`fixed left-1/2 z-50 -translate-x-1/2 ${toast.closing ? 'animate-toast-out' : 'animate-toast-in'} ${stacked}`}
-      inert={toast.closing}
-    >
-      <div className={`mx-3 flex w-max max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}>
-        <span className="min-w-0 line-clamp-2">{toast.shown}</span>
-        <button
-          onClick={() => {
-            if (kind === 'google') {
-              undoGoogleDelete()
-            } else if (kind === 'deleted') {
-              // トーストに出ている削除だけを戻す（あとにした別の操作は残す）。新しい削除から順に
-              for (const batch of [...recentDeletes].reverse()) {
-                if (batch.undoId === undefined || !undoOperation(batch.undoId)) undoDelete()
-              }
-            } else {
-              if (undoBanner?.restoreTimer) restoreDiscardedTimer()
-              else if (undoBanner?.restoreSleepTimer) restoreCancelledSleep()
-              else if (undoBanner?.undoId !== undefined) undoOperation(undoBanner.undoId)
-              else undoLastOperation()
-              clearUndoBanner()
+    <Toast closing={toast.closing}>
+      <span className="min-w-0 line-clamp-2">{toast.shown}</span>
+      <button
+        onClick={() => {
+          if (kind === 'google') {
+            undoGoogleDelete()
+          } else if (kind === 'deleted') {
+            // トーストに出ている削除だけを戻す（あとにした別の操作は残す）。新しい削除から順に
+            for (const batch of [...recentDeletes].reverse()) {
+              if (batch.undoId === undefined || !undoOperation(batch.undoId)) undoDelete()
             }
-            setVisible(false)
-          }}
-          className="shrink-0 font-semibold text-white underline-offset-2 touch-manipulation dark:text-zinc-900 hover:underline"
-        >
-          {t('undo.button')}
-        </button>
-        <span className="ml-1 hidden shrink-0 text-xs text-zinc-400 dark:text-zinc-500 sm:inline">{shortcutLabel(['mod', 'Z'])}</span>
-      </div>
-    </div>
+          } else {
+            if (undoBanner?.restoreTimer) restoreDiscardedTimer()
+            else if (undoBanner?.restoreSleepTimer) restoreCancelledSleep()
+            else if (undoBanner?.undoId !== undefined) undoOperation(undoBanner.undoId)
+            else undoLastOperation()
+            clearUndoBanner()
+          }
+          setVisible(false)
+        }}
+        className={toastButtonClass()}
+      >
+        {t('undo.button')}
+      </button>
+      <span className="ml-1 hidden shrink-0 text-xs text-zinc-400 dark:text-zinc-500 sm:inline">{shortcutLabel(['mod', 'Z'])}</span>
+    </Toast>
   )
 }

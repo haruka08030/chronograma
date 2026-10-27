@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { emptyTerm, overlapsTerm, suggestNextTerm, TERM_NAME_MAX, withTerm, withoutTerm, type Term } from '../../lib/schoolTerms'
 import { newId } from '../../lib/id'
-import { askConfirm } from '../../lib/confirmDialog'
 import { tip } from '../../lib/tooltip'
 import { useAppTodayKey } from '../../hooks/useAppClock'
 import { useSchool } from '../../hooks/useSchool'
+import { useDialogDraft } from '../../hooks/useDialogDraft'
 import { useTermLabel } from '../../hooks/useTermLabel'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { DateField } from '../DateField'
@@ -73,7 +73,10 @@ export function SchoolTermBar({ term, onSelect }: { term: Term | null; onSelect:
   )
 }
 
-/** 学期の名前・期間を決める。ほかの学期と重なれば保存しない。消すとその学期の欠席・追加した授業も消える（時間割の予定は残る） */
+/**
+ * 学期の名前・期間を決める。ほかの学期と重なれば保存しない。消すとその学期の欠席・追加した授業も消える（時間割の予定は残る）。
+ * 消すのは確認なしで「元に戻す」付き。外側・Esc で閉じても書きかけは残す（`useDialogDraft`、学期ごと）。保存・削除・キャンセルで捨てる
+ */
 function TermEditor({ term, onClose, onSaved }: { term: Term | null; onClose: () => void; onSaved: (id: string) => void }) {
   const { t } = useTranslation()
   const today = useAppTodayKey()
@@ -81,9 +84,13 @@ function TermEditor({ term, onClose, onSaved }: { term: Term | null; onClose: ()
   const saveSchool = useTaskStore((s) => s.saveSchool)
   const label = useTermLabel()
   const suggestion = term ?? suggestNextTerm(school, today)
-  const [name, setName] = useState(term?.name ?? '')
-  const [termStart, setStart] = useState<string | null>(suggestion.termStart)
-  const [termEnd, setEnd] = useState<string | null>(suggestion.termEnd)
+  const [draft, setDraft, discardDraft] = useDialogDraft(`school-term:${term?.id ?? 'new'}`, () => ({
+    name: term?.name ?? '',
+    termStart: suggestion.termStart as string | null,
+    termEnd: suggestion.termEnd as string | null,
+  }))
+  const { name, termStart, termEnd } = draft
+  const patch = (p: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...p }))
   const inputRef = useRef<HTMLInputElement>(null)
   const range = termStart && termEnd ? { termStart, termEnd } : null
   const bad = !!range && range.termStart > range.termEnd
@@ -94,19 +101,17 @@ function TermEditor({ term, onClose, onSaved }: { term: Term | null; onClose: ()
     if (!range || !canSave) return
     const id = term?.id ?? newId()
     saveSchool(withTerm(school, { ...(term ?? emptyTerm(id, range)), name: name.trim(), ...range }))
+    discardDraft()
     onSaved(id)
   }
-  const remove = async () => {
+  const remove = () => {
     if (!term) return
-    if (
-      !(await askConfirm({
-        message: t('school.deleteTermConfirm', { name: label(term) }),
-        confirmLabel: t('common.delete'),
-        danger: true,
-      }))
-    )
-      return
-    saveSchool(withoutTerm(school, term.id))
+    saveSchool(withoutTerm(school, term.id), { key: 'undo.termDeleted', params: { name: label(term) } })
+    discardDraft()
+    onClose()
+  }
+  const cancel = () => {
+    discardDraft()
     onClose()
   }
 
@@ -118,7 +123,7 @@ function TermEditor({ term, onClose, onSaved }: { term: Term | null; onClose: ()
         <input
           ref={inputRef}
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => patch({ name: e.target.value })}
           maxLength={TERM_NAME_MAX}
           placeholder={t('school.termNamePlaceholder')}
           className={fieldClass({}, 'w-full')}
@@ -127,12 +132,17 @@ function TermEditor({ term, onClose, onSaved }: { term: Term | null; onClose: ()
       <div className="mt-3">
         <p className={sectionLabelClass('field', 'mb-1 block')}>{t('timetable.term')}</p>
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <DateField value={termStart} onChange={setStart} ariaLabel={t('timetable.termStart')} className={fieldClass({ size: 'sm' })} />
+          <DateField
+            value={termStart}
+            onChange={(v) => patch({ termStart: v })}
+            ariaLabel={t('timetable.termStart')}
+            className={fieldClass({ size: 'sm' })}
+          />
           <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
           <DateField
             value={termEnd}
             min={termStart ?? undefined}
-            onChange={setEnd}
+            onChange={(v) => patch({ termEnd: v })}
             ariaLabel={t('timetable.termEnd')}
             className={fieldClass({ size: 'sm' })}
           />
@@ -150,12 +160,12 @@ function TermEditor({ term, onClose, onSaved }: { term: Term | null; onClose: ()
       </div>
       <div className="mt-5 flex items-center gap-2">
         {term && (
-          <button type="button" onClick={() => void remove()} className={buttonClass({ variant: 'danger', size: 'md' })}>
+          <button type="button" onClick={remove} className={buttonClass({ variant: 'danger', size: 'md' })}>
             {t('school.deleteTerm')}
           </button>
         )}
         <span className="flex-1" />
-        <button type="button" onClick={onClose} className={buttonClass({ variant: 'ghost', size: 'md' })}>
+        <button type="button" onClick={cancel} className={buttonClass({ variant: 'ghost', size: 'md' })}>
           {t('common.cancel')}
         </button>
         <button type="button" onClick={save} disabled={!canSave} className={buttonClass({ variant: 'primary', size: 'md' })}>

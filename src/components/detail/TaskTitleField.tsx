@@ -4,7 +4,7 @@ import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { useTextEntry } from '../../hooks/useTextEntry'
 import { useFocusBackOnClose } from '../../hooks/useFocusBackOnClose'
-import { CloseIcon, TrashIcon } from '../icons'
+import { CloseIcon, EllipsisIcon, TrashIcon } from '../icons'
 import { tip } from '../../lib/tooltip'
 import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 
@@ -14,12 +14,15 @@ export function TaskTitleField({
   onClose,
   onDelete,
   deleteLabel,
+  onMore,
 }: {
   task: Task
   onClose: () => void
   /** × の左の 🗑（Google カレンダーの詳細と同じ位置。スマホは上に固定した帯の右） */
   onDelete?: () => void
   deleteLabel?: string
+  /** 🗑 の左の …（行の右クリックと同じタスクのメニュー。複製・明日へ回す・記録を始める・移動など。スマホは上の帯の右） */
+  onMore?: (anchor: HTMLElement) => void
 }) {
   const { t } = useTranslation()
   const updateTask = useTaskStore((s) => s.updateTask)
@@ -91,6 +94,17 @@ export function TaskTitleField({
         )}
       </div>
       <div className="flex flex-shrink-0 items-center gap-1">
+        {onMore && (
+          <button
+            type="button"
+            onClick={(e) => onMore(e.currentTarget)}
+            aria-haspopup="menu"
+            {...tip(t('taskItem.moreMenuAria'), { name: true })}
+            className="hidden p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0 md:block"
+          >
+            <EllipsisIcon className="w-5 h-5 text-zinc-400" />
+          </button>
+        )}
         {onDelete && (
           <button
             type="button"

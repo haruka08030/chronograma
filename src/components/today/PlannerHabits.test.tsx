@@ -7,6 +7,7 @@ import { useTaskStore } from '../../store/taskStore'
 import { PlannerHabitRows, PlannerHabits } from './PlannerHabits'
 import { splitHabitDayKey } from '../../lib/habitDayKey'
 import { usePlannerHabitRows } from '../../hooks/usePlannerHabitRows'
+import { closeHabitEdit, useHabitEditTarget } from '../../lib/habitEditRequest'
 import { COMPLETE_COLLAPSE_MS, COMPLETE_LINGER_MS, useDeferredComplete } from '../../hooks/useDeferredComplete'
 
 /** 今日の計画と同じ組み立て: まだの習慣は「習慣」の欄、済んだ習慣は「完了」の中の行 */
@@ -146,5 +147,23 @@ describe('今日の計画の習慣: 達成にしたとき', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('今日の計画の習慣の行を押す', () => {
+  function Target() {
+    const target = useHabitEditTarget()
+    return <output aria-label="target">{target ? `${target.habitId}:${target.edit}` : ''}</output>
+  }
+  it('名前を押すと、画面を移らずに習慣の詳細（編集ではない）を開く', () => {
+    render(
+      <>
+        <Habits dayHabits={[vocab]} />
+        <Target />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Vocab' }))
+    expect(screen.getByRole('status', { name: 'target' })).toHaveTextContent('v:false')
+    act(() => closeHabitEdit())
   })
 })

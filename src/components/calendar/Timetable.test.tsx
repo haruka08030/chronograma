@@ -80,13 +80,13 @@ describe('時間割のマス（#279）', () => {
     expect(live().every((t) => t.title === '英語 II')).toBe(true)
 
     await user.click(screen.getByRole('button', { name: '水曜 2限 英語 II' }))
+    // 確認なしで消し、「元に戻す」で戻せる（ほかの削除と同じ）
     await user.click(within(screen.getByRole('dialog', { name: '水曜 2限' })).getByRole('button', { name: '削除' }))
-    // 確かめのダイアログ
-    await user.click(
-      within(screen.getByRole('dialog', { name: /「英語 II」の今日から後の 7 回を消します/ })).getByRole('button', { name: '削除' }),
-    )
     expect(live()).toHaveLength(0)
     expect(screen.getByRole('button', { name: '水曜 2限 空き' })).toBeTruthy()
+    expect(S().recentDeletes.at(-1)?.label).toEqual({ key: 'undo.eventsDeleted', params: { title: '英語 II', count: 7 } })
+    S().undoOperation(S().recentDeletes.at(-1)!.undoId!)
+    expect(live()).toHaveLength(7)
   })
 })
 

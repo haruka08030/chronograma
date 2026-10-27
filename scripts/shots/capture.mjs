@@ -780,6 +780,15 @@ const SCREENS = [
     click: 'div.group.cursor-pointer:has-text("ゼミ"):not(:has-text("研究室"))',
     clickAt: { x: 4, y: 12 },
   },
+  // 詳細の右上（スマホは上の帯）の … で開く、行の右クリックと同じタスクのメニュー（複製・明日へ回す・記録を始める…）
+  {
+    name: 'task-detail-more',
+    view: 'all',
+    click: [
+      'button[data-task-title]:has-text("ES 書く（第一志望）") >> visible=true',
+      '[role=dialog] button[aria-label="タスクのメニュー"] >> visible=true',
+    ],
+  },
   { name: 'habits', view: 'habits' },
   // 習慣の追加欄（色選びはラベル付きの色選び）
   { name: 'habits-add', view: 'habits', click: 'button:has-text("習慣を追加")' },
@@ -812,6 +821,12 @@ const SCREENS = [
   },
   // 習慣の名前を押した詳細（連続・最長・達成率・月のカレンダー）と、そこから編集
   { name: 'habits-detail', view: 'habits', click: 'li[data-habit-row]:has-text("朝に 10 分ストレッチ") button >> nth=0' },
+  // 詳細の下の「休む」（この日だけ・この日まで休む）
+  {
+    name: 'habits-detail-rest',
+    view: 'habits',
+    click: ['li[data-habit-row]:has-text("朝に 10 分ストレッチ") button >> nth=0', 'div[role="dialog"] button:has-text("休む")'],
+  },
   {
     name: 'habits-detail-edit',
     view: 'habits',
@@ -907,6 +922,13 @@ const SCREENS = [
     state: { sleepPrefs: { usualBed: '23:30', usualWake: '07:00', goalMinutes: 450 } },
     scrollTo: 'section:has(> table)',
   },
+  // 夜ごとの一覧の記録のある夜を押して開いた欄（🗑 で消せる）
+  {
+    name: 'sleep-page-night-edit',
+    view: 'sleep',
+    insightHistory: true,
+    click: 'section ul button[aria-expanded="false"]:not([aria-label$="の睡眠を入れる"]) >> nth=0',
+  },
   {
     name: 'sleep-page-prefs',
     view: 'sleep',
@@ -981,6 +1003,15 @@ const SCREENS = [
   // 行を右クリックしたときのメニュー（PC だけ。いつか・買い物はリストに合わせた短いメニュー）
   { name: 'todo-menu', view: 'all', desktopOnly: true, rightClick: '[data-task-row="s2"]' },
   { name: 'someday-menu', list: 'seed-someday', rightClick: '[data-task-row="s21"]' },
+  // 夢のタイルを押した詳細の … （かなえた・やりたいへ移す・アーカイブ・削除）
+  {
+    name: 'someday-dream-more',
+    list: 'seed-someday',
+    click: [
+      'section[aria-label="人生で"] [data-task-row] button >> nth=0',
+      '[role=dialog] button[aria-label="タスクのメニュー"] >> visible=true',
+    ],
+  },
   { name: 'checklist-menu', list: 'seed-shopping', rightClick: '[data-task-row="s24"]' },
   { name: 'checklist-menu-checked', list: 'seed-shopping', rightClick: '[data-task-row="s25"]' },
   // ゴミ箱・アーカイブの行の右クリック（deleted・archived の ID を撮るときだけ消した・しまった状態にする）

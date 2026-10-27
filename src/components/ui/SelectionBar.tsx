@@ -4,10 +4,7 @@ import { useTaskStore } from '../../store/taskStore'
 import { openTaskMenu } from '../../lib/overlays'
 import { CloseIcon } from '../icons'
 import { INVERSE_SURFACE } from './surface'
-
-/** 下のナビ（スマホ）の上。記録中は浮くタイマーの上へ一段ずらす（UndoToast と同じ） */
-const BOTTOM = 'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
-const BOTTOM_ABOVE_TIMER = 'bottom-[calc(3.5rem+4.5rem+env(safe-area-inset-bottom))] md:bottom-24'
+import { FLOAT_BOTTOM, FLOAT_BOTTOM_ABOVE_TIMER } from './toastClass'
 
 export interface SelectionAction {
   label: string
@@ -47,7 +44,7 @@ export function SelectionBar({
   const button =
     'whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition-colors touch-manipulation hover:bg-white/15 dark:hover:bg-zinc-900/10'
   return (
-    <div className={`fixed left-1/2 z-40 -translate-x-1/2 animate-toast-in ${timerOpen ? BOTTOM_ABOVE_TIMER : BOTTOM}`}>
+    <div className={`fixed left-1/2 z-40 -translate-x-1/2 animate-toast-in ${timerOpen ? FLOAT_BOTTOM_ABOVE_TIMER : FLOAT_BOTTOM}`}>
       <div
         role="toolbar"
         aria-label={t('taskList.selectedCount', { count: selectedIds.size })}

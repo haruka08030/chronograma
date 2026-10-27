@@ -14,7 +14,7 @@ const GRID = 'grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-co
 
 /**
  * 夢の 1 枚。セクションの色の薄い塗り＋縁（`gc-plan`。セクションの外は白地に灰色の縁）、題名、一歩があれば次の一歩と細い進み具合、セクション名。
- * 押すと詳細（一歩の追加はそこで）、右クリック・長押しで行と同じメニュー（かなえた・やりたいへ移す・削除）
+ * 押すと詳細（一歩の追加と、右上の … のかなえた・やりたいへ移す・削除はそこで）、右クリック・長押しでも同じメニュー
  */
 function DreamTile({ task, hex, sectionName }: { task: Task; hex: string | null; sectionName: string | null }) {
   const { t } = useTranslation()

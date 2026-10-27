@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { Habit } from '../../types/habit'
 import { buildHabitRecordIndex } from '../../lib/habitTiming'
 import { HabitDetailSheet } from './HabitDetailSheet'
+import { useTaskStore } from '../../store/taskStore'
 
 const OLD = '2026-01-01T00:00:00.000Z'
 const habit: Habit = {
@@ -53,5 +54,20 @@ describe('タイムラインから開いた習慣の編集（#621）', () => {
   it('過ぎた日は出さない', () => {
     open('2026-10-20')
     expect(screen.queryByText(/^Time on /)).toBeNull()
+  })
+})
+
+describe('習慣の詳細の下のボタン', () => {
+  it('「休む」は見えるボタンから選べ（この日だけ）、削除は確認なし', async () => {
+    const user = userEvent.setup()
+    useTaskStore.setState({ habits: [habit] })
+    render(
+      <HabitDetailSheet habit={habit} habitRecords={buildHabitRecordIndex([])} todayKey="2026-10-26" closing={false} onClose={() => {}} />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Rest' }))
+    await user.click(screen.getByRole('menuitem', { name: /This day only/ }))
+    expect(useTaskStore.getState().habits.find((h) => h.id === 'lunch')?.restDates).toEqual(['2026-10-26'])
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(useTaskStore.getState().habits.find((h) => h.id === 'lunch')?.deletedAt).toBeTruthy()
   })
 })

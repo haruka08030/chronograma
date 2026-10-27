@@ -6,7 +6,8 @@ import { defaultSleepTimes, sleepMinutes } from '../lib/sleep'
 import type { Task } from '../types/task'
 import { TimeInput } from './TimeInput'
 import { useNow } from '../hooks/useAppClock'
-import { CheckIcon, CloseIcon, MoonSolidIcon, SunriseIcon } from './icons'
+import { CheckIcon, CloseIcon, MoonSolidIcon, SunriseIcon, TrashIcon } from './icons'
+import { useDateFormat } from '../hooks/useDateFormat'
 import { FIELD_FOCUS_RING } from './ui/fieldClass'
 import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { tip } from '../lib/tooltip'
@@ -71,10 +72,13 @@ interface SleepTimesFieldProps {
  * 1 晩の睡眠の「寝た–起きた」の入力欄。今日の計画の睡眠の行（SleepRow）と統計の睡眠の図で共有する。
  * 開いた瞬間の値（記録があればその時刻、無ければ前回の睡眠の時刻）を下書きにする。
  * 開き直すたびに下書きを作り直したいので、呼ぶ側は `key` を夜と記録ごとに変えて出し入れする。
+ * 記録のある夜は 🗑 で消せる（確認なしでゴミ箱へ、「元に戻す」付き。消したら `onSaved`）
  */
 export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bedTime, cancelLabel, icon = true }: SleepTimesFieldProps) {
   const { t } = useTranslation()
   const logSleep = useTaskStore((s) => s.logSleep)
+  const deleteTasks = useTaskStore((s) => s.deleteTasks)
+  const df = useDateFormat()
   const now = useNow()
   const todayKey = toDateKey(now)
   const nowMin = minutesOfDay(now)
@@ -135,6 +139,19 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
         bed !== wake && <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(sleepMinutes(bed, wake))}</span>
       )}
       <span className="ml-auto inline-flex items-center gap-1">
+        {record && (
+          <button
+            type="button"
+            onClick={() => {
+              deleteTasks([record.id], { key: 'undo.sleepDeleted', params: { day: df.shortDateWeekday(dateKey) } })
+              onSaved()
+            }}
+            {...tip(t('sleep.delete'), { name: true })}
+            className="rounded-md p-2 text-zinc-400 hover:bg-zinc-100 md:p-1 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          >
+            <TrashIcon className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </button>
+        )}
         {onCancel && (
           <button
             type="button"

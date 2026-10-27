@@ -26,7 +26,6 @@ import { planHex } from '../../lib/planVisual'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
 import { isSubmitEnter } from '../../lib/keyboard'
-import { askConfirm } from '../../lib/confirmDialog'
 import { tip } from '../../lib/tooltip'
 import { useAppTodayKey } from '../../hooks/useAppClock'
 import { useDateFormat } from '../../hooks/useDateFormat'
@@ -206,7 +205,11 @@ function PeriodRow({
                 )}
               </>
             ) : (
-              <span aria-hidden className="flex h-full items-center justify-center opacity-0 group-hover:opacity-100">
+              // ＋ は乗せなくても出す（押すと授業を入れられると分かるように。指の端末にはホバーが無い）
+              <span
+                aria-hidden
+                className="flex h-full items-center justify-center group-hover:text-zinc-500 dark:group-hover:text-zinc-400"
+              >
                 <PlusIcon className="h-3.5 w-3.5" />
               </span>
             )}
@@ -384,16 +387,9 @@ function ClassEditor({
     onClose()
   }
 
-  const remove = async () => {
+  // 確認なしで今日から後の回を消し、「元に戻す」を出す（ほかの削除と同じ）
+  const remove = () => {
     if (!current) return
-    if (
-      !(await askConfirm({
-        message: t('timetable.removeConfirm', { title: current.title, count: current.count }),
-        confirmLabel: t('common.delete'),
-        danger: true,
-      }))
-    )
-      return
     deleteEventSeries(current.firstTaskId, 'following')
     discardDraft()
     onClose()
@@ -476,7 +472,7 @@ function ClassEditor({
       )}
       <div className="mt-5 flex items-center gap-2">
         {current && (
-          <button type="button" onClick={() => void remove()} className={buttonClass({ variant: 'danger', size: 'md' })}>
+          <button type="button" onClick={remove} className={buttonClass({ variant: 'danger', size: 'md' })}>
             {t('common.delete')}
           </button>
         )}

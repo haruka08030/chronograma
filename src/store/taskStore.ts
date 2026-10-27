@@ -317,11 +317,11 @@ export const useTaskStore = create<TaskState>()(
           undo.pushUndo({ key: 'undo.dueDeleted', params: { name: due.title } })
           set({ addons: { ...cur, dues: cur.dues.filter((d) => d.id !== id) } })
         },
-        saveSchool: (school) => {
+        saveSchool: (school, label) => {
           const cur = get().addons
           if (sameValue(school, schoolOfState(get()))) return
-          // 学期・欠席・休める回数・授業も ⌘Z とトーストで戻せる
-          undo.pushUndo()
+          // 学期・欠席・休める回数・授業も ⌘Z で戻せる（学期の削除などはトーストからも）
+          undo.pushUndo(label)
           set({ addons: { ...cur, school } })
         },
         setCourseAbsent: (title, date, absent) => get().saveSchool(withAbsence(schoolOfState(get()), title, date, absent)),

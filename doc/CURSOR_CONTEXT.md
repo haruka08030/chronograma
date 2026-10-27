@@ -80,7 +80,7 @@
 | `TaskContextMenu.tsx`・`ListContextMenu.tsx`・`TimeSlotMenu.tsx`・`DueDatePopover.tsx`・`DueDateTimeMenu.tsx`・`DateField.tsx`・`DatePickerBody.tsx`・`TimeInput.tsx`・`TimeZonePicker.tsx`・`TaskTimeZoneField.tsx`・`TaskRemindersField.tsx`・`RepeatWeekdays.tsx`・`ListKindPicker.tsx`・`ListSectionHeading.tsx` | メニューと入力の部品 |
 | `AccountSync.tsx`・`AccountSyncLoader.tsx`・`SyncIndicator.tsx`・`syncIndicatorLabel.ts`・`MobileSyncNotice.tsx`・`StorageFullBanner.tsx`・`SignedOutNotice.tsx` | 同期・保存の状態 |
 | `GoogleConnectLine.tsx`・`GoogleStatusDot.tsx`・`IntegrationReconnectLines.tsx`・`ReconnectLine.tsx`・`CanvasSubmittedToast.tsx` | 連携の状態 |
-| `UndoToast.tsx`・`MoveToast.tsx`・`ShortcutsHelp.tsx`・`OverlayHost.tsx`・`lazyOverlays.ts`・`icons.tsx`・`PathIcon.tsx` | 画面の周り |
+| `UndoToast.tsx`・`MoveToast.tsx`・`CanvasSubmittedToast.tsx`（どれも `ui/Toast.tsx` の `Toast`、置き場は `ToastStack`）・`ShortcutsHelp.tsx`・`OverlayHost.tsx`・`lazyOverlays.ts`・`icons.tsx`・`PathIcon.tsx` | 画面の周り |
 
 ### `src/store/`
 

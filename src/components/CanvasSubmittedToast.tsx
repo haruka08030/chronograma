@@ -4,11 +4,11 @@ import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../store/taskStore'
 import { clearCanvasSubmittedAsk, useCanvasSubmittedAsk } from '../lib/canvasSubmitted'
 import { toastTitle } from '../lib/undoWindow'
-import { INVERSE_SURFACE } from './ui/surface'
+import { Toast } from './ui/Toast'
+import { toastButtonClass } from './ui/toastClass'
 import { usePresence } from '../hooks/usePresence'
 import type { Task } from '../types/task'
 
-const MOBILE_FLOAT_BOTTOM = 'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
 /** 答えなければこの長さで閉じる（未完了のまま、行の「提出済み」で分かる） */
 const ASK_MS = 12_000
 const NO_TASKS: Task[] = []
@@ -30,7 +30,6 @@ export function CanvasSubmittedToast() {
     }),
   )
   const completeTasks = useTaskStore((s) => s.completeTasks)
-  const activeTimer = useTaskStore((s) => s.activeTimer)
 
   const message = useMemo(() => {
     if (tasks.length === 0) return null
@@ -62,32 +61,21 @@ export function CanvasSubmittedToast() {
   const toast = usePresence(message)
   if (toast.shown === null) return null
 
-  const stacked = activeTimer ? 'bottom-[calc(3.5rem+4.5rem+env(safe-area-inset-bottom))] md:bottom-24' : MOBILE_FLOAT_BOTTOM
-  const button = 'shrink-0 font-semibold underline-offset-2 touch-manipulation hover:underline'
-
   return (
-    <div
-      className={`fixed left-1/2 z-50 -translate-x-1/2 ${toast.closing ? 'animate-toast-out' : 'animate-toast-in'} ${stacked}`}
-      inert={toast.closing}
-    >
-      <div
-        role="status"
-        className={`mx-3 flex w-max max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE}`}
+    <Toast closing={toast.closing}>
+      <span className="min-w-0 line-clamp-3">{toast.shown}</span>
+      <button
+        onClick={() => {
+          completeTasks(tasks.map((x) => x.id))
+          clearCanvasSubmittedAsk()
+        }}
+        className={toastButtonClass()}
       >
-        <span className="min-w-0 line-clamp-3">{toast.shown}</span>
-        <button
-          onClick={() => {
-            completeTasks(tasks.map((x) => x.id))
-            clearCanvasSubmittedAsk()
-          }}
-          className={`${button} text-white dark:text-zinc-900`}
-        >
-          {t('canvas.submittedComplete')}
-        </button>
-        <button onClick={clearCanvasSubmittedAsk} className={`${button} text-zinc-300 dark:text-zinc-600`}>
-          {t('canvas.submittedNotYet')}
-        </button>
-      </div>
-    </div>
+        {t('canvas.submittedComplete')}
+      </button>
+      <button onClick={clearCanvasSubmittedAsk} className={toastButtonClass(true)}>
+        {t('canvas.submittedNotYet')}
+      </button>
+    </Toast>
   )
 }

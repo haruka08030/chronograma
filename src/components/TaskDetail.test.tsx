@@ -97,4 +97,19 @@ describe('TaskDetail のサブタスク（#613）', () => {
     expect(row('Ticket')).not.toBeNull()
     expect(screen.getByText('Subtasks (1)')).toBeInTheDocument()
   })
+
+  it('右上の … で行と同じタスクのメニューを開き（「編集」は出さない）、消したら詳細も閉じる', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const id = useTaskStore.getState().addTask('Buy milk')!
+    render(<TaskDetail task={useTaskStore.getState().tasks.find((t) => t.id === id)!} onClose={onClose} />)
+    await user.click(screen.getAllByRole('button', { name: 'Task menu' })[0]!)
+    const menu = useOverlays.getState().menu
+    expect(menu).toMatchObject({ kind: 'task', taskIds: [id], inDetail: true })
+    act(() => {
+      useTaskStore.getState().deleteTasks([id])
+      if (menu?.kind === 'task') menu.onDone?.()
+    })
+    expect(onClose).toHaveBeenCalled()
+  })
 })

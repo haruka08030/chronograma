@@ -1,17 +1,13 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, selectLiveHabits } from '../store/taskStore'
-import { isHabitRestOn } from '../types/habit'
-import { habitRestRunEnd } from '../lib/habitSchedule'
 import { buildHabitRecordIndex, habitDayStatus } from '../lib/habitTiming'
 import { appToday } from '../lib/timeZone'
 import { habitSlotId, isPlacedPointHabitOn } from '../lib/habitSlots'
 import { unplaceHabitSlot } from '../lib/timelineBlockEdit'
-import { fromDateKey, toDateKey } from '../lib/dateKey'
-import { useDateFormat } from '../hooks/useDateFormat'
+import { toDateKey } from '../lib/dateKey'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
-import { MenuLabel } from './ui/Menu'
-import { DatePickerBody } from './DatePickerBody'
-import { ArchiveIcon, ArrowUpIcon, CheckIcon, PauseIcon, PencilIcon, RestoreIcon, TrashIcon } from './icons'
+import { useHabitRestEntry } from './habits/useHabitRestEntry'
+import { ArchiveIcon, ArrowUpIcon, CheckIcon, PencilIcon, RestoreIcon, TrashIcon } from './icons'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 
@@ -41,15 +37,14 @@ export function HabitContextMenu({
   onTimeline?: boolean
 }) {
   const { t } = useTranslation()
-  const df = useDateFormat()
   const habit = useTaskStore((s) => selectLiveHabits(s).find((h) => h.id === habitId) ?? null)
   const tasks = useTaskStore((s) => s.tasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const archiveHabit = useTaskStore((s) => s.archiveHabit)
   const restoreHabit = useTaskStore((s) => s.restoreHabit)
   const deleteHabit = useTaskStore((s) => s.deleteHabit)
-  const setHabitRest = useTaskStore((s) => s.setHabitRest)
-  if (!habit) return null
+  const restEntry = useHabitRestEntry(habit, dateKey ?? toDateKey(appToday()))
+  if (!habit || !restEntry) return null
   const remove: ActionEntry = {
     kind: 'leaf',
     id: 'delete',
@@ -75,41 +70,7 @@ export function HabitContextMenu({
     const todayKey = toDateKey(appToday())
     // 時間外の記録も「付いている」（カードの丸・今日の計画と同じ）
     const doneToday = habitDayStatus(habit, todayKey, buildHabitRecordIndex(tasks)) !== 'missed'
-    const day = dateKey ?? todayKey
-    const rest: ActionEntry = isHabitRestOn(habit, day)
-      ? {
-          kind: 'leaf',
-          id: 'rest',
-          label: t('habits.restClear'),
-          icon: <PauseIcon className={ICON} />,
-          hint: df.monthDayWeekday(day),
-          run: () => setHabitRest(habit.id, day, habitRestRunEnd(habit, day), false),
-        }
-      : {
-          kind: 'sub',
-          id: 'rest',
-          label: t('habits.rest'),
-          icon: <PauseIcon className={ICON} />,
-          hint: df.monthDayWeekday(day),
-          width: 'lg',
-          leaves: [{ id: 'rest-day', label: t('habits.restOneDay'), run: () => setHabitRest(habit.id, day, day, true) }],
-          extra: (close) => (
-            <>
-              <MenuLabel>{t('habits.restUntil')}</MenuLabel>
-              <DatePickerBody
-                footer={false}
-                kind="date"
-                value={null}
-                min={day}
-                month={fromDateKey(day)}
-                onPick={(key) => {
-                  if (key) setHabitRest(habit.id, day, key, true)
-                  close()
-                }}
-              />
-            </>
-          ),
-        }
+    const rest = restEntry.entry
     entries = [
       { kind: 'leaf', id: 'edit', label: t('common.edit'), icon: <PencilIcon className={ICON} strokeWidth={1.75} />, run: onEdit },
       {

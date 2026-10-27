@@ -514,8 +514,8 @@ export interface TaskState {
   saveDue: (item: DueItem) => void
   /** 引き落とし・期限の日を消す */
   deleteDue: (id: string) => void
-  /** 学校の学期と授業を保存する（#622、`lib/schoolTerms.ts`。同じ中身なら何もしない。⌘Z で戻せる） */
-  saveSchool: (school: School) => void
+  /** 学校の学期と授業を保存する（#622、`lib/schoolTerms.ts`。同じ中身なら何もしない。⌘Z で戻せる。`label` を渡すと「元に戻す」のトーストを出す） */
+  saveSchool: (school: School, label?: ToastText) => void
   /** 授業名・日付で欠席にする・取り消す（その日の学期に数える。学期が無ければ何もしない） */
   setCourseAbsent: (title: string, date: string, absent: boolean) => void
   /** 授業の休める回数を決める（null は決めない。時間割の授業は学期の回数の 1/3） */

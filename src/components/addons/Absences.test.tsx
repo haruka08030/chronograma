@@ -71,6 +71,32 @@ describe('追加機能「学校」の学期と授業（#503・#622）', () => {
     expect(screen.getByRole('heading', { level: 1, name: '学校' })).toBeTruthy()
   })
 
+  it('学期の編集は閉じても書きかけが残り、削除は確認なしで「元に戻す」で戻る', async () => {
+    const user = userEvent.setup()
+    render(<AddonsView />)
+    await user.click(screen.getByRole('switch', { name: '学校を使う' }))
+    await user.click(screen.getByRole('button', { name: '学校' }))
+    await user.click(screen.getByRole('button', { name: '学期を追加' }))
+    await user.click(within(screen.getByRole('dialog', { name: '学期を追加' })).getByRole('button', { name: '保存' }))
+    expect(S().addons.school?.terms).toHaveLength(1)
+
+    // 書きかけのまま Esc で閉じ、開き直すと続きから
+    await user.click(screen.getByRole('button', { name: '学期を編集' }))
+    await user.type(within(screen.getByRole('dialog', { name: '学期を編集' })).getByLabelText('名前'), '2026 後期')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: '学期を編集' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: '学期を編集' }))
+    const editor = screen.getByRole('dialog', { name: '学期を編集' })
+    expect(within(editor).getByLabelText('名前')).toHaveValue('2026 後期')
+
+    await user.click(within(editor).getByRole('button', { name: '学期を消す' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(S().addons.school?.terms).toHaveLength(0)
+    expect(S().undoBanner?.text).toMatchObject({ key: 'undo.termDeleted' })
+    S().undoOperation(S().undoBanner!.undoId!)
+    expect(S().addons.school?.terms).toHaveLength(1)
+  })
+
   it('学期の間に課題のある Canvas・Moodle の科目は授業として並び、授業のページに未完了の課題が出る', async () => {
     const user = userEvent.setup()
     const today = appTodayKey()

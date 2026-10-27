@@ -13,6 +13,7 @@ import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { UndoToast } from './components/UndoToast.tsx'
 import { MoveToast } from './components/MoveToast'
 import { CanvasSubmittedToast } from './components/CanvasSubmittedToast'
+import { ToastStack } from './components/ui/Toast'
 import { StorageFullBanner } from './components/StorageFullBanner'
 import { DndTaskDragShell } from './components/DndTaskDragShell'
 import { TimerDropZone } from './components/TimerDropZone'
@@ -212,17 +213,20 @@ export default function App() {
         <OverlayHost />
         <AccountSyncLoader />
         {/* 画面の外の部品は 1 つずつ包む。落ちたらその部品だけ消え、画面を替えると戻る */}
-        <PartBoundary name="undoToast" resetKey={partKey}>
-          <UndoToast />
-        </PartBoundary>
+        {/* トーストは 1 つの置き場に下から積む（同時に出ても重ならない） */}
+        <ToastStack>
+          <PartBoundary name="undoToast" resetKey={partKey}>
+            <UndoToast />
+          </PartBoundary>
+          <PartBoundary name="moveToast" resetKey={partKey}>
+            <MoveToast />
+          </PartBoundary>
+          <PartBoundary name="canvasSubmitted" resetKey={partKey}>
+            <CanvasSubmittedToast />
+          </PartBoundary>
+        </ToastStack>
         <PartBoundary name="tooltip" resetKey={partKey}>
           <TooltipHost />
-        </PartBoundary>
-        <PartBoundary name="moveToast" resetKey={partKey}>
-          <MoveToast />
-        </PartBoundary>
-        <PartBoundary name="canvasSubmitted" resetKey={partKey}>
-          <CanvasSubmittedToast />
         </PartBoundary>
         <PartBoundary name="timer" resetKey={partKey}>
           <FloatingTimer />
