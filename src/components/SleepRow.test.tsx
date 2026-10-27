@@ -65,3 +65,16 @@ describe('睡眠のページへ', () => {
     expect(useTaskStore.getState().selectedView).toBe('sleep')
   })
 })
+
+describe('記録の無い朝（#649）', () => {
+  it('前回の睡眠があっても、欄は空で ✓ は押せない', () => {
+    at(7, 9)
+    useTaskStore.getState().logSleep('2026-10-07', '23:30', '07:00')
+    at(8, 9)
+    render(<SleepRow dateKey="2026-10-08" />)
+    const [bed, wake] = screen.getAllByRole('combobox')
+    expect(bed).toHaveValue('')
+    expect(wake).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+})

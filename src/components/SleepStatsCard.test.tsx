@@ -60,7 +60,7 @@ describe('統計の睡眠: 夜を押して直す・埋める', () => {
     expect(useTaskStore.getState().tasks.filter((t) => t.kind === 'sleep')).toHaveLength(2)
   })
 
-  it('記録の無い夜（日付だけ薄い行）を押すと、前回の時刻が入った入力欄でその夜を埋められる', async () => {
+  it('記録の無い夜（日付だけ薄い行）を押すと、空欄の入力欄でその夜を埋められる（前回の時刻は入れない #649）', async () => {
     seedNights()
     const user = userEvent.setup()
     render(<SleepStatsCard />)
@@ -71,9 +71,9 @@ describe('統計の睡眠: 夜を押して直す・埋める', () => {
     await user.click(missing[0]!)
     const editor = editorOf()
     const [bedInput, wakeInput] = within(editor).getAllByRole('combobox')
-    // 前回（今日の朝）の時刻
-    expect(bedInput).toHaveValue('23:30')
-    expect(wakeInput).toHaveValue('07:00')
+    expect(bedInput).toHaveValue('')
+    expect(wakeInput).toHaveValue('')
+    expect(within(editor).getByRole('button', { name: 'Save' })).toBeDisabled()
 
     await typeTimes(user, editor, '00:30', '08:00')
     await user.click(within(editor).getByRole('button', { name: 'Save' }))
@@ -90,6 +90,7 @@ describe('統計の睡眠: 夜を押して直す・埋める', () => {
 
     const missing = screen.getAllByRole('button', { name: /^Log sleep for/ })
     await user.click(missing[missing.length - 1]!)
+    await typeTimes(user, editorOf(), '23:30', '07:00')
     await user.click(within(editorOf()).getByRole('button', { name: 'Save' }))
     expect(screen.getByText(/\(3 logged\)/)).toBeInTheDocument()
 

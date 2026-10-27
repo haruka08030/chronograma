@@ -16,12 +16,6 @@ import { minutesOfDay, minutesToTime, timeToMinutes } from '../lib/clockTime'
 import { ERROR_TEXT } from './ui/textClass'
 import { chipClass } from './ui/chipClass'
 
-/** 5 分単位に切り捨てた hh:mm */
-const floorTo5 = (min: number) => {
-  const m = min - (min % 5)
-  return minutesToTime(m)
-}
-
 export const SleepMoonIcon = () => <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-sleep" />
 /** 起きた時刻の印（日の出。☀ は「今日」に使うので使わない）。統計・睡眠のページで ☾ と組にする */
 export const SleepWakeIcon = () => <SunriseIcon className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
@@ -80,7 +74,8 @@ function napDraft(isToday: boolean, nowMin: number) {
 
 /**
  * 1 晩の睡眠の「寝た–起きた」の入力欄。今日の計画の睡眠の行（SleepRow）と統計の睡眠の図で共有する。
- * 開いた瞬間の値（記録があればその時刻、無ければ前回の睡眠の時刻）を下書きにする。
+ * 記録があればその時刻で開く。記録の無い夜は空欄で開き（徹夜した夜などに、寝ていない時刻を出さない #649）、
+ * 前回の睡眠の時刻（いつもの時刻を決めていればそれ）は候補を開いたときの最初の位置にだけ使う。
  * 開き直すたびに下書きを作り直したいので、呼ぶ側は `key` を夜と記録ごとに変えて出し入れする。
  * 記録のある夜は 🗑 で消せる（確認なしでゴミ箱へ、「元に戻す」付き。消したら `onSaved`）
  */
@@ -110,16 +105,13 @@ export function SleepTimesField({
         ? { bed: record.startTime, wake: record.endTime }
         : nap
           ? napDraft(isToday, nowMin)
-          : defaultSleepTimes(useTaskStore.getState().tasks, useTaskStore.getState().sleepPrefs)
-    // いつもの起床時刻より早く開いたら、今を起きた時刻の候補にする（未来の時刻で叱らない）
-    const wake = !record && isToday && timeToMinutes(init.wake) > nowMin ? floorTo5(nowMin) : init.wake
-    return { bed: bedTime ?? init.bed, wake }
+          : { bed: '', wake: '' }
+    return { bed: bedTime ?? init.bed, wake: init.wake }
   })
   const [bed, setBed] = useState(draft.bed)
   const [wake, setWake] = useState(draft.wake)
-
-  // まだ記録の無い夜で、入れておいた時刻（前回の時刻）のまま: 下書きとして薄く出し、長さは出さない（記録済みに見せない）
-  const isDraft = !record && bed === draft.bed && wake === draft.wake
+  // 空欄の候補を開いたときの最初の位置
+  const [usual] = useState(() => defaultSleepTimes(useTaskStore.getState().tasks, useTaskStore.getState().sleepPrefs))
   const inFuture = isToday && Boolean(wake) && timeToMinutes(wake) > nowMin
   const canSave = Boolean(bed && wake && bed !== wake && !inFuture)
   const save = () => {
@@ -128,9 +120,7 @@ export function SleepTimesField({
     onSaved()
   }
   // 行に溶け込む小さな欄なので fieldClass は使わないが、フォーカスは他の入力欄と同じリングで見せる
-  const inputClass = `w-[3.75rem] rounded-md bg-zinc-50 px-1.5 py-1 text-xs tabular-nums outline-none dark:bg-zinc-800 ${
-    isDraft ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-900 dark:text-zinc-100'
-  } ${FIELD_FOCUS_RING}`
+  const inputClass = `w-[3.75rem] rounded-md bg-zinc-50 px-1.5 py-1 text-xs tabular-nums text-zinc-900 outline-none dark:bg-zinc-800 dark:text-zinc-100 ${FIELD_FOCUS_RING}`
 
   return (
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 中の入力欄の Enter・Esc をまとめて受ける
@@ -147,15 +137,21 @@ export function SleepTimesField({
       </span>
       <span className="inline-flex items-center gap-1.5" role="group">
         <span className="sr-only">{t('sleep.bedAria')}</span>
-        <TimeInput value={bed} onChange={setBed} className={inputClass} />
+        <TimeInput value={bed} onChange={setBed} pickerDefault={usual.bed} className={inputClass} />
         <SleepBar />
         <span className="sr-only">{t('sleep.wakeAria')}</span>
-        <TimeInput value={wake} onChange={setWake} durationFrom={bed || undefined} overnight className={inputClass} />
+        <TimeInput
+          value={wake}
+          onChange={setWake}
+          pickerDefault={usual.wake}
+          durationFrom={bed || undefined}
+          overnight
+          className={inputClass}
+        />
       </span>
       {inFuture ? (
         <span className={ERROR_TEXT}>{t('sleep.noFuture')}</span>
       ) : (
-        !isDraft &&
         bed &&
         wake &&
         bed !== wake && <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(sleepMinutes(bed, wake))}</span>

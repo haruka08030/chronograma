@@ -72,7 +72,7 @@ export function overlappingSleep(tasks: readonly Task[], span: Pick<Task, 'dueDa
   return null
 }
 
-/** 入力欄の初期値: いつもの時刻（睡眠のページで決めたもの）、無ければいちばん最近の夜の睡眠の時刻（昼寝は使わない。それも無ければ 23:30–7:00） */
+/** 時刻の候補を開いたときの最初の位置: いつもの時刻（睡眠のページで決めたもの）、無ければいちばん最近の夜の睡眠の時刻（昼寝は使わない。それも無ければ 23:30–7:00） */
 export function defaultSleepTimes(
   tasks: readonly Task[],
   prefs?: Pick<SleepPrefs, 'usualBed' | 'usualWake'>,

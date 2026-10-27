@@ -500,7 +500,7 @@ export default {
     belowGoal: '目標 −{{time}}',
     prefsTitle: '睡眠の設定',
     usual: 'いつもの時刻',
-    usualHelp: 'まだ記録していない朝の欄に最初に入る時刻。決めなければ前回の時刻',
+    usualHelp: '寝た・起きた時刻を選ぶとき、候補をこの時刻のあたりから出します。決めなければ前回の時刻',
     usualSet: '決める',
     usualClear: '前回の時刻を使う',
     goal: '目標の睡眠時間',

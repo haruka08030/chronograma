@@ -515,7 +515,7 @@ export default {
     belowGoal: 'Goal −{{time}}',
     prefsTitle: 'Sleep settings',
     usual: 'Usual times',
-    usualHelp: 'Filled in first on a morning you have not logged yet. Without it, your last times',
+    usualHelp: 'When you pick bed and wake-up times, the list starts around these. Without it, your last times',
     usualSet: 'Set',
     usualClear: 'Use last times',
     goal: 'Sleep goal',
