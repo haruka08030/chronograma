@@ -2,8 +2,16 @@ import { useState, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, isSameMonth } from 'date-fns'
 import { unplannedListIds } from '../lib/listKind'
-import type { CalendarEvent } from '../types/calendarEvent'
-import { planHex, planVisualState, type PlanVisualState } from '../lib/planVisual'
+import {
+  googleEventVisualState,
+  PASSED_TEXT_CLASS,
+  planDotClass,
+  planDotHex,
+  planHex,
+  planTileClass,
+  planVisualState,
+  type PlanVisualState,
+} from '../lib/planVisual'
 import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategoryColors'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
@@ -26,6 +34,8 @@ import { calendarDayKey, dueMarkDayKey, keepsTimeSlot } from '../lib/dayPlan'
 import { DueIcon } from './icons'
 import { DUE_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { dueToneOf } from '../lib/dueTone'
+import { TaskDueMark } from './calendar/TaskDueMark'
+import { useNow } from '../hooks/useAppClock'
 import { useGoogleCalendarEvents } from '../hooks/useGoogleCalendarEvents'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { appTodayKey, isAppToday } from '../lib/timeZone'
@@ -34,7 +44,7 @@ import { dayMarkerClass } from '../lib/dayMarker'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, isTaskDrag, startTaskDrag } from '../lib/taskDrag'
 import { toDateKey } from '../lib/dateKey'
 import { formatDurationShort } from '../lib/timeGrid'
-import { openTaskMenu } from '../lib/overlays'
+import { openCalendarItemMenu, openTaskMenu } from '../lib/overlays'
 import { useCalendarCards } from '../hooks/useCalendarCards'
 import { CalendarCards } from './calendar/CalendarCards'
 import { OverlaySuspense } from './ui/OverlaySuspense'
@@ -56,16 +66,14 @@ import { calendarWeekEnd, monthGridDays, weekdayLabelsFrom } from '../lib/weekSt
 import { formatDate } from '../lib/dateFormat'
 import { isSubmitEnter } from '../lib/keyboard'
 
-/** Google の予定も、タスクと同じく終わったら灰色にする */
-function eventState(e: CalendarEvent, key: string): PlanVisualState {
-  return planVisualState({ completed: false, startTime: e.startTime, endTime: e.endTime }, key)
+/** 月のマスの 1 行（時刻つきの予定・To-Do）は「● 時刻 タイトル」の文字だけ。時間が過ぎたら（完了・未完了とも）灰色の文字 */
+function rowTextClass(state: PlanVisualState): string {
+  return state === 'upcoming' ? 'text-zinc-700 dark:text-zinc-200' : PASSED_TEXT_CLASS
 }
 
-/** 月のマスの 1 行: Google の終日予定は薄い塗りの帯、それ以外（時刻つきの予定・To-Do）は「● 時刻 タイトル」の文字だけ */
-function itemClass(allDay: boolean, state: PlanVisualState): string {
-  if (allDay) return state === 'upcoming' ? 'gc-plan' : 'gc-missed'
-  return state === 'upcoming' ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500'
-}
+/** 「他 N 件」・「たたむ」の行（押すとマスを広げる・戻す。スマホ幅はマスと同じくその日を開く） */
+const CELL_MORE_CLASS =
+  'block w-full rounded px-0.5 py-0.5 md:px-1.5 text-left text-[10px] leading-tight font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
 
 /** 月のマスに並べる行の数（これを超えると最後の行を「他 N 件」にする） */
 const MONTH_CELL_ROWS = 3
@@ -109,6 +117,10 @@ export function CalendarView({
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
   const [addingDate, setAddingDate] = useState<string | null>(null)
+  /** 「他 N 件」・締切の件数を押して広げたマス（その日の行を全部出す。週の終日の行の「他 N 件」と同じ） */
+  const [expandedDate, setExpandedDate] = useState<string | null>(null)
+  // 予定が終わったら灰色にするので、分の境目で描き直す
+  const now = useNow()
   // C / ⌘N: 選んでいる日のマスに追加欄を開く（今日の計画へは移らない。日を押して入れる間は効かない）
   useQuickAddAction(stamp ? null : () => setAddingDate(selectedDateKey ?? appTodayKey()))
   // 押すと小さなカード（週・スケジュールと同じ）
@@ -183,6 +195,8 @@ export function CalendarView({
       arr.push(e)
       map.set(e.date, arr)
     }
+    // 終日の予定（帯）を先に（週の終日の行・スケジュールと同じ）
+    for (const arr of map.values()) arr.sort((a, b) => Number(!a.isAllDay) - Number(!b.isAllDay))
     return map
   }, [calendarEvents])
 
@@ -201,10 +215,11 @@ export function CalendarView({
           {days.map((day) => {
             const key = toDateKey(day)
             const dayTasks = tasksByDate.get(key) ?? []
-            const dayEvents = (eventsByDate.get(key) ?? []).filter((e) => !e.isAllDay)
+            const dayEvents = eventsByDate.get(key) ?? []
+            const expanded = expandedDate === key
             // 予定と To-Do を合わせて 3 行まで。あと 1 件だけなら「他 1 件」の行の代わりにそれを出す（空きがあるのに隠さない）
             const totalItems = dayEvents.length + dayTasks.length
-            const room = totalItems <= MONTH_CELL_ROWS + 1 ? totalItems : MONTH_CELL_ROWS
+            const room = expanded || totalItems <= MONTH_CELL_ROWS + 1 ? totalItems : MONTH_CELL_ROWS
             const shownEvents = dayEvents.slice(0, room)
             const shownTasks = dayTasks.slice(0, room - shownEvents.length)
             const hiddenCount = totalItems - shownEvents.length - shownTasks.length
@@ -253,7 +268,8 @@ export function CalendarView({
                       }
                     : onOpenDay
                       ? (e) => {
-                          if ((e.target as Element).closest('button')) return
+                          // ✓・＋ はその場で押せる。「他 N 件」・締切の件数・締切の行はマスと同じくその日を開く
+                          if ((e.target as Element).closest('button:not([data-cell-open])')) return
                           e.stopPropagation()
                           onOpenDay(key)
                         }
@@ -370,115 +386,154 @@ export function CalendarView({
                       </div>
                     )
                   })()}
-                  {shownEvents.map((e) => (
-                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道（キーでは日のパネル・スケジュールから）
-                    <div
-                      key={`event-${e.id}`}
-                      {...tip(e.summary)}
-                      data-touch-menu
-                      draggable={canSetMyEventTime(e)}
-                      onDragStart={(ev) => {
-                        ev.stopPropagation()
-                        setDraggedGoogleEvent(e)
-                        ev.dataTransfer.setData(GOOGLE_EVENT_DND_TYPE, e.id)
-                        ev.dataTransfer.effectAllowed = 'move'
-                      }}
-                      onDragEnd={() => {
-                        setDraggedGoogleEvent(null)
-                        setDragOverDate(null)
-                      }}
-                      onClick={(ev) => {
-                        ev.stopPropagation()
-                        openGoogleCard(e.id, ev.currentTarget)
-                      }}
-                      onContextMenu={(ev) => {
-                        ev.preventDefault()
-                        ev.stopPropagation()
-                        openTaskMenu({ kind: 'google', x: ev.clientX, y: ev.clientY, eventId: e.id })
-                      }}
-                      className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight
-                        ${itemClass(!e.startTime, eventState(e, key))}
+                  {shownEvents.map((e) => {
+                    const state = googleEventVisualState(e, key, now)
+                    const hex = e.color ?? DEFAULT_GOOGLE_EVENT_HEX
+                    return (
+                      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道（キーでは日のパネル・スケジュールから）
+                      <div
+                        key={`event-${e.id}`}
+                        {...tip(e.summary)}
+                        data-touch-menu
+                        draggable={canSetMyEventTime(e)}
+                        onDragStart={(ev) => {
+                          ev.stopPropagation()
+                          setDraggedGoogleEvent(e)
+                          ev.dataTransfer.setData(GOOGLE_EVENT_DND_TYPE, e.id)
+                          ev.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragEnd={() => {
+                          setDraggedGoogleEvent(null)
+                          setDragOverDate(null)
+                        }}
+                        onClick={(ev) => {
+                          ev.stopPropagation()
+                          openGoogleCard(e.id, ev.currentTarget)
+                        }}
+                        onContextMenu={(ev) => {
+                          ev.preventDefault()
+                          ev.stopPropagation()
+                          openTaskMenu({ kind: 'google', x: ev.clientX, y: ev.clientY, eventId: e.id })
+                        }}
+                        className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight
+                        ${e.startTime ? rowTextClass(state) : `cursor-pointer ${planTileClass(state, hex)}`}
                         ${e.skipped ? SKIPPED_EVENT_CLASS : ''}
                         ${canSetMyEventTime(e) ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                      style={colorVars(eventState(e, key) === 'upcoming' ? (e.color ?? DEFAULT_GOOGLE_EVENT_HEX) : '#BDBDBD')}
-                    >
-                      {/* タスクと同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯。色は予定ごと */}
-                      {e.startTime && <CalendarDot />}
-                      {e.startTime && <span className="shrink-0 opacity-70">{e.startTime}</span>}
-                      <span className="truncate">{e.summary}</span>
-                    </div>
-                  ))}
-                  {shownTasks.map((t) => (
-                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道（中の ✓ はボタン）
-                    <div
-                      key={t.id}
-                      draggable
-                      data-touch-menu
-                      onDragStart={(e) => {
-                        e.stopPropagation()
-                        dragTaskIdRef.current = t.id
-                        startTaskDrag(e, t.id)
-                        beginCalendarItemNativeDrag()
-                      }}
-                      onDragEnd={() => {
-                        dragTaskIdRef.current = null
-                        setDragOverDate(null)
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openCard(t.id, e.currentTarget)
-                      }}
-                      // 時刻つきの予定・記録はタイムラインと同じメニュー、時刻なしのタスクは To-Do と同じメニュー
-                      onContextMenu={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        openTaskMenu(
-                          t.startTime || isLogTask(t)
-                            ? { kind: 'event', x: e.clientX, y: e.clientY, taskId: t.id }
-                            : { kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] },
-                        )
-                      }}
-                      className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-colors
+                        style={colorVars(e.startTime ? planDotHex(state, hex) : hex)}
+                      >
+                        {/* タスクと同じく、時刻つきは「● 15:00 タイトル」、終日は塗りの帯（週の終日の行と同じ）。色は予定ごと */}
+                        {e.startTime && <CalendarDot dotClass={planDotClass(state, hex)} />}
+                        {e.startTime && <span className="shrink-0 opacity-70">{e.startTime}</span>}
+                        <span className="truncate">{e.summary}</span>
+                      </div>
+                    )
+                  })}
+                  {shownTasks.map((t) => {
+                    const state = planVisualState(t, key, now)
+                    return (
+                      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道（中の ✓ はボタン）
+                      <div
+                        key={t.id}
+                        draggable
+                        data-touch-menu
+                        onDragStart={(e) => {
+                          e.stopPropagation()
+                          dragTaskIdRef.current = t.id
+                          startTaskDrag(e, t.id)
+                          beginCalendarItemNativeDrag()
+                        }}
+                        onDragEnd={() => {
+                          dragTaskIdRef.current = null
+                          setDragOverDate(null)
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openCard(t.id, e.currentTarget)
+                        }}
+                        // 予定は予定のメニュー、To-Do は To-Do のメニュー（どの表示でも同じ）
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          openCalendarItemMenu(t, e.clientX, e.clientY)
+                        }}
+                        className={`flex cursor-grab items-center gap-1 truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-colors
                         hover:bg-zinc-100 active:cursor-grabbing dark:hover:bg-zinc-800
-                        ${itemClass(false, planVisualState(t, key))}`}
-                      style={colorVars(planVisualState(t, key) === 'upcoming' ? planHex(t) : '#BDBDBD')}
-                    >
-                      {/* To-Do は時刻の有無で見た目を変えない（「✓ 15:00 タイトル」、時刻なしは「✓ タイトル」）。● の代わりに ✓ を置き、その場で完了にできる */}
-                      {/* 予定（完了の無いもの）は Google の月表示と同じく ● */}
-                      {isEventTask(t) ? (
-                        <CalendarDot />
-                      ) : (
-                        <CalendarCheck
-                          done={t.completed}
-                          label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
-                          onCheck={() => toggleTask(t.id)}
-                          className="text-(--c)"
-                        />
-                      )}
-                      {/* 予定の日以外に終えたものは、その日のその時刻にやったように見えないよう時刻を付けない */}
-                      {keepsTimeSlot(t) && <span className="shrink-0 opacity-70">{t.startTime}</span>}
-                      <span className="truncate">{t.title}</span>
-                    </div>
-                  ))}
+                        ${rowTextClass(state)}`}
+                        style={colorVars(planDotHex(state, planHex(t)))}
+                      >
+                        {/* To-Do は時刻の有無で見た目を変えない（「✓ 15:00 タイトル」、時刻なしは「✓ タイトル」）。● の代わりに ✓ を置き、その場で完了にできる */}
+                        {/* 予定（完了の無いもの）は Google の月表示と同じく ● */}
+                        {isEventTask(t) ? (
+                          <CalendarDot dotClass={planDotClass(state, planHex(t))} />
+                        ) : (
+                          <CalendarCheck
+                            done={t.completed}
+                            label={t.completed ? tr('taskItem.markIncomplete') : tr('taskItem.markComplete')}
+                            onCheck={() => toggleTask(t.id)}
+                            className="text-(--c)"
+                          />
+                        )}
+                        {/* 予定の日以外に終えたものは、その日のその時刻にやったように見えないよう時刻を付けない */}
+                        {keepsTimeSlot(t) && <span className="shrink-0 opacity-70">{t.startTime}</span>}
+                        <span className="truncate">{t.title}</span>
+                      </div>
+                    )
+                  })}
                   {(() => {
                     const due = dueByDate.get(key)
                     if (!due) return null
-                    // いちばん急ぐものの色（締切切れ > 今日 > 明日 > それ以外）
+                    // 1 件か広げたマスは 1 件ずつ（押すとその To-Do のカード。週の終日の行と同じ）
+                    if (due.length === 1 || expanded)
+                      return due.map((d) => <TaskDueMark key={`due-${d.id}`} task={d} dateKey={key} onOpen={openCard} cellOpen />)
+                    // 2 件以上は 1 行にまとめて件数（いちばん急ぐものの色: 締切切れ > 今日 > 明日 > それ以外）。押すとマスを広げて 1 件ずつ
                     const order: DateTone[] = ['overdue', 'today', 'tomorrow', 'future', 'past']
                     const tone = order.find((x) => due.some((d) => dueToneOf(d.dueDate!, d.dueTime, key) === x)) ?? 'future'
                     const titles = due.map((d) => (d.dueTime ? `${d.dueTime} ${d.title}` : d.title)).join('\n')
                     return (
-                      <div {...tip(titles)} className={`flex items-center gap-1 px-1 text-[10px] leading-tight ${DUE_TONE_CLASS[tone]}`}>
+                      <button
+                        type="button"
+                        data-cell-open
+                        aria-expanded={false}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setExpandedDate(key)
+                        }}
+                        {...tip(titles)}
+                        className={`flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] leading-tight hover:bg-zinc-100 dark:hover:bg-zinc-800 ${DUE_TONE_CLASS[tone]}`}
+                      >
                         <DueIcon className="h-2.5 w-2.5 shrink-0" />
-                        <span className="truncate">{due.length === 1 ? due[0]!.title : t('calendar.dueCount', { count: due.length })}</span>
-                      </div>
+                        <span className="truncate">{t('calendar.dueCount', { count: due.length })}</span>
+                      </button>
                     )
                   })()}
                   {hiddenCount > 0 && (
-                    // 件数だけ。押すとマス全体と同じくその日が開く
-                    <span className="px-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                    // 押すとマスを広げて全部出す（スマホ幅はマス全体と同じくその日を開く）
+                    <button
+                      type="button"
+                      data-cell-open
+                      aria-expanded={false}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setExpandedDate(key)
+                      }}
+                      className={CELL_MORE_CLASS}
+                    >
                       {t('calendar.moreItems', { count: hiddenCount })}
-                    </span>
+                    </button>
+                  )}
+                  {expanded && (
+                    <button
+                      type="button"
+                      data-cell-open
+                      aria-expanded
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setExpandedDate(null)
+                      }}
+                      className={CELL_MORE_CLASS}
+                    >
+                      {t('weekCalendar.allDayCollapse')}
+                    </button>
                   )}
                   {addingDate === key && <CalendarInlineTaskAdd dateKey={key} onDone={() => setAddingDate(null)} />}
                 </div>

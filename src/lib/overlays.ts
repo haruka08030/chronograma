@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { isEventTask, isLogTask, type Task } from '../types/task'
 
 /**
  * タスクの詳細と右クリックメニューの開閉（どの画面から開いても、App に 1 つだけある置き場が出す）。
@@ -37,4 +38,12 @@ export function openTaskMenu(menu: TaskMenuRequest) {
 
 export function closeTaskMenu() {
   useOverlays.setState({ menu: null })
+}
+
+/**
+ * カレンダー（月のマス・終日の行・スケジュール・日のパネル）の行の右クリック・長押しのメニュー。
+ * 予定・記録は予定のメニュー（`TaskEventMenu`。記録は色・編集・削除）、To-Do は時刻の有無によらず To-Do のメニュー
+ */
+export function openCalendarItemMenu(task: Pick<Task, 'id' | 'kind'>, x: number, y: number) {
+  openTaskMenu(isEventTask(task) || isLogTask(task) ? { kind: 'event', x, y, taskId: task.id } : { kind: 'task', x, y, taskIds: [task.id] })
 }

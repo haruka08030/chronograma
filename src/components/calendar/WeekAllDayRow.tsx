@@ -10,17 +10,17 @@ import { CalendarInlineTaskAdd } from '../CalendarInlineTaskAdd'
 import { isEventTask, planKindOf, type Task } from '../../types/task'
 import { colorVars } from '../../lib/logCategoryColors'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
-import { planHex, planVisualState } from '../../lib/planVisual'
+import { googleEventVisualState, planHex, planTileClass, planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/taskDrag'
 import { toDateKey } from '../../lib/dateKey'
-import { openTaskMenu } from '../../lib/overlays'
+import { openCalendarItemMenu, openTaskMenu } from '../../lib/overlays'
 import { movedToDateLabel } from '../../lib/moveToast'
 import { isCopyDrop, placeCopies } from '../../lib/dragCopy'
 import { tip } from '../../lib/tooltip'
-import { ChevronDownIcon, ChevronUpIcon, DueIcon } from '../icons'
-import { DUE_TONE_CLASS } from '../ui/dueTone'
-import { dueToneOf } from '../../lib/dueTone'
+import { ChevronDownIcon, ChevronUpIcon } from '../icons'
+import { TaskDueMark } from './TaskDueMark'
+import { useNow } from '../../hooks/useAppClock'
 import { HolidayLabel } from './HolidayLabel'
 import { DueMark } from './DueMark'
 import { useDues } from '../../hooks/useDues'
@@ -75,6 +75,8 @@ export function WeekAllDayRow({
   /** 件数の多い日もすべて出すか（たたむと 1 日 3 行まで。Google カレンダーと同じ） */
   const [expanded, setExpanded] = useState(false)
   const dues = useDues()
+  // 予定が終わったら灰色にするので、分の境目で描き直す
+  const now = useNow()
   const dayItems = (key: string) => ({
     holiday: holidayName(key),
     dues: duesOn(dues, key),
@@ -114,22 +116,32 @@ export function WeekAllDayRow({
           const items: ReactNode[] = [
             ...(holiday ? [<HolidayLabel key="holiday" name={holiday} className="px-1.5 py-0.5" />] : []),
             ...dayDues.map((d) => <DueMark key={`due-${d.id}`} item={d} dateKey={key} className="px-1.5 py-0.5" />),
-            ...dayAllDayEvents.map((e) => (
-              // 終日の Google の予定はアプリでは動かさない（Google の日付が開催の日。時刻つきの予定だけ自分の時間にできる、#625）
-              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 押して開くのはマウス・指の近道（キーでは日のパネル・スケジュールから）
-              <div
-                key={`event-all-day-${e.id}`}
-                {...tip(e.summary)}
-                data-block-id={`event-${e.id}`}
-                onClick={(ev) => openGoogleCard(e.id, ev.currentTarget)}
-                className={`${planVisualState({ completed: false, startTime: null, endTime: null }, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} ${e.skipped ? SKIPPED_EVENT_CLASS : ''} truncate rounded px-1.5 py-0.5
+            ...dayAllDayEvents.map((e) => {
+              const hex = e.color ?? DEFAULT_GOOGLE_EVENT_HEX
+              return (
+                // 終日の Google の予定はアプリでは動かさない（Google の日付が開催の日。時刻つきの予定だけ自分の時間にできる、#625）
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 押して開くのはマウス・指の近道（キーでは日のパネル・スケジュールから）
+                <div
+                  key={`event-all-day-${e.id}`}
+                  {...tip(e.summary)}
+                  data-block-id={`event-${e.id}`}
+                  data-touch-menu
+                  onClick={(ev) => openGoogleCard(e.id, ev.currentTarget)}
+                  // 月・スケジュール・日のパネルと同じ Google の予定のメニュー（タッチは長押し）
+                  onContextMenu={(ev) => {
+                    ev.preventDefault()
+                    ev.stopPropagation()
+                    openTaskMenu({ kind: 'google', x: ev.clientX, y: ev.clientY, eventId: e.id })
+                  }}
+                  className={`${planTileClass(googleEventVisualState(e, key, now), hex)} ${e.skipped ? SKIPPED_EVENT_CLASS : ''} truncate rounded px-1.5 py-0.5
                     text-[10px] leading-tight transition-[filter] hover:brightness-95
                     cursor-pointer`}
-                style={colorVars(e.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
-              >
-                {e.summary}
-              </div>
-            )),
+                  style={colorVars(hex)}
+                >
+                  {e.summary}
+                </div>
+              )
+            }),
             ...dayAllDay.map((t) => (
               // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- ドラッグで動かすカード。押して開くのはマウス・指の近道（中の ✓ はボタン）
               <div
@@ -141,14 +153,14 @@ export function WeekAllDayRow({
                 }}
                 onDragEnd={() => setAllDayDragOver(null)}
                 onClick={(e) => openCard(t.id, e.currentTarget)}
-                // 時刻の無いタスクなので To-Do と同じメニュー（タッチは長押し）
+                // 予定は予定のメニュー、To-Do は To-Do のメニュー（タッチは長押し。どの表示でも同じ）
                 data-touch-menu
                 onContextMenu={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  openTaskMenu({ kind: 'task', x: e.clientX, y: e.clientY, taskIds: [t.id] })
+                  openCalendarItemMenu(t, e.clientX, e.clientY)
                 }}
-                className={`${planVisualState(t, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} flex cursor-grab items-center gap-1 rounded px-1 py-0.5
+                className={`${planTileClass(planVisualState(t, key, now), planHex(t))} flex cursor-grab items-center gap-1 rounded px-1 py-0.5
                     text-[10px] leading-tight transition-[filter] hover:brightness-95 active:cursor-grabbing`}
                 style={colorVars(planHex(t))}
               >
@@ -164,25 +176,8 @@ export function WeekAllDayRow({
               </div>
             )),
           ]
-          // 締切の日の印。塗らずに締切の色の文字と旗だけ（置いた日のチップと見分ける）。押すとカード。
-          // たたんでも件数の上限に数えず必ず出す（月のマスと同じ。締切を「他 N 件」に隠さない）
-          const dueItems: ReactNode[] = dayDue.map((t) => {
-            const label = t.dueTime
-              ? tr('weekCalendar.dueMarkTime', { title: t.title, time: t.dueTime })
-              : tr('weekCalendar.dueMark', { title: t.title })
-            return (
-              <button
-                key={`due-${t.id}`}
-                type="button"
-                onClick={(e) => openCard(t.id, e.currentTarget)}
-                {...tip(label)}
-                className={`flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] leading-tight hover:bg-zinc-100 dark:hover:bg-zinc-800 ${DUE_TONE_CLASS[dueToneOf(t.dueDate!, t.dueTime, key)]}`}
-              >
-                <DueIcon className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate">{t.dueTime ? `${t.dueTime} ${t.title}` : t.title}</span>
-              </button>
-            )
-          })
+          // 締切の日の印（押すとカード、`TaskDueMark`）。たたんでも件数の上限に数えず必ず出す（月のマスと同じ。締切を「他 N 件」に隠さない）
+          const dueItems: ReactNode[] = dayDue.map((t) => <TaskDueMark key={`due-${t.id}`} task={t} dateKey={key} onOpen={openCard} />)
           const hidden = collapsed && items.length > COLLAPSED_ROWS ? items.length - (COLLAPSED_ROWS - 1) : 0
           return (
             <div

@@ -108,11 +108,22 @@ export function CompletionCircle({
  * 大きさ・枠の太さは完了の丸と同じ（20px、サブタスクは 16px）。並べたときに丸の大きさがそろう
  * `hex` の代わりに `style` で `--c` を渡せる（睡眠の色など）
  */
-export function EventMark({ hex, style, small = false }: { hex?: string; style?: CSSProperties; small?: boolean }) {
+export function EventMark({
+  hex,
+  style,
+  small = false,
+  dotClass = 'gc-dot',
+}: {
+  hex?: string
+  style?: CSSProperties
+  small?: boolean
+  /** 丸の塗り方（ラベルなしのこれからの予定は縁だけの `gc-dot-none`、`planDotClass`） */
+  dotClass?: string
+}) {
   return (
     <span
       aria-hidden
-      className={`gc-dot flex-shrink-0 rounded-full border-[1.5px] ${small ? 'h-4 w-4' : 'h-5 w-5'}`}
+      className={`${dotClass} flex-shrink-0 rounded-full border-[1.5px] ${small ? 'h-4 w-4' : 'h-5 w-5'}`}
       style={style ?? (hex ? colorVars(hex) : undefined)}
     />
   )

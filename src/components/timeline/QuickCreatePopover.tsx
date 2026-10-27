@@ -17,11 +17,12 @@ import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { appTimeZone, gmtLabel, zoneCityName, zoneLongName, zoneOptionLabel } from '../../lib/timeZone'
 import { timesPatchFromZone } from '../../lib/taskTimeZone'
 import { TimeZonePicker } from '../TimeZonePicker'
-import { ClockIcon } from '../icons'
+import { ClockIcon, CloseIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { PillToggle } from '../ui/PillToggle'
 import { isCancelEscape, isModKey, isSubmitEnter } from '../../lib/keyboard'
-import { tip } from '../../lib/tooltip'
+import { shortcutTip, tip } from '../../lib/tooltip'
+import { iconButtonClass } from '../ui/iconButtonClass'
 import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { endKeepingLength, minutesToTime, toMinutes } from '../../lib/clockTime'
@@ -250,22 +251,35 @@ export function QuickCreatePopover({
         if (isCancelEscape(e) && !e.defaultPrevented) onClose()
       }}
     >
-      {!asLog && (
-        // Google と同じく「予定 / To-Do」。予定には完了の丸が付かない
-        <PillToggle
-          ariaLabel={t('quickCreate.kind')}
-          options={[
-            { value: 'event', label: t('quickCreate.kindEvent') },
-            { value: 'todo', label: t('quickCreate.kindTodo') },
-          ]}
-          value={choice.kind}
-          onChange={(kind) => {
-            setChoice((c) => ({ ...c, kind }))
-            inputRef.current?.focus()
-          }}
-          className="mb-3"
-        />
-      )}
+      {/* 上の行: 「予定 / To-Do」と、ほかのカードと同じ右上の × */}
+      <div className="-mr-2 -mt-2 mb-2 flex items-center justify-between gap-2">
+        {!asLog ? (
+          // Google と同じく「予定 / To-Do」。予定には完了の丸が付かない
+          <PillToggle
+            ariaLabel={t('quickCreate.kind')}
+            options={[
+              { value: 'event', label: t('quickCreate.kindEvent') },
+              { value: 'todo', label: t('quickCreate.kindTodo') },
+            ]}
+            value={choice.kind}
+            onChange={(kind) => {
+              setChoice((c) => ({ ...c, kind }))
+              inputRef.current?.focus()
+            }}
+          />
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          onClick={onClose}
+          className={iconButtonClass()}
+          aria-label={t('common.close')}
+          {...shortcutTip(t('common.close'), 'close')}
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </div>
       {asLog ? (
         <LogTitleInput
           inputRef={inputRef}

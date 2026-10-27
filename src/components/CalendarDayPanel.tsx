@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, useRef, useState, type CSSProperties } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
@@ -14,7 +14,7 @@ import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import { isLogTask, isSleepTask, type Task } from '../types/task'
-import { completionDayKey } from '../lib/dayPlan'
+import { completionDayKey, dueMarkDayKey } from '../lib/dayPlan'
 import { appTodayKey, isAppToday } from '../lib/timeZone'
 import { Segmented } from './ui/Segmented'
 import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
@@ -25,9 +25,13 @@ import { useHolidayName } from '../hooks/useHolidayName'
 import { DayRow } from './ui/DayRow'
 import { DisclosureButton } from './ui/Disclosure'
 import type { CalendarEvent } from '../types/calendarEvent'
-import { openTaskDetail, openTaskMenu } from '../lib/overlays'
-import { GoogleEventPopover } from './lazyOverlays'
-import { rectOf, type AnchorRect } from './timeline/anchoredCard'
+import { openCalendarItemMenu, openTaskMenu } from '../lib/overlays'
+import { useCalendarCards } from '../hooks/useCalendarCards'
+import { CalendarCards } from './calendar/CalendarCards'
+import { TaskDueMark } from './calendar/TaskDueMark'
+import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
+import { useNow } from '../hooks/useAppClock'
+import { googleEventVisualState, planDotClass, planDotHex, planVisualState } from '../lib/planVisual'
 import { META_TEXT } from './ui/textClass'
 import { compareByOrder } from '../lib/orderCompare'
 
@@ -52,14 +56,19 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
   const [tabChoice, setTabChoice] = useState<{ dateKey: string; tab: DayPanelTab } | null>(null)
   const tab = tabChoice?.dateKey === selectedDateKey ? tabChoice.tab : defaultTab
   const setTab = (next: DayPanelTab) => setTabChoice({ dateKey: selectedDateKey, tab: next })
-  const [googleCard, setGoogleCard] = useState<{ eventId: string; anchor: AnchorRect } | null>(null)
+  // 押すと小さなカード（月・週・スケジュールと同じ）
+  const cards = useCalendarCards()
+  const rootRef = useRef<HTMLDivElement>(null)
+  // タッチは行の長押しで右クリックと同じメニュー（月・週・スケジュールと同じ）
+  useTouchContextMenu(rootRef, (target) => !target.closest('[data-touch-menu],[data-task-row]'))
+  // 予定が終わったら灰色にするので、分の境目で描き直す
+  const now = useNow()
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const [adding, setAdding] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const updateTask = useTaskStore((s) => s.updateTask)
   const asOneUndo = useTaskStore((s) => s.asOneUndo)
-  const openDetail = openTaskDetail
   const df = useDateFormat()
 
   const holiday = useHolidayName()(selectedDateKey)
@@ -119,6 +128,15 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
     return [...untimed, ...allDay, ...timed]
   }, [plannedItems, externalEvents])
 
+  /** 締切の日の印（実行日が別の日の未完了。月・週・スケジュールと同じ） */
+  const dueItems = useMemo(
+    () =>
+      tasks.filter(
+        (t) => !t.parentId && !isLogTask(t) && isActiveTask(t) && !excludedListIds.has(t.listId) && dueMarkDayKey(t) === selectedDateKey,
+      ),
+    [tasks, selectedDateKey, excludedListIds],
+  )
+
   const executedItems = useMemo(
     () =>
       tasks
@@ -156,7 +174,7 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
   )
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
+    <div ref={rootRef} className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
       <div
         className={`flex h-full min-h-0 min-w-0 flex-1 flex-col transition-colors ${
           dragOver ? DROP_HIGHLIGHT_CLASS : 'bg-zinc-50/70 dark:bg-zinc-900/70'
@@ -213,40 +231,54 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
 
         {tab === 'planned' ? (
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-3">
-            {plannedRows.length === 0 && executedItems.length === 0 ? (
+            {plannedRows.length === 0 && executedItems.length === 0 && dueItems.length === 0 ? (
               <EmptyState size="sm" icon={<CalendarIcon strokeWidth={1} />} title={t('calendarDayPanel.noPlanned')} />
             ) : (
               <>
                 {/* 1 件 1 行。時刻の無い To-Do → 終日 → 時刻順（右のタイムラインに箱があるので、ここは流し読みの一覧） */}
                 {plannedRows.map((row) =>
                   row.kind === 'task' ? (
+                    // 月・週・スケジュールと同じく、押すと小さなカード、右クリック・長押しで予定は予定のメニュー・To-Do は To-Do のメニュー
                     <TaskItem
                       key={row.task.id}
                       task={row.task}
                       compact
                       dayKey={selectedDateKey}
                       hideDueDatePicker
-                      onRowClick={() => openDetail(row.task.id)}
+                      calendarState={planVisualState(row.task, selectedDateKey, now)}
+                      onMenu={(p) => openCalendarItemMenu(row.task, p.clientX, p.clientY)}
+                      onRowClick={(e) => cards.openCard(row.task.id, e.currentTarget)}
                     />
                   ) : (
-                    // 月・週と同じく、押すと小さなカード、右クリックでメニュー。色は予定ごと（無ければ Google の既定の色）
-                    <DayRow
-                      key={row.event.id}
-                      time={row.event.startTime ?? t('weekCalendar.allDay')}
-                      dotStyle={colorVars(row.event.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
-                      title={row.event.summary}
-                      skipped={row.event.skipped}
-                      onClick={(e) => setGoogleCard({ eventId: row.event.id, anchor: rectOf(e.currentTarget)! })}
-                      onContextMenu={(e) => {
-                        e.preventDefault()
-                        openTaskMenu({ kind: 'google', x: e.clientX, y: e.clientY, eventId: row.event.id })
-                      }}
-                    />
+                    (() => {
+                      // 色は予定ごと（無ければ Google の既定の色）。時間が過ぎたら灰色
+                      const state = googleEventVisualState(row.event, selectedDateKey, now)
+                      const hex = row.event.color ?? DEFAULT_GOOGLE_EVENT_HEX
+                      return (
+                        <DayRow
+                          key={row.event.id}
+                          time={row.event.startTime ?? t('weekCalendar.allDay')}
+                          dotStyle={colorVars(planDotHex(state, hex))}
+                          dotClass={planDotClass(state, hex)}
+                          passed={state !== 'upcoming'}
+                          title={row.event.summary}
+                          skipped={row.event.skipped}
+                          onClick={(e) => cards.openGoogleCard(row.event.id, e.currentTarget)}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            openTaskMenu({ kind: 'google', x: e.clientX, y: e.clientY, eventId: row.event.id })
+                          }}
+                        />
+                      )
+                    })()
                   ),
                 )}
+                {dueItems.map((task) => (
+                  <TaskDueMark key={`due-${task.id}`} task={task} dateKey={selectedDateKey} size="sm" onOpen={cards.openCard} />
+                ))}
                 {executedItems.length > 0 && (
                   // 済んだものは数だけ。押すと開く
-                  <div className={plannedRows.length > 0 ? 'mt-2' : ''}>
+                  <div className={plannedRows.length > 0 || dueItems.length > 0 ? 'mt-2' : ''}>
                     <DisclosureButton tone="muted" open={showDone} onToggle={() => setShowDone((v) => !v)}>
                       {t('calendarDayPanel.executedSection', { count: executedItems.length })}
                     </DisclosureButton>
@@ -258,7 +290,9 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
                           compact
                           dayKey={selectedDateKey}
                           hideDueDatePicker
-                          onRowClick={() => openDetail(task.id)}
+                          calendarState="done"
+                          onMenu={(p) => openCalendarItemMenu(task, p.clientX, p.clientY)}
+                          onRowClick={(e) => cards.openCard(task.id, e.currentTarget)}
                         />
                       ))}
                   </div>
@@ -285,12 +319,21 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
                     time={item.startTime}
                     dotStyle={isSleepTask(item) ? SLEEP_DOT_STYLE : colorVars(recordHex(item, logCategoryColors))}
                     title={item.title}
+                    // 記録は記録のメニュー（色＝ラベル・編集・削除）。睡眠は色を持たないのでカードだけ
+                    onContextMenu={
+                      isSleepTask(item)
+                        ? undefined
+                        : (e) => {
+                            e.preventDefault()
+                            openCalendarItemMenu(item, e.clientX, e.clientY)
+                          }
+                    }
                     trailing={
                       <span className={`shrink-0 tabular-nums ${META_TEXT}`}>
                         {formatDuration(minutesOfLogOnCalendarDay(item, selectedDateKey))}
                       </span>
                     }
-                    onClick={() => openDetail(item.id)}
+                    onClick={(e) => cards.openCard(item.id, e.currentTarget)}
                   />
                 ))}
               </>
@@ -298,8 +341,8 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
           </div>
         )}
       </div>
-      <OverlaySuspense onLoadFailed={() => setGoogleCard(null)}>
-        {googleCard && <GoogleEventPopover eventId={googleCard.eventId} anchor={googleCard.anchor} onClose={() => setGoogleCard(null)} />}
+      <OverlaySuspense>
+        <CalendarCards cards={cards} />
       </OverlaySuspense>
     </div>
   )

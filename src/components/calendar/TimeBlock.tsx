@@ -4,7 +4,7 @@ import { getResizeCursor, type CreatePopup } from '../../lib/useTimelineDrag'
 import { useNowMinutes } from '../../hooks/useAppClock'
 import { colorVars } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { planVisualState } from '../../lib/planVisual'
+import { planTileClass, planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
 import { DueIcon, MoonSolidIcon } from '../icons'
 import { tip } from '../../lib/tooltip'
@@ -16,7 +16,7 @@ import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 /**
  * タイムライン上の 1 ブロック（Google カレンダー風）。
  * 記録（実績）とこれからの予定（Google の予定も）は薄い塗り＋枠（`gc-plan`）。記録は右、予定は左の列で見分ける。
- * 終わった・完了した予定は灰色（`gc-missed`）。完了は右上の ✓ の塗りだけで見せる（題名に ✓ は付けない、#638）。
+ * ラベルなしのこれからの予定は塗らずに灰の縁だけ（`gc-plan-none`）。終わった・完了した予定は灰色（`gc-missed`）。完了は右上の ✓ の塗りだけで見せる（題名に ✓ は付けない、#638）。
  * 背景色の細い縁で、隣り合う・重なるブロックの境目を見せる。
  * 文字はブロックの上端に寄せる（button は既定で縦中央。長いブロックに後の予定が重なっても題名・時刻が隠れないように）。
  */
@@ -71,7 +71,7 @@ export function TimeBlock({
   // 記録（実績）は分類の色、予定はその色で、どちらも薄い塗り＋枠。予定は終わったら（完了・未完了とも）グレー
   // Google の予定（外部）も予定と同じ見せ方
   const state = !isLog && dayKey ? planVisualState(task, dayKey) : 'upcoming'
-  const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : state === 'upcoming' ? 'gc-plan' : 'gc-missed'
+  const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : planTileClass(state, colorHex)
   const moon = sleep && <MoonSolidIcon className="mr-1 inline h-3 w-3 -translate-y-px" />
   // 締切がこの日まで（過ぎた・この予定では間に合わなければ赤、当日は黄）の予定は、題名の前に締切の →| を付ける（先の締切は出さない）（予定を入れても締切を見失わない）
   const dueTone =

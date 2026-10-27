@@ -10,7 +10,7 @@ import { anchoredCardClass } from '../ui/surface'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { ArrowUpIcon, CloseIcon, PauseIcon, PencilIcon } from '../icons'
 import { isHabitRestOn } from '../../types/habit'
-import { tip } from '../../lib/tooltip'
+import { shortcutTip, tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
@@ -127,7 +127,7 @@ export function HabitSlotPopover({
           onClick={onClose}
           className={iconButtonClass()}
           aria-label={t('common.close')}
-          {...tip(t('common.close'), 'Esc')}
+          {...shortcutTip(t('common.close'), 'close')}
         >
           <CloseIcon className="h-4 w-4" />
         </button>

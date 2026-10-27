@@ -1,4 +1,5 @@
 import type { Task } from '../types/task'
+import type { CalendarEvent } from '../types/calendarEvent'
 import { NEUTRAL_HEX } from './googleColors'
 import { zonedNow } from './timeZone'
 
@@ -24,7 +25,48 @@ export function planVisualState(
   return end.getTime() < now.getTime() ? 'missed' : 'upcoming'
 }
 
+/** Google の予定も、タスクと同じく終わったら灰色にする（完了は無い） */
+export function googleEventVisualState(
+  e: Pick<CalendarEvent, 'startTime' | 'endTime'>,
+  dateKey: string,
+  now = zonedNow(),
+): PlanVisualState {
+  return planVisualState({ completed: false, startTime: e.startTime, endTime: e.endTime }, dateKey, now)
+}
+
 /** カレンダーでの予定の色: タスク自身の色（＝ラベル）。リストの色は使わない（色なしは「ラベルなし」の灰色） */
 export function planHex(task: Pick<Task, 'color'>): string {
   return task.color || NEUTRAL_HEX
+}
+
+/** 時間が過ぎた予定の小さな色の丸・✓ の色（月のマスの「● 15:00 題名」、日パネルの行の丸） */
+export const PASSED_HEX = '#BDBDBD'
+
+/** 時間が過ぎた予定の文字（月のマス・日パネル・スケジュールの行の題名） */
+export const PASSED_TEXT_CLASS = 'text-zinc-400 dark:text-zinc-500'
+
+/** ラベルの無い色（灰色）か。時間が過ぎた灰色と見分けるため、塗らずに縁だけで見せる */
+export function isUnlabeledHex(hex: string | null | undefined): boolean {
+  return !hex || hex.toUpperCase() === NEUTRAL_HEX
+}
+
+/**
+ * 予定の枠・帯の class（タイムラインの枠・終日の行・月のマスの終日の帯・スケジュールのカード）。
+ * これから＝`gc-plan`（ラベルなしは塗らずに灰の縁だけの `gc-plan-none`）、時間が過ぎた（完了・未完了とも）＝`gc-missed`
+ */
+export function planTileClass(state: PlanVisualState, hex: string): string {
+  if (state !== 'upcoming') return 'gc-missed'
+  return isUnlabeledHex(hex) ? 'gc-plan-none' : 'gc-plan'
+}
+
+/**
+ * 小さな色の丸の class（月のマスの ●、日パネル・スケジュールの行の丸）。これから＝その色の `gc-dot`（ラベルなしは縁だけの `gc-dot-none`）、
+ * 時間が過ぎた＝灰色の丸（`PASSED_HEX` の `gc-dot`）。色は `planDotHex` を `colorVars` で渡す
+ */
+export function planDotClass(state: PlanVisualState, hex: string): string {
+  return state === 'upcoming' && isUnlabeledHex(hex) ? 'gc-dot-none' : 'gc-dot'
+}
+
+export function planDotHex(state: PlanVisualState, hex: string): string {
+  return state === 'upcoming' ? hex : PASSED_HEX
 }

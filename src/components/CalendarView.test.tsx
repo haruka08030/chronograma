@@ -73,3 +73,43 @@ describe('CalendarView（月）: ⌥ を押して落とすと複製（#398）', 
     expect(tasks().find((t) => t.id === 'b1')?.scheduledDate).toBe('2026-10-10')
   })
 })
+
+describe('CalendarView（月）: 表示ごとの見せ方をそろえる（#641）', () => {
+  it('Google の終日の予定も帯で出し、締切の印は押すとカード', async () => {
+    useTaskStore.setState({
+      tasks: [{ ...makeTask({ title: 'ES', listId: INBOX_LIST_ID, scheduledDate: '2026-10-05', dueDate: '2026-10-09' }, 0), id: 'es' }],
+    })
+    useTaskStore.getState().setCalendarEvents([
+      {
+        id: 'g2',
+        summary: '学園祭',
+        start: '2026-10-08',
+        end: '2026-10-09',
+        startTime: null,
+        endTime: null,
+        date: '2026-10-08',
+        isAllDay: true,
+      },
+    ])
+    render(<CalendarView displayMonth={fromDateKey('2026-10-01')} selectedDateKey="2026-10-01" />)
+    expect(screen.getByText('学園祭')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '“ES” is due' }))
+    expect(await screen.findByRole('dialog', { name: 'ES' }, { timeout: 5000 })).toBeInTheDocument()
+  }, 20000)
+
+  it('「他 N 件」を押すとマスを広げて全部出し、「たたむ」で戻す', () => {
+    useTaskStore.setState({
+      tasks: Array.from({ length: 6 }, (_, i) => ({
+        ...makeTask({ title: `課題${i + 1}`, listId: INBOX_LIST_ID, scheduledDate: '2026-10-07' }, i),
+        id: `t${i}`,
+      })),
+    })
+    useTaskStore.getState().setCalendarEvents([])
+    render(<CalendarView displayMonth={fromDateKey('2026-10-01')} selectedDateKey="2026-10-01" />)
+    expect(screen.queryByText('課題6')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '+3 more' }))
+    expect(screen.getByText('課題6')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse' }))
+    expect(screen.queryByText('課題6')).toBeNull()
+  })
+})

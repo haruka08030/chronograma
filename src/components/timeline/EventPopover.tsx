@@ -21,6 +21,7 @@ import { shortcutTip, tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
+import { PASSED_TEXT_CLASS } from '../../lib/planVisual'
 import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
 import { MemoPreview } from '../ui/MemoPreview'
@@ -193,7 +194,7 @@ function EventPopoverBody({
           onClick={onClose}
           className={iconButtonClass()}
           aria-label={t('common.close')}
-          {...tip(t('common.close'), 'Esc')}
+          {...shortcutTip(t('common.close'), 'close')}
         >
           <CloseIcon className="h-4 w-4" />
         </button>
@@ -203,7 +204,8 @@ function EventPopoverBody({
         <span className="gc-dot mt-1.5 h-3.5 w-3.5 rounded" style={colorVars(hex)} aria-hidden />
         <div className="min-w-0">
           <p
-            className={`break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100 ${task.completed && !isLog ? 'line-through opacity-60' : ''}`}
+            // 完了は取り消し線にせず灰色の文字（カレンダーの行・タイムラインの枠と同じ。済んだことはカードの「未完了に戻す」でも分かる）
+            className={`break-words text-lg leading-snug ${task.completed && !isLog ? PASSED_TEXT_CLASS : 'text-zinc-900 dark:text-zinc-100'}`}
           >
             {task.title}
           </p>

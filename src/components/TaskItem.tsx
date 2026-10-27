@@ -15,7 +15,7 @@ import { RowSelectCheckbox } from './ui/RowSelectCheckbox'
 import { ArchiveIcon, CalendarIcon, CheckIcon, DreamIcon, DueIcon, EllipsisIcon, RepeatIcon, TrashIcon } from './icons'
 import { DayMoveIcon } from './ui/DayMoveIcon'
 import { CompletionCircle, EventMark } from './ui/CompletionCircle'
-import { planHex } from '../lib/planVisual'
+import { PASSED_TEXT_CLASS, planDotClass, planDotHex, planHex, type PlanVisualState } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -84,6 +84,8 @@ export const TaskItem = memo(function TaskItem({
   keepHandleSpace = false,
   showChildDue = false,
   compact = false,
+  calendarState,
+  onMenu,
 }: {
   task: Task
   onClick?: () => void
@@ -118,6 +120,13 @@ export const TaskItem = memo(function TaskItem({
   showChildDue?: boolean
   /** 1 行に詰める（カレンダーの日パネル）: 左に開始時刻、メモ・タグ・実行日は出さず、締切だけ右に出す */
   compact?: boolean
+  /**
+   * カレンダーの行（スケジュール・日のパネル）の予定の見せ方（`planVisualState`）。時間が過ぎた行（完了・未完了とも）は題名を灰色にし、
+   * 完了は取り消し線を引かずに塗りの ✓ だけで見せる（月のマス・終日の行・タイムラインと同じ）
+   */
+  calendarState?: PlanVisualState
+  /** 右クリック・長押しのメニュー（無ければ To-Do のメニュー。カレンダーは予定なら予定のメニュー、`openCalendarItemMenu`） */
+  onMenu?: (p: { clientX: number; clientY: number }) => void
 }) {
   const { t, i18n } = useTranslation()
   // 締切の言葉と色（「明日まで」「1日遅れ」）は今日で変わるので、行は memo でも日をまたいだら描き直す
@@ -315,6 +324,7 @@ export const TaskItem = memo(function TaskItem({
   /** 一覧がメニューを持っていれば任せる（選択中のまとめて操作）。無ければこの行だけのメニューを開く */
   const openMenuAt = (p: { clientX: number; clientY: number }) => {
     if (selection?.onContextMenu) selection.onContextMenu(p as React.MouseEvent)
+    else if (onMenu) onMenu(p)
     else openTaskMenu({ kind: 'task', x: p.clientX, y: p.clientY, taskIds: [task.id] })
   }
 
@@ -412,7 +422,11 @@ export const TaskItem = memo(function TaskItem({
 
         {/* 予定（バイト・授業）には完了の丸を出さない。日パネル（compact）は字が小さいので丸も小さく（サブタスクと同じ 16px） */}
         {isEventTask(task) ? (
-          <EventMark hex={planHex(task)} small={isSubtask || compact} />
+          <EventMark
+            hex={calendarState ? planDotHex(calendarState, planHex(task)) : planHex(task)}
+            dotClass={calendarState ? planDotClass(calendarState, planHex(task)) : undefined}
+            small={isSubtask || compact}
+          />
         ) : (
           <CompletionCircle
             completed={shownCompleted}
@@ -463,7 +477,15 @@ export const TaskItem = memo(function TaskItem({
               }}
               className={`${childProgress ? 'flex items-baseline gap-2' : 'block truncate'} w-full text-left ${hasRowAction ? 'cursor-pointer' : 'cursor-text'} outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
-                        transition-colors ${shownCompleted && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
+                        transition-colors ${
+                          calendarState
+                            ? calendarState === 'upcoming' && !shownCompleted
+                              ? 'text-zinc-800 dark:text-zinc-200'
+                              : PASSED_TEXT_CLASS
+                            : shownCompleted && !timeLog
+                              ? 'line-through text-zinc-400 dark:text-zinc-500'
+                              : 'text-zinc-800 dark:text-zinc-200'
+                        }`}
             >
               {childProgress ? (
                 <>
