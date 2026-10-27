@@ -38,6 +38,11 @@ export interface CreateStop {
   bottom: number
 }
 
+/** 止める境目にする、id 付きのブロック（引いているブロック自身を外すため） */
+export interface BlockStop extends CreateStop {
+  id: string
+}
+
 export interface MoveDrag {
   kind: 'move'
   taskId: string
@@ -49,6 +54,8 @@ export interface MoveDrag {
   currentY: number
   /** 移動後も維持するブロック長（分）。省略時は壁時計の差（下限 SNAP） */
   blockDurationMinutes: number
+  /** 置く日の同じ列のブロック（動かすブロック自身は除く）。端がぶつかったら境目で止める */
+  stops?: readonly CreateStop[]
 }
 
 export interface ResizeDrag {
@@ -59,6 +66,8 @@ export interface ResizeDrag {
   origStartTime: string
   origEndTime: string
   currentY: number
+  /** 同じ列のブロック（引いているブロック自身は除く）。端がぶつかったら境目で止める */
+  stops?: readonly CreateStop[]
 }
 
 export type DragState = CreateDrag | MoveDrag | ResizeDrag
@@ -145,6 +154,63 @@ function stickToStops(
   return end - start >= 5 ? { startMin: start, endMin: end } : { startMin, endMin }
 }
 
+/** 止める境目にするブロック（分）。元の日では、動かす前から重なっていたブロックは数えない（重ねてある予定がすぐ止まらないように） */
+function stopRanges(
+  stops: readonly CreateStop[] | undefined,
+  orig: { dateKey: string; startMin: number; endMin: number } | null,
+  dateKey: string,
+): { s: number; e: number }[] {
+  const toMin = (y: number) => (y / HOUR_HEIGHT) * 60
+  const blocks = (stops ?? []).map((b) => ({ s: Math.round(toMin(b.top)), e: Math.round(toMin(b.bottom)) }))
+  if (!orig || orig.dateKey !== dateKey) return blocks
+  return blocks.filter((b) => !(b.s < orig.endMin && b.e > orig.startMin))
+}
+
+/**
+ * 端を動かして、ほかのブロックにぶつかったらその境目（15 分でなくても）で止める（作るときの `stickToStops` と同じ）。
+ * 上の端はブロックの終わり、下の端はブロックの始まりで止まり、境目から `CREATE_STICK_PX` より奥まで引いたら越える。止めなければ null
+ */
+function stuckEdge(edge: 'top' | 'bottom', rawMin: number, gridMin: number, blocks: readonly { s: number; e: number }[]): number | null {
+  const stick = (CREATE_STICK_PX / HOUR_HEIGHT) * 60
+  let best: number | null = null
+  for (const b of blocks) {
+    if (edge === 'top') {
+      // 下から上のブロックに入った（まだ浅い）
+      if (b.s < rawMin && rawMin > b.e - stick && gridMin < b.e && (best === null || b.e > best)) best = b.e
+    } else if (b.e > rawMin && rawMin < b.s + stick && gridMin > b.s && (best === null || b.s < best)) best = b.s
+  }
+  return best
+}
+
+/** 動かしているブロックの始まり（分）。15 分に丸め、上か下の端がほかのブロックにぶつかったら境目で止める */
+export function moveStartMinutes(d: MoveDrag): number {
+  const DAY = 24 * 60
+  const rawTop = (Math.max(0, d.currentY - d.offsetY) / HOUR_HEIGHT) * 60
+  const grid = timeToMinutes(yToTime(Math.max(0, d.currentY - d.offsetY)))
+  if (!d.stops?.length) return grid
+  const dur = d.blockDurationMinutes
+  const orig = { dateKey: d.origDateKey, startMin: timeToMinutes(d.origStartTime), endMin: timeToMinutes(d.origStartTime) + dur }
+  const blocks = stopRanges(d.stops, orig, d.dateKey)
+  const top = stuckEdge('top', rawTop, grid, blocks)
+  const bottom = stuckEdge('bottom', rawTop + dur, grid + dur, blocks)
+  const candidates = [top, bottom === null ? null : bottom - dur].filter((m): m is number => m !== null && m >= 0 && m < DAY)
+  if (candidates.length === 0) return grid
+  return candidates.reduce((a, b) => (Math.abs(b - grid) < Math.abs(a - grid) ? b : a))
+}
+
+/** 伸び縮みさせている端の時刻（分）。15 分に丸め、ほかのブロックにぶつかったら境目で止める（短くなりすぎるときは止めない） */
+export function resizeEdgeMinutes(d: ResizeDrag): number {
+  const grid = timeToMinutes(yToTime(d.currentY))
+  if (!d.stops?.length) return grid
+  const startMin = timeToMinutes(d.origStartTime)
+  const endMin = timeToMinutes(d.origEndTime)
+  const blocks = stopRanges(d.stops, { dateKey: d.dateKey, startMin, endMin }, d.dateKey)
+  const stuck = stuckEdge(d.edge, (d.currentY / HOUR_HEIGHT) * 60, grid, blocks)
+  if (stuck === null) return grid
+  const long = d.edge === 'top' ? endMin - stuck >= MIN_BLOCK_MINUTES : stuck - startMin >= MIN_BLOCK_MINUTES
+  return long ? stuck : grid
+}
+
 /**
  * ドラッグの見た目と置き場所を決める値（15 分に丸めた時刻と日）。前と同じなら state を変えない（#265）。
  * 生の Y 座標を毎回入れると、見た目の変わらない 1 px の動きでも週の画面全体を描き直していた。
@@ -156,8 +222,8 @@ function dragSpot(d: DragState): string | null {
     const { startMin, endMin } = createRangeMinutes(d)
     return `${d.dateKey}|${startMin}|${endMin}`
   }
-  if (d.kind === 'move') return `${d.dateKey}|${yToTime(Math.max(0, d.currentY - d.offsetY))}`
-  return `${d.dateKey}|${yToTime(d.currentY)}`
+  if (d.kind === 'move') return `${d.dateKey}|${moveStartMinutes(d)}`
+  return `${d.dateKey}|${resizeEdgeMinutes(d)}`
 }
 
 /** 置き場所が変わらない動きなら前の state をそのまま返す（描き直さない） */
@@ -183,6 +249,8 @@ interface UseTimelineDragOptions {
   clickCreateMinutes?: number
   /** タッチで長押しして持ち上げたブロックを、動かさずに離したとき（右クリックと同じメニュー） */
   onBlockLongPress?: (taskId: string, clientX: number, clientY: number) => void
+  /** その日の、引いているブロックと同じ列のブロック（自身は除く）。動かす・伸び縮みさせる端を境目で止める */
+  getBlockStops?: (dateKey: string, taskId: string) => readonly CreateStop[]
 }
 
 export function useTimelineDrag(options: UseTimelineDragOptions) {
@@ -195,7 +263,13 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     onBlockTap,
     clickCreateMinutes,
     onBlockLongPress,
+    getBlockStops,
   } = options
+  const getBlockStopsRef = useRef(getBlockStops)
+  useEffect(() => {
+    getBlockStopsRef.current = getBlockStops
+  }, [getBlockStops])
+  const stopsFor = useCallback((dateKey: string, taskId: string) => getBlockStopsRef.current?.(dateKey, taskId), [])
   const [drag, setDrag] = useState<DragState | null>(null)
   /** 今の `drag`（端のスクロールから呼ぶ `repoint` を作り直さずに読むため） */
   const dragRef = useRef<DragState | null>(null)
@@ -304,7 +378,16 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
           pointerStartRef.current = { x: startX, y: startY }
           const y = getRelativeY(startY, dateKey)
           if (localY >= blockRect.height - Math.min(TOUCH_RESIZE_EDGE_PX, blockRect.height / 3)) {
-            setDrag({ kind: 'resize', taskId: id, dateKey, edge: 'bottom', origStartTime: startTime, origEndTime: endTime, currentY: y })
+            setDrag({
+              kind: 'resize',
+              taskId: id,
+              dateKey,
+              edge: 'bottom',
+              origStartTime: startTime,
+              origEndTime: endTime,
+              currentY: y,
+              stops: stopsFor(dateKey, id),
+            })
           } else {
             setDrag({
               kind: 'move',
@@ -316,6 +399,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
               offsetY: localY,
               currentY: y,
               blockDurationMinutes: dragBlockDurationMinutes(blockDurationSource ?? { startTime, endTime }),
+              stops: stopsFor(dateKey, id),
             })
           }
         }, TOUCH_LONG_PRESS_MS)
@@ -357,10 +441,28 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       const edge = resizeEdgePx(blockHeight)
       if (localY <= edge) {
         const y = getRelativeY(e.clientY, dateKey)
-        setDrag({ kind: 'resize', taskId, dateKey, edge: 'top', origStartTime: startTime, origEndTime: endTime, currentY: y })
+        setDrag({
+          kind: 'resize',
+          taskId,
+          dateKey,
+          edge: 'top',
+          origStartTime: startTime,
+          origEndTime: endTime,
+          currentY: y,
+          stops: stopsFor(dateKey, taskId),
+        })
       } else if (localY >= blockHeight - edge) {
         const y = getRelativeY(e.clientY, dateKey)
-        setDrag({ kind: 'resize', taskId, dateKey, edge: 'bottom', origStartTime: startTime, origEndTime: endTime, currentY: y })
+        setDrag({
+          kind: 'resize',
+          taskId,
+          dateKey,
+          edge: 'bottom',
+          origStartTime: startTime,
+          origEndTime: endTime,
+          currentY: y,
+          stops: stopsFor(dateKey, taskId),
+        })
       } else {
         const offsetY = e.clientY - rect.top
         const y = getRelativeY(e.clientY, dateKey)
@@ -377,10 +479,11 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
           offsetY,
           currentY: y,
           blockDurationMinutes,
+          stops: stopsFor(dateKey, taskId),
         })
       }
     },
-    [getRelativeY, popup],
+    [getRelativeY, popup, stopsFor],
   )
 
   /** 指・カーソルの位置からドラッグ中の位置を出し直す（スクロールで格子が動いたときも使う） */
@@ -401,12 +504,21 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
             : prev,
         )
       } else if (current.kind === 'move') {
-        setDrag((prev) => (prev && prev.kind === 'move' ? nextDrag(prev, { ...prev, currentY: y, dateKey }) : prev))
+        setDrag((prev) =>
+          prev && prev.kind === 'move'
+            ? nextDrag(prev, {
+                ...prev,
+                currentY: y,
+                dateKey,
+                stops: dateKey === prev.dateKey ? prev.stops : stopsFor(dateKey, prev.taskId),
+              })
+            : prev,
+        )
       } else {
         setDrag((prev) => (prev && prev.kind === 'resize' ? nextDrag(prev, { ...prev, currentY: y }) : prev))
       }
     },
-    [getRelativeY, getDateKeyFromX],
+    [getRelativeY, getDateKeyFromX, stopsFor],
   )
 
   /** 持ち上げ中に端でスクロールしたとき、最後の指の位置で置き場所を出し直す */
@@ -492,9 +604,8 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     } else if (drag.kind === 'move') {
       if (didMoveRef.current) {
         const durationMin = drag.blockDurationMinutes
-        const newStartY = drag.currentY - drag.offsetY
-        const newStart = yToTime(Math.max(0, newStartY))
-        const newStartMin = timeToMinutes(newStart)
+        const newStartMin = moveStartMinutes(drag)
+        const newStart = minutesToTime(newStartMin)
         const M = 24 * 60
         const endWallMin = (newStartMin + durationMin) % M
         onMoveDone(drag.taskId, drag.dateKey, newStart, minutesToTime(endWallMin))
@@ -503,8 +614,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       }
     } else {
       if (didMoveRef.current) {
-        const newTime = yToTime(drag.currentY)
-        const newMin = timeToMinutes(newTime)
+        const newMin = resizeEdgeMinutes(drag)
         if (drag.edge === 'top') {
           const endMin = timeToMinutes(drag.origEndTime)
           const clampedStart = Math.min(newMin, endMin - MIN_BLOCK_MINUTES)
@@ -539,9 +649,16 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
   }, [])
 
   /** 移動中に週をめくったとき、置く日を同じ曜日のまま前後の週へ付け替える */
-  const shiftMoveDragDate = useCallback((days: number) => {
-    setDrag((prev) => (prev && prev.kind === 'move' ? { ...prev, dateKey: toDateKey(addDays(fromDateKey(prev.dateKey), days)) } : prev))
-  }, [])
+  const shiftMoveDragDate = useCallback(
+    (days: number) => {
+      setDrag((prev) => {
+        if (!prev || prev.kind !== 'move') return prev
+        const dateKey = toDateKey(addDays(fromDateKey(prev.dateKey), days))
+        return { ...prev, dateKey, stops: stopsFor(dateKey, prev.taskId) }
+      })
+    },
+    [stopsFor],
+  )
 
   const dragPreview = useMemo((): DragPreview | null => {
     if (!drag) return null
@@ -564,9 +681,11 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
       // eslint-disable-next-line react-hooks/refs -- preview must match pointer session gate
       if (!didMoveRef.current && !touchLiftedRef.current) return null
       const durationMin = drag.blockDurationMinutes
-      const newTop = Math.max(0, drag.currentY - drag.offsetY)
-      const newStart = yToTime(newTop)
-      const newStartMin = timeToMinutes(newStart)
+      const newStartMin = moveStartMinutes(drag)
+      const newStart = minutesToTime(newStartMin)
+      // 境目で止めているときは止めた位置に出す（ふだんは指・カーソルに合わせて滑らかに動かす）
+      const grid = timeToMinutes(yToTime(Math.max(0, drag.currentY - drag.offsetY)))
+      const newTop = newStartMin === grid ? Math.max(0, drag.currentY - drag.offsetY) : (newStartMin / 60) * HOUR_HEIGHT
       const M = 24 * 60
       const endWallMin = (newStartMin + durationMin) % M
       const visibleMin = Math.min(durationMin, M - newStartMin)
@@ -582,8 +701,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
     } else {
       // eslint-disable-next-line react-hooks/refs -- preview must match pointer session gate
       if (!didMoveRef.current && !touchLiftedRef.current) return null
-      const newTime = yToTime(drag.currentY)
-      const newMin = timeToMinutes(newTime)
+      const newMin = resizeEdgeMinutes(drag)
       let top: number, height: number, startLabel: string, endLabel: string
       if (drag.edge === 'top') {
         const endMin = timeToMinutes(drag.origEndTime)

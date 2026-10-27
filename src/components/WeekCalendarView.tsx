@@ -17,7 +17,7 @@ import {
 import { canCopyOnDrop, isCopyModifierHeld, placeCopies, useCopyModifier } from '../lib/dragCopy'
 import { useHotkey } from '../hooks/useHotkey'
 import { SHORTCUTS } from '../lib/shortcuts'
-import { useTimelineDrag, type CreateIntent } from '../lib/useTimelineDrag'
+import { useTimelineDrag, type BlockStop, type CreateIntent } from '../lib/useTimelineDrag'
 import { useTimelineDrop, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import {
   getCalendarItemDrag,
@@ -261,6 +261,18 @@ export function WeekCalendarView({
     },
     [openBlockMenu, openBlockCard],
   )
+  // 日ごとの列のブロックの上下（列が描くたびに知らせる）。動かす・伸び縮みさせる端を、同じ列のブロックの境目で止める
+  const blockStopsRef = useRef(new Map<string, Record<CreateIntent, BlockStop[]>>())
+  const registerBlockStops = useCallback((dateKey: string, stops: Record<CreateIntent, BlockStop[]>) => {
+    blockStopsRef.current.set(dateKey, stops)
+  }, [])
+  const getBlockStops = useCallback((dateKey: string, taskId: string): BlockStop[] => {
+    const day = blockStopsRef.current.get(dateKey)
+    if (!day) return []
+    // 記録は記録の列、ほかは予定の列のブロックで止める
+    const isLog = [...blockStopsRef.current.values()].some((d) => d.log.some((b) => b.id === taskId))
+    return day[isLog ? 'log' : 'schedule'].filter((b) => b.id !== taskId)
+  }, [])
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
@@ -269,6 +281,7 @@ export function WeekCalendarView({
     onBlockTap: openBlockCard,
     clickCreateMinutes: defaultBlockMinutes,
     onBlockLongPress,
+    getBlockStops,
   })
   // Tab で止めたブロック: Alt+↑↓ で 15 分ずつ動かし、Alt+Shift+↑↓ で終わりを伸び縮み（ドラッグと同じ決まり・元に戻せる）。
   // カードを開いているときはカードのほうで受ける（層が開いていると 'global' は効かない）
@@ -513,6 +526,7 @@ export function WeekCalendarView({
     handleCreatePointerDown: timelineDrag.handleCreatePointerDown,
     handleBlockPointerDown: timelineDrag.handleBlockPointerDown,
     openPopup: timelineDrag.openPopup,
+    registerBlockStops,
     handleDragEnter: timelineDrop.handleDragEnter,
     handleDragOver: timelineDrop.handleDragOver,
     handleDragLeave: timelineDrop.handleDragLeave,

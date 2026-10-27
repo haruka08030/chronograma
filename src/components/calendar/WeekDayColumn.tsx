@@ -1,8 +1,8 @@
-import { memo, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react'
+import { memo, useEffect, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
 import { formatDuration, HOUR_HEIGHT, HOURS, timeToMinutes, yToTime } from '../../lib/timeGrid'
-import type { CreateIntent, CreatePopup, CreateStop, DragPreview, useTimelineDrag } from '../../lib/useTimelineDrag'
+import type { BlockStop, CreateIntent, CreatePopup, CreateStop, DragPreview, useTimelineDrag } from '../../lib/useTimelineDrag'
 import type { DropPreview, useTimelineDrop } from '../../lib/useTimelineDrop'
 import { canSetMyEventTime } from '../../lib/googleEventEdit'
 import type { CalendarEvent } from '../../types/calendarEvent'
@@ -65,6 +65,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   handleCreatePointerDown,
   handleBlockPointerDown,
   openPopup,
+  registerBlockStops,
   dropPreview,
   handleDragEnter,
   handleDragOver,
@@ -114,6 +115,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   handleCreatePointerDown: TimelineDrag['handleCreatePointerDown']
   handleBlockPointerDown: TimelineDrag['handleBlockPointerDown']
   openPopup: TimelineDrag['openPopup']
+  /** この日の列ごとのブロックの上下を知らせる（動かす・伸び縮みさせる端を境目で止める） */
+  registerBlockStops?: (dateKey: string, stops: Record<CreateIntent, BlockStop[]>) => void
   /** この日の列に出す To-Do を落とす枠（ほかの日なら null） */
   dropPreview: DropPreview | null
   handleDragEnter: TimelineDrop['handleDragEnter']
@@ -268,11 +271,16 @@ export const WeekDayColumn = memo(function WeekDayColumn({
    * ドラッグで作る枠を止める、押した列のブロックの上下（予定の列は予定・習慣・Google の予定と全幅の記録、記録の列は記録）。
    * 移した予定の跡と記録の無い時間の枠は止めない
    */
-  const createStops = (lane: CreateIntent): CreateStop[] =>
+  const laneStops = (lane: CreateIntent): BlockStop[] =>
     (lane === 'log'
       ? logBlocks
       : [...planBlocks.filter((b) => !b.id.startsWith('moved-')), ...logBlocks.filter((b) => fullLogIds.has(b.id))]
-    ).map((b) => ({ top: b.top, bottom: b.top + b.span }))
+    ).map((b) => ({ id: b.id, top: b.top, bottom: b.top + b.span }))
+  const createStops = (lane: CreateIntent): CreateStop[] => laneStops(lane)
+  // 動かす・伸び縮みさせるときも同じブロックで止める（描くたびに知らせ直す）
+  useEffect(() => {
+    registerBlockStops?.(key, { schedule: laneStops('schedule'), log: laneStops('log') })
+  })
   const planStyle = (id: string) => blockStyles.get(`plan:${id}`)
   const logStyle = (id: string) => blockStyles.get(`log:${id}`)
 
