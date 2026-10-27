@@ -83,7 +83,7 @@ function SleepPeriodsCard() {
           {periodName(p)}
         </th>
         {s.count === 0 ? (
-          <td colSpan={goal ? 5 : 4} className="py-2 text-zinc-300 dark:text-zinc-600">
+          <td colSpan={goal ? 5 : 4} className={`py-2 ${META_TEXT}`}>
             {t('sleepPage.noRecord')}
           </td>
         ) : (
@@ -200,7 +200,7 @@ function SleepNightsCard() {
                     )}
                   </>
                 ) : (
-                  <span className="text-zinc-300 dark:text-zinc-600">{t('sleepPage.noRecord')}</span>
+                  <span className={META_TEXT}>{t('sleepPage.noRecord')}</span>
                 )}
               </button>
               {editing && (

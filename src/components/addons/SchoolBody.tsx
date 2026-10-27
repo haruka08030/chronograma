@@ -12,6 +12,10 @@ import { TimetableBody } from '../calendar/TimetableDialog'
 import { SettingsSubPage } from '../settings/SettingsSubPage'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { ChevronRightIcon, PlusIcon } from '../icons'
+import { PathIcon } from '../PathIcon'
+import { ICON_PATHS } from '../../lib/iconPaths'
+import { EmptyState } from '../ui/EmptyState'
+import { ExampleChips } from '../ui/ExampleChips'
 import { buttonClass } from '../ui/buttonClass'
 import { chipClass } from '../ui/chipClass'
 import { fieldClass } from '../ui/fieldClass'
@@ -68,7 +72,8 @@ function CourseList({ term, onOpen }: { term: Term; onOpen: (title: string) => v
   const school = useSchool()
   const setCourseAbsent = useTaskStore((s) => s.setCourseAbsent)
   const rows = useTermCourses(term)
-  const [adding, setAdding] = useState(false)
+  // 追加のカードの最初の名前（例を押したらその名前、＋ なら空。閉じていれば null）
+  const [adding, setAdding] = useState<string | null>(null)
   const todayInTerm = inTermRange(today, term)
 
   return (
@@ -76,7 +81,17 @@ function CourseList({ term, onOpen }: { term: Term; onOpen: (title: string) => v
       <h2 id="school-courses" className={CARD_TITLE_CLASS}>
         {t('school.courses')}
       </h2>
-      {rows.length === 0 && <p className={`mt-1 ${HINT_TEXT}`}>{t('school.coursesEmpty')}</p>}
+      {rows.length === 0 && (
+        // 例を押すとその名前で授業を追加するカードが開く
+        <EmptyState size="sm" icon={<PathIcon d={ICON_PATHS.academicCap} strokeWidth={1} />} title={t('school.coursesEmpty')}>
+          <ExampleChips
+            opensAdd
+            examples={t('school.courseExamples', { returnObjects: true }) as string[]}
+            onPick={(title) => setAdding(title)}
+            className="mt-3 justify-center"
+          />
+        </EmptyState>
+      )}
       <ul aria-labelledby="school-courses" className="-mx-2 mt-1">
         {rows.map((row) => {
           const absentToday = isAbsent(school, row.title, today)
@@ -113,11 +128,11 @@ function CourseList({ term, onOpen }: { term: Term; onOpen: (title: string) => v
           )
         })}
       </ul>
-      <button type="button" onClick={() => setAdding(true)} className={buttonClass({ variant: 'ghost', size: 'sm' }, 'mt-1')}>
+      <button type="button" onClick={() => setAdding('')} className={buttonClass({ variant: 'ghost', size: 'sm' }, 'mt-1')}>
         <PlusIcon className="h-3.5 w-3.5" />
         {t('absences.add')}
       </button>
-      {adding && <AddCourseDialog term={term} existing={rows} onClose={() => setAdding(false)} />}
+      {adding !== null && <AddCourseDialog term={term} existing={rows} initialTitle={adding} onClose={() => setAdding(null)} />}
     </section>
   )
 }
@@ -126,12 +141,22 @@ function CourseList({ term, onOpen }: { term: Term; onOpen: (title: string) => v
  * 学期に授業を足す。名前を打つか、候補（学期の間の Google カレンダーの毎週の予定・一覧に無い Canvas・Moodle の科目）を押す。
  * Google の予定は自動では入れない（バイト・ジムと区別がつかない）
  */
-function AddCourseDialog({ term, existing, onClose }: { term: Term; existing: TermCourse[]; onClose: () => void }) {
+function AddCourseDialog({
+  term,
+  existing,
+  initialTitle,
+  onClose,
+}: {
+  term: Term
+  existing: TermCourse[]
+  initialTitle: string
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const calendarEvents = useTaskStore((s) => s.calendarEvents)
   const addCourse = useTaskStore((s) => s.addCourse)
-  const [title, setTitle] = useState('')
+  const [title, setTitle] = useState(initialTitle)
   const inputRef = useRef<HTMLInputElement>(null)
   const taken = new Set(existing.map((c) => courseKey(c.title)))
   const name = title.trim()

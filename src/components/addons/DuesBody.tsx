@@ -5,30 +5,33 @@ import { DUE_NOTIFY_OPTIONS, DUE_TITLE_MAX, daysBetween, nextDueDate, type DueIt
 import { newId } from '../../lib/id'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { useAppTodayKey } from '../../hooks/useAppClock'
-import { useDateFormat } from '../../hooks/useDateFormat'
-import { useDueWhenText } from '../../hooks/useDueWhenText'
+import { useDueDayText, useDueWhenText } from '../../hooks/useDueWhenText'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { SettingsSubPage } from '../settings/SettingsSubPage'
 import { Segmented } from '../ui/Segmented'
 import { DateField } from '../DateField'
-import { PlusIcon } from '../icons'
+import { CalendarIcon, PlusIcon } from '../icons'
+import { EmptyState } from '../ui/EmptyState'
+import { ExampleChips } from '../ui/ExampleChips'
 import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
-import { HINT_TEXT, META_TEXT } from '../ui/textClass'
+import { META_TEXT } from '../ui/textClass'
 import { useDialogDraft } from '../../hooks/useDialogDraft'
+import { discardDialogDraft } from '../../lib/dialogDrafts'
 
 /**
- * 引き落とし・期限の日の一覧（#454、追加機能「引き落とし・期限」のページ）。次の日が近い順に並べ、押すと直す。＋ で足す。
+ * 引き落とし・期限の日の一覧（#454、追加機能「引き落とし・期限」のページ）。次の日が近い順に並べ、押すと編集、＋ で追加。
  * 1 件は名前・日付・繰り返し（なし / 毎月 / 毎年）・何日前から今日の計画に出すか
  */
 export function DuesBody() {
   const { t } = useTranslation()
-  const df = useDateFormat()
   const today = useAppTodayKey()
   const dues = useTaskStore((s) => s.addons.dues)
   const when = useDueWhenText()
-  const [editing, setEditing] = useState<DueItem | 'new' | null>(null)
+  const dayText = useDueDayText()
+  // 'new' は空から、{ title } は例を押して名前だけ入れた新しい 1 件
+  const [editing, setEditing] = useState<DueItem | 'new' | { title: string } | null>(null)
   // 次の日が近い順。過ぎた 1 回きりのものは後ろ
   const rows = useMemo(
     () =>
@@ -40,7 +43,20 @@ export function DuesBody() {
 
   return (
     <>
-      {rows.length === 0 && <p className={`px-2 py-3 ${HINT_TEXT}`}>{t('dues.empty')}</p>}
+      {rows.length === 0 && (
+        // 例を押すとその名前で追加のカードが開く（日付・繰り返しを決めて保存）
+        <EmptyState size="sm" icon={<CalendarIcon strokeWidth={1} />} title={t('dues.empty')}>
+          <ExampleChips
+            opensAdd
+            examples={t('dues.examples', { returnObjects: true }) as string[]}
+            onPick={(title) => {
+              discardDialogDraft('due:new')
+              setEditing({ title })
+            }}
+            className="mt-3 justify-center"
+          />
+        </EmptyState>
+      )}
       <ul>
         {rows.map(({ item, next }) => {
           const days = next ? daysBetween(today, next) : null
@@ -58,16 +74,7 @@ export function DuesBody() {
                     {item.notifyDays > 0 && ` · ${t('dues.notifyFrom', { count: item.notifyDays })}`}
                   </span>
                 </span>
-                <span className={`shrink-0 tabular-nums ${META_TEXT}`}>
-                  {next === null
-                    ? t('dues.passed')
-                    : days === 0
-                      ? t('dues.today')
-                      : days === 1
-                        ? t('dues.tomorrow')
-                        : // 来年より先は年も
-                          `${next.slice(0, 4) === today.slice(0, 4) ? df.monthDay(next) : df.fullDate(next)} · ${t('dues.daysLeft', { count: days ?? 0 })}`}
-                </span>
+                <span className={`shrink-0 tabular-nums ${META_TEXT}`}>{dayText(next, days ?? 0, today)}</span>
               </button>
             </li>
           )
@@ -77,18 +84,36 @@ export function DuesBody() {
         <PlusIcon className="h-3.5 w-3.5" />
         {t('dues.add')}
       </button>
-      {editing && <DueEditor item={editing === 'new' ? null : editing} today={today} onClose={() => setEditing(null)} />}
+      {editing && (
+        <DueEditor
+          item={editing === 'new' || !('id' in editing) ? null : editing}
+          initialTitle={editing !== 'new' && !('id' in editing) ? editing.title : undefined}
+          today={today}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </>
   )
 }
 
-/** 1 件を足す・直す。外側・Esc で閉じても書きかけは残す（`useDialogDraft`、1 件ごと）。保存・削除・キャンセルで捨てる */
-function DueEditor({ item, today, onClose }: { item: DueItem | null; today: string; onClose: () => void }) {
+/** 1 件を追加・編集する。外側・Esc で閉じても書きかけは残す（`useDialogDraft`、1 件ごと）。保存・削除・キャンセルで捨てる */
+function DueEditor({
+  item,
+  initialTitle,
+  today,
+  onClose,
+}: {
+  item: DueItem | null
+  /** 例を押して開いたときの名前（押したときに新しい 1 件の書きかけは捨てる） */
+  initialTitle?: string
+  today: string
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const saveDue = useTaskStore((s) => s.saveDue)
   const deleteDue = useTaskStore((s) => s.deleteDue)
   const [draft, setDraft, discardDraft] = useDialogDraft(`due:${item?.id ?? 'new'}`, () => ({
-    title: item?.title ?? '',
+    title: item?.title ?? initialTitle ?? '',
     date: item?.date ?? today,
     repeat: item?.repeat ?? ('none' as DueRepeat),
     notifyDays: item?.notifyDays ?? 1,

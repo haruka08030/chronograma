@@ -62,7 +62,7 @@ const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
  * 左の並び: 見出し（`PlannerHeader`）→ 引き落とし・期限（`PlannerDues`、追加機能）→ To-Do（`PlannerTodoSection`）→ 習慣 → 候補 → 完了 → 締め（`PlannerWrapUp`）
  */
 export function TodayPlannerView() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore(selectLiveHabits)
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
@@ -279,7 +279,7 @@ export function TodayPlannerView() {
       return [
         {
           // 別の日を見ているときは、見ている日の翌日へ（本当の明日ではない）
-          label: viewingToday ? t('taskList.selectionTomorrow') : t('taskList.selectionNextDay'),
+          label: viewingToday ? t('taskMenu.toTomorrow') : t('taskMenu.toNextDay'),
           icon: <PostponeIcon className="h-3.5 w-3.5" />,
           onClick: () =>
             rescheduleTasks(
@@ -316,7 +316,7 @@ export function TodayPlannerView() {
 
   /** 行が共通で使うもの */
   const rowEnv: PlannerRowEnv = {
-    day: { dateKey, date, tomorrowKey, now, t, shortDate: (key) => df.shortDate(key) },
+    day: { dateKey, date, tomorrowKey, now, t, language: i18n.resolvedLanguage, shortDate: (key) => df.shortDate(key) },
     viewingToday,
     rowIds,
     selectedCount: selected.size,

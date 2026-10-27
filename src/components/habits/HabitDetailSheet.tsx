@@ -343,7 +343,6 @@ function HabitDetailEdit({
       <HabitFormFields
         form={form}
         onChange={patch}
-        name="edit-habit"
         placeholder={t('habits.nameShort')}
         onSubmit={() => {
           if (!disabled) save()

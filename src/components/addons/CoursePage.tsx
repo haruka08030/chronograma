@@ -11,10 +11,9 @@ import { useAppTodayKey } from '../../hooks/useAppClock'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SettingsSubPage } from '../settings/SettingsSubPage'
 import { DateField } from '../DateField'
-import { CloseIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
-import { iconButtonClass } from '../ui/iconButtonClass'
+import { FilterChips } from '../ui/FilterChips'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { CARD_TITLE_CLASS } from '../ui/headingClass'
 import { DUE_TONE_CLASS, NOTICE_TONE_CLASS } from '../ui/dueTone'
@@ -183,24 +182,15 @@ export function CoursePage({
           {dates.length === 0 ? (
             <p className={HINT_TEXT}>{t('absences.noDates')}</p>
           ) : (
-            <ul className="flex flex-wrap gap-1.5">
-              {dates.map((d) => (
-                <li
-                  key={d}
-                  className="flex items-center gap-0.5 rounded-full border border-zinc-200 py-0.5 pl-2.5 pr-1 text-xs tabular-nums text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
-                >
-                  {df.monthDay(d)}
-                  <button
-                    type="button"
-                    onClick={() => setCourseAbsent(title, d, false)}
-                    aria-label={t('absences.removeDateAria', { date: df.monthDay(d) })}
-                    className={iconButtonClass('p-0.5')}
-                  >
-                    <CloseIcon className="h-3 w-3" />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <FilterChips
+              chips={dates.map((d) => ({
+                key: d,
+                label: df.monthDay(d),
+                removeLabel: t('absences.removeDateAria', { date: df.monthDay(d) }),
+                onRemove: () => setCourseAbsent(title, d, false),
+              }))}
+              className="tabular-nums"
+            />
           )}
           <div className="mt-2 flex items-center gap-2">
             <span className={META_TEXT}>{t('absences.addDate')}</span>

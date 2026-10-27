@@ -15,7 +15,7 @@ import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
-import { ERROR_TEXT, HINT_TEXT } from '../ui/textClass'
+import { ERROR_TEXT, META_TEXT } from '../ui/textClass'
 
 /**
  * 学校の学期の行（#622）。学期を選ぶ・直す・足す。学期が無ければ「学期を追加」だけ。
@@ -53,7 +53,7 @@ export function SchoolTermBar({ term, onSelect }: { term: Term | null; onSelect:
           </button>
         </>
       ) : (
-        <p className={HINT_TEXT}>{t('school.noTerms')}</p>
+        <p className={META_TEXT}>{t('school.noTerms')}</p>
       )}
       <button type="button" onClick={() => setEditing('new')} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
         <PlusIcon className="h-3.5 w-3.5" />

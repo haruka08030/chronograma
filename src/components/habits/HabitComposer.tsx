@@ -41,7 +41,6 @@ export function HabitComposer({
         <HabitFormFields
           form={form}
           onChange={onChange}
-          name="new-habit"
           placeholder={t(form.kind === 'routine' ? 'habits.placeholderRoutineName' : 'habits.placeholderName')}
           onSubmit={submit}
           onEscape={onClose}

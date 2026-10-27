@@ -17,6 +17,7 @@ import { CompletionCircle } from '../ui/CompletionCircle'
 import { HIDE_ON_ROW_HOVER } from '../ui/revealClass'
 import { ROW_CURSOR_CLASS, ROW_PRESS_CLASS, ROW_SELECTED_CLASS } from '../ui/rowStateClass'
 import { chipClass } from '../ui/chipClass'
+import { DueChip } from '../ui/DueChip'
 import { META_TONE_CLASS, rowMeta, type DueMode, type PlannerDay } from './plannerRowMeta'
 
 type Selection = ReturnType<typeof useTaskListSelection>
@@ -173,12 +174,8 @@ export function PlannerTaskRow({
         </span>
       )}
       {meta.due && !task.completed && (
-        <span
-          data-due-fit={dueOverHint ? 'over' : undefined}
-          {...tip(dueOverHint)}
-          className={`shrink-0 text-xs tabular-nums ${dueOverHint ? META_TONE_CLASS.overdue : META_TONE_CLASS[meta.due.tone]} ${metaHide}`}
-        >
-          {meta.due.text}
+        <span data-due-fit={dueOverHint ? 'over' : undefined} {...tip(dueOverHint)} className={`shrink-0 tabular-nums ${metaHide}`}>
+          <DueChip tone={dueOverHint ? 'overdue' : meta.due.tone} text={meta.due.text} />
           {dueOverHint && <span className="sr-only"> {dueOverHint}</span>}
         </span>
       )}

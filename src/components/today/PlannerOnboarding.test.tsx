@@ -164,7 +164,7 @@ describe('はじめの 3 ステップ', () => {
     useTaskStore.setState({ onboardingDone: migrated.onboardingDone })
     openToday()
     expect(guide()).toBeNull()
-    expect(screen.getByPlaceholderText('Add (e.g. essay by tomorrow)')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Add a to-do (e.g. essay by tomorrow)')).toBeInTheDocument()
   })
 
   it('今日以外の日には出さない', () => {

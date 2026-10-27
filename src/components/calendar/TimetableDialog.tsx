@@ -41,6 +41,7 @@ import { iconButtonClass } from '../ui/iconButtonClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT } from '../ui/textClass'
 import { useDialogDraft } from '../../hooks/useDialogDraft'
+import { Switch } from '../settings/SettingsPrimitives'
 
 /**
  * 時間割（#279）。週表示の見出しの「時間割」で開くダイアログ。上で学期を選び（最初は今日の学期）、中身は追加機能「学校」のページと同じ
@@ -291,15 +292,14 @@ function TimetableSettings({ timetable }: { timetable: Timetable }) {
         </button>
         <p className={`mt-1 ${HINT_TEXT}`}>{t('timetable.periodsHint')}</p>
       </div>
-      <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-        <input
-          type="checkbox"
+      <div className="flex items-center justify-between gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+        <span>{t('timetable.skipHolidays')}</span>
+        <Switch
           checked={timetable.skipHolidays}
-          onChange={(e) => saveTimetable({ ...timetable, skipHolidays: e.target.checked })}
-          className="h-4 w-4 rounded border-zinc-300"
+          onChange={(v) => saveTimetable({ ...timetable, skipHolidays: v })}
+          label={t('timetable.skipHolidays')}
         />
-        {t('timetable.skipHolidays')}
-      </label>
+      </div>
     </div>
   )
 }

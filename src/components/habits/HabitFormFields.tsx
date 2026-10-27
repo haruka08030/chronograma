@@ -16,6 +16,7 @@ import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
 import { TimeInput } from '../TimeInput'
 import { ColorPalette } from '../labels/ColorPalette'
 import { PillToggle } from '../ui/PillToggle'
+import { Segmented } from '../ui/Segmented'
 import { SectionLabel } from '../ui/SectionLabel'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { fieldClass } from '../ui/fieldClass'
@@ -47,36 +48,26 @@ const KIND_OPTIONS: { value: 'habit' | 'routine'; labelKey: string }[] = [
 ]
 
 /**
- * 見出し付きのラジオのまとまり（くり返し・時間）。見出しは色の見出しと同じ SectionLabel。
+ * 見出し付きの 2〜3 択（種類・くり返し）。見出しは色の見出しと同じ SectionLabel、選ぶ部品はアプリ共通の `Segmented`。
  * まとまりごとに見出しを付けて、続けて並んでも 6 択に見えないようにする
  */
-function RadioChoices<T extends string>({
+function Choices<T extends string>({
   heading,
-  name,
   options,
   value,
   onChange,
 }: {
   heading: string
-  name: string
   options: { value: T; label: string }[]
   value: T
   onChange: (value: T) => void
 }) {
-  const headingId = useId()
   return (
-    <div className="flex flex-col gap-2">
-      <SectionLabel as="span" level="field" id={headingId}>
+    <div className="flex flex-col items-start gap-2">
+      <SectionLabel as="span" level="field">
         {heading}
       </SectionLabel>
-      <div role="radiogroup" aria-labelledby={headingId} className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-        {options.map((o) => (
-          <label key={o.value} className="flex cursor-pointer items-center gap-2 text-zinc-700 dark:text-zinc-300">
-            <input type="radio" name={name} checked={value === o.value} onChange={() => onChange(o.value)} className="text-accent-500" />
-            {o.label}
-          </label>
-        ))}
-      </div>
+      <Segmented ariaLabel={heading} options={options} value={value} onChange={onChange} />
     </div>
   )
 }
@@ -316,12 +307,11 @@ function GoalMinutesField({ value, onChange }: { value: string; onChange: (value
  * 習慣の追加・編集で共通の欄: 種類（習慣 / ルーティン）・名前・色（＝ラベル）・頻度（毎日 / 曜日を指定と曜日 / 週に◯回と回数）・時間（「時間を決める」）。
  * 曜日ごとの時間・1 回の目標は「詳しく設定」の中。
  * ルーティンは時間帯だけ・週に◯回と時間の目標なし（`effectiveHabitForm`）。
- * Enter で `onSubmit`、Esc で `onEscape`。`name` はラジオのまとまりの名前（追加と編集で分ける）
+ * Enter で `onSubmit`、Esc で `onEscape`
  */
 export function HabitFormFields({
   form,
   onChange,
-  name,
   placeholder,
   onSubmit,
   onEscape,
@@ -329,7 +319,6 @@ export function HabitFormFields({
 }: {
   form: HabitFormState
   onChange: (patch: Partial<HabitFormState>) => void
-  name: 'new-habit' | 'edit-habit'
   placeholder: string
   onSubmit: () => void
   onEscape: () => void
@@ -341,9 +330,8 @@ export function HabitFormFields({
   return (
     <>
       <div className="space-y-1">
-        <RadioChoices
+        <Choices
           heading={t('habits.kindHeading')}
-          name={`${name}-kind`}
           options={KIND_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
           value={routine ? 'routine' : 'habit'}
           onChange={(kind) => onChange({ kind })}
@@ -366,9 +354,8 @@ export function HabitFormFields({
         className={fieldClass({}, 'w-full')}
       />
       <ColorPicker color={form.color} onPick={(color) => onChange({ color })} />
-      <RadioChoices
+      <Choices
         heading={t('habits.freqHeading')}
-        name={`${name}-frequency`}
         options={(routine ? ROUTINE_FREQ_OPTIONS : FREQ_OPTIONS).map((o) => ({ value: o.value, label: t(o.labelKey) }))}
         value={shown.freq}
         onChange={(freq) => onChange({ freq })}

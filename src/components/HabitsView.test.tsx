@@ -14,7 +14,7 @@ describe('習慣の画面: 新しい習慣のフォーム', () => {
     expect(
       within(screen.getByRole('radiogroup', { name: 'Repeat' }))
         .getAllByRole('radio')
-        .map((r) => r.closest('label')?.textContent),
+        .map((r) => r.textContent),
     ).toEqual(['Daily', 'Specific days', 'Times a week'])
     // 時間の 3 択・1 回の目標は最初は出さない
     expect(screen.queryByRole('radiogroup', { name: 'Time' })).toBeNull()
@@ -64,7 +64,7 @@ describe('習慣の画面: 新しい習慣のフォーム', () => {
   it('空のときは例のボタン。押すとその名前で追加のカードが開く', async () => {
     const user = userEvent.setup()
     render(<HabitsView />)
-    await user.click(screen.getByRole('button', { name: 'Put “Gym” in the add field' }))
+    await user.click(screen.getByRole('button', { name: 'Add “Gym”' }))
     expect(screen.getByDisplayValue('Gym')).toBeInTheDocument()
     expect(screen.queryByText(/No habits yet/)).toBeNull()
   })

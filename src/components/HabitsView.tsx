@@ -129,6 +129,7 @@ export function HabitsView() {
           showComposer ? null : (
             <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty')}>
               <ExampleChips
+                opensAdd
                 examples={t('habits.examples', { returnObjects: true }) as string[]}
                 onPick={(title) => {
                   patchNewForm({ title })
