@@ -4,6 +4,7 @@
  */
 import { isLogTask, isTodoTask, type Task, type TaskKind } from '../types/task'
 import { newId } from '../lib/id'
+import { asSleepIfNamed } from '../lib/sleep'
 import { inferLogCategory } from '../lib/logCategory'
 import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
 import { appDayKeyOf, appTimeZone } from '../lib/timeZone'
@@ -337,22 +338,25 @@ export function completedRecordPatch(
   return {
     tasks: [
       ...s.tasks,
-      makeTask(
-        {
-          title,
-          listId: INBOX_ID,
-          dueDate,
-          startTime,
-          endTime,
-          kind: 'log',
-          completed: true,
-          tags,
-          // 色＝ラベル。ラベルが決まればその色で描き、決まらないときは Google の色をそのまま残す（名前の無い色）
-          color: tags.length > 0 ? null : (color ?? null),
-          habitId: habitId ?? null,
-        },
-        maxOrder + 1,
-        now,
+      // 題名かラベルが「睡眠」なら睡眠（#651。習慣のチェックの記録はそのまま）
+      asSleepIfNamed(
+        makeTask(
+          {
+            title,
+            listId: INBOX_ID,
+            dueDate,
+            startTime,
+            endTime,
+            kind: 'log',
+            completed: true,
+            tags,
+            // 色＝ラベル。ラベルが決まればその色で描き、決まらないときは Google の色をそのまま残す（名前の無い色）
+            color: tags.length > 0 ? null : (color ?? null),
+            habitId: habitId ?? null,
+          },
+          maxOrder + 1,
+          now,
+        ),
       ),
     ],
   }

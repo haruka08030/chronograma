@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/** 睡眠は睡眠の入力と後から記録からだけ作る（#519）。▶ の記録・習慣のチェックは題名が「睡眠」でも記録のまま */
+/** 題名・ラベルが「睡眠」の記録は、後から記録・▶ の記録・予定を記録にしたものも睡眠（#519・#651）。習慣のチェックの記録はそのまま */
 beforeAll(() => {
   const mem = new Map<string, string>()
   vi.stubGlobal('localStorage', {
@@ -19,30 +19,28 @@ beforeEach(() => {
   useTaskStore.setState({ tasks: [], activeTimer: null, completePromptTaskId: null, labelPromptLogId: null })
 })
 
-describe('題名・ラベルで睡眠にするのは後から記録だけ', () => {
-  it('後から記録で題名・ラベルを「睡眠」「sleep」にしたら睡眠', () => {
-    const s = useTaskStore.getState()
-    s.addTimeLog('睡眠', '2026-10-07', '23:30', '07:00', [], undefined, '2026-10-08', null, null, true)
-    s.addTimeLog('夜', '2026-10-07', '01:00', '02:00', ['sleep'], undefined, null, null, null, true)
-    s.addTimeLog('レポート', '2026-10-08', '10:00', '11:00', [], undefined, null, null, null, true)
-    expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['sleep', 'sleep', 'log'])
-  })
-
-  it('後から記録でない記録（▶ を止めた・予定を記録にした など）は「睡眠」でも記録のまま', () => {
+describe('題名・ラベルで睡眠にする（#651）', () => {
+  it('記録の題名・ラベルが「睡眠」「sleep」なら睡眠', () => {
     const s = useTaskStore.getState()
     s.addTimeLog('睡眠', '2026-10-07', '23:30', '07:00', [], undefined, '2026-10-08')
     s.addTimeLog('夜', '2026-10-07', '01:00', '02:00', ['sleep'])
-    expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['log', 'log'])
+    s.addTimeLog('レポート', '2026-10-08', '10:00', '11:00', [])
+    expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['sleep', 'sleep', 'log'])
   })
 
-  it('▶ の記録は題名が「睡眠」でも記録のまま', () => {
+  it('▶ の記録も題名が「sleep」なら睡眠', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 9, 8, 1, 0))
-    useTaskStore.getState().startTimer('睡眠')
+    useTaskStore.getState().startTimer('sleep')
     vi.setSystemTime(new Date(2026, 9, 8, 2, 0))
     useTaskStore.getState().stopTimer()
     vi.useRealTimers()
-    expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['log'])
+    expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['sleep'])
+  })
+
+  it('予定を ✓ で記録にしたもの（時刻つきの完了の記録）も睡眠。習慣のチェックの記録はそのまま', () => {
+    useTaskStore.getState().addCompletedTaskWithTime('sleep', '2026-10-08', '00:00', '08:00', null)
+    expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['sleep'])
   })
 
   it('睡眠の入力（logSleep）からは睡眠になる', () => {

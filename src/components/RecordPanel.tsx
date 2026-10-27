@@ -156,7 +156,7 @@ export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: str
       if (!canSaveManual) return
       // 終わりが始まりより前なら日をまたいだ記録（夜〜翌朝の睡眠など）
       const endDate = overnight ? toDateKey(addDays(fromDateKey(dateKey), 1)) : null
-      const id = addTimeLog(name, dateKey, start, end, tags, undefined, endDate, color, taskId, true)
+      const id = addTimeLog(name, dateKey, start, end, tags, undefined, endDate, color, taskId)
       if (details) openTaskDetail(id)
     }
     close()

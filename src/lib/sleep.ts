@@ -14,10 +14,19 @@ const norm = (s: string) => s.normalize('NFKC').trim().toLowerCase()
 /** 睡眠とみなす記録のタイトル・ラベル（後から記録・前の版のデータの変換） */
 const SLEEP_WORDS = new Set(['睡眠', 'すいみん', '就寝', '寝る', 'ねる', 'sleep', 'sleeping'])
 
-/** 睡眠の印の無い記録のうち、タイトルかラベルが「睡眠」のもの（後から記録・前の版のデータの変換。▶ の記録・習慣のチェックには使わない） */
+/** 睡眠の印の無い記録のうち、タイトルかラベルが「睡眠」のもの */
 export function looksLikeSleep(t: Task): boolean {
   if (t.kind !== 'log') return false
   return SLEEP_WORDS.has(norm(t.title)) || (Boolean(t.category ?? t.tags[0]) && SLEEP_WORDS.has(norm((t.category ?? t.tags[0])!)))
+}
+
+/**
+ * 作った記録の題名かラベルが「睡眠」なら睡眠にする（#651）。後から記録・▶ の記録・予定や To-Do を記録にしたものに使う。
+ * 睡眠の入力を使わずに「sleep」の予定・▶ で付けている人の記録も、睡眠の行・睡眠のページに入るように。
+ * 習慣のチェックでできた記録はそのまま（習慣の達成を記録で数えているため。習慣から睡眠に移すのは #653）
+ */
+export function asSleepIfNamed(t: Task): Task {
+  return !t.habitId && looksLikeSleep(t) ? { ...t, kind: 'sleep' } : t
 }
 
 /** 起きた日（睡眠の終わりの日） */

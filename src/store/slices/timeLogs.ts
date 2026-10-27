@@ -3,7 +3,7 @@ import i18n from '../../i18n/config'
 import { logLabelFromTask } from '../../lib/logCategoryColors'
 import { timerRecordTimes } from '../../lib/timerRecord'
 import { taskPlacementDate } from '../../lib/taskTimeRange'
-import { looksLikeSleep, overlappingSleep, sleepSpan } from '../../lib/sleep'
+import { asSleepIfNamed, overlappingSleep, sleepSpan } from '../../lib/sleep'
 import { sleepFromTimer, type SleepTimer } from '../../lib/sleepTimer'
 import { zonedNow } from '../../lib/timeZone'
 import { INBOX_ID } from '../storeConstants'
@@ -47,18 +47,20 @@ export function timerLogTask(timer: ActiveTimer, endedAt: string, tasks: readonl
   const times = timerRecordTimes(timer.startedAt, endedAt)
   if (!times) return null
   const maxOrder = Math.max(0, ...tasks.map((t) => t.order))
-  return makeTask(
-    {
-      title: timer.taskTitle,
-      listId: INBOX_ID,
-      ...times,
-      kind: 'log',
-      completed: true,
-      tags: timer.tags,
-      color: timer.color ?? null,
-      sourceTaskId: timer.taskId ?? null,
-    },
-    maxOrder + 1,
+  return asSleepIfNamed(
+    makeTask(
+      {
+        title: timer.taskTitle,
+        listId: INBOX_ID,
+        ...times,
+        kind: 'log',
+        completed: true,
+        tags: timer.tags,
+        color: timer.color ?? null,
+        sourceTaskId: timer.taskId ?? null,
+      },
+      maxOrder + 1,
+    ),
   )
 }
 
@@ -73,7 +75,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       pushUndo()
       set((s) => completedRecordPatch(s, { title, dueDate, startTime, endTime, color }, logColorNames()))
     },
-    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color, sourceTaskId, sleepByName) => {
+    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color, sourceTaskId) => {
       const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
       const endDate = endDateArg !== undefined && endDateArg !== null && endDateArg !== date ? endDateArg : null
       const made = makeTask(
@@ -92,8 +94,8 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         },
         maxOrder + 1,
       )
-      // 後から記録で題名かラベルを「睡眠」にしたものは睡眠（#519）。▶ の記録・習慣のチェックでは題名で睡眠にしない
-      const log: Task = sleepByName && looksLikeSleep(made) ? { ...made, kind: 'sleep' } : made
+      // 題名かラベルが「睡眠」なら睡眠（#519・#651）
+      const log: Task = asSleepIfNamed(made)
       if (description !== undefined) {
         log.description = description
       }
@@ -286,22 +288,25 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       const { dueDate, endDate, startTime, endTime } = times
       const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
       const linked = timer.taskId ? get().tasks.find((t) => t.id === timer.taskId) : null
-      const log = makeTask(
-        {
-          title: timer.taskTitle,
-          listId: INBOX_ID,
-          dueDate,
-          endDate,
-          startTime,
-          endTime,
-          kind: 'log',
-          completed: true,
-          tags: timer.tags,
-          color: timer.color ?? null,
-          // 元の To-Do・予定を覚える（止めたあとに題名を直しても、計画どおりかの突き合わせで元の予定と組にする）
-          sourceTaskId: timer.taskId ?? null,
-        },
-        maxOrder + 1,
+      // 題名かラベルが「睡眠」なら睡眠（#651）
+      const log = asSleepIfNamed(
+        makeTask(
+          {
+            title: timer.taskTitle,
+            listId: INBOX_ID,
+            dueDate,
+            endDate,
+            startTime,
+            endTime,
+            kind: 'log',
+            completed: true,
+            tags: timer.tags,
+            color: timer.color ?? null,
+            // 元の To-Do・予定を覚える（止めたあとに題名を直しても、計画どおりかの突き合わせで元の予定と組にする）
+            sourceTaskId: timer.taskId ?? null,
+          },
+          maxOrder + 1,
+        ),
       )
       // 予定（完了の無いもの）から始めた記録は、止めても完了を聞かない
       const completePromptTaskId = linked && !linked.completed && isTodoTask(linked) ? linked.id : null
