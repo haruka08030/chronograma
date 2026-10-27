@@ -74,7 +74,7 @@ export function fieldHash(value: unknown): string {
 const NOT_MERGED = new Set(['id', 'updatedAt'])
 
 /**
- * 値のある行だけが持つ項目（毎週の予定の印・移した予定の控え・習慣の曜日ごとの時間と時間の目標と前の日の設定と種類とゴミ箱に入れた時刻・いつかの夢の段・ラベルの id）。前回同期のときにどの行も持っていなければ
+ * 値のある行だけが持つ項目（毎週の予定の印・移した予定の控え・習慣の曜日ごとの時間と時間の目標と前の日の設定と種類とゴミ箱に入れた時刻とやめた日・いつかの夢の段・ラベルの id）。前回同期のときにどの行も持っていなければ
  * 控えの並びに無いが、そのときの値は「無い」と分かっているので、無い値として比べる（新しいほうに任せると、手元で足した控えが消えていた）
  */
 const ABSENT_WHEN_EMPTY = new Set([
@@ -88,6 +88,7 @@ const ABSENT_WHEN_EMPTY = new Set([
   'dreamId',
   'labelId',
   'deletedAt',
+  'endedOn',
 ])
 
 function fieldsBaseline<T extends object>(rows: readonly T[]): { order: string[]; rows: Record<string, string> } {

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { useTaskStore, selectLiveHabits } from '../store/taskStore'
+import { useTaskStore } from '../store/taskStore'
+import { isHabitDeleted } from '../types/habit'
 import { buildHabitRecordIndex, habitDayStatus } from '../lib/habitTiming'
 import { appToday } from '../lib/timeZone'
 import { habitSlotId, isPlacedPointHabitOn } from '../lib/habitSlots'
@@ -37,12 +38,14 @@ export function HabitContextMenu({
   onTimeline?: boolean
 }) {
   const { t } = useTranslation()
-  const habit = useTaskStore((s) => selectLiveHabits(s).find((h) => h.id === habitId) ?? null)
+  // ゴミ箱の習慣もやめた日より前の枠には出る（戻すだけ）
+  const habit = useTaskStore((s) => s.habits.find((h) => h.id === habitId) ?? null)
   const tasks = useTaskStore((s) => s.tasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const archiveHabit = useTaskStore((s) => s.archiveHabit)
   const restoreHabit = useTaskStore((s) => s.restoreHabit)
   const deleteHabit = useTaskStore((s) => s.deleteHabit)
+  const restoreDeletedHabits = useTaskStore((s) => s.restoreDeletedHabits)
   const restEntry = useHabitRestEntry(habit, dateKey ?? toDateKey(appToday()))
   if (!habit || !restEntry) return null
   const remove: ActionEntry = {
@@ -55,7 +58,17 @@ export function HabitContextMenu({
     run: () => deleteHabit(habit.id),
   }
   let entries: ActionEntry[]
-  if (habit.archivedAt) {
+  if (isHabitDeleted(habit)) {
+    entries = [
+      {
+        kind: 'leaf',
+        id: 'restore',
+        label: t('habits.restore'),
+        icon: <RestoreIcon className={ICON} />,
+        run: () => restoreDeletedHabits([habit.id]),
+      },
+    ]
+  } else if (habit.archivedAt) {
     entries = [
       {
         kind: 'leaf',

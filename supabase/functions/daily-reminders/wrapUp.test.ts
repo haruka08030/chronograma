@@ -92,8 +92,18 @@ describe('wrapUpDigest', () => {
     expect(wrapUpDigest([{ ...trashed, deleted_at: null }], [habit], DAY, past)).toMatchObject({ planned: 1, followed: 1 })
   })
 
-  it('ゴミ箱の習慣は数えず、習慣の行の読めない値は既定にする', () => {
-    expect(habitFromRow({ id: 'h', deleted_at: '2026-10-01T00:00:00Z' })).toBeNull()
+  it('アーカイブ・ゴミ箱の習慣はやめた日より前だけ数える（やめた日の無い古い行はどの日も数えない）', () => {
+    const row = { id: 'h', time_mode: 'fixed', start_time: '07:00', end_time: '07:30', frequency: { type: 'daily' } }
+    const past = { date: '2026-10-20', minutes: 0 }
+    const planned = (r: object) => wrapUpDigest([], [{ ...row, ...r }], DAY, past).planned
+    expect(planned({})).toBe(1)
+    expect(planned({ deleted_at: '2026-10-12T00:00:00Z', ended_on: '2026-10-12' })).toBe(1)
+    expect(planned({ archived_at: '2026-10-10T00:00:00Z', ended_on: DAY })).toBe(0)
+    expect(planned({ archived_at: '2026-10-10T00:00:00Z' })).toBe(0)
+    expect(planned({ ended_on: '2026-10-01' })).toBe(1)
+  })
+
+  it('習慣の行の読めない値は既定にする', () => {
     expect(
       habitFromRow({ id: 'h', frequency: { type: 'weird' }, completed_dates: 'x', time_mode: null, start_time: '07:00' }),
     ).toMatchObject({

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
-import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
+import { useTaskStore, selectHabitsByDay } from '../../store/taskStore'
 import type { HabitRecordIndex } from '../../lib/habitTiming'
 import { isPlacedPointHabitOn, pointHabitsOn, untimedHabitsOn } from '../../lib/habitSlots'
 import { colorVars } from '../../lib/logCategoryColors'
@@ -68,7 +68,7 @@ export function WeekHabitRow({
   keepEmpty: boolean
 }) {
   const { t, i18n } = useTranslation()
-  const habits = useTaskStore(selectLiveHabits)
+  const habits = useTaskStore(selectHabitsByDay)
   const toggle = useHabitToggle()
   const named = gridDays.length === 1
   const [popover, setPopover] = useState<Popover | null>(null)

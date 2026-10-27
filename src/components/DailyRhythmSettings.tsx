@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore, selectLiveHabits } from '../store/taskStore'
+import { useTaskStore, selectHabitsByDay } from '../store/taskStore'
 import { requestPermission } from '../lib/notifications'
 import { subscribeWebPushStatus, webPushStatus } from '../lib/webPush'
 import { isIosBrowserNotInstalled } from '../lib/onboardingNudge'
@@ -31,7 +31,7 @@ export function DailyRhythmSettings() {
   const dailyCapacityMinutes = useTaskStore((s) => s.dailyCapacityMinutes)
   const setDailyCapacityMinutes = useTaskStore((s) => s.setDailyCapacityMinutes)
   const tasks = useTaskStore((s) => s.tasks)
-  const habits = useTaskStore(selectLiveHabits)
+  const habits = useTaskStore(selectHabitsByDay)
   const lists = useTaskStore((s) => s.lists)
   const todayKey = useAppTodayKey()
   // 目安を決める材料に、直近 2 週（昨日まで）の記録のある日の平均（#275）。記録が無ければ出さない

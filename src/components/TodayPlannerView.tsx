@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
-import { useTaskStore, selectLiveHabits } from '../store/taskStore'
+import { useTaskStore, selectHabitsByDay } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { isRoutine } from '../types/habit'
 import { getDayLeftBehind, getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
@@ -64,7 +64,7 @@ const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
 export function TodayPlannerView() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
-  const habits = useTaskStore(selectLiveHabits)
+  const habits = useTaskStore(selectHabitsByDay)
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deferredComplete = useDeferredComplete(toggleTask)

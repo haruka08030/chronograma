@@ -15,6 +15,7 @@ import { startNativeTaskDragGhost } from '../../lib/nativeTaskDragGhost'
 import { CheckIcon, PlayIcon } from '../icons'
 import { RowActionButton } from '../ui/RowActionButton'
 import { requestHabitDetail } from '../../lib/habitEditRequest'
+import { isHabitDeleted } from '../../types/habit'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { ROW_PRESS_CLASS } from '../ui/rowStateClass'
 import { META_TONE_CLASS } from './plannerRowMeta'
@@ -113,6 +114,8 @@ function HabitRow({
   const date = fromDateKey(dateKey)
   const weekly = day.frequency.type === 'timesPerWeek'
   const open = status === 'missed' && !weekMet
+  const stopped = !!h.archivedAt || isHabitDeleted(h)
+  const nameTone = status !== 'missed' || weekMet ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
   const canTime = viewingToday && open && activeTimer?.taskTitle !== h.title
   // 右の文字: 時間外・目標の進みのどちらか → 今週の回数（週に◯回）か時刻
   const meta = [
@@ -171,16 +174,18 @@ function HabitRow({
           {status !== 'missed' && <CheckIcon className={`h-3 w-3 ${pending ? 'animate-check-in' : ''}`} strokeWidth={2.75} />}
         </span>
       </button>
-      {/* 名前を押すと習慣の詳細（To-Do の行と同じく、行を押すと詳細。画面は移らない） */}
-      <button
-        type="button"
-        onClick={() => requestHabitDetail(h.id)}
-        className={`min-w-0 flex-1 truncate py-2.5 text-left text-[15px] outline-none focus-visible:underline ${
-          status !== 'missed' || weekMet ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
-        }`}
-      >
-        {h.title}
-      </button>
+      {/* 名前を押すと習慣の詳細（To-Do の行と同じく、行を押すと詳細。画面は移らない）。やめた習慣（前の日の行）は名前だけ */}
+      {stopped ? (
+        <span className={`min-w-0 flex-1 truncate py-2.5 text-[15px] ${nameTone}`}>{h.title}</span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => requestHabitDetail(h.id)}
+          className={`min-w-0 flex-1 truncate py-2.5 text-left text-[15px] outline-none focus-visible:underline ${nameTone}`}
+        >
+          {h.title}
+        </button>
+      )}
       {meta.map((m) => (
         <span key={m} className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS.muted}`}>
           {m}

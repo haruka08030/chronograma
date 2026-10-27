@@ -1,6 +1,6 @@
 import { memo, useEffect, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
+import { useTaskStore, selectHabitsByDay } from '../../store/taskStore'
 import { formatDuration, HOUR_HEIGHT, HOURS, timeToMinutes, yToTime } from '../../lib/timeGrid'
 import type { BlockStop, CreateIntent, CreatePopup, CreateStop, DragPreview, useTimelineDrag } from '../../lib/useTimelineDrag'
 import type { DropPreview, useTimelineDrop } from '../../lib/useTimelineDrop'
@@ -141,7 +141,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   /** 予定を `t` で回す箇所でも使えるように */
   const tr = t
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
-  const habits = useTaskStore(selectLiveHabits)
+  const habits = useTaskStore(selectHabitsByDay)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)

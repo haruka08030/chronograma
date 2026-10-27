@@ -1,5 +1,5 @@
 import { isLogTask, isSleepTask, type Task } from '../types/task'
-import { isHabitActive, isRoutine, type Habit } from '../types/habit'
+import { isRoutine, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
 import { buildHabitRecordIndex, habitDayStatus, type HabitRecordIndex } from './habitTiming'
@@ -164,7 +164,7 @@ export function getReview(
 
   const habitWeeks = period === 'month' ? monthHabitWeekStarts(anchor) : [reviewPeriodStart('week', anchor)]
   for (const h of habits) {
-    if (!isHabitActive(h) || isRoutine(h)) continue
+    if (isRoutine(h)) continue
     for (const week of habitWeeks) {
       if (toDateKey(week) > todayKey) break
       if (habitAsOfWeek(h, week).frequency.type !== 'timesPerWeek') continue

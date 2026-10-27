@@ -53,6 +53,7 @@
 | [`047_habit_past_rules.sql`](047_habit_past_rules.sql) | 習慣の前の日の設定 `habits.past_rules`（`until` より前の日の頻度・時間・時間の目標、`off` は作る前で予定の日にしない。古い順の並び）。null は無し。作った日・設定を変えた日より前の日の結果を変えないため。形と大きさの上限 `habits_past_rules_check` |
 | [`048_habit_kind.sql`](048_habit_kind.sql) | 習慣の種類 `habits.kind`（`habit` は習慣、`routine` はルーティン＝毎日の予定のプリセットで達成を数えない）。既定は `habit`。`habits_kind_check` |
 | [`049_user_my_event_times.sql`](049_user_my_event_times.sql) | Google の予定の自分の時間 `user_my_event_times`（利用者ごとに 1 行。`times` は予定の ID ごとの自分の時間と開催時間の控えの並び。開催時間に戻したものは `removed` の印だけ残す、512KB まで `user_my_event_times_size_check`、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
+| [`050_habit_ended_on.sql`](050_habit_ended_on.sql) | 習慣をやめた日 `habits.ended_on`（date。アーカイブ・ゴミ箱へ入れた日で、この日から先は予定の日にしない。どちらでもなければ null）。前からアーカイブ・ゴミ箱にある行は、入れた時刻を通知の端末のタイムゾーン（無ければ UTC）の日付にして入れる |
 
 テーブル（最新の形）:
 

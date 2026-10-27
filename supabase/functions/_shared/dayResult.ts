@@ -185,7 +185,19 @@ export function matchPlanAndActual<P extends PlanSlot, A extends LogSlot>(
 /** 習慣の枠に使う項目（アプリの `Habit` と同じ名前） */
 export interface SlotHabit extends TimingHabit {
   archivedAt?: string | null
+  deletedAt?: string | null
+  /** アーカイブ・ゴミ箱へ入れた日（yyyy-MM-dd）。この日から先は予定の日にしない */
+  endedOn?: string | null
   restDates?: readonly string[]
+}
+
+/**
+ * やめた（アーカイブ・ゴミ箱へ入れた）習慣で、その日がやめた日以降か。前の日はそのときの習慣のまま。
+ * やめた日の無い古いデータはどの日もやめたことにする。戻した習慣（どちらでもない）はやめた日を見ない
+ */
+export function isHabitEndedOn(h: Pick<SlotHabit, 'archivedAt' | 'deletedAt' | 'endedOn'>, dateKey: string): boolean {
+  if (!h.archivedAt && !h.deletedAt) return false
+  return !h.endedOn || dateKey >= h.endedOn
 }
 
 const HABIT_SLOT_PREFIX = 'habit-slot::'
@@ -204,11 +216,11 @@ export function parseHabitSlotId(id: string): { habitId: string; dateKey: string
 }
 
 /**
- * その日にやる習慣か。アーカイブした習慣はどの日にも入らない。休みの日（`restDates`）はどの頻度でも入らない。
+ * その日にやる習慣か。アーカイブ・ゴミ箱へ入れた習慣はその日から先は入らない（`isHabitEndedOn`）。休みの日（`restDates`）はどの頻度でも入らない。
  * 週に◯回の習慣はどの日にやってもよいので、毎日入る。作る前の日は入らず、設定を変える前の日はその日の設定で見る（`habitAsOf`）
  */
 export function isHabitScheduledOn(h: SlotHabit, dateKey: string): boolean {
-  if (h.archivedAt) return false
+  if (isHabitEndedOn(h, dateKey)) return false
   if (h.restDates?.includes(dateKey)) return false
   if (habitPastRuleOn(h, dateKey)?.off) return false
   const habit = habitAsOf(h, dateKey)

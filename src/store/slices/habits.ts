@@ -210,7 +210,8 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       if (!habit || isHabitDeleted(habit)) return
       pushUndo({ key: 'undo.habitDeleted', params: { name: habit.title } })
       const now = new Date().toISOString()
-      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, deletedAt: now, updatedAt: now } : h)) }))
+      const endedOn = habit.endedOn ?? appTodayKey()
+      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, deletedAt: now, endedOn, updatedAt: now } : h)) }))
     },
     restoreDeletedHabits: (ids) => {
       const want = new Set(ids)
@@ -225,6 +226,7 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
           // 戻したら項目ごと外す（同期で「変わった」と見ない形にそろえる）
           const restored: Habit = { ...h, updatedAt: now }
           delete restored.deletedAt
+          if (!restored.archivedAt) delete restored.endedOn
           return restored
         }),
       }))
@@ -240,13 +242,22 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       if (!habit || habit.archivedAt) return
       pushUndo({ key: 'undo.habitArchived', params: { name: habit.title } })
       const now = new Date().toISOString()
-      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, archivedAt: now, updatedAt: now } : h)) }))
+      // その日から先だけ外す（前の日の予定・達成率は残す）
+      const endedOn = habit.endedOn ?? appTodayKey()
+      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, archivedAt: now, endedOn, updatedAt: now } : h)) }))
     },
     restoreHabit: (id) => {
       if (!get().habits.find((h) => h.id === id)?.archivedAt) return
       pushUndo()
       const now = new Date().toISOString()
-      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, archivedAt: null, updatedAt: now } : h)) }))
+      set((s) => ({
+        habits: s.habits.map((h) => {
+          if (h.id !== id) return h
+          const restored: Habit = { ...h, archivedAt: null, updatedAt: now }
+          if (!restored.deletedAt) delete restored.endedOn
+          return restored
+        }),
+      }))
     },
     toggleHabitDate: (habitId, dateKey) => {
       const s0 = get()

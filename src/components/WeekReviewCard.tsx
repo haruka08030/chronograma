@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { differenceInCalendarDays, format } from 'date-fns'
 import { useAbsentOn } from '../hooks/useAbsentOn'
-import { useTaskStore, selectLiveHabits } from '../store/taskStore'
+import { useTaskStore, selectHabitsByDay } from '../store/taskStore'
 import {
   compareReviews,
   dayTooltipText,
@@ -90,7 +90,7 @@ function loggedDiffText(diff: number, period: ReviewPeriod, current: boolean, t:
 export function WeekReviewCard() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
-  const habits = useTaskStore(selectLiveHabits)
+  const habits = useTaskStore(selectHabitsByDay)
   const setPlannerDateKey = useTaskStore((s) => s.setPlannerDateKey)
   const selectView = useTaskStore((s) => s.selectView)
   const [period, setPeriod] = useState<ReviewPeriod>('week')

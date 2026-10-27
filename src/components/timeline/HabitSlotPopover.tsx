@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
+import { useTaskStore } from '../../store/taskStore'
 import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from './anchoredCard'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
@@ -9,7 +9,7 @@ import { useNow } from '../../hooks/useAppClock'
 import { anchoredCardClass } from '../ui/surface'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { ArrowUpIcon, CloseIcon, PauseIcon, PencilIcon } from '../icons'
-import { isHabitRestOn } from '../../types/habit'
+import { isHabitDeleted, isHabitRestOn } from '../../types/habit'
 import { shortcutTip, tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
@@ -43,7 +43,9 @@ export function HabitSlotPopover({
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
-  const habit = useTaskStore((s) => selectLiveHabits(s).find((h) => h.id === habitId) ?? null)
+  // アーカイブ・ゴミ箱の習慣もやめた日より前の枠には出る（その日の結果だけ。編集・休むは出さない）
+  const habit = useTaskStore((s) => s.habits.find((h) => h.id === habitId) ?? null)
+  const stopped = !!habit && (!!habit.archivedAt || isHabitDeleted(habit))
   const tasks = useTaskStore((s) => s.tasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const setHabitRest = useTaskStore((s) => s.setHabitRest)
@@ -52,6 +54,7 @@ export function HabitSlotPopover({
   const exitRef = useExitGhost(ref)
   const layer = useDismiss({ open: true, onClose, inside: [ref], swallow: isAnchoredSheet })
   const edit = () => {
+    if (stopped) return
     onClose()
     requestHabitEdit(habitId, dateKey)
   }
@@ -84,17 +87,19 @@ export function HabitSlotPopover({
   return (
     <div ref={exitRef} role="dialog" aria-label={habit.title} tabIndex={-1} className={anchoredCardClass(sheet)} style={style}>
       <div className="flex justify-end gap-0.5 px-2 pt-2">
-        <button
-          type="button"
-          onClick={edit}
-          className={iconButtonClass()}
-          aria-label={t('eventCard.edit')}
-          {...tip(t('eventCard.edit'), 'e')}
-        >
-          <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
-        </button>
+        {!stopped && (
+          <button
+            type="button"
+            onClick={edit}
+            className={iconButtonClass()}
+            aria-label={t('eventCard.edit')}
+            {...tip(t('eventCard.edit'), 'e')}
+          >
+            <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        )}
         {/* 右クリックのメニューと同じ操作をアイコンで（その日を休む・習慣の段に戻す、#616） */}
-        {!isHabitRestOn(habit, dateKey) && (
+        {!stopped && !isHabitRestOn(habit, dateKey) && (
           <button
             type="button"
             onClick={() => {

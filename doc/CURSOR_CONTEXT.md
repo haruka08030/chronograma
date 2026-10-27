@@ -93,7 +93,7 @@
 | `persistKeys.ts` | 値ごとの保存先（`DATA_KEYS` 本体・`VIEW_KEYS` は `chronograma-view-v1`・`TRANSIENT_KEYS` は保存しない） |
 | `storedSettings.ts`・`viewState.ts` | 本体の設定の読み方・画面の好みの読み方 |
 | `migrate.ts`・`recoverLocal.ts` | 保存データの版の移行・localStorage で動いた回の取り込み |
-| `taskHelpers.ts`・`taskRecurrence.ts`・`habitRecord.ts`・`liveHabits.ts`・`schoolOfState.ts` | 純粋な関数（繰り返しの次回・習慣の達成と記録化・ゴミ箱に無い習慣 `selectLiveHabits`・今の学校） |
+| `taskHelpers.ts`・`taskRecurrence.ts`・`habitRecord.ts`・`liveHabits.ts`・`schoolOfState.ts` | 純粋な関数（繰り返しの次回・習慣の達成と記録化・ゴミ箱に無い習慣 `selectLiveHabits`・日ごとに出す習慣（ゴミ箱も）`selectHabitsByDay`・今の学校） |
 
 ### `src/lib/`（主なまとまり）
 
@@ -207,8 +207,8 @@
 
 ### `habits` の列
 
-- `archived_at`（`003`）・`time_overrides`（`018`、日ごとの時間。`Habit.timeOverrides`、`lib/habitTiming.ts` の `habitTimesOn`）・`rest_dates`（`031`、休みの日。`isHabitScheduledOnDate`、同期は `mergeHabitRestDates`・控えは `SyncBaseline.habitRestDates`）・`weekday_times`（`031`、`habitUsualTimesOn`）・`goal_minutes`（`031`、`habitMinutesOn`）・`deleted_at`（`042`、ゴミ箱）・`past_rules`（`047`、前の日の設定。`habitAsOf`・`lib/habitPastRules.ts`）・`kind`（`048`、`habit` / `routine`）
-- `deleted_at`・`past_rules`・`kind` は `ABSENT_WHEN_EMPTY`。端末は時間指定を `Habit.timeMode`（`none` / `fixed` / `range`）で持つ
+- `archived_at`（`003`）・`time_overrides`（`018`、日ごとの時間。`Habit.timeOverrides`、`lib/habitTiming.ts` の `habitTimesOn`）・`rest_dates`（`031`、休みの日。`isHabitScheduledOnDate`、同期は `mergeHabitRestDates`・控えは `SyncBaseline.habitRestDates`）・`weekday_times`（`031`、`habitUsualTimesOn`）・`goal_minutes`（`031`、`habitMinutesOn`）・`deleted_at`（`042`、ゴミ箱）・`past_rules`（`047`、前の日の設定。`habitAsOf`・`lib/habitPastRules.ts`）・`kind`（`048`、`habit` / `routine`）・`ended_on`（`050`、やめた日。`isHabitEndedOn`）
+- `deleted_at`・`past_rules`・`kind`・`ended_on` は `ABSENT_WHEN_EMPTY`。端末は時間指定を `Habit.timeMode`（`none` / `fixed` / `range`）で持つ
 
 ### 設定の表
 
