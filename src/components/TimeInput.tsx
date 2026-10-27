@@ -327,9 +327,14 @@ export function TimeInput({
         onChange={(e) => {
           const nextDraft = e.target.value
           setDraft(nextDraft)
-          if (!open) return
           const typed = normalizeTime(nextDraft) ?? ''
           const idx = options.findIndex((o) => o.time === typed)
+          // 候補から選んで閉じた後もフォーカスは欄に残る。閉じている間は value を見せるので、打ったら開き直して打った文字を見せる
+          if (!open) {
+            setHighlightIndex(idx >= 0 ? idx : initialHighlightIndex(nextDraft))
+            openList()
+            return
+          }
           if (idx >= 0) setHighlightIndex(idx)
         }}
         onFocus={handleFocus}
