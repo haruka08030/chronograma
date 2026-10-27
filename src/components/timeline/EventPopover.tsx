@@ -125,7 +125,7 @@ function EventPopoverBody({
   const list = lists.find((l) => l.id === task.listId)
   // カレンダーの予定と同じ色（タスク自身の色 → リストの色）
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
-  const { dateKey, canLogAsPlanned, ended: planEnded } = planTiming(task)
+  const { dateKey, canLogAsPlanned } = planTiming(task)
   const dateText = dateKey ? df.monthDayWeekdayLong(dateKey) : ''
   // メモがリンクだけ（Canvas・Notion の取り込み）なら URL の文字は出さず、上の列の「開く」ボタンにする
   const sourceLink = sourceLinkOf(task.description)
@@ -255,8 +255,9 @@ function EventPopoverBody({
                       },
                     }
               }
+              // 終わった予定も、やり忘れて今からやるときのために出す
               onStart={
-                !task.completed && !planEnded
+                !task.completed
                   ? () => {
                       if (startTimerForTask(task.id)) onClose()
                     }

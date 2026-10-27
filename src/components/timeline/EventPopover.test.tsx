@@ -126,3 +126,30 @@ describe('予定のメニュー: Google に送るかは右クリックで選ば�
     expect(view.queryByRole('menuitem', { name: /Google/ })).toBeNull()
   })
 })
+
+describe('EventPopover: ▶ 記録を開始（#648）', () => {
+  function open(completed: boolean) {
+    useTaskStore.setState({
+      activeTimer: null,
+      tasks: [
+        {
+          ...makeTask({ title: '英語', listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime: '10:00', endTime: '11:00' }, 0),
+          id: 'past',
+          completed,
+        },
+      ],
+    })
+    return render(<EventPopover taskId="past" anchor={anchor} onClose={() => {}} onOpenDetail={() => {}} />)
+  }
+
+  it('時間の過ぎた予定も ▶ で今から記録を始める', () => {
+    const card = open(false)
+    fireEvent.click(card.getByRole('button', { name: 'Start logging' }))
+    expect(useTaskStore.getState().activeTimer?.taskId).toBe('past')
+  })
+
+  it('完了した To-Do には出さない', () => {
+    const card = open(true)
+    expect(card.queryByRole('button', { name: 'Start logging' })).toBeNull()
+  })
+})

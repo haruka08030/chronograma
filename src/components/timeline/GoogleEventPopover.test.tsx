@@ -39,9 +39,9 @@ describe('GoogleEventPopover', () => {
 })
 
 describe('GoogleEventPopover: 記録にする・▶', () => {
-  it('終わった予定は「記録にする」だけ。押すと記録の画面を頼んでカードを閉じる', () => {
+  it('終わった予定は「記録にする」と、今から始める ▶。記録にするを押すと記録の画面を頼んでカードを閉じる', () => {
     showEvent()
-    expect(screen.queryByRole('button', { name: 'Start logging' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Start logging' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Log it' }))
     expect(useTaskStore.getState().recordPromptTaskId).toBe('event-g1')
   })

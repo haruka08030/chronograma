@@ -128,7 +128,6 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const smallField = fieldClass({ size: 'sm' })
   const nowMs = now.getTime()
   const started = new Date(event.start).getTime() <= nowMs
-  const ended = new Date(event.end).getTime() <= nowMs
   const recordEvent = () => {
     openRecordPrompt(googleRecordPromptId(event.id))
     onClose()
@@ -310,11 +309,11 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
               </button>
             </p>
           )}
-          {/* 操作は題名・時刻のすぐ下（アプリの予定のカードと同じ行）。始まった予定は記録にし、終わるまでは ▶ で記録を始められる */}
+          {/* 操作は題名・時刻のすぐ下（アプリの予定のカードと同じ行）。始まった予定は記録にし、▶ で今から記録を始められる（終わった予定も） */}
           {!skipped && (
             <CardActions
               record={started && !event.isAllDay ? { label: t('eventCard.toRecord'), onClick: recordEvent } : undefined}
-              onStart={ended ? undefined : startEvent}
+              onStart={startEvent}
               startDisabled={!!activeTimer && !activeTimer.taskId && activeTimer.taskTitle === event.summary}
             />
           )}

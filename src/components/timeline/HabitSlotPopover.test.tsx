@@ -51,3 +51,23 @@ describe('習慣の枠のカードの上のアイコン（#616）', () => {
     expect(screen.queryByRole('button', { name: 'Move back to Habits row' })).toBeNull()
   })
 })
+
+describe('習慣の枠のカードの ▶（#648）', () => {
+  const timed: Habit = { ...habit, timeMode: 'range', startTime: '07:00', endTime: '08:00' }
+
+  it('終わった枠も達成していなければ ▶ を出す', () => {
+    useTaskStore.setState({ habits: [timed] })
+    render(<HabitSlotPopover habitId="gym" dateKey="2026-10-20" anchor={anchor} onClose={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Start logging' })).toBeInTheDocument()
+  })
+
+  it('達成した枠・やめた習慣の前の日の枠には出さない', () => {
+    useTaskStore.setState({ habits: [{ ...timed, completedDates: ['2026-10-20'] }] })
+    const first = render(<HabitSlotPopover habitId="gym" dateKey="2026-10-20" anchor={anchor} onClose={() => {}} />)
+    expect(screen.queryByRole('button', { name: 'Start logging' })).toBeNull()
+    first.unmount()
+    useTaskStore.setState({ habits: [{ ...timed, archivedAt: '2026-10-25T00:00:00.000Z', endedOn: '2026-10-25' }] })
+    render(<HabitSlotPopover habitId="gym" dateKey="2026-10-20" anchor={anchor} onClose={() => {}} />)
+    expect(screen.queryByRole('button', { name: 'Start logging' })).toBeNull()
+  })
+})
