@@ -340,7 +340,10 @@ describe('WeekReviewCard: 使っていないものの数字は出さない', () 
     const today = toDateKey(zonedNow())
     useTaskStore.setState({
       habits: [habit],
-      tasks: [...useTaskStore.getState().tasks, task('plan', { scheduledDate: today, startTime: '00:00', endTime: '00:30' })],
+      tasks: [
+        ...useTaskStore.getState().tasks, // ✓ で終えた予定は終わる前でも数える（0 時台に流しても枠が出る）
+        task('plan', { scheduledDate: today, startTime: '00:00', endTime: '00:30', completed: true }),
+      ],
     })
     render(<WeekReviewCard />)
     expect(screen.getByText('Habits kept this week')).toBeInTheDocument()

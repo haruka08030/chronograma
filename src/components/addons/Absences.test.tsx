@@ -7,6 +7,8 @@ import { DEFAULT_ADDONS } from '../../lib/addons'
 import { emptyTerm } from '../../lib/schoolTerms'
 import { DEFAULT_TIMETABLE, suggestTerm } from '../../lib/timetable'
 import { appTodayKey } from '../../lib/timeZone'
+import { fromDateKey, toDateKey } from '../../lib/dateKey'
+import { addDays } from 'date-fns'
 import { TASK_DEFAULTS } from '../../lib/taskDefaults'
 import type { Task } from '../../types/task'
 import { AddonsView } from './AddonsView'
@@ -14,6 +16,12 @@ import { GoogleEventPopover } from '../timeline/GoogleEventPopover'
 
 const S = () => useTaskStore.getState()
 const term0 = () => S().addons.school!.terms[0]!
+
+/** 今日を含む学期の期間（2・3 月は `suggestTerm` の学期が今日を含まない） */
+function termAroundToday(today: string): { termStart: string; termEnd: string } {
+  const day = (n: number) => toDateKey(addDays(fromDateKey(today), n))
+  return { termStart: day(-30), termEnd: day(30) }
+}
 
 beforeEach(async () => {
   await i18n.changeLanguage('ja')
@@ -37,6 +45,10 @@ describe('追加機能「学校」の学期と授業（#503・#622）', () => {
     await user.click(screen.getByRole('button', { name: '学期を追加' }))
     await user.click(within(screen.getByRole('dialog', { name: '学期を追加' })).getByRole('button', { name: '保存' }))
     expect(S().addons.school?.terms).toMatchObject([suggestTerm(today)])
+    // 今日を欠席にできるよう、学期を今日を含む期間にする
+    useTaskStore.setState((st) => ({
+      addons: { ...st.addons, school: { ...st.addons.school!, terms: [{ ...term0(), ...termAroundToday(today) }] } },
+    }))
 
     await user.click(screen.getByRole('button', { name: '授業を追加' }))
     await user.type(screen.getByLabelText('授業の名前'), '統計学')
@@ -100,7 +112,7 @@ describe('追加機能「学校」の学期と授業（#503・#622）', () => {
   it('学期の間に課題のある Canvas・Moodle の科目は授業として並び、授業のページに未完了の課題が出る', async () => {
     const user = userEvent.setup()
     const today = appTodayKey()
-    const term = emptyTerm('t1', suggestTerm(today), '後期')
+    const term = emptyTerm('t1', termAroundToday(today), '後期')
     const lms = (id: string, title: string, extra: Partial<Task> = {}) =>
       ({
         ...TASK_DEFAULTS,
