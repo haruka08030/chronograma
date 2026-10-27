@@ -387,6 +387,8 @@ export interface TaskState {
   permanentlyDeleteHabits: (ids: string[]) => void
   /** 今日の計画・一覧・タイムライン・統計から外す（達成日は残す）。「元に戻す」付きのトースト */
   archiveHabit: (id: string) => void
+  /** 寝る時間の習慣を睡眠に移す（#653）: 習慣の時間を睡眠の予定に、その記録を睡眠に直し、習慣はアーカイブ。⌘Z で 1 回で戻す */
+  moveHabitToSleep: (id: string) => void
   /** アーカイブから戻す */
   restoreHabit: (id: string) => void
   /** 達成 ⇄ 未達成。時間を決めた習慣は、達成で予定どおりの時刻の記録を作り、外すとその記録をゴミ箱へ */

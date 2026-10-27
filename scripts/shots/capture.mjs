@@ -991,6 +991,29 @@ const SCREENS = [
     mobileClick: 'button:has-text("タイムライン") >> visible=true',
     state: { addons: { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null, sleepSchedule: SLEEP_SCHEDULE } },
   },
+  // 習慣「sleep」で寝る時間を置いていた人に、睡眠のページで睡眠に移すかを聞く（#653）
+  {
+    name: 'sleep-habit-move',
+    view: 'sleep',
+    state: {
+      habits: [
+        {
+          id: 'hs',
+          title: 'sleep',
+          color: '#3F51B5',
+          timeMode: 'range',
+          startTime: '00:00',
+          endTime: '08:00',
+          frequency: { type: 'daily' },
+          createdAt: '2026-09-01T00:00:00.000Z',
+          updatedAt: '2026-09-01T00:00:00.000Z',
+          completedDates: [],
+          archivedAt: null,
+        },
+      ],
+    },
+    scrollTo: 'h1',
+  },
   // 統計の睡眠は要約だけ（押すと睡眠のページ）
   { name: 'stats-sleep', view: 'stats', insightHistory: true, scrollTo: 'button[aria-label="睡眠のページを開く"]' },
   { name: 'settings', view: 'settings' },

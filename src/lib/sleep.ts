@@ -14,6 +14,9 @@ const norm = (s: string) => s.normalize('NFKC').trim().toLowerCase()
 /** 睡眠とみなす記録のタイトル・ラベル（後から記録・前の版のデータの変換） */
 const SLEEP_WORDS = new Set(['睡眠', 'すいみん', '就寝', '寝る', 'ねる', 'sleep', 'sleeping'])
 
+/** 名前が「睡眠」「sleep」など（習慣の題名にも使う） */
+export const isSleepName = (name: string) => SLEEP_WORDS.has(norm(name))
+
 /** 睡眠の印の無い記録のうち、タイトルかラベルが「睡眠」のもの */
 export function looksLikeSleep(t: Task): boolean {
   if (t.kind !== 'log') return false

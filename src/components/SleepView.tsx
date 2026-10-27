@@ -4,6 +4,7 @@ import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
 import { defaultSleepTimes, sleepMinutes, sleepNightOn, sleepPeriods, totalSleepMinutes, weekendGap, type SleepPeriod } from '../lib/sleep'
 import { SLEEP_GOAL_HOURS } from '../lib/sleepPrefs'
+import { planSleepMove, sleepHabits } from '../lib/sleepFromHabit'
 import { ISO_WEEKDAYS, type IsoWeekday, type SleepPlan, type SleepSchedule } from '../lib/sleepSchedule'
 import { tip } from '../lib/tooltip'
 import { CloseIcon } from './icons'
@@ -23,7 +24,7 @@ import { fieldClass } from './ui/fieldClass'
 import { buttonClass } from './ui/buttonClass'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
-import { META_TEXT } from './ui/textClass'
+import { HINT_TEXT, META_TEXT } from './ui/textClass'
 
 /** 睡眠の予定がまだ無いとき（毎回作り直すと購読が止まらない） */
 const NO_SCHEDULE: SleepSchedule = {}
@@ -47,6 +48,8 @@ export function SleepView() {
       <div className="mx-auto w-full max-w-3xl space-y-8 px-4 pt-4 pb-24 md:px-6 md:pt-8">
         <h1 className={PAGE_TITLE_CLASS}>{t('sidebar.views.sleep')}</h1>
         {/* ページの題名が「睡眠」なので、カードの見出しは出さない */}
+        {/* 習慣から移すかは、見てすぐ答えられるよう一番上 */}
+        <SleepHabitMoveCard />
         <SleepStatsCard showTitle={false} />
         <SleepScheduleCard />
         <SleepPeriodsCard />
@@ -235,6 +238,37 @@ function SleepNightsCard() {
         })}
       </ul>
       {shown < nights.length && <ShowMoreButton onClick={() => setShown((n) => n + NIGHTS_PAGE)} remaining={nights.length - shown} />}
+    </section>
+  )
+}
+
+/**
+ * 寝る時間を習慣で置いていた人に、睡眠に移すかを聞く（#653）。題名が「睡眠」「sleep」の、時間を決めた習慣があるときだけ。
+ * 何が変わるか（予定・記録の件数・アーカイブ）を書いたうえで「睡眠に移す」。⌘Z・トーストの「元に戻す」で 1 回で戻る
+ */
+function SleepHabitMoveCard() {
+  const { t } = useTranslation()
+  const habits = useTaskStore((s) => s.habits)
+  const tasks = useTaskStore((s) => s.tasks)
+  const moveHabitToSleep = useTaskStore((s) => s.moveHabitToSleep)
+  const todayKey = useAppTodayKey()
+  const habit = useMemo(() => sleepHabits(habits)[0] ?? null, [habits])
+  const move = useMemo(() => (habit ? planSleepMove(habit, tasks, todayKey) : null), [habit, tasks, todayKey])
+  if (!habit || !move) return null
+  return (
+    <section className="rounded-xl border border-sleep/40 bg-sleep/5 p-5 dark:bg-sleep/10">
+      <h2 className={CARD_TITLE_CLASS}>{t('sleepPage.moveTitle', { name: habit.title })}</h2>
+      <p className={`mt-1 ${HINT_TEXT}`}>
+        {move.convertIds.length > 0 ? t('sleepPage.moveBody', { count: move.convertIds.length }) : t('sleepPage.moveBodyNoLogs')}
+        {move.trashIds.length > 0 && <> {t('sleepPage.moveBodyTrash', { count: move.trashIds.length })}</>}
+      </p>
+      <button
+        type="button"
+        onClick={() => moveHabitToSleep(habit.id)}
+        className={`mt-3 ${buttonClass({ variant: 'primary', size: 'sm' })}`}
+      >
+        {t('sleepPage.moveDo')}
+      </button>
     </section>
   )
 }

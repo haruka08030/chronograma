@@ -10,6 +10,9 @@ import type { TaskState } from '../storeTypes'
 import { patchChanges } from '../../lib/sameValue'
 import { createdPastRules, pastRulesAfterEdit } from '../../lib/habitPastRules'
 import { appTodayKey, zonedNow } from '../../lib/timeZone'
+import { planSleepMove, withWakeDate } from '../../lib/sleepFromHabit'
+import type { Task } from '../../types/task'
+import { normalizeSleepSchedule } from '../../lib/sleepSchedule'
 import { minutesOfDay } from '../../lib/clockTime'
 import type { SliceContext } from './sliceTypes'
 
@@ -25,6 +28,7 @@ type HabitsActions = Pick<
   | 'restoreDeletedHabits'
   | 'permanentlyDeleteHabits'
   | 'archiveHabit'
+  | 'moveHabitToSleep'
   | 'restoreHabit'
   | 'toggleHabitDate'
   | 'completeHabitAsPlanned'
@@ -245,6 +249,28 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       // その日から先だけ外す（前の日の予定・達成率は残す）
       const endedOn = habit.endedOn ?? appTodayKey()
       set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, archivedAt: now, endedOn, updatedAt: now } : h)) }))
+    },
+    moveHabitToSleep: (id) => {
+      const s0 = get()
+      const habit = s0.habits.find((h) => h.id === id)
+      if (!habit || habit.archivedAt) return
+      const todayKey = appTodayKey()
+      const move = planSleepMove(habit, s0.tasks, todayKey)
+      const convert = new Set(move.convertIds)
+      const trash = new Set(move.trashIds)
+      // 1 回の ⌘Z で全部戻す（睡眠の予定・記録・習慣のアーカイブ）
+      pushUndo({ key: 'undo.habitMovedToSleep', params: { name: habit.title } })
+      const now = new Date().toISOString()
+      set((s) => ({
+        // 前から睡眠の予定のある曜日はそのまま（習慣の分は空いている曜日にだけ入れる）
+        addons: { ...s.addons, sleepSchedule: normalizeSleepSchedule({ ...move.schedule, ...(s.addons.sleepSchedule ?? {}) }) },
+        tasks: s.tasks.map((t) => {
+          if (convert.has(t.id)) return { ...withWakeDate(t), kind: 'sleep', habitId: null, updatedAt: now } as Task
+          if (trash.has(t.id)) return { ...t, deletedAt: now, updatedAt: now }
+          return t
+        }),
+        habits: s.habits.map((h) => (h.id === id ? { ...h, archivedAt: now, endedOn: h.endedOn ?? todayKey, updatedAt: now } : h)),
+      }))
     },
     restoreHabit: (id) => {
       if (!get().habits.find((h) => h.id === id)?.archivedAt) return
