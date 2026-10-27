@@ -10,14 +10,6 @@ export type SleepTimer = { startedAt: string }
 /** これより長く寝ているタイマーは、今を起きた時刻にせず、起きた時刻を聞く */
 export const SLEEP_TIMER_MAX_MS = 16 * 60 * 60_000
 
-/** 「寝る」を出す時間帯（夜 20 時〜朝 5 時）。昼に押して朝の睡眠を書き換えない */
-export const GO_TO_BED_FROM_MIN = 20 * 60
-export const GO_TO_BED_UNTIL_MIN = 5 * 60
-
-export function isBedtime(nowMin: number): boolean {
-  return nowMin >= GO_TO_BED_FROM_MIN || nowMin < GO_TO_BED_UNTIL_MIN
-}
-
 export function normalizeSleepTimer(raw: unknown): SleepTimer | null {
   const x = raw as Partial<SleepTimer> | null | undefined
   if (!x || typeof x.startedAt !== 'string') return null
@@ -41,7 +33,7 @@ export function sleepFromTimer(timer: SleepTimer, wokeAt: string): SleepFromTime
 /**
  * 睡眠のタイマーの同期。サーバーには利用者ごとに 1 行（`user_sleep_timer`）。止めたら行は消さずに started_at を null にする
  * （記録のタイマーの `user_active_timer` と同じ）。手元とサーバーの新しいほうに合わせる。両方で起きたと押しても、
- * 睡眠は起きた日ごとに 1 つ（`logSleep` が同じ日の睡眠を直す）なので 2 つにならない
+ * 重なる睡眠は `logSleep` が直すので 2 つにならない
  */
 export type LocalSleepTimer = { timer: SleepTimer | null; updatedAt: string | null; syncedAt?: string | null }
 export type RemoteSleepTimer = { timer: SleepTimer | null; updatedAt: string }

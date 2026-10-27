@@ -526,6 +526,9 @@ export default {
     cancelTimer: '寝たのを取り消す',
     timerCancelled: '寝たのを取り消しました',
     timerShort: '1 分未満だったので睡眠にしませんでした',
+    nap: '昼寝',
+    napPlus: '＋昼寝 {{time}}',
+    addNap: '昼寝を追加',
     timerStopped: '「{{title}}」の記録を保存して、寝るにしました',
   },
   quickLog: {

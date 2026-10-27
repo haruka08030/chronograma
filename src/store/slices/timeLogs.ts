@@ -3,7 +3,7 @@ import i18n from '../../i18n/config'
 import { logLabelFromTask } from '../../lib/logCategoryColors'
 import { timerRecordTimes } from '../../lib/timerRecord'
 import { taskPlacementDate } from '../../lib/taskTimeRange'
-import { looksLikeSleep, sleepEndingOn, sleepSpan } from '../../lib/sleep'
+import { looksLikeSleep, overlappingSleep, sleepSpan } from '../../lib/sleep'
 import { sleepFromTimer, type SleepTimer } from '../../lib/sleepTimer'
 import { zonedNow } from '../../lib/timeZone'
 import { INBOX_ID } from '../storeConstants'
@@ -101,10 +101,13 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       set((s) => ({ tasks: [...s.tasks, log] }))
       return log.id
     },
-    logSleep: (wakeDateKey, bedTime, wakeTime) => {
+    logSleep: (wakeDateKey, bedTime, wakeTime, id) => {
       if (bedTime === wakeTime) return
       const { dueDate, endDate } = sleepSpan(wakeDateKey, bedTime, wakeTime)
-      const existing = sleepEndingOn(get().tasks, wakeDateKey)
+      const tasks = get().tasks
+      const existing =
+        (id ? tasks.find((t) => t.id === id) : undefined) ??
+        overlappingSleep(tasks, { dueDate, endDate, startTime: bedTime, endTime: wakeTime })
       pushUndo()
       if (existing) {
         const now = new Date().toISOString()

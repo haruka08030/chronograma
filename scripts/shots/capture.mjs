@@ -135,6 +135,20 @@ const addClass = (cell, title) => [
   { click: '[role=dialog] button:has-text("保存")' },
 ]
 /** 足す To-Do で種データの To-Do から引き継がない値 */
+/** 今日の昼寝（11:00–12:30。種データの今日の睡眠 s10 と同じ日に起きた睡眠） */
+const TODAY_NAP = (state) => ({
+  id: 'nap-today',
+  title: '睡眠',
+  kind: 'sleep',
+  completed: true,
+  tags: ['睡眠'],
+  dueDate: state.tasks.find((x) => x.id === 's10').endDate,
+  endDate: null,
+  startTime: '11:00',
+  endTime: '12:30',
+  order: 200,
+})
+
 const BLANK_TASK = {
   description: '',
   completed: false,
@@ -202,7 +216,7 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`extraTasks` は種データに足す To-Do、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする、`lang` は表示の言語（既定は 'ja'）、`mobileWidth` はスマホ幅の横幅（既定 390）。手の `select` は <select> の選択肢を選ぶ */
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`extraTasks` は種データに足す To-Do（種データから作る関数でもよい）、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする、`lang` は表示の言語（既定は 'ja'）、`mobileWidth` はスマホ幅の横幅（既定 390）。手の `select` は <select> の選択肢を選ぶ */
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -239,6 +253,15 @@ const SCREENS = [
     at: '01:30',
     mobileClick: PLANNER_LIST_TAB,
     taskPatch: { s10: { dueDate: '2000-01-01', endDate: '2000-01-02' } },
+  },
+  // 昼寝（#645）: 夜の睡眠の右に「＋昼寝」、行を押すと夜の睡眠の欄の下に昼寝の欄と「昼寝を追加」
+  { name: 'sleep-nap', view: 'planner', mobileClick: PLANNER_LIST_TAB, extraTasks: [TODAY_NAP] },
+  {
+    name: 'sleep-nap-edit',
+    view: 'planner',
+    extraTasks: [TODAY_NAP],
+    click: 'button[aria-label^="睡眠の時刻を編集"] >> visible=true',
+    mobileClick: PLANNER_LIST_TAB,
   },
   { name: 'sleep-row-narrow', view: 'planner', at: '22:30', mobileOnly: true, mobileWidth: 320, mobileClick: PLANNER_LIST_TAB },
   { name: 'sleep-row-en', view: 'planner', at: '22:30', lang: 'en', mobileClick: 'button:has-text("To do") >> visible=true' },
@@ -929,6 +952,13 @@ const SCREENS = [
     insightHistory: true,
     click: 'section ul button[aria-expanded="false"]:not([aria-label$="の睡眠を入れる"]) >> nth=0',
   },
+  // 昼寝のある夜を押して開いた欄（夜の睡眠の欄の下に昼寝の欄と「昼寝を追加」、#645）
+  {
+    name: 'sleep-page-nap-edit',
+    view: 'sleep',
+    insightHistory: true,
+    click: 'section ul button[aria-label*="昼寝"] >> nth=0',
+  },
   {
     name: 'sleep-page-prefs',
     view: 'sleep',
@@ -1412,7 +1442,9 @@ async function main() {
             for (const x of seed.state.tasks) delete x.somedayTier
           }
           // Canvas・Moodle の課題など、種データに足す To-Do（無い項目は種データの最初の To-Do から）
-          for (const extra of screen.extraTasks ?? []) seed.state.tasks.push({ ...seed.state.tasks[0], ...BLANK_TASK, ...extra })
+          // 関数なら種データから作る（今日の日付を使うときなど）
+          for (const extra of screen.extraTasks ?? [])
+            seed.state.tasks.push({ ...seed.state.tasks[0], ...BLANK_TASK, ...(typeof extra === 'function' ? extra(seed.state) : extra) })
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedInstant.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedInstant.toISOString()

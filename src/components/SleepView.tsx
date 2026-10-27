@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { defaultSleepTimes, sleepEndingOn, sleepNightOn, sleepPeriods, weekendGap, type SleepPeriod } from '../lib/sleep'
+import { defaultSleepTimes, sleepNightOn, sleepPeriods, totalSleepMinutes, weekendGap, type SleepPeriod } from '../lib/sleep'
 import { SLEEP_GOAL_HOURS } from '../lib/sleepPrefs'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
@@ -11,7 +11,7 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { useRememberScroll } from '../hooks/useRememberScroll'
 import { SleepStatsCard } from './SleepStatsCard'
-import { SleepBar, SleepTimesField } from './SleepTimesField'
+import { NapPlus, SleepBar, SleepDayEditor } from './SleepTimesField'
 import { TimeInput } from './TimeInput'
 import { ShowMoreButton } from './ui/ShowMoreButton'
 import { SettingsRow } from './settings/SettingsPrimitives'
@@ -50,7 +50,7 @@ export function SleepView() {
   )
 }
 
-/** 週・月ごとの平均（睡眠時間・寝た・起きた・日数、目標があれば目標との差）と、平日と土日の差 */
+/** 週・月ごとの平均（睡眠時間と昼寝・寝た・起きた・日数、目標があれば昼寝も足した長さと目標との差）と、平日と土日の差 */
 function SleepPeriodsCard() {
   const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
@@ -88,15 +88,20 @@ function SleepPeriodsCard() {
           </td>
         ) : (
           <>
-            <td className="whitespace-nowrap py-2 pr-2 font-semibold text-zinc-900 dark:text-zinc-100">
-              {formatDuration(s.avgMinutes ?? 0)}
+            <td className="py-2 pr-2">
+              <span className="whitespace-nowrap font-semibold text-zinc-900 dark:text-zinc-100">{formatDuration(s.avgMinutes ?? 0)}</span>
+              <NapPlus minutes={s.avgNapMinutes ?? 0} className="ml-1.5 inline-block text-[11px]" />
             </td>
             <td className="py-2 pr-2 text-zinc-600 dark:text-zinc-300">{s.avgBed}</td>
             <td className="py-2 pr-2 text-zinc-600 dark:text-zinc-300">{s.avgWake}</td>
             <td className="whitespace-nowrap py-2 pr-2 text-zinc-400 dark:text-zinc-500">
               {t('sleepPage.nightsCount', { count: s.count })}
             </td>
-            {goal && <td className="whitespace-nowrap py-2 text-zinc-500 dark:text-zinc-400">{diff((s.avgMinutes ?? 0) - goal)}</td>}
+            {goal && (
+              <td className="whitespace-nowrap py-2 text-zinc-500 dark:text-zinc-400">
+                {diff((s.avgMinutes ?? 0) + (s.avgNapMinutes ?? 0) - goal)}
+              </td>
+            )}
           </>
         )}
       </tr>
@@ -130,7 +135,10 @@ function SleepPeriodsCard() {
   )
 }
 
-/** 夜ごとの一覧（新しい順）。押すとその夜の下で時刻を直せ、記録の無い夜は入れられる。目標があれば届かなかった夜に差を添える */
+/**
+ * 夜ごとの一覧（新しい順）。押すとその夜の下で時刻を直せ（昼寝も）、記録の無い夜は入れられる。
+ * 昼寝は長さの右に「＋昼寝 ◯」。目標があれば、昼寝も足して届かなかった夜に差を添える
+ */
 function SleepNightsCard() {
   const { t } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
@@ -159,7 +167,7 @@ function SleepNightsCard() {
       <h2 className={CARD_TITLE_CLASS}>{t('sleepPage.nightsTitle')}</h2>
       <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
         {nights.slice(0, shown).map(({ dateKey, night: n }) => {
-          const short = goal && n ? goal - n.minutes : 0
+          const short = goal && n ? goal - totalSleepMinutes(n) : 0
           const editing = editKey === dateKey
           return (
             <li key={dateKey}>
@@ -168,11 +176,13 @@ function SleepNightsCard() {
                 aria-expanded={editing}
                 aria-label={
                   n
-                    ? `${df.shortDateWeekday(dateKey)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}`
+                    ? `${df.shortDateWeekday(dateKey)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}${
+                        n.napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}` : ''
+                      }`
                     : t('sleepStats.fillAria', { day: df.shortDateWeekday(dateKey) })
                 }
                 onClick={() => setEditKey(editing ? null : dateKey)}
-                className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-md sm:gap-3 px-2 py-2 text-left text-xs tabular-nums hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+                className="-mx-2 flex w-[calc(100%+1rem)] flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md sm:gap-x-3 px-2 py-2 text-left text-xs tabular-nums hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
               >
                 <span
                   className={`w-16 shrink-0 whitespace-nowrap ${dateKey === todayKey ? TODAY_TEXT : n ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-300 dark:text-zinc-600'}`}
@@ -193,6 +203,7 @@ function SleepNightsCard() {
                       <span>{n.wake}</span>
                     </span>
                     <span className="whitespace-nowrap font-medium text-zinc-900 dark:text-zinc-100">{formatDuration(n.minutes)}</span>
+                    <NapPlus minutes={n.napMinutes} />
                     {short > 0 && (
                       <span className="ml-auto whitespace-nowrap text-zinc-400 dark:text-zinc-500">
                         {t('sleepPage.belowGoal', { time: formatDuration(short) })}
@@ -205,13 +216,10 @@ function SleepNightsCard() {
               </button>
               {editing && (
                 <div className="mb-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800">
-                  <SleepTimesField
-                    key={`${dateKey}|${sleepEndingOn(tasks, dateKey)?.id ?? ''}`}
+                  <SleepDayEditor
                     dateKey={dateKey}
-                    record={sleepEndingOn(tasks, dateKey)}
                     label={t('sleepStats.editTitle', { day: df.shortDateWeekday(dateKey) })}
-                    onSaved={() => setEditKey(null)}
-                    onCancel={() => setEditKey(null)}
+                    onDone={() => setEditKey(null)}
                   />
                 </div>
               )}

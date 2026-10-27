@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isBedtime, sleepFromTimer } from './sleepTimer'
+import { sleepFromTimer } from './sleepTimer'
 import { planSleepTimerSync } from './settingPlans'
 
 const local = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).toISOString()
@@ -24,15 +24,6 @@ describe('sleepFromTimer（寝た時刻から今までを 1 晩の睡眠に）',
   it('1 分未満（押し間違い）と、16 時間より長い（止め忘れ）は睡眠にしない', () => {
     expect(sleepFromTimer({ startedAt: local(8, 1, 0) }, new Date(new Date(2026, 9, 8, 1, 0, 30)).toISOString())).toBeNull()
     expect(sleepFromTimer({ startedAt: local(7, 23, 0) }, local(8, 15, 30))).toBeNull()
-  })
-})
-
-describe('isBedtime（「寝る」を出す時間帯）', () => {
-  it('夜 20 時〜朝 5 時だけ', () => {
-    expect(isBedtime(19 * 60 + 59)).toBe(false)
-    expect(isBedtime(20 * 60)).toBe(true)
-    expect(isBedtime(4 * 60 + 59)).toBe(true)
-    expect(isBedtime(5 * 60)).toBe(false)
   })
 })
 

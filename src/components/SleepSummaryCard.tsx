@@ -6,7 +6,7 @@ import { isSleepTask } from '../types/task'
 import { isActiveTask } from '../lib/taskLifecycle'
 import { formatDuration } from '../lib/timeGrid'
 import { useAppTodayKey } from '../hooks/useAppClock'
-import { SleepMoonIcon, SleepWakeIcon } from './SleepTimesField'
+import { NapPlus, SleepMoonIcon, SleepWakeIcon } from './SleepTimesField'
 import { ChevronRightIcon } from './icons'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
 import { META_TEXT } from './ui/textClass'
@@ -42,6 +42,7 @@ export function SleepSummaryCard() {
           <span className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{formatDuration(summary.avgMinutes ?? 0)}</span>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">{t('sleepStats.avg')}</span>
+            <NapPlus minutes={summary.avgNapMinutes ?? 0} className="text-xs" />
           </span>
           <span className="flex items-center gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
             <SleepMoonIcon />

@@ -49,6 +49,18 @@ describe('題名・ラベルで睡眠にするのは後から記録だけ', () =
     useTaskStore.getState().logSleep('2026-10-08', '23:30', '07:00')
     expect(useTaskStore.getState().tasks.map((t) => t.kind)).toEqual(['sleep'])
   })
+
+  it('重ならない睡眠は足し（昼寝）、重なる睡眠・id を渡した睡眠は直す（#645）', () => {
+    const s = useTaskStore.getState()
+    s.logSleep('2026-10-08', '23:30', '07:00')
+    s.logSleep('2026-10-08', '13:00', '15:00')
+    expect(useTaskStore.getState().tasks.map((t) => t.startTime)).toEqual(['23:30', '13:00'])
+    s.logSleep('2026-10-08', '23:00', '07:30')
+    expect(useTaskStore.getState().tasks.map((t) => t.startTime)).toEqual(['23:00', '13:00'])
+    const nap = useTaskStore.getState().tasks[1]!
+    s.logSleep('2026-10-08', '16:00', '17:00', nap.id)
+    expect(useTaskStore.getState().tasks.map((t) => `${t.startTime}-${t.endTime}`)).toEqual(['23:00-07:30', '16:00-17:00'])
+  })
 })
 
 describe('睡眠のタイマー（寝る・起きた）', () => {

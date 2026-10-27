@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
-import { sleepEndingOn, summarizeSleep, type SleepNight } from '../lib/sleep'
+import { summarizeSleep, type SleepNight } from '../lib/sleep'
 import { TODAY_TEXT } from '../lib/dayMarker'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration } from '../lib/timeGrid'
@@ -10,7 +10,7 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { CARD_TITLE_CLASS } from './ui/headingClass'
 import { META_TEXT } from './ui/textClass'
 import { useAppTodayKey } from '../hooks/useAppClock'
-import { SleepMoonIcon, SleepTimesField, SleepWakeIcon } from './SleepTimesField'
+import { NapPlus, SleepDayEditor, SleepMoonIcon, SleepWakeIcon } from './SleepTimesField'
 import { DayInsightsSection } from './DayInsights'
 import { useDayInsights } from '../hooks/useDayInsights'
 
@@ -22,9 +22,9 @@ const SLEEP_VARS = { '--c': 'var(--color-sleep)' } as CSSProperties
 /**
  * 睡眠のページの直近 14 日（#577・#628）。上に要約、下に夜ごとの横の帯。
  * - 要約: 左に小さい 24 時間の時計（夜ごとの円弧を外へ重ね、いちばん外＝最新を濃く。重なりがそろうほど規則正しい）、
- *   右に平均の睡眠時間を大きく、☾ 寝た・日の出 起きた（平均と ±ばらつき）
+ *   右に平均の睡眠時間を大きく（昼寝があれば右に「＋昼寝 ◯」、#645）、☾ 寝た・日の出 起きた（平均と ±ばらつき）
  * - 夜ごとの図: 新しい夜が上。行頭は「23 金」、土日の行はうっすら色。時刻の目盛りは上、いつもの寝た・起きたは ☾・日の出の点線。
- *   長さは帯のすぐ右。今日の計画の睡眠の行（☾ 23:30 ▬ 07:00）と同じ横の帯の形
+ *   長さは帯のすぐ右（昼寝は「＋昼寝 ◯」を添え、帯は夜の睡眠だけ）。今日の計画の睡眠の行（☾ 23:30 ▬ 07:00）と同じ横の帯の形
  * 行を押すとその夜の時刻を図の下で直せ、記録の無い夜（日付だけ薄く）を押すとその夜を埋められる。
  * 入力欄は今日の計画の睡眠の行と同じ部品（SleepTimesField）。
  * 下の段は「日の違い」（#326）。直近 14 日に睡眠の記録が無くても、日の違いが出せるなら見出しと下の段だけ出す
@@ -61,6 +61,10 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
   const ticks: number[] = []
   for (let m = lo; m <= hi; m += step) ticks.push(m)
   const x = (off: number) => `${((off - lo) / (hi - lo)) * 100}%`
+  // 昼寝のある夜があれば、長さの右の「＋昼寝 ◯」のぶんだけ右の余白を広げる（カードの外にはみ出さない）
+  const pad = nights.some((n) => n.napMinutes > 0)
+    ? { wrap: 'pr-[9.5rem]', right: 'right-[9.5rem]', row: '-mr-[9.5rem] w-[calc(100%+12.5rem)]' }
+    : { wrap: 'pr-[4.5rem]', right: 'right-[4.5rem]', row: '-mr-[4.5rem] w-[calc(100%+7.5rem)]' }
   const avgBedOffset = nights.reduce((a, n) => a + n.bedOffset, 0) / nights.length
   const avgWakeOffset = nights.reduce((a, n) => a + n.wakeOffset, 0) / nights.length
 
@@ -71,7 +75,6 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
   const activeKey = editKey ?? focusKey
   const focusedKey = activeKey ?? nights[nights.length - 1]!.dateKey
   const focused = nights.find((n) => n.dateKey === focusedKey) ?? null
-  const editRecord = editKey ? sleepEndingOn(tasks, editKey) : null
 
   // 新しい夜を上に
   const rows = summary.nights.map((n, i) => ({ night: n, date: addDays(fromDateKey(todayKey), i - (DAYS - 1)) })).reverse()
@@ -94,6 +97,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
             <span className="text-xs text-zinc-500 dark:text-zinc-400" aria-hidden>
               {t('sleepStats.avg')}
             </span>
+            <NapPlus minutes={summary.avgNapMinutes ?? 0} className="text-xs" />
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             {(
@@ -123,13 +127,15 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
           <span className="sr-only">{t('sleepStats.chartTitle')}</span>
           <span className="ml-auto tabular-nums text-zinc-500 dark:text-zinc-400" aria-live="polite">
             {focused
-              ? `${dayLabel(focused.dateKey)} ${focused.bed}–${focused.wake} · ${formatDuration(focused.minutes)}`
+              ? `${dayLabel(focused.dateKey)} ${focused.bed}–${focused.wake} · ${formatDuration(focused.minutes)}${
+                  focused.napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(focused.napMinutes) })}` : ''
+                }`
               : `${dayLabel(focusedKey)} ${t('sleepStats.noRecord')}`}
           </span>
         </figcaption>
         {/* 行の地は透ける色（土日・ホバー・選択中）にして、目盛りと ☾・日の出の点線を隠さない */}
-        {/* 行頭の日付（3rem）・帯の領域・右に長さの文字ぶんの余白（4.5rem） */}
-        <div className="relative pl-12 pr-[4.5rem]">
+        {/* 行頭の日付（3rem）・帯の領域・右に長さの文字ぶんの余白（4.5rem、昼寝があれば 9.5rem） */}
+        <div className={`relative pl-12 ${pad.wrap}`}>
           {/* 上の目盛りと、いつもの寝た・起きた（☾・日の出の点線） */}
           <div className="@container relative h-8 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500" aria-hidden>
             {/* 狭いとき（帯の幅が 13rem 未満）は目盛りの文字を 1 つおきに（重ならないように） */}
@@ -139,7 +145,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
               </span>
             ))}
           </div>
-          <div className="pointer-events-none absolute inset-y-0 left-12 right-[4.5rem]" aria-hidden>
+          <div className={`pointer-events-none absolute inset-y-0 left-12 ${pad.right}`} aria-hidden>
             {ticks.map((m) => (
               <span key={m} className="absolute bottom-0 top-8 border-l border-zinc-100 dark:border-zinc-800" style={{ left: x(m) }} />
             ))}
@@ -167,7 +173,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
                   type="button"
                   aria-label={
                     n
-                      ? `${dayLabel(key)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}`
+                      ? `${dayLabel(key)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}${n.napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}` : ''}`
                       : t('sleepStats.fillAria', { day: dayLabel(key) })
                   }
                   aria-expanded={editKey === key}
@@ -177,7 +183,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
                     setFocusKey(key)
                     setEditKey((k) => (k === key ? null : key))
                   }}
-                  className={`group relative -ml-12 -mr-[4.5rem] block h-8 w-[calc(100%+7.5rem)] md:h-7 rounded-md outline-none hover:bg-zinc-500/[0.08] focus-visible:bg-zinc-500/[0.1] dark:hover:bg-zinc-400/[0.08] ${
+                  className={`group relative -ml-12 ${pad.row} block h-8 md:h-7 rounded-md outline-none hover:bg-zinc-500/[0.08] focus-visible:bg-zinc-500/[0.1] dark:hover:bg-zinc-400/[0.08] ${
                     dow === 0 || dow === 6 ? 'bg-zinc-500/[0.04] dark:bg-zinc-400/[0.04]' : ''
                   } ${active && activeKey ? 'bg-zinc-500/[0.08] dark:bg-zinc-400/[0.08]' : ''}`}
                 >
@@ -190,7 +196,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
                     {date.getDate()} {weekday.format(date)}
                   </span>
                   {n && (
-                    <span className="absolute inset-y-0 left-12 right-[4.5rem]" aria-hidden>
+                    <span className={`absolute inset-y-0 left-12 ${pad.right}`} aria-hidden>
                       <span
                         className={`gc-plan absolute top-1/2 h-3.5 -translate-y-1/2 rounded-full outline-sleep ${
                           active && activeKey ? 'outline outline-2' : 'group-hover:outline group-hover:outline-2'
@@ -202,6 +208,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
                         style={{ left: x(n.wakeOffset) }}
                       >
                         {formatDuration(n.minutes)}
+                        <NapPlus minutes={n.napMinutes} className="ml-1" />
                       </span>
                     </span>
                   )}
@@ -212,14 +219,11 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
         </div>
         {editKey && (
           <div className="mt-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800">
-            <SleepTimesField
-              // 夜・記録が変わるたびに下書きを作り直す
-              key={`${editKey}|${editRecord?.id ?? ''}`}
+            <SleepDayEditor
+              key={editKey}
               dateKey={editKey}
-              record={editRecord}
               label={t('sleepStats.editTitle', { day: dayLabel(editKey) })}
-              onSaved={() => setEditKey(null)}
-              onCancel={() => setEditKey(null)}
+              onDone={() => setEditKey(null)}
             />
           </div>
         )}
@@ -239,7 +243,10 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
                 <td>{dayLabel(n.dateKey)}</td>
                 <td>{n.bed}</td>
                 <td>{n.wake}</td>
-                <td>{formatDuration(n.minutes)}</td>
+                <td>
+                  {formatDuration(n.minutes)}
+                  {n.napMinutes > 0 && ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}`}
+                </td>
               </tr>
             ))}
           </tbody>

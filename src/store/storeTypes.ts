@@ -424,8 +424,11 @@ export interface TaskState {
     /** 後から記録（記録パネル・タイムラインの記録の列）: 題名かラベルが「睡眠」「sleep」などなら睡眠にする（`looksLikeSleep`） */
     sleepByName?: boolean,
   ) => string
-  /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
-  logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void
+  /**
+   * 睡眠（寝た時刻・起きた時刻、起きた日）を入れる。`id` を渡せばその睡眠を直す。
+   * 渡さなければ、時間の重なる睡眠があればそれを直し（2 台で「起きた」を押しても 2 つにしない）、無ければ足す（昼寝、#645）
+   */
+  logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string, id?: string) => void
   /** 「寝る」: 睡眠のタイマーを始める。記録のタイマーが動いていれば、先に記録にして止める */
   goToBed: () => void
   /**

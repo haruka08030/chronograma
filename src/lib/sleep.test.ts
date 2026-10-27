@@ -3,6 +3,9 @@ import type { Task } from '../types/task'
 import {
   defaultSleepTimes,
   looksLikeSleep,
+  napsEndingOn,
+  overlappingSleep,
+  sleepNightOn,
   sleepEndingOn,
   sleepMinutes,
   sleepPeriods,
@@ -75,6 +78,32 @@ describe('wakeDateOf / sleepEndingOn', () => {
   it('defaults to the latest sleep times', () => {
     expect(defaultSleepTimes([legacy, night, late])).toEqual({ bed: '23:30', wake: '07:00' })
     expect(defaultSleepTimes([])).toEqual({ bed: '23:30', wake: '07:00' })
+  })
+})
+
+describe('昼寝（#645）', () => {
+  const night = log('n', { kind: 'sleep', dueDate: '2026-09-30', startTime: '02:00', endTime: '06:00' })
+  const nap = log('p', { kind: 'sleep', dueDate: '2026-09-30', startTime: '13:00', endTime: '17:00' })
+  const tasks = [nap, night]
+
+  it('その日にいちばん早く寝た睡眠が夜の睡眠、残りが昼寝（昼寝の方が長くても）', () => {
+    expect(sleepEndingOn(tasks, '2026-09-30')?.id).toBe('n')
+    expect(napsEndingOn(tasks, '2026-09-30').map((t) => t.id)).toEqual(['p'])
+  })
+  it('1 晩分の時刻は夜の睡眠、昼寝は長さだけ分けて持つ', () => {
+    expect(sleepNightOn(tasks, '2026-09-30')).toMatchObject({ bed: '02:00', wake: '06:00', minutes: 240, napMinutes: 240 })
+    expect(summarizeSleep(tasks, '2026-09-30', 1)).toMatchObject({ avgMinutes: 240, avgNapMinutes: 240, avgWake: '06:00' })
+  })
+  it('徹夜して昼寝だけの日は、その昼寝がその日の睡眠', () => {
+    expect(sleepNightOn([nap], '2026-09-30')).toMatchObject({ bed: '13:00', minutes: 240, napMinutes: 0 })
+  })
+  it('入力欄の初期値は前の夜の睡眠の時刻（昼寝は使わない）', () => {
+    expect(defaultSleepTimes(tasks)).toEqual({ bed: '02:00', wake: '06:00' })
+  })
+  it('時間の重なる睡眠を見つける（日をまたいでも）', () => {
+    const over = log('o', { kind: 'sleep', dueDate: '2026-09-29', endDate: '2026-09-30', startTime: '23:30', endTime: '07:00' })
+    expect(overlappingSleep([over], { dueDate: '2026-09-30', endDate: null, startTime: '06:00', endTime: '08:00' })?.id).toBe('o')
+    expect(overlappingSleep([over], { dueDate: '2026-09-30', endDate: null, startTime: '07:00', endTime: '08:00' })).toBeNull()
   })
 })
 

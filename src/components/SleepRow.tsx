@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { formatDuration } from '../lib/timeGrid'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
-import { sleepEndingOn, sleepMinutes } from '../lib/sleep'
-import { isBedtime, SLEEP_TIMER_MAX_MS, type SleepTimer } from '../lib/sleepTimer'
+import { napsEndingOn, sleepEndingOn, sleepMinutes, sleepTaskMinutes } from '../lib/sleep'
+import { SLEEP_TIMER_MAX_MS, type SleepTimer } from '../lib/sleepTimer'
 import { useNow } from '../hooks/useAppClock'
 import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
@@ -11,7 +11,7 @@ import { clockOf } from '../lib/clockTime'
 import { toAppWall } from '../lib/timeZone'
 import { CloseIcon, PencilIcon, PlayIcon, SunriseIcon } from './icons'
 import type { Task } from '../types/task'
-import { SLEEP_ICON_BUTTON, SleepBar, SleepMoonIcon, SleepTimesField } from './SleepTimesField'
+import { NapPlus, SLEEP_ICON_BUTTON, SleepBar, SleepDayEditor, SleepMoonIcon, SleepTimesField } from './SleepTimesField'
 import { minutesOfDay } from '../lib/clockTime'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
@@ -22,7 +22,8 @@ const PROMPT_FROM_MIN = 5 * 60
  * 文字で説明せず形で見せる（#575）: 行頭の月・寝た時刻・睡眠の色の帯・起きた時刻・長さ。操作はアイコンのボタン（名前はホバーと読み上げ）。
  * まだ無ければ前回の時刻を入れた入力欄（同じなら ✓ のワンタップで記録）、あれば時刻と長さだけを薄く出す。
  * 今日の分は朝 5 時を過ぎてから聞く。
- * 今日の夜（20 時〜朝 5 時）は寝る（▶）を出し、押すと睡眠のタイマー（#519）。寝ている間は起きた（日の出）で睡眠にする。
+ * 今日は寝る（▶）を出し、押すと睡眠のタイマー（#519）。寝ている間は起きた（日の出）で睡眠にする。昼に押せば昼寝になる（#645）。
+ * 昼寝は夜の睡眠の長さの右に「＋昼寝 3時間」と分けて出し、行を押すと夜の睡眠の欄の下で直す・足す（SleepDayEditor）。
  * 寝ている間もその朝の記録の行は上に残す。記録の行は ✎ で直せると見せ、まだ記録の無い朝の欄は前回の時刻を下書きとして薄く出す（#627）。
  * 入力欄は睡眠のページの図・一覧と同じ部品（SleepTimesField）。月のアイコンは行頭の 1 つだけで、押すと睡眠のページ（#628）。
  */
@@ -33,6 +34,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   const goToBed = useTaskStore((s) => s.goToBed)
 
   const record = useMemo(() => sleepEndingOn(tasks, dateKey), [tasks, dateKey])
+  const napMinutes = useMemo(() => napsEndingOn(tasks, dateKey).reduce((a, n) => a + sleepTaskMinutes(n), 0), [tasks, dateKey])
   const [editing, setEditing] = useState(false)
   const now = useNow()
 
@@ -41,7 +43,7 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   if (dateKey > todayKey) return null
   const isToday = dateKey === todayKey
 
-  const bedButton = isToday && isBedtime(nowMin) && (
+  const bedButton = isToday && (
     <button type="button" onClick={goToBed} {...tip(t('sleep.goToBed'), { name: true })} className={SLEEP_ICON_BUTTON}>
       <PlayIcon className="ml-px h-3 w-3" />
     </button>
@@ -60,25 +62,32 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   if (isToday && sleepTimer)
     return (
       <div className="flex flex-col gap-1">
-        {record?.startTime && record.endTime && <RecordedSleep record={record} onEdit={() => setEditing(true)} />}
+        {record?.startTime && record.endTime && <RecordedSleep record={record} napMinutes={napMinutes} onEdit={() => setEditing(true)} />}
         {editing && record ? (
-          <SleepTimesField
-            key={record.id}
-            dateKey={dateKey}
-            record={record}
-            label={<span className="sr-only">{t('sleep.title')}</span>}
-            onSaved={() => setEditing(false)}
-            onCancel={() => setEditing(false)}
-          />
+          <SleepDayEditor dateKey={dateKey} label={<span className="sr-only">{t('sleep.title')}</span>} onDone={() => setEditing(false)} />
         ) : null}
         <SleepingRow timer={sleepTimer} dateKey={dateKey} />
       </div>
     )
 
-  if (record && !editing && record.startTime && record.endTime) {
+  if (record && record.startTime && record.endTime) {
+    if (editing)
+      return (
+        <SleepDayEditor
+          dateKey={dateKey}
+          icon={false}
+          label={
+            <>
+              <SleepPageButton />
+              <span className="sr-only">{t('sleep.title')}</span>
+            </>
+          }
+          onDone={() => setEditing(false)}
+        />
+      )
     return (
       <div className="flex items-center gap-2">
-        <RecordedSleep record={record} onEdit={() => setEditing(true)} />
+        <RecordedSleep record={record} napMinutes={napMinutes} onEdit={() => setEditing(true)} />
         {bedButton}
       </div>
     )
@@ -98,7 +107,6 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
           </>
         }
         onSaved={() => setEditing(false)}
-        onCancel={record ? () => setEditing(false) : undefined}
       />
       {bedButton}
     </div>
@@ -106,12 +114,13 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
 }
 
 /**
- * 記録した睡眠の 1 行（☾ 23:30 ━ 07:00 7時間30分 ✎）。行ごと押すと時刻を直せる。
+ * 記録した睡眠の 1 行（☾ 23:30 ━ 07:00 7時間30分 ＋昼寝 3時間 ✎）。行ごと押すと時刻を直せ、昼寝を足せる。
  * ホバーの無いスマホでも直せると分かるよう、行の終わりに薄い ✎ を置く
  */
-function RecordedSleep({ record, onEdit }: { record: Task; onEdit: () => void }) {
+function RecordedSleep({ record, napMinutes, onEdit }: { record: Task; napMinutes: number; onEdit: () => void }) {
   const { t } = useTranslation()
   const duration = formatDuration(sleepMinutes(record.startTime!, record.endTime!))
+  const nap = napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(napMinutes) })}` : ''
   return (
     <span className="flex items-center self-start">
       <SleepPageButton />
@@ -119,13 +128,14 @@ function RecordedSleep({ record, onEdit }: { record: Task; onEdit: () => void })
         type="button"
         onClick={onEdit}
         {...tip(t('sleep.edit'))}
-        aria-label={`${t('sleep.edit')} ${record.startTime}–${record.endTime} ${duration}`}
-        className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs tabular-nums text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        aria-label={`${t('sleep.edit')} ${record.startTime}–${record.endTime} ${duration}${nap}`}
+        className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-xs tabular-nums text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
       >
         <span>{record.startTime}</span>
         <SleepBar />
         <span>{record.endTime}</span>
-        <span className="text-zinc-400 dark:text-zinc-500">{duration}</span>
+        <span className="whitespace-nowrap text-zinc-400 dark:text-zinc-500">{duration}</span>
+        <NapPlus minutes={napMinutes} />
         <PencilIcon className="ml-0.5 h-3 w-3 text-zinc-300 dark:text-zinc-600" strokeWidth={2} />
       </button>
     </span>

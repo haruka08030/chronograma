@@ -11,7 +11,7 @@
  */
 import { addDays } from 'date-fns'
 import type { DayMoods } from './dayMood'
-import type { SleepNight } from './sleep'
+import { totalSleepMinutes, type SleepNight } from './sleep'
 import type { WeekReviewDay } from './weekReview'
 import { fromDateKey, toDateKey } from './dateKey'
 
@@ -74,8 +74,10 @@ const SPLITS: { condition: InsightCondition; side: (dateKey: string, nights: Rea
       side: (key, nights) => {
         const n = nights.get(key)
         if (!n) return null
-        if (n.minutes < SHORT_SLEEP_MINUTES) return 'a'
-        if (n.minutes >= LONG_SLEEP_MINUTES) return 'b'
+        // 昼寝も足した長さで分ける（#645）
+        const minutes = totalSleepMinutes(n)
+        if (minutes < SHORT_SLEEP_MINUTES) return 'a'
+        if (minutes >= LONG_SLEEP_MINUTES) return 'b'
         return null
       },
     },

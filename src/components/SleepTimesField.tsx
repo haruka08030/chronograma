@@ -1,12 +1,12 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDuration } from '../lib/timeGrid'
 import { useTaskStore } from '../store/taskStore'
-import { defaultSleepTimes, sleepMinutes } from '../lib/sleep'
+import { defaultSleepTimes, napsEndingOn, sleepEndingOn, sleepMinutes } from '../lib/sleep'
 import type { Task } from '../types/task'
 import { TimeInput } from './TimeInput'
 import { useNow } from '../hooks/useAppClock'
-import { CheckIcon, CloseIcon, MoonSolidIcon, SunriseIcon, TrashIcon } from './icons'
+import { CheckIcon, CloseIcon, MoonSolidIcon, PlusIcon, SunriseIcon, TrashIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { FIELD_FOCUS_RING } from './ui/fieldClass'
 import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
@@ -14,6 +14,7 @@ import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
 import { minutesOfDay, minutesToTime, timeToMinutes } from '../lib/clockTime'
 import { ERROR_TEXT } from './ui/textClass'
+import { chipClass } from './ui/chipClass'
 
 /** 5 分単位に切り捨てた hh:mm */
 const floorTo5 = (min: number) => {
@@ -66,6 +67,15 @@ interface SleepTimesFieldProps {
   bedTime?: string
   /** やめるの × の名前（既定は「キャンセル」） */
   cancelLabel?: string
+  /** 昼寝の欄（#645）。まだ記録の無い欄の下書きを、前回の夜の時刻ではなく今までの 1 時間（過ぎた日は 13:00–14:00）にする */
+  nap?: boolean
+}
+
+/** 昼寝の下書き: 今日は今（5 分に切り捨て）までの 1 時間、過ぎた日は 13:00–14:00 */
+function napDraft(isToday: boolean, nowMin: number) {
+  if (!isToday) return { bed: '13:00', wake: '14:00' }
+  const wake = nowMin - (nowMin % 5)
+  return { bed: minutesToTime((wake - 60 + 24 * 60) % (24 * 60)), wake: minutesToTime(wake) }
 }
 
 /**
@@ -74,7 +84,17 @@ interface SleepTimesFieldProps {
  * 開き直すたびに下書きを作り直したいので、呼ぶ側は `key` を夜と記録ごとに変えて出し入れする。
  * 記録のある夜は 🗑 で消せる（確認なしでゴミ箱へ、「元に戻す」付き。消したら `onSaved`）
  */
-export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bedTime, cancelLabel, icon = true }: SleepTimesFieldProps) {
+export function SleepTimesField({
+  dateKey,
+  record,
+  label,
+  onSaved,
+  onCancel,
+  bedTime,
+  cancelLabel,
+  icon = true,
+  nap = false,
+}: SleepTimesFieldProps) {
   const { t } = useTranslation()
   const logSleep = useTaskStore((s) => s.logSleep)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
@@ -88,7 +108,9 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
     const init =
       record?.startTime && record.endTime
         ? { bed: record.startTime, wake: record.endTime }
-        : defaultSleepTimes(useTaskStore.getState().tasks, useTaskStore.getState().sleepPrefs)
+        : nap
+          ? napDraft(isToday, nowMin)
+          : defaultSleepTimes(useTaskStore.getState().tasks, useTaskStore.getState().sleepPrefs)
     // いつもの起床時刻より早く開いたら、今を起きた時刻の候補にする（未来の時刻で叱らない）
     const wake = !record && isToday && timeToMinutes(init.wake) > nowMin ? floorTo5(nowMin) : init.wake
     return { bed: bedTime ?? init.bed, wake }
@@ -102,7 +124,7 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
   const canSave = Boolean(bed && wake && bed !== wake && !inFuture)
   const save = () => {
     if (!canSave) return
-    logSleep(dateKey, bed, wake)
+    logSleep(dateKey, bed, wake, record?.id)
     onSaved()
   }
   // 行に溶け込む小さな欄なので fieldClass は使わないが、フォーカスは他の入力欄と同じリングで見せる
@@ -166,6 +188,77 @@ export function SleepTimesField({ dateKey, record, label, onSaved, onCancel, bed
           <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
         </button>
       </span>
+    </div>
+  )
+}
+
+/** 「＋昼寝 3時間」（#645）。夜の睡眠の長さのすぐ右に、薄い文字で分けて出す。昼寝が無ければ何も出さない */
+export function NapPlus({ minutes, className = '' }: { minutes: number; className?: string }) {
+  const { t } = useTranslation()
+  if (minutes <= 0) return null
+  return (
+    <span className={`whitespace-nowrap tabular-nums text-zinc-400 dark:text-zinc-500 ${className}`}>
+      {t('sleep.napPlus', { time: formatDuration(minutes) })}
+    </span>
+  )
+}
+
+/**
+ * 1 日の睡眠を直す欄（#645）。夜の睡眠の欄の下に、その日の昼寝の欄を 1 つずつと「昼寝を追加」。
+ * 今日の計画の睡眠の行・睡眠のページの一覧・14 日の図で共有する。どれかを保存・削除したら `onDone`
+ */
+export function SleepDayEditor({
+  dateKey,
+  label,
+  onDone,
+  icon = true,
+}: {
+  dateKey: string
+  label: ReactNode
+  onDone: () => void
+  /** 夜の睡眠の欄の頭の ☾（見出しに ☾ を入れて渡すなら false） */
+  icon?: boolean
+}) {
+  const { t } = useTranslation()
+  const tasks = useTaskStore((s) => s.tasks)
+  const night = useMemo(() => sleepEndingOn(tasks, dateKey), [tasks, dateKey])
+  const naps = useMemo(() => napsEndingOn(tasks, dateKey), [tasks, dateKey])
+  const [adding, setAdding] = useState(false)
+  const napLabel = <span className="w-[3.25rem] text-zinc-400 dark:text-zinc-500">{t('sleep.nap')}</span>
+  return (
+    <div className="flex flex-col gap-1.5">
+      <SleepTimesField
+        // 夜・記録が変わるたびに下書きを作り直す
+        key={`${dateKey}|${night?.id ?? ''}`}
+        dateKey={dateKey}
+        record={night}
+        label={label}
+        icon={icon}
+        onSaved={onDone}
+        onCancel={onDone}
+      />
+      {naps.map((n) => (
+        <SleepTimesField key={n.id} dateKey={dateKey} record={n} icon={false} nap label={napLabel} onSaved={onDone} />
+      ))}
+      {/* 夜の睡眠が無い日は、入れた睡眠がその日の睡眠になるので「昼寝を追加」は出さない */}
+      {night &&
+        (adding ? (
+          <SleepTimesField
+            key="new-nap"
+            dateKey={dateKey}
+            record={null}
+            icon={false}
+            nap
+            label={napLabel}
+            onSaved={onDone}
+            onCancel={() => setAdding(false)}
+          />
+        ) : (
+          <button type="button" onClick={() => setAdding(true)} className={chipClass({ variant: 'add', size: 'md' }, 'self-start')}>
+            <PlusIcon className="h-3 w-3" strokeWidth={2.25} />
+            {t('sleep.addNap')}
+          </button>
+        ))}
     </div>
   )
 }

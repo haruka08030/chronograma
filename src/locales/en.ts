@@ -541,6 +541,9 @@ export default {
     cancelTimer: 'Cancel going to bed',
     timerCancelled: 'Canceled going to bed',
     timerShort: 'Under a minute, so no sleep was logged',
+    nap: 'Nap',
+    napPlus: '+ nap {{time}}',
+    addNap: 'Add a nap',
     timerStopped: 'Saved “{{title}}” and went to bed',
   },
   quickLog: {
