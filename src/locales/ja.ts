@@ -510,6 +510,8 @@ export default {
     scheduleNone: 'なし',
     scheduleAdd: '決める',
     scheduleRemove: '{{day}}の朝の予定を外す',
+    everyMorning: '毎日',
+    scheduleRemoveAll: '睡眠の予定を外す',
     morningOf: '{{day}}の朝',
     goal: '目標の睡眠時間',
     goalHelp: '一覧で目標に届かなかった夜と、平均との差を出します',

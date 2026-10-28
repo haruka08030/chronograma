@@ -525,6 +525,8 @@ export default {
     scheduleNone: 'None',
     scheduleAdd: 'Set',
     scheduleRemove: 'Remove {{day}} morning',
+    everyMorning: 'Every day',
+    scheduleRemoveAll: 'Remove sleep schedule',
     morningOf: '{{day}} morning',
     goal: 'Sleep goal',
     goalHelp: 'Shows nights that fell short and how the averages compare',

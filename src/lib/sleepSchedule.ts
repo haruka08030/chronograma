@@ -29,6 +29,33 @@ export function normalizeSleepSchedule(raw: unknown): SleepSchedule {
   return out
 }
 
+/** 7 日とも同じ時刻ならその時刻（睡眠のページで「毎日」の 1 行で見せる、#659）。曜日で違う・決めていない曜日があれば null */
+export function sameSleepPlan(schedule: SleepSchedule): SleepPlan | null {
+  const first = schedule[1]
+  if (!first) return null
+  return ISO_WEEKDAYS.every((d) => schedule[d]?.bed === first.bed && schedule[d]?.wake === first.wake) ? first : null
+}
+
+/** 「毎日同じ時間にする」で 7 日に入れる時刻: いちばん多い時刻、同じ数なら月曜に近い曜日の時刻 */
+export function commonSleepPlan(schedule: SleepSchedule): SleepPlan | null {
+  let best: SleepPlan | null = null
+  let bestCount = 0
+  for (const d of ISO_WEEKDAYS) {
+    const p = schedule[d]
+    if (!p) continue
+    const count = ISO_WEEKDAYS.filter((x) => schedule[x]?.bed === p.bed && schedule[x]?.wake === p.wake).length
+    if (count > bestCount) {
+      best = p
+      bestCount = count
+    }
+  }
+  return best
+}
+
+/** 7 日とも同じ時刻の予定 */
+export const everyDaySleepSchedule = (plan: SleepPlan): SleepSchedule =>
+  Object.fromEntries(ISO_WEEKDAYS.map((d) => [d, { bed: plan.bed, wake: plan.wake }])) as SleepSchedule
+
 /** その日の朝に起きる睡眠の予定 */
 export function sleepPlanOn(schedule: SleepSchedule, wakeDateKey: string): SleepPlan | null {
   return schedule[isoWeekdayOf(wakeDateKey) as IsoWeekday] ?? null

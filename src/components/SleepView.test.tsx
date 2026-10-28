@@ -42,7 +42,7 @@ describe('睡眠のページ（#628）', () => {
 })
 
 describe('睡眠の予定（#652）', () => {
-  it('「寝る時間を決める」で前回の時刻を全部の曜日に入れ、曜日ごとに外せる。⌘Z で戻る', async () => {
+  it('「寝る時間を決める」で前回の時刻を全部の曜日に入れ、「毎日」の 1 行で出す（#659）。曜日ごとに分けて外せ、⌘Z で戻る', async () => {
     const user = userEvent.setup()
     useTaskStore.getState().logSleep(dayKey(0), '00:30', '07:30')
     render(<SleepView />)
@@ -50,9 +50,27 @@ describe('睡眠の予定（#652）', () => {
     const schedule = () => useTaskStore.getState().addons.sleepSchedule ?? {}
     expect(Object.keys(schedule())).toHaveLength(7)
     expect(schedule()[1]).toEqual({ bed: '00:30', wake: '07:30' })
+    expect(screen.getByText('Every day')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove Monday morning' })).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Different time per day' }))
     await user.click(screen.getByRole('button', { name: 'Remove Monday morning' }))
     expect(schedule()[1]).toBeUndefined()
     useTaskStore.getState().undoLastOperation()
     expect(schedule()[1]).toEqual({ bed: '00:30', wake: '07:30' })
+  })
+
+  it('曜日で違う予定は 7 行で出し、「毎日同じ時間にする」でいちばん多い時刻にそろえて 1 行に戻す', async () => {
+    const user = userEvent.setup()
+    const a = { bed: '23:30', wake: '07:00' }
+    const b = { bed: '01:00', wake: '09:00' }
+    useTaskStore.getState().setSleepSchedule({ 1: a, 2: a, 3: a, 4: a, 5: a, 6: b, 7: b })
+    render(<SleepView />)
+    expect(screen.getByRole('button', { name: 'Remove Saturday morning' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Same time every day' }))
+    expect(useTaskStore.getState().addons.sleepSchedule?.[7]).toEqual(a)
+    expect(screen.getByText('Every day')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Remove sleep schedule' }))
+    expect(useTaskStore.getState().addons.sleepSchedule).toEqual({})
   })
 })

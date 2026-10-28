@@ -1026,6 +1026,22 @@ const SCREENS = [
     state: { addons: { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null, sleepSchedule: SLEEP_SCHEDULE } },
     scrollTo: 'section:has(button[aria-label$="の朝の予定を外す"])',
   },
+  // 7 日とも同じ時刻は「毎日」の 1 行と「曜日ごとに時間を変える」（#659）
+  {
+    name: 'sleep-schedule-same',
+    view: 'sleep',
+    state: {
+      addons: {
+        enabled: {},
+        dues: [],
+        googleSkip: [],
+        absenceCourses: [],
+        school: null,
+        sleepSchedule: { ...SLEEP_SCHEDULE, 6: SLEEP_SCHEDULE[1], 7: SLEEP_SCHEDULE[1] },
+      },
+    },
+    scrollTo: 'section:has(button[aria-label="睡眠の予定を外す"])',
+  },
   {
     name: 'sleep-schedule-timeline',
     view: 'planner',

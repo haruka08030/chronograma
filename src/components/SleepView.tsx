@@ -5,7 +5,15 @@ import { useTaskStore } from '../store/taskStore'
 import { defaultSleepTimes, sleepMinutes, sleepNightOn, sleepPeriods, totalSleepMinutes, weekendGap, type SleepPeriod } from '../lib/sleep'
 import { SLEEP_GOAL_HOURS } from '../lib/sleepPrefs'
 import { planSleepMove, sleepHabits } from '../lib/sleepFromHabit'
-import { ISO_WEEKDAYS, type IsoWeekday, type SleepPlan, type SleepSchedule } from '../lib/sleepSchedule'
+import {
+  commonSleepPlan,
+  everyDaySleepSchedule,
+  ISO_WEEKDAYS,
+  sameSleepPlan,
+  type IsoWeekday,
+  type SleepPlan,
+  type SleepSchedule,
+} from '../lib/sleepSchedule'
 import { tip } from '../lib/tooltip'
 import { CloseIcon } from './icons'
 import { iconButtonClass } from './ui/iconButtonClass'
@@ -275,7 +283,8 @@ function SleepHabitMoveCard() {
 
 /**
  * 睡眠の予定（#652）: 曜日（起きる日）ごとの寝る・起きる時刻。決めた曜日は今日の計画・カレンダーの予定の列に睡眠の枠が出て、✓ でその時間の睡眠になる。
- * まだ何も無ければ「決める」で前回の睡眠の時刻を全部の曜日に入れ、そこから曜日ごとに直す・外す
+ * まだ何も無ければ「決める」で前回の睡眠の時刻を全部の曜日に入れる。7 日とも同じなら「毎日」の 1 行で、
+ * 「曜日ごとに時間を変える」を押したときだけ 7 行に分ける（習慣の時間と同じ、#659）
  */
 function SleepScheduleCard() {
   const { t, i18n } = useTranslation()
@@ -287,8 +296,11 @@ function SleepScheduleCard() {
     // 2024-01-01 は月曜
     return (d: IsoWeekday) => f.format(new Date(2024, 0, d))
   }, [i18n.language])
-  const inputClass = `w-[4.5rem] ${fieldClass({ size: 'sm' })}`
   const any = ISO_WEEKDAYS.some((d) => schedule[d])
+  const same = sameSleepPlan(schedule)
+  // 「曜日ごとに時間を変える」を押した。曜日で違う予定（ほかの端末で直した・前の版）は押さなくても曜日ごと
+  const [splitPressed, setSplitPressed] = useState(false)
+  const split = any && (splitPressed || !same)
   const set = (d: IsoWeekday, plan: SleepPlan | null) => {
     const next = { ...schedule }
     if (plan) next[d] = plan
@@ -303,74 +315,117 @@ function SleepScheduleCard() {
         <button
           type="button"
           onClick={() => {
-            const last = defaultSleepTimes(tasks)
-            setSleepSchedule(Object.fromEntries(ISO_WEEKDAYS.map((d) => [d, { bed: last.bed, wake: last.wake }])))
+            setSplitPressed(false)
+            setSleepSchedule(everyDaySleepSchedule(defaultSleepTimes(tasks)))
           }}
           className={`mt-3 ${buttonClass({ variant: 'secondary', size: 'sm' })}`}
         >
           {t('sleepPage.scheduleSet')}
         </button>
       ) : (
-        <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
-          {ISO_WEEKDAYS.map((d) => {
-            const plan = schedule[d]
-            const name = weekdayName(d)
-            return (
-              <li key={d} className="flex min-h-11 items-center gap-2 py-1.5 text-xs tabular-nums">
-                <span className="w-20 shrink-0 text-zinc-600 dark:text-zinc-300">{t('sleepPage.morningOf', { day: name })}</span>
-                {plan ? (
-                  <>
-                    <span role="group" aria-label={t('sleepPage.morningOf', { day: name })} className="inline-flex items-center gap-1.5">
-                      <span className="sr-only">{t('sleep.bedAria')}</span>
-                      <TimeInput
-                        value={plan.bed}
-                        onChange={(v) => v && v !== plan.wake && set(d, { ...plan, bed: v })}
-                        className={inputClass}
-                      />
-                      <SleepBar />
-                      <span className="sr-only">{t('sleep.wakeAria')}</span>
-                      <TimeInput
-                        value={plan.wake}
-                        onChange={(v) => v && v !== plan.bed && set(d, { ...plan, wake: v })}
-                        durationFrom={plan.bed}
-                        overnight
-                        className={inputClass}
-                      />
-                    </span>
-                    <span className="hidden text-zinc-400 sm:inline dark:text-zinc-500">
-                      {formatDuration(sleepMinutes(plan.bed, plan.wake))}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => set(d, null)}
-                      {...tip(t('sleepPage.scheduleRemove', { day: name }), { name: true })}
-                      className={iconButtonClass('ml-auto shrink-0 p-2 md:p-1')}
-                    >
-                      <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-zinc-300 dark:text-zinc-600">{t('sleepPage.scheduleNone')}</span>
-                    <button
-                      type="button"
-                      // 前の曜日（無ければ前回の睡眠）の時刻から始める
-                      onClick={() => {
-                        const prev = ISO_WEEKDAYS.map((x) => schedule[x]).find(Boolean)
-                        set(d, prev ?? defaultSleepTimes(tasks))
-                      }}
-                      className={`ml-auto ${buttonClass({ variant: 'ghost', size: 'xs' })}`}
-                    >
-                      {t('sleepPage.scheduleAdd')}
-                    </button>
-                  </>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+        <>
+          <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
+            {split ? (
+              ISO_WEEKDAYS.map((d) => {
+                const name = weekdayName(d)
+                const plan = schedule[d]
+                return (
+                  <SleepPlanRow
+                    key={d}
+                    label={t('sleepPage.morningOf', { day: name })}
+                    plan={plan ?? null}
+                    onChange={(p) => set(d, p)}
+                    removeLabel={t('sleepPage.scheduleRemove', { day: name })}
+                    // 前の曜日（無ければ前回の睡眠）の時刻から始める
+                    onAdd={() => set(d, ISO_WEEKDAYS.map((x) => schedule[x]).find(Boolean) ?? defaultSleepTimes(tasks))}
+                  />
+                )
+              })
+            ) : (
+              <SleepPlanRow
+                label={t('sleepPage.everyMorning')}
+                plan={same}
+                onChange={(p) => setSleepSchedule(p ? everyDaySleepSchedule(p) : {})}
+                removeLabel={t('sleepPage.scheduleRemoveAll')}
+              />
+            )}
+          </ul>
+          <button
+            type="button"
+            aria-pressed={split}
+            onClick={() => {
+              if (split) {
+                const common = commonSleepPlan(schedule)
+                if (common && !same) setSleepSchedule(everyDaySleepSchedule(common))
+                setSplitPressed(false)
+              } else setSplitPressed(true)
+            }}
+            // 文字の頭を行の頭にそろえる
+            className={buttonClass({ variant: 'link', size: 'xs' }, '-ml-2.5 mt-1')}
+          >
+            {split ? t('habits.sameTimeEveryDay') : t('habits.timePerWeekday')}
+          </button>
+        </>
       )}
     </section>
+  )
+}
+
+/** 睡眠の予定の 1 行（「毎日」か「◯曜日の朝」）: 寝る ━ 起きる・長さ・×。決めていない曜日は「なし」と「決める」 */
+function SleepPlanRow({
+  label,
+  plan,
+  onChange,
+  removeLabel,
+  onAdd,
+}: {
+  label: string
+  plan: SleepPlan | null
+  onChange: (plan: SleepPlan | null) => void
+  removeLabel: string
+  onAdd?: () => void
+}) {
+  const { t } = useTranslation()
+  const inputClass = `w-[4.5rem] ${fieldClass({ size: 'sm' })}`
+  return (
+    <li className="flex min-h-11 items-center gap-2 py-1.5 text-xs tabular-nums">
+      <span className="w-20 shrink-0 text-zinc-600 dark:text-zinc-300">{label}</span>
+      {plan ? (
+        <>
+          <span role="group" aria-label={label} className="inline-flex items-center gap-1.5">
+            <span className="sr-only">{t('sleep.bedAria')}</span>
+            <TimeInput value={plan.bed} onChange={(v) => v && v !== plan.wake && onChange({ ...plan, bed: v })} className={inputClass} />
+            <SleepBar />
+            <span className="sr-only">{t('sleep.wakeAria')}</span>
+            <TimeInput
+              value={plan.wake}
+              onChange={(v) => v && v !== plan.bed && onChange({ ...plan, wake: v })}
+              durationFrom={plan.bed}
+              overnight
+              className={inputClass}
+            />
+          </span>
+          <span className="hidden text-zinc-400 sm:inline dark:text-zinc-500">{formatDuration(sleepMinutes(plan.bed, plan.wake))}</span>
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            {...tip(removeLabel, { name: true })}
+            className={iconButtonClass('ml-auto shrink-0 p-2 md:p-1')}
+          >
+            <CloseIcon className="h-3 w-3" strokeWidth={2.5} />
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="text-zinc-300 dark:text-zinc-600">{t('sleepPage.scheduleNone')}</span>
+          {onAdd && (
+            <button type="button" onClick={onAdd} className={`ml-auto ${buttonClass({ variant: 'ghost', size: 'xs' })}`}>
+              {t('sleepPage.scheduleAdd')}
+            </button>
+          )}
+        </>
+      )}
+    </li>
   )
 }
 
