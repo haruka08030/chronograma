@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Habit } from '../../types/habit'
-import { canSubmitHabitForm, EMPTY_HABIT_FORM, habitFormFrom, habitFromForm, type HabitFormState } from './habitFormState'
+import {
+  canSubmitHabitForm,
+  EMPTY_HABIT_FORM,
+  habitFormFrom,
+  habitFromForm,
+  sameTimeFormPatch,
+  type HabitFormState,
+} from './habitFormState'
 
 const OLD = '2026-01-01T00:00:00.000Z'
 
@@ -94,6 +101,37 @@ describe('曜日ごとの時間', () => {
     })
     expect(Object.keys(habitFromForm({ ...fixed, freq: 'daily' }).weekdayTimes ?? {})).toEqual(['1', '2', '3', '4', '5', '6', '7'])
     expect(habitFromForm({ ...fixed, timeMode: 'none' }).weekdayTimes).toBeUndefined()
+  })
+
+  it('「どの曜日も同じ時間にする」は出している曜日でいちばん多い時間にそろえ、同じ数なら月曜に近い曜日（#662）', () => {
+    const sat = { 6: { startTime: '10:00', endTime: '11:00' } }
+    // 月・水は上の時間、土だけ違う → 上の時間
+    expect(sameTimeFormPatch({ ...gym, perWeekday: true, weekdayTimes: sat })).toEqual({
+      perWeekday: false,
+      startTime: '18:00',
+      endTime: '19:00',
+      weekdayTimes: {},
+    })
+    // 月だけ上の時間、水・土が 10:00 → 10:00
+    expect(sameTimeFormPatch({ ...gym, perWeekday: true, weekdayTimes: { ...sat, 3: sat[6] } })).toMatchObject({ startTime: '10:00' })
+    // 1 対 1 なら月曜に近い曜日
+    expect(
+      sameTimeFormPatch({
+        ...gym,
+        weekdays: [1, 6],
+        perWeekday: true,
+        weekdayTimes: { 1: { startTime: '07:00', endTime: '08:00' }, ...sat },
+      }),
+    ).toMatchObject({ startTime: '07:00', endTime: '08:00' })
+    // 時刻ひとつなら終わりは比べない
+    expect(
+      sameTimeFormPatch({
+        ...gym,
+        timeMode: 'fixed',
+        perWeekday: true,
+        weekdayTimes: { 1: { startTime: '10:00', endTime: '12:00' }, ...sat },
+      }),
+    ).toMatchObject({ startTime: '10:00' })
   })
 
   it('編集を始めると、曜日ごとの時間の欄が開いた状態から', () => {

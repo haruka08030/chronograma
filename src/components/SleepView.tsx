@@ -30,6 +30,7 @@ import { ShowMoreButton } from './ui/ShowMoreButton'
 import { SettingsRow } from './settings/SettingsPrimitives'
 import { fieldClass } from './ui/fieldClass'
 import { buttonClass } from './ui/buttonClass'
+import { PerWeekdayToggle } from './ui/PerWeekdayToggle'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { HINT_TEXT, META_TEXT } from './ui/textClass'
@@ -350,10 +351,9 @@ function SleepScheduleCard() {
               />
             )}
           </ul>
-          <button
-            type="button"
-            aria-pressed={split}
-            onClick={() => {
+          <PerWeekdayToggle
+            split={split}
+            onToggle={() => {
               if (split) {
                 const common = commonSleepPlan(schedule)
                 if (common && !same) setSleepSchedule(everyDaySleepSchedule(common))
@@ -361,10 +361,8 @@ function SleepScheduleCard() {
               } else setSplitPressed(true)
             }}
             // 文字の頭を行の頭にそろえる
-            className={buttonClass({ variant: 'link', size: 'xs' }, '-ml-2.5 mt-1')}
-          >
-            {split ? t('habits.sameTimeEveryDay') : t('habits.timePerWeekday')}
-          </button>
+            className="-ml-2.5 mt-1"
+          />
         </>
       )}
     </section>

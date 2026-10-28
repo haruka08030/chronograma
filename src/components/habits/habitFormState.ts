@@ -109,6 +109,25 @@ export function formWeekdayTime(f: HabitFormState, d: HabitWeekday): { startTime
   return f.weekdayTimes[d] ?? { startTime: f.startTime, endTime: f.endTime }
 }
 
+/**
+ * 「どの曜日も同じ時間にする」で戻すときの変更。出している曜日でいちばん多い時間（同じ数なら月曜に近い曜日の時間）を
+ * 1 つの時間にし、曜日ごとの時間は捨てる（睡眠の予定の `commonSleepPlan` と同じ）
+ */
+export function sameTimeFormPatch(f: HabitFormState): Partial<HabitFormState> {
+  const times = formTimeDays(f).map((d) => formWeekdayTime(f, d))
+  const key = (w: { startTime: string; endTime: string }) => (f.timeMode === 'range' ? `${w.startTime}-${w.endTime}` : w.startTime)
+  let best: { startTime: string; endTime: string } = f
+  let bestCount = 0
+  for (const w of times) {
+    const count = times.filter((x) => key(x) === key(w)).length
+    if (count > bestCount) {
+      best = w
+      bestCount = count
+    }
+  }
+  return { perWeekday: false, startTime: best.startTime, endTime: best.endTime, weekdayTimes: {} }
+}
+
 /** 使わない時刻は空にして判定する（時刻なしなら開始・終了とも、決まった時刻なら終了を見ない） */
 function draftFields(f: HabitFormState, times: { startTime: string; endTime: string } = f): HabitDraftFields {
   return {

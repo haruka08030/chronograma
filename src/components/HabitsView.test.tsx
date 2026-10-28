@@ -107,21 +107,25 @@ describe('習慣の画面: 休み', () => {
 })
 
 describe('習慣の画面: 曜日ごとの時間', () => {
-  it('曜日を指定して時間を決めたときだけ「詳しく設定」に「曜日ごとに時間を変える」が出て、押すと選んだ曜日の行が出る', async () => {
+  it('時間を決めると時間の欄のすぐ下に「曜日ごとに時間を変える」が出て、押すと曜日の行が出る。曜日を 1 つだけ指定したときは出さない（#662）', async () => {
     const user = userEvent.setup()
     render(<HabitsView />)
     await user.click(screen.getByRole('button', { name: '+ Add habit' }))
-    await user.click(screen.getByRole('button', { name: 'More options' }))
     expect(screen.queryByRole('button', { name: 'Different time per day' })).toBeNull()
     await user.click(screen.getByRole('radio', { name: 'Specific days' }))
-    expect(screen.queryByRole('button', { name: 'Different time per day' })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Set a time' }))
+    // 「詳しく設定」を開かなくても出る
     await user.click(screen.getByRole('button', { name: 'Different time per day' }))
     expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(
       expect.arrayContaining(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']),
     )
     await user.click(screen.getByRole('button', { name: 'Same time every day' }))
     expect(screen.queryByRole('group', { name: 'Mon' })).toBeNull()
+
+    // 月曜だけにすると変える相手が無いので出さない
+    const days = screen.getByRole('group', { name: 'Specific days' })
+    for (const d of ['Tue', 'Wed', 'Thu', 'Fri']) await user.click(within(days).getByRole('button', { name: d }))
+    expect(screen.queryByRole('button', { name: 'Different time per day' })).toBeNull()
   })
 
   it('曜日ごとに時間を変えた習慣は、同じ時間の曜日をまとめて出す', () => {

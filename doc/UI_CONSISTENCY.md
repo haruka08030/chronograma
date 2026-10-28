@@ -38,6 +38,7 @@
 | ボタン | `buttonClass({ variant, size })`。variant: primary（墨の塗り）/ secondary（枠）/ ghost（取り消し）/ danger（赤枠）/ link。ダイアログ・ページの下に並べる文字の「削除」「一覧から外す」は danger。右から出る詳細（タスク・習慣）と行の中の削除は 🗑 のアイコンボタン（`iconButtonClass`）。size: xs〜lg（lg は 44px）。形は角丸の四角（xs は 6px、ほかは 8px）。ピルはチップ（`chipClass`）と `PillToggle` だけ | `components/ui/buttonClass.ts` |
 | アイコン | `CheckIcon` などの部品と、パスの定義 `ICON_PATHS`。コンポーネントに `<path` を直書きしない（lint で止める。グラフの線・ブランドのロゴなど理由のあるものは理由を書いて外す）。画面ごとに切り替わる path は `PathIcon`。意味を伝えるアイコンは `label` | `components/icons.tsx`・`lib/iconPaths.ts`・`components/PathIcon.tsx` |
 | 切り替えタブ | `Segmented`（`role` tab/radio・`size`・`fullWidth`）。灰色の溝で選んだものだけ白く浮かせる。画面の表示・設定値の 2〜3 択（習慣のフォームの種類・くり返しも）。表記は「To-Do」 | `components/ui/Segmented.tsx` |
+| 曜日ごとの時間 | `PerWeekdayToggle`。「曜日ごとに時間を変える」⇄「どの曜日も同じ時間にする」のリンク。時間の欄のすぐ下に 1 行で置き、押すと上の欄が曜日の行に分かれる・いちばん多い時間にそろえて 1 つに戻る（習慣のフォーム・睡眠の予定） | `components/ui/PerWeekdayToggle.tsx` |
 | オン・オフ | `Switch`（role は switch）。左に名前、右にスイッチ。設定・追加機能のカード・ふりかえりの共有・時間割と予定の繰り返しの「祝日は入れない」。自前のチェックボックスは作らない | `components/settings/SettingsPrimitives.tsx` |
 | モーダル | `Modal`・`ModalTitle`。背景の幕・角（rounded-2xl）・面（`FLOATING_SURFACE`、ダーク zinc-800）・アニメーション・見出しの大きさ（text-lg）・Esc（一番上だけ）・背景で閉じる（閉じるだけで下に届けない）・フォーカスを戻す・Tab を中に閉じ込める・開いたときのフォーカス先（`initialFocus`）。`width` は sm / md / lg。検索パレット（⌘K）は上寄り（`placement="top"`）・広め（`width="lg"`） | `components/ui/Modal.tsx` |
 | 右から出るシート | `SideSheet`（タスクの詳細・習慣の詳細）。背景を押すか Esc で閉じる（背景の押下は下に届けない）。スマホは全画面で、上に戻るボタン ‹ を固定し、右に `mobileActions`。Tab は中だけ、閉じたら `returnFocus` へ | `components/ui/SideSheet.tsx` |
