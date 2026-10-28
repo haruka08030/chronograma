@@ -115,7 +115,7 @@
 
 | 場所 | 役割 |
 | --- | --- |
-| `src/hooks/` | 画面から使う hook（同期 `useSupabaseSync`・連携 `useNotionSync` / `useCanvasSync` / `useGooglePush` / `useGoogleCalendarEvents`・通知 `useReminders`・自動バックアップ `useAutoBackup`・DnD `useAppDnd` / `useTaskListDnd`・ショートカット `useGlobalShortcuts` / `useHotkey`・追加機能 `useAddonOn` / `useSchool`・書きかけ `useDraftField` など） |
+| `src/hooks/` | 画面から使う hook（同期 `useSupabaseSync`・連携 `useNotionSync` / `useCanvasSync` / `useGooglePush` / `useGoogleCalendarEvents`・通知 `useReminders`・自動バックアップ `useAutoBackup`・DnD `useAppDnd` / `useTaskListDnd`・ショートカット `useGlobalShortcuts` / `useHotkey`・追加機能 `useAddonOn` / `useSchool`・書きかけ `useDraftField`・浮かせる面を画面に収める `useFitInViewport`（計算は `lib/viewportFit.ts`）など） |
 | `src/types/` | `task.ts`（`Task` と `kind` ごとの型）・`list.ts`（`TaskList`・`ListKind`）・`section.ts`・`habit.ts`・`calendarEvent.ts`・`plannedItem.ts`・`sync.ts` |
 | `src/contexts/AuthContext.tsx` | ログイン（`AuthProvider`） |
 | `src/i18n/`・`src/locales/` | i18n の設定と文言 |

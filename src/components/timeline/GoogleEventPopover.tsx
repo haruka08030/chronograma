@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
-import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, type AnchorRect } from './anchoredCard'
+import { isAnchoredSheet, useAnchoredCard, type AnchorRect } from './anchoredCard'
 import { CardTimeRange } from './CardTimeRange'
 import { googleEventTiming, movedGoogleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
 import {
@@ -106,6 +106,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
     ref.current?.focus()
   }, [])
 
+  const { style, sheet } = useAnchoredCard(ref, anchor, WIDTH)
   if (!event) return null
   const recurring = !!event.recurringEventId
   const skipped = event.skipped === true
@@ -120,11 +121,6 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
   const held = event.held ? heldText(event.held, event.date, df.shortDate) : null
   // Google の説明は HTML のことがあるので、メモと同じテキストに直して出す
   const memo = event.description ? htmlToPlainText(event.description) : ''
-  const { style, sheet } = anchoredCardStyle(
-    anchor,
-    WIDTH,
-    (recurring ? 210 : 190) + (timeEditable ? 40 : 0) + (pickingColor ? 200 : 0) + (held ? 24 : 0) + 44 + memoHeightEstimate(memo),
-  )
   const smallField = fieldClass({ size: 'sm' })
   const nowMs = now.getTime()
   const started = new Date(event.start).getTime() <= nowMs
@@ -170,9 +166,8 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
       aria-label={event.summary}
       tabIndex={-1}
       className={anchoredCardClass(sheet)}
-      // メモが長いと背が伸びる。画面からはみ出す分はカードの中でスクロール（To-Do・記録のカードと同じ）。
       // 時刻の候補リストは開くと今の時刻の行が見えるところまでカードごとスクロールされる
-      style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
+      style={style}
     >
       <div className="flex justify-end gap-0.5 px-2 pt-2">
         {event.htmlLink && (

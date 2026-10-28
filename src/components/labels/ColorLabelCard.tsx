@@ -8,7 +8,7 @@ import { colorLabelEditRows } from '../../lib/todoColorLabels'
 import { tip } from '../../lib/tooltip'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useTextEntry } from '../../hooks/useTextEntry'
-import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from '../timeline/anchoredCard'
+import { isAnchoredSheet, useAnchoredCard, type AnchorRect } from '../timeline/anchoredCard'
 import { anchoredCardClass } from '../ui/surface'
 import { ColorSwatches } from '../ui/ColorSwatches'
 import { iconButtonClass } from '../ui/iconButtonClass'
@@ -57,7 +57,7 @@ export function ColorLabelCard({ hex, anchor, onClose }: { hex: string; anchor: 
   useDismiss({ open: true, onClose: save, onEscape: onClose, inside: [ref], swallow: isAnchoredSheet })
   const entry = useTextEntry({ onSubmit: save, onCancel: onClose, commitOnBlur: false })
 
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, current ? 230 : 190)
+  const { style, sheet } = useAnchoredCard(ref, anchor, WIDTH)
 
   return createPortal(
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）

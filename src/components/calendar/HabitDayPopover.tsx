@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useFitInViewport } from '../../hooks/useFitInViewport'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
 import type { Habit } from '../../types/habit'
@@ -18,9 +19,6 @@ import { useTouchContextMenu } from '../../hooks/useTouchContextMenu'
 import { FLOATING_SURFACE, MENU_ROW_ACTIVE, MENU_ROW_HOVER, POPOVER_PANEL } from '../ui/surface'
 import { isAnchoredSheet } from '../timeline/anchoredCard'
 import { shortcutTip } from '../../lib/tooltip'
-
-/** ポップオーバーの幅（位置合わせ用。`w-[260px]`） */
-const PANEL_WIDTH = 260
 
 export type HabitDayItem = { habit: Habit; id: string; time: string | null; done: boolean; offTime?: boolean }
 
@@ -64,7 +62,6 @@ export function HabitDayPopover({
   const toggle = useHabitToggle()
   const panelRef = useRef<HTMLDivElement>(null)
   const dialogId = useId()
-  const [style, setStyle] = useState<CSSProperties>({ position: 'fixed', visibility: 'hidden' })
   /** 格子へドラッグしている間は、下の格子に落とせるよう見えなくして素通しにする（離したら閉じる） */
   const [dragging, setDragging] = useState(false)
   // スマホ幅は下からのシート（予定のカードと同じ `isAnchoredSheet`）
@@ -73,42 +70,17 @@ export function HabitDayPopover({
   // スマホは長押しで右クリックと同じメニュー（パネルはカレンダーの外にあるので、ここでも拾う）
   useTouchContextMenu(panelRef)
 
-  useEffect(() => {
-    const place = () => {
-      if (sheet) {
-        setStyle({ position: 'fixed', left: 0, right: 0, bottom: 0, maxHeight: '70vh' })
-        return
-      }
-      const rect = anchor.getBoundingClientRect()
-      setStyle({
-        position: 'fixed',
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - PANEL_WIDTH - 8)),
-        top: rect.bottom + 2,
-        maxHeight: window.innerHeight - rect.bottom - 16,
-      })
-    }
-    place()
-    const onMove = (e: Event) => {
-      if (e.target instanceof Node && panelRef.current?.contains(e.target)) return
-      place()
-    }
-    window.addEventListener('scroll', onMove, true)
-    window.addEventListener('resize', onMove)
-    return () => {
-      window.removeEventListener('scroll', onMove, true)
-      window.removeEventListener('resize', onMove)
-    }
-  }, [anchor, sheet])
+  // 押した丸の下（入らなければ上・画面の中）に出し、高すぎる分はパネルの中でスクロール。周りがスクロールしたら付いていく
+  useFitInViewport(panelRef, { anchor: () => anchor.getBoundingClientRect(), placement: 'below', gap: 2, disabled: sheet })
 
-  // 置けて見えるようになったら、押した丸の行の ✓ にフォーカスする（隠れている間はフォーカスできない）
-  const placed = style.visibility !== 'hidden'
+  // 押した丸の行の ✓ にフォーカスする（置くのは描く前に済んでいる）
   const focusedRef = useRef(false)
   useEffect(() => {
-    if (!placed || focusedRef.current || highlightId === null) return
+    if (focusedRef.current || highlightId === null) return
     focusedRef.current = true
     const row = panelRef.current?.querySelector<HTMLElement>('[data-highlight]')
     ;(row?.querySelector<HTMLElement>('button[aria-pressed]') ?? row?.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true })
-  }, [placed, highlightId])
+  }, [highlightId])
 
   const limit = logLimitMin(dateKey)
   const today = appTodayKey()
@@ -123,10 +95,9 @@ export function HabitDayPopover({
       data-popover-keep
       role="dialog"
       aria-label={label}
-      style={style}
-      className={`z-[80] overflow-y-auto p-1 ${
+      className={`fixed z-[80] overflow-y-auto p-1 ${
         sheet
-          ? `${FLOATING_SURFACE} animate-sheet-in rounded-t-2xl pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-2xl`
+          ? `${FLOATING_SURFACE} inset-x-0 bottom-0 max-h-[70dvh] animate-sheet-in rounded-t-2xl pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-2xl`
           : `w-[260px] ${POPOVER_PANEL}`
       } ${dragging ? 'pointer-events-none opacity-0' : ''}`}
     >

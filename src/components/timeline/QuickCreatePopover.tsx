@@ -6,7 +6,7 @@ import { useTaskStore, INBOX_LIST_ID } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { unplannedListIds } from '../../lib/listKind'
 import { colorVars } from '../../lib/logCategoryColors'
-import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from './anchoredCard'
+import { isAnchoredSheet, useAnchoredCard, type AnchorRect } from './anchoredCard'
 import { TimeLogTagField } from '../TimeLogTagField'
 import { LogTitleInput } from '../LogTitleInput'
 import { useLogDraft } from '../../hooks/useLogDraft'
@@ -234,7 +234,7 @@ export function QuickCreatePopover({
   }
 
   const df = useDateFormat()
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 270 + (editingTime ? 30 : 0) + (showFit ? 32 : 0))
+  const { style, sheet } = useAnchoredCard(ref, anchor, WIDTH)
   const listColor = toGoogle ? DEFAULT_GOOGLE_EVENT_HEX : (plannable.find((l) => l.id === listId)?.color ?? '#7986CB')
 
   return (

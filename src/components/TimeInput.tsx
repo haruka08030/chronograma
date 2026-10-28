@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
+import { viewportBox } from '../lib/viewportFit'
 import { minutesToTime, pad2, toMinutes } from '../lib/clockTime'
 import { formatDuration } from '../lib/timeGrid'
 import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
@@ -96,9 +97,7 @@ const LIST_WIDTH_WITH_DURATIONS = 176
  * スマホでキーボードが出ているときは見えている範囲（visualViewport）で測る
  */
 function listPlacement(input: DOMRect, minWidth = 96): CSSProperties {
-  const vv = window.visualViewport
-  const top = vv?.offsetTop ?? 0
-  const bottom = top + (vv?.height ?? window.innerHeight)
+  const { top, bottom } = viewportBox()
   const below = bottom - input.bottom - GAP - EDGE
   const above = input.top - top - GAP - EDGE
   const up = below < Math.min(LIST_MIN_HEIGHT, LIST_MAX_HEIGHT) && above > below

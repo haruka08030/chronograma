@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
-import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from './anchoredCard'
+import { isAnchoredSheet, useAnchoredCard, type AnchorRect } from './anchoredCard'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
 import { useExitGhost } from '../../hooks/useExitGhost'
@@ -63,6 +63,7 @@ export function HabitSlotPopover({
     ref.current?.focus()
   }, [])
 
+  const { style, sheet } = useAnchoredCard(ref, anchor, WIDTH)
   const times = habit ? plannedRecordTimes(habit, dateKey) : null
   // 時間を決めていない習慣は習慣の段のチップ（時刻なし）から開く
   const untimed = !!habit && habitAsOf(habit, dateKey).timeMode === 'none'
@@ -72,7 +73,6 @@ export function HabitSlotPopover({
   // 時間なしは今日と過ぎた日に ✓
   const limit = logLimitAt(now)(dateKey)
   const started = !times ? limit === null || limit > 0 : limit === null || timeToMinutes(times.startTime) < limit
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 170)
   const start = () => {
     const { timeLogTagPresets, logCategoryColors, startTimer } = useTaskStore.getState()
     const label = logLabelFromTask(habit, timeLogTagPresets, logCategoryColors)

@@ -7,7 +7,7 @@ import { colorVars, labelForHex, recordHex } from '../../lib/logCategoryColors'
 import { CourseAssignments } from './CourseAssignments'
 import { ClassAttendance } from './ClassAttendance'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, taskCardMetaHeight, type AnchorRect } from './anchoredCard'
+import { isAnchoredSheet, useAnchoredCard, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
@@ -26,9 +26,6 @@ import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
 import { MemoPreview } from '../ui/MemoPreview'
 import { isEventTask, isLogTask, type Task } from '../../types/task'
-import { isClassTask } from '../../lib/schoolTerms'
-import { useSchool } from '../../hooks/useSchool'
-import { useAddonOn } from '../../hooks/useAddon'
 import { endKeepingLength } from '../../lib/clockTime'
 import { isOvernightTimeLog } from '../../lib/taskTimeRange'
 import { useTaskTimes } from '../detail/useTaskTimes'
@@ -112,9 +109,6 @@ function EventPopoverBody({
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const timeLogTagPresets = useTaskStore((s) => s.timeLogTagPresets)
   const activeTimer = useTaskStore((s) => s.activeTimer)
-  const timetable = useTaskStore((s) => s.timetable)
-  const school = useSchool()
-  const schoolOn = useAddonOn('school')
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   // タイムゾーンを決めたタスクはそのタイムゾーンの時刻で見せて直す（詳細と同じ）
@@ -141,17 +135,7 @@ function EventPopoverBody({
     }
     updateTimes({ startTime: v, endTime: endKeepingLength(tv.startTime!, tv.endTime!, v) })
   }
-  // 時間割の授業は欠席の行（#452）の分だけ高い
-  const attendanceRow = schoolOn && isClassTask(task, timetable.periods, school) ? 42 : 0
-  const { style, sheet } = anchoredCardStyle(
-    anchor,
-    WIDTH,
-    (isLog ? 270 : 280) +
-      (editableTimes ? 30 : 0) +
-      attendanceRow +
-      memoHeightEstimate(memo) +
-      (isLog || isEvent ? 0 : taskCardMetaHeight(task)),
-  )
+  const { style, sheet } = useAnchoredCard(ref, anchor, WIDTH)
   // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに。予定（完了の無いもの）は「記録にする」
   const recordAndComplete = () => {
     openRecordPrompt(task.id)
@@ -159,15 +143,7 @@ function EventPopoverBody({
   }
 
   return (
-    <div
-      ref={exitRef}
-      role="dialog"
-      aria-label={task.title}
-      tabIndex={-1}
-      className={anchoredCardClass(sheet)}
-      // 色の一覧を開くと背が伸びる。画面からはみ出す分はカードの中でスクロール（Google の予定のカードも同じ）
-      style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
-    >
+    <div ref={exitRef} role="dialog" aria-label={task.title} tabIndex={-1} className={anchoredCardClass(sheet)} style={style}>
       <div className="flex justify-end gap-0.5 px-2 pt-2">
         {/* Google の予定のカードの「Google カレンダーで開く」と同じ位置 */}
         {sourceLink && <TaskSourceLink link={sourceLink} className={iconButtonClass()} iconClassName="h-4 w-4" />}
