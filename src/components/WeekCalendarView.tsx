@@ -206,16 +206,27 @@ export function WeekCalendarView({
   }, [])
 
   const cards = useCalendarCards(gridRef)
-  const { setEventCard, openCard, setGoogleCard, openGoogleCard, openHabitCard, openHabitMenu, createAnchor, setCreateAnchorFromEl } = cards
+  const {
+    setEventCard,
+    openCard,
+    setGoogleCard,
+    openGoogleCard,
+    openHabitCard,
+    openHabitMenu,
+    openSleepCard,
+    createAnchor,
+    setCreateAnchorFromEl,
+  } = cards
 
   /** ブロックを押したとき: 習慣の枠・Google の予定・予定と記録のカード */
   const openBlockCard = useCallback(
     (id: string) => {
       if (parseHabitSlotId(id)) openHabitCard(id)
+      else if (openSleepCard(id)) return
       else if (id.startsWith('event-')) openGoogleCard(id.slice('event-'.length))
       else openCard(id)
     },
-    [openCard, openGoogleCard, openHabitCard],
+    [openCard, openGoogleCard, openHabitCard, openSleepCard],
   )
 
   // ref だけを読むので作り直さない（フックの中の useCallback が描くたびに作り直されないように）
@@ -236,6 +247,8 @@ export function WeekCalendarView({
   const openBlockMenu = useCallback(
     (id: string, x: number, y: number): boolean => {
       if (openHabitMenu(id, x, y)) return true
+      // 睡眠の予定の枠はメニューの代わりにカード（同じ操作がカードにある）
+      if (openSleepCard(id)) return true
       if (id.startsWith('event-')) {
         const s = useTaskStore.getState()
         const event = s.calendarEvents.find((e) => e.id === id.slice('event-'.length))
@@ -252,7 +265,7 @@ export function WeekCalendarView({
       openTaskMenu({ kind: 'event', x, y, taskId: id, brief: true })
       return true
     },
-    [openHabitMenu, setEventCard, setGoogleCard],
+    [openHabitMenu, openSleepCard, setEventCard, setGoogleCard],
   )
   // タッチの長押し: メニューを出せないもの（記録・書き込めない Google の予定）は押したときと同じカード
   const onBlockLongPress = useCallback(
@@ -543,6 +556,7 @@ export function WeekCalendarView({
     openCard,
     openGoogleCard,
     openHabitCard,
+    openSleepCard,
     setCreateAnchorFromEl,
   }
 

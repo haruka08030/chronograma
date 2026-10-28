@@ -1,5 +1,5 @@
 import { DEFAULT_SLEEP_PREFS } from '../lib/sleepPrefs'
-import { normalizeSleepSchedule } from '../lib/sleepSchedule'
+import { normalizeSleepDays, normalizeSleepSchedule, sleepPlanOn } from '../lib/sleepSchedule'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { TaskList } from '../types/list'
@@ -304,6 +304,18 @@ export const useTaskStore = create<TaskState>()(
           if (sameValue(sleepSchedule, cur.sleepSchedule ?? {})) return
           undo.pushUndo()
           set({ addons: { ...cur, sleepSchedule } })
+        },
+        setSleepPlanDay: (wakeDateKey, plan, label) => {
+          const cur = get().addons
+          const days = { ...(cur.sleepDays ?? {}) }
+          // 曜日の予定と同じ時刻にしたら、その朝だけの時刻は消す（習慣のその日だけの時間と同じ）
+          const usual = cur.sleepSchedule ? sleepPlanOn(cur.sleepSchedule, wakeDateKey) : null
+          if (plan === undefined || (plan && usual && plan.bed === usual.bed && plan.wake === usual.wake)) delete days[wakeDateKey]
+          else days[wakeDateKey] = plan
+          const sleepDays = normalizeSleepDays(days)
+          if (sameValue(sleepDays, cur.sleepDays ?? {})) return
+          undo.pushUndo(label)
+          set({ addons: { ...cur, sleepDays } })
         },
         setAddonOn: (id, on) => {
           const next = withAddonOn(get().addons, id, on)

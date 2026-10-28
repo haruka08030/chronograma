@@ -3,7 +3,7 @@ import { normalizeDues, type DueItem } from './dues'
 import { googleSkipKey, normalizeGoogleSkip } from './googleSkip'
 import { normalizeAbsenceCourses } from './absenceCourses'
 import { mergeSchool, normalizeSchool, type School } from './schoolTerms'
-import { normalizeSleepSchedule, type SleepSchedule } from './sleepSchedule'
+import { normalizeSleepDays, normalizeSleepSchedule, type SleepDays, type SleepSchedule } from './sleepSchedule'
 import { courseKey } from './courseLinks'
 import { merge3, merge3ById, merge3Record, merge3Set, type Side } from './settingMerge'
 import { normalizeEventColorChoices, type EventColorChoices } from './googleEventColors'
@@ -42,6 +42,8 @@ export type Addons = {
    * 無いのはまだ決めていない・前の版のアプリが送った値
    */
   sleepSchedule?: SleepSchedule
+  /** その朝だけの睡眠の予定（#660、`SleepDays`）。無いのは変えた日が無い・前の版のアプリが送った値 */
+  sleepDays?: SleepDays
 }
 
 export const DEFAULT_ADDONS: Addons = { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null }
@@ -74,6 +76,7 @@ export function normalizeAddons(raw: unknown): Addons {
     school: normalizeSchool(x.school),
     ...('googleEventColors' in x ? { googleEventColors: normalizeEventColorChoices(x.googleEventColors) } : {}),
     ...('sleepSchedule' in x ? { sleepSchedule: normalizeSleepSchedule(x.sleepSchedule) } : {}),
+    ...('sleepDays' in x ? { sleepDays: normalizeSleepDays(x.sleepDays) } : {}),
   }
 }
 

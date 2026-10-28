@@ -1084,6 +1084,16 @@ const SCREENS = [
     mobileClick: 'button:has-text("タイムライン") >> visible=true',
     state: { addons: { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null, sleepSchedule: SLEEP_SCHEDULE } },
   },
+  // 睡眠の枠を押したカード（#660）: その朝だけ変えた夜（明日の朝 0:30–8:00）。時刻・🗑・いつもの時間に戻す
+  {
+    name: 'sleep-slot-card',
+    view: 'planner',
+    at: '22:30',
+    mobileClick: 'button:has-text("タイムライン") >> visible=true',
+    state: { addons: { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null, sleepSchedule: SLEEP_SCHEDULE } },
+    steps: [{ wait: 300 }],
+    click: '[data-block-id^="sleep-slot::"] >> visible=true >> nth=-1',
+  },
   // 習慣「sleep」で寝る時間を置いていた人に、睡眠のページで睡眠に移すかを聞く（#653）
   {
     name: 'sleep-habit-move',

@@ -1,6 +1,6 @@
 /** ストア（`taskStore.ts`）の状態と操作の型。中身は `slices/*.ts` に分けて書く */
 import type { SleepPrefs } from '../lib/sleepPrefs'
-import type { SleepSchedule } from '../lib/sleepSchedule'
+import type { SleepPlan, SleepSchedule } from '../lib/sleepSchedule'
 import type { Task } from '../types/task'
 import type { ListKind, TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -525,6 +525,11 @@ export interface TaskState {
   deleteEventSeries: (taskId: string, scope: SeriesScope) => number
   /** 睡眠の予定（曜日ごとの寝る・起きる時刻、#652）を決める。⌘Z で戻せる */
   setSleepSchedule: (schedule: SleepSchedule) => void
+  /**
+   * その朝（起きる日）だけの睡眠の予定（#660）。plan が null ならその日は予定なし、undefined なら曜日の予定に戻す。
+   * `label` を渡すと「元に戻す」付きで知らせる
+   */
+  setSleepPlanDay: (wakeDateKey: string, plan: SleepPlan | null | undefined, label?: ToastText) => void
   /** 追加機能をオン・オフする */
   setAddonOn: (id: AddonId, on: boolean) => void
   /** 引き落とし・期限の日を足す・直す（同じ id があれば置き換える、#454） */

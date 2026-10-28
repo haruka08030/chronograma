@@ -537,6 +537,11 @@ export default {
     summaryAria: 'Open the sleep page',
     summaryRange: 'Average of the last {{days}} days ({{count}} nights)',
   },
+  sleepSlot: {
+    remove: 'Remove the sleep plan for this day',
+    times: 'Sleep plan times',
+    backToUsual: 'Back to usual ({{time}})',
+  },
   sleep: {
     title: 'Sleep',
     openPage: 'Sleep page',
@@ -1271,6 +1276,9 @@ export default {
     tasksUnchecked_one: 'Unchecked {{count}} item',
     dueDeleted: 'Deleted “{{name}}”',
     termDeleted: 'Deleted “{{name}}”',
+    sleepDayTime: 'Set the sleep plan for the morning of {{date}} to {{time}}',
+    sleepDayRemoved: 'Removed the sleep plan for the morning of {{date}}',
+    sleepDayUsual: 'Set the sleep plan for the morning of {{date}} back to usual',
     sleepDeleted: 'Deleted sleep for {{day}}',
     absenceCourseRemoved: 'Removed “{{name}}” from class absences',
     message: 'Task deleted',

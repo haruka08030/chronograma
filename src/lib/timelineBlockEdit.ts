@@ -21,8 +21,10 @@ import {
   taskPlacementDate,
   taskWallInterval,
 } from './taskTimeRange'
-import { wallMinutesOf } from './wallTime'
+import { wallMinutes, wallMinutesOf, wallParts } from './wallTime'
+import { parseSleepSlotId, sleepPlanOn, sleepPlanSpan, sleepSlotsOnDay } from './sleepSchedule'
 import { announce } from './announce'
+import { TASK_DEFAULTS } from './taskDefaults'
 
 /**
  * タイムラインのブロック（予定・記録・習慣の枠・Google の予定）の時刻を変える処理。
@@ -58,12 +60,72 @@ export function setHabitDayTimeFromSlot(slot: { habitId: string; dateKey: string
   })
 }
 
+/** その朝の睡眠の予定（その朝だけの時刻があればそれ） */
+function sleepPlanFor(wakeDate: string) {
+  const { sleepSchedule, sleepDays } = useTaskStore.getState().addons
+  return sleepPlanOn(sleepSchedule ?? {}, wakeDate, sleepDays)
+}
+
+/**
+ * 睡眠の枠を、寝る・起きる（壁時計の通しの分）にしてその朝だけの時刻にする（#660）。
+ * 起きる日が変わる・15 分より短いときは変えない（false）
+ */
+function setSleepSlotSpan(wakeDate: string, start: number, end: number): boolean {
+  const s = wallParts(start)
+  const e = wallParts(end)
+  if (end - start < SNAP_MINUTES || e.date !== wakeDate || end - start >= 24 * 60) return false
+  const plan = sleepPlanFor(wakeDate)
+  if (plan && plan.bed === s.time && plan.wake === e.time) return false
+  useTaskStore
+    .getState()
+    .setSleepPlanDay(
+      wakeDate,
+      { bed: s.time, wake: e.time },
+      { key: 'undo.sleepDayTime', params: { date: shortDate(wakeDate), time: `${s.time}–${e.time}` } },
+    )
+  return true
+}
+
+/** 睡眠の枠の寝る・起きる（壁時計の通しの分） */
+function sleepSlotInterval(wakeDate: string): { start: number; end: number } | null {
+  const plan = sleepPlanFor(wakeDate)
+  if (!plan) return null
+  const span = sleepPlanSpan(wakeDate, plan)
+  return { start: wallMinutes(span.dueDate, plan.bed), end: wallMinutes(wakeDate, plan.wake) }
+}
+
+/**
+ * 睡眠の枠を動かした: 列に描いている区間の始まりが `dateKey` の `startTime` へ動いたぶん、寝る・起きるを同じだけずらす。
+ * 日をまたぐ枠はどちらの列の区間をつかんだか分からないので、近いほうの区間からのずれにする
+ */
+function moveSleepSlot(wakeDate: string, dateKey: string, startTime: string): boolean {
+  const iv = sleepSlotInterval(wakeDate)
+  if (!iv) return false
+  const { sleepSchedule, sleepDays } = useTaskStore.getState().addons
+  const to = wallMinutes(dateKey, startTime)
+  const segStarts = [
+    dateKey,
+    wallParts(wallMinutes(dateKey, '00:00') - 1).date,
+    wallParts(wallMinutes(dateKey, '00:00') + 24 * 60).date,
+  ].flatMap((day) =>
+    sleepSlotsOnDay(sleepSchedule ?? {}, day, sleepDays)
+      .filter((x) => x.wakeDate === wakeDate)
+      .map((x) => wallMinutes(day, x.seg.startTime)),
+  )
+  if (segStarts.length === 0) return false
+  const from = segStarts.reduce((a, b) => (Math.abs(to - b) < Math.abs(to - a) ? b : a))
+  const d = to - from
+  return d !== 0 && setSleepSlotSpan(wakeDate, iv.start + d, iv.end + d)
+}
+
 /** ブロックを `dateKey` の `startTime` へ動かす（長さは保つ）。動かしたら true */
 export function applyBlockMove(taskId: string, dateKey: string, startTime: string, endTime: string, ctx: BlockEditContext): boolean {
   if (ctx.copy) {
     if (!canCopyOnDrop(taskId)) return false
     return placeCopies([taskId], (t) => patchAfterTimelineMove(t, dateKey, startTime, endTime)).length > 0
   }
+  const sleepWake = parseSleepSlotId(taskId)
+  if (sleepWake) return moveSleepSlot(sleepWake, dateKey, startTime)
   const habitSlot = parseHabitSlotId(taskId)
   if (habitSlot) {
     // 習慣の枠はその日の中だけ動かせる（ほかの日へ持っていったら元に戻す）
@@ -97,6 +159,19 @@ export function applyBlockMove(taskId: string, dateKey: string, startTime: strin
 
 /** ブロックの長さを変える。`dateKey` は引いた列の日（日をまたぐ記録は、その日の区間の時刻）。変えたら true */
 export function applyBlockResize(taskId: string, startTime: string, endTime: string, dateKey: string, ctx: BlockEditContext): boolean {
+  const sleepWake = parseSleepSlotId(taskId)
+  if (sleepWake) {
+    // 日をまたぐ記録と同じく、引いた列の区間の端だけを変える
+    const plan = sleepPlanFor(sleepWake)
+    if (!plan) return false
+    const pseudo = { ...TASK_DEFAULTS, id: taskId, title: '', kind: 'log', completed: true, ...sleepPlanSpan(sleepWake, plan) } as Task
+    const patch = patchAfterLogResize(pseudo, dateKey, startTime, endTime)
+    if (!patch?.dueDate || !patch.startTime || !patch.endTime) return false
+    const start = wallMinutes(patch.dueDate, patch.startTime)
+    let end = wallMinutes(patch.endDate ?? patch.dueDate, patch.endTime)
+    if (end <= start) end += 24 * 60
+    return setSleepSlotSpan(sleepWake, start, end)
+  }
   const habitSlot = parseHabitSlotId(taskId)
   if (habitSlot) {
     setHabitDayTimeFromSlot(habitSlot, startTime, endTime)
@@ -178,6 +253,17 @@ export type NudgeResult = { title: string; startTime: string; endTime: string }
 export function nudgeTimelineBlock(id: string, mode: NudgeMode, dir: -1 | 1, now: Date = zonedNow()): NudgeResult | null {
   const state = useTaskStore.getState()
   const ctx: BlockEditContext = { logLimit: logLimitAt(now) }
+
+  const sleepWake = parseSleepSlotId(id)
+  if (sleepWake) {
+    // 睡眠の枠: 寝る・起きるを 15 分ずらす・起きるを 15 分伸び縮み（日をまたいでも 1 つの睡眠として）
+    const iv = sleepSlotInterval(sleepWake)
+    if (!iv) return null
+    const d = dir * NUDGE_MINUTES
+    const ok = setSleepSlotSpan(sleepWake, mode === 'move' ? iv.start + d : iv.start, iv.end + d)
+    const plan = sleepPlanFor(sleepWake)
+    return ok && plan ? { title: i18n.t('sleep.title'), startTime: plan.bed, endTime: plan.wake } : null
+  }
 
   const habitSlot = parseHabitSlotId(id)
   if (habitSlot) {

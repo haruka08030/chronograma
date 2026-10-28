@@ -522,6 +522,11 @@ export default {
     summaryAria: '睡眠のページを開く',
     summaryRange: '直近 {{days}} 日の平均（{{count}} 日分）',
   },
+  sleepSlot: {
+    remove: 'この日の睡眠の予定を外す',
+    times: '睡眠の予定の時刻',
+    backToUsual: 'いつもの時間（{{time}}）に戻す',
+  },
   sleep: {
     title: '睡眠',
     openPage: '睡眠のページ',
@@ -1229,6 +1234,9 @@ export default {
     tasksUnchecked: '{{count}} 件のチェックを外しました',
     dueDeleted: '「{{name}}」を削除しました',
     termDeleted: '「{{name}}」を削除しました',
+    sleepDayTime: '{{date}} の朝の睡眠の予定を {{time}} にしました',
+    sleepDayRemoved: '{{date}} の朝の睡眠の予定を外しました',
+    sleepDayUsual: '{{date}} の朝の睡眠の予定をいつもの時間に戻しました',
     sleepDeleted: '{{day}} の睡眠を削除しました',
     absenceCourseRemoved: '「{{name}}」を欠席の一覧から外しました',
     message: 'タスクを削除しました',

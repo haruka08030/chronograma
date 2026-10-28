@@ -34,7 +34,7 @@ import { matchPlanAndActualForDate } from '../../lib/matchEvents'
 import type { PlannedItem } from '../../types/plannedItem'
 import { tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
-import { sleepSlotsOnDay } from '../../lib/sleepSchedule'
+import { sleepPlanSpan, sleepSlotsOnDay } from '../../lib/sleepSchedule'
 import { sleepEndingOn } from '../../lib/sleep'
 
 type TimelineDrag = ReturnType<typeof useTimelineDrag>
@@ -86,6 +86,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   openCard,
   openGoogleCard,
   openHabitCard,
+  openSleepCard,
   setCreateAnchorFromEl,
 }: {
   day: Date
@@ -139,6 +140,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   openGoogleCard: (eventId: string, el?: Element | null) => void
   /** 習慣の枠のカード */
   openHabitCard: (slotId: string, el?: Element | null) => void
+  /** 睡眠の予定の枠のカード（#660） */
+  openSleepCard: (slotId: string, el?: Element | null) => boolean
   setCreateAnchorFromEl: (el: HTMLDivElement | null) => void
 }) {
   const { t } = useTranslation()
@@ -148,6 +151,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const habits = useTaskStore(selectHabitsByDay)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const sleepSchedule = useTaskStore((s) => s.addons.sleepSchedule)
+  const sleepDays = useTaskStore((s) => s.addons.sleepDays)
   const logSleep = useTaskStore((s) => s.logSleep)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const df = useDateFormat()
@@ -158,7 +162,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const absentOn = useAbsentOn()
   const key = toDateKey(day)
-  const sleepSlots = sleepSchedule ? sleepSlotsOnDay(sleepSchedule, key) : []
+  const sleepSlots = sleepSchedule || sleepDays ? sleepSlotsOnDay(sleepSchedule ?? {}, key, sleepDays) : []
   // 睡眠の枠の朝の睡眠の記録の id（文字で受けて、ほかの記録が変わっても列を描き直さない）
   const sleepRecordIds = useTaskStore((s) => sleepSlots.map((x) => sleepEndingOn(s.tasks, x.wakeDate)?.id ?? '').join('|')).split('|')
   // 記録中は、記録の列に始めた時刻から今まで伸びる枠（止めたら入る記録と同じ形。分の境目で描き直す）
@@ -530,12 +534,18 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               hStyle={planStyle(id)}
               colorHex=""
               sleep
+              // 動かす・伸ばすとその朝だけの時刻になる（#660）。日をまたぐ枠は、日をまたぐ記録と同じく 1 つの睡眠として動く
               onPointerDown={(evt) => {
-                // 睡眠の枠は動かさない（時刻は睡眠のページの予定で決める）
-                evt.preventDefault()
-                evt.stopPropagation()
+                const span = sleepPlanSpan(wakeDate, plan)
+                handleBlockPointerDown(evt, id, key, seg.startTime, seg.endTime, gridRef.current, {
+                  startTime: plan.bed,
+                  endTime: plan.wake,
+                  kind: 'log',
+                  dueDate: span.dueDate,
+                  endDate: span.endDate,
+                })
               }}
-              onOpenDetail={() => {}}
+              onOpenDetail={() => openSleepCard(id)}
               withCheck={done || woke}
             />
             {(done || woke) && (
