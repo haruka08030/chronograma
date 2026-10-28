@@ -8,17 +8,18 @@ import { useExitGhost } from '../../hooks/useExitGhost'
 import { useNow } from '../../hooks/useAppClock'
 import { anchoredCardClass } from '../ui/surface'
 import { iconButtonClass } from '../ui/iconButtonClass'
-import { ArrowUpIcon, CloseIcon, PauseIcon, PencilIcon } from '../icons'
+import { ArrowUpIcon, CloseIcon, PauseIcon, PencilIcon, TrashIcon } from '../icons'
 import { isHabitDeleted, isHabitRestOn } from '../../types/habit'
 import { shortcutTip, tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
-import { buildHabitRecordIndex, habitAsOf, habitDayStatus, plannedRecordTimes } from '../../lib/habitTiming'
+import { buildHabitRecordIndex, habitAsOf, habitDayStatus, habitRecordsFor, plannedRecordTimes } from '../../lib/habitTiming'
 import { habitSlotId, isPlacedPointHabitOn, isPointHabitOn } from '../../lib/habitSlots'
 import { logLimitAt, placeHabitSlot, unplaceHabitSlot } from '../../lib/timelineBlockEdit'
-import { timeToMinutes } from '../../lib/timeGrid'
+import { formatDuration, timeToMinutes } from '../../lib/timeGrid'
+import { durationMinutesForTaskSlot } from '../../lib/taskTimeRange'
 import { isLogTask } from '../../types/task'
 import { requestHabitEdit } from '../../lib/habitEditRequest'
 import { CardActions } from './CardActions'
@@ -29,17 +30,21 @@ const WIDTH = 300
  * タイムラインの習慣の枠を押したときの小さなカード（予定のカードと同じ形）。
  * 始まった枠は ✓（予定どおり達成・取り消し）、終わる前は ▶ 記録を開始、習慣の段のチップは「時間に置く」、✎ で開いている画面のまま編集（`HabitEditHost`。その日の時間もそこで直す、#621）。
  * 上の並びに、右クリックのメニューと同じ操作（この日は休む・習慣の段に戻す）をアイコンで置く。キー: Esc 閉じる / e 編集
+ * 済んだ枠は、その日の習慣の記録（`habitRecordsFor`）を 1 行ずつ並べ、行を押すとその記録のカード（`onOpenRecord`）、🗑 で消す（#661）
  */
 export function HabitSlotPopover({
   habitId,
   dateKey,
   anchor,
   onClose,
+  onOpenRecord,
 }: {
   habitId: string
   dateKey: string
   anchor: AnchorRect
   onClose: () => void
+  /** その日の記録の行を押した: その記録のカードを開く（記録の列の記録を押したときと同じ） */
+  onOpenRecord?: (taskId: string) => void
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
@@ -49,6 +54,7 @@ export function HabitSlotPopover({
   const tasks = useTaskStore((s) => s.tasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const setHabitRest = useTaskStore((s) => s.setHabitRest)
+  const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const now = useNow()
   const ref = useRef<HTMLDivElement>(null)
   const exitRef = useExitGhost(ref)
@@ -68,7 +74,12 @@ export function HabitSlotPopover({
   // 時間を決めていない習慣は習慣の段のチップ（時刻なし）から開く
   const untimed = !!habit && habitAsOf(habit, dateKey).timeMode === 'none'
   if (!habit || (!times && !untimed)) return null
-  const done = habitDayStatus(habit, dateKey, buildHabitRecordIndex(tasks.filter(isLogTask))) !== 'missed'
+  const index = buildHabitRecordIndex(tasks.filter(isLogTask))
+  const done = habitDayStatus(habit, dateKey, index) !== 'missed'
+  // その日の習慣の記録（済んだ枠だけ。同じ記録は 1 行）
+  const records = done
+    ? habitRecordsFor(index, habit, dateKey).filter((r, i, all) => r.startTime && r.endTime && all.findIndex((x) => x.id === r.id) === i)
+    : []
   // タイムラインの ✓ と同じ: 始まった枠だけ予定どおり達成にできる（今より先の記録は作らない）。▶ は達成していなければ終わった後も（今から記録を始める）。
   // 時間なしは今日と過ぎた日に ✓
   const limit = logLimitAt(now)(dateKey)
@@ -171,6 +182,39 @@ export function HabitSlotPopover({
                 : undefined
             }
           />
+          {records.length > 0 && (
+            <ul className="mt-2 space-y-0.5">
+              {records.map((r) => {
+                const time = `${r.startTime}–${r.endTime}`
+                const minutes = durationMinutesForTaskSlot(r)
+                return (
+                  <li key={r.id} className="-ml-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose()
+                        onOpenRecord?.(r.id)
+                      }}
+                      aria-label={`${t('habits.openRecord')} ${time}`}
+                      className="flex min-w-0 flex-1 items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-sm tabular-nums text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      <span>{time}</span>
+                      {minutes ? <span className={META_TEXT}>{formatDuration(minutes)}</span> : null}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteTasks([r.id], { key: 'undo.taskDeleted', params: { title: r.title } })}
+                      className={iconButtonClass()}
+                      aria-label={t('habits.deleteRecord')}
+                      {...tip(t('habits.deleteRecord'))}
+                    >
+                      <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </div>
         <span />
         <p className={META_TEXT}>{t('habits.title')}</p>

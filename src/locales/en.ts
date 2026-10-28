@@ -782,6 +782,8 @@ export default {
     settings: 'Settings',
   },
   habits: {
+    openRecord: 'Open record',
+    deleteRecord: 'Delete record',
     title: 'Habits',
     addHabitCta: '+ Add habit',
     color: 'Color',

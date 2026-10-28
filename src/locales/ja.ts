@@ -766,6 +766,8 @@ export default {
     settings: '設定',
   },
   habits: {
+    openRecord: '記録を開く',
+    deleteRecord: '記録を削除',
     title: '習慣',
     addHabitCta: '＋習慣を追加',
     color: '色',

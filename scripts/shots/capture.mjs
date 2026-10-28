@@ -545,6 +545,17 @@ const SCREENS = [
   },
   // 習慣の枠のカード（上の並びに ✎・この日は休む・✕、#616・#621）
   { name: 'calendar-habit-card', view: 'calendar', click: '[data-block-id^="habit-slot::r1::"] >> visible=true >> nth=-1' },
+  // 済んだ枠のカード: ✓ の下にその日の習慣の記録の行（押すと記録のカード・🗑、#661）
+  {
+    name: 'habit-card-records',
+    view: 'planner',
+    mobileClick: 'button:has-text("タイムライン") >> visible=true',
+    click: '[data-block-id^="habit-slot::r1::"] >> visible=true',
+    steps: [
+      { click: '[role="dialog"] button:has-text("予定どおり達成")' },
+      { click: '[data-block-id^="habit-slot::r1::"] >> visible=true' },
+    ],
+  },
   // ✎ で開いた編集画面の上で、その日の時間を直す（この日だけ / これ以降の◯曜日・期限。#612・#621）
   {
     name: 'calendar-habit-time',

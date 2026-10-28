@@ -71,3 +71,34 @@ describe('習慣の枠のカードの ▶（#648）', () => {
     expect(screen.queryByRole('button', { name: 'Start logging' })).toBeNull()
   })
 })
+
+describe('済んだ枠のカードのその日の記録（#661）', () => {
+  const timed: Habit = { ...habit, timeMode: 'range', startTime: '07:00', endTime: '08:00' }
+  const record = () => useTaskStore.getState().tasks.find((t) => t.habitId === 'gym' && !t.deletedAt)
+  function openDone(onOpenRecord = vi.fn()) {
+    useTaskStore.setState({ habits: [timed], tasks: [] })
+    useTaskStore.getState().toggleHabitDate('gym', '2026-10-20')
+    render(<HabitSlotPopover habitId="gym" dateKey="2026-10-20" anchor={anchor} onClose={() => {}} onOpenRecord={onOpenRecord} />)
+    return onOpenRecord
+  }
+
+  it('記録の行を押すとその記録のカードを開く', async () => {
+    const onOpenRecord = openDone()
+    const id = record()!.id
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Open record 07:00–08:00' }))
+    expect(onOpenRecord).toHaveBeenCalledWith(id)
+  })
+
+  it('🗑 で記録を消すと未達成に戻る', async () => {
+    openDone()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Delete record' }))
+    expect(record()).toBeUndefined()
+    expect(screen.queryByRole('button', { name: /Open record/ })).toBeNull()
+  })
+
+  it('まだの枠には記録の行を出さない', () => {
+    useTaskStore.setState({ habits: [timed], tasks: [] })
+    render(<HabitSlotPopover habitId="gym" dateKey="2026-10-20" anchor={anchor} onClose={() => {}} />)
+    expect(screen.queryByRole('button', { name: /Open record/ })).toBeNull()
+  })
+})

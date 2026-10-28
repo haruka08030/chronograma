@@ -15,7 +15,13 @@ export function CalendarCards({ cards }: { cards: CalendarCardsState }) {
         <EventPopover taskId={eventCard.taskId} anchor={eventCard.anchor} onClose={closeCard} onOpenDetail={openDetailFromCard} />
       )}
       {habitCard && (
-        <HabitSlotPopover habitId={habitCard.habitId} dateKey={habitCard.dateKey} anchor={habitCard.anchor} onClose={closeHabitCard} />
+        <HabitSlotPopover
+          habitId={habitCard.habitId}
+          dateKey={habitCard.dateKey}
+          anchor={habitCard.anchor}
+          onClose={closeHabitCard}
+          onOpenRecord={(id) => cards.openCard(id)}
+        />
       )}
       {habitMenu && (
         <HabitContextMenu
