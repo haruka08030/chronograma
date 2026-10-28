@@ -76,6 +76,8 @@ export interface ActiveTimer {
   taskId?: string | null
   /** 元タスクの名前の無い色。記録にそのまま付ける */
   color?: string | null
+  /** 「なんとなく」の記録にする（#657）。持つときはラベル・色を持たない。端末間で同じになる（`user_active_timer.is_vague`） */
+  vague?: true
   /**
    * 「あと何分」の終わりの時刻（ISO、#290）。無い・null は終わりなし（数え上げ）。時間になっても記録は止めない。
    * 端末間で同じになる（`user_active_timer.ends_at`）
@@ -424,6 +426,8 @@ export interface TaskState {
     color?: string | null,
     /** 元の To-Do（記録の候補から To-Do を選んだとき）。統計の「見積もりと記録」に入る */
     sourceTaskId?: string | null,
+    /** 「なんとなく」の記録にする（#657）。ラベル・色は付けず、推定もしない */
+    vague?: boolean,
   ) => string
   /**
    * 睡眠（寝た時刻・起きた時刻、起きた日）を入れる。`id` を渡せばその睡眠を直す。
@@ -442,11 +446,18 @@ export interface TaskState {
   /** 止めたばかりの睡眠のタイマーを戻す（トーストの「元に戻す」）。ほかで寝ると押していれば戻さない */
   restoreCancelledSleep: () => boolean
   /** 記録を開始。既に走っていれば先にそれを記録として閉じる（黙って捨てない） */
-  startTimer: (title: string, tags?: string[], taskId?: string | null, color?: string | null, options?: { minutes?: number | null }) => void
+  startTimer: (
+    title: string,
+    tags?: string[],
+    taskId?: string | null,
+    color?: string | null,
+    /** `minutes` は「あと何分」（#290）、`vague` は「なんとなく」の記録にする（#657） */
+    options?: { minutes?: number | null; vague?: boolean },
+  ) => void
   /** 動いているタイマーの「あと何分」の終わり（ISO）を付ける・選び直す。null で外す（数え上げに戻す）。#290 */
   setTimerEnd: (endsAt: string | null) => void
   /** 動いているタイマーの題名・ラベルを直す（止めた記録にそのまま入る）。空の題名は無視。ラベルを選び直したら元の To-Do の色は外す */
-  editActiveTimer: (patch: { taskTitle?: string; tags?: string[]; color?: string | null }) => void
+  editActiveTimer: (patch: { taskTitle?: string; tags?: string[]; color?: string | null; vague?: boolean }) => void
   stopTimer: () => void
   /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
   resolveStaleTimer: (endedAt: string) => void
@@ -575,6 +586,7 @@ export interface TaskState {
         | 'completed'
         | 'completedAt'
         | 'sectionId'
+        | 'vague'
       >
     >,
     /** 「元に戻す」トーストに出す文（ドラッグで動かしたときなど、変わったことが目に入りにくいとき） */

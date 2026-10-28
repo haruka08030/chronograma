@@ -50,15 +50,17 @@ export function normalizeActiveTimer(raw: unknown): ActiveTimer | null {
     startedAt,
     tags: Array.isArray(x.tags) ? x.tags.filter((t): t is string => typeof t === 'string') : [],
     taskId: typeof x.taskId === 'string' ? x.taskId : null,
-    color: typeof x.color === 'string' ? x.color : null,
+    color: x.vague === true ? null : typeof x.color === 'string' ? x.color : null,
     ...(endsAt ? { endsAt } : {}),
+    // 「なんとなく」（#657）は付いているときだけ持ち、ラベル・色は持たない
+    ...(x.vague === true ? { vague: true as const, tags: [] } : {}),
   }
 }
 
 // 終わりを選び直しただけでも違うタイマーとして送る・取り込む（どの端末でも同じ残り時間になる）
 const timerKey = (t: ActiveTimer | null) => {
   const n = normalizeActiveTimer(t)
-  return n ? JSON.stringify([n.startedAt, n.taskTitle, n.tags, n.taskId, n.color, n.endsAt ?? null]) : ''
+  return n ? JSON.stringify([n.startedAt, n.taskTitle, n.tags, n.taskId, n.color, n.endsAt ?? null, n.vague === true]) : ''
 }
 
 export const sameActiveTimer = (a: ActiveTimer | null, b: ActiveTimer | null) => timerKey(a) === timerKey(b)
@@ -113,6 +115,8 @@ interface ActiveTimerRow {
   color: string | null
   /** 「あと何分」の終わり（`028`、#290）。null は終わりなし */
   ends_at?: string | null
+  /** 「なんとなく」にしたタイマーの始めた時刻（`051`、#657）。`started_at` と同じときだけ「なんとなく」 */
+  vague_for?: string | null
   updated_at: string
 }
 
@@ -120,7 +124,7 @@ interface ActiveTimerRow {
 export async function fetchActiveTimer(supabase: SupabaseClient, userId: string): Promise<RemoteActiveTimer | null | { error: string }> {
   const { data, error } = await supabase
     .from('user_active_timer')
-    .select('started_at, task_title, tags, task_id, color, ends_at, updated_at')
+    .select('started_at, task_title, tags, task_id, color, ends_at, vague_for, updated_at')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) return { error: error.message }
@@ -136,6 +140,7 @@ export async function fetchActiveTimer(supabase: SupabaseClient, userId: string)
           taskId: row.task_id,
           color: row.color,
           endsAt: row.ends_at ?? null,
+          vague: row.vague_for != null && Date.parse(row.vague_for) === Date.parse(row.started_at) ? true : undefined,
         })
   return { timer, updatedAt: String(row.updated_at) }
 }
@@ -158,6 +163,7 @@ export function pushActiveTimer(
       task_id: t?.taskId ?? null,
       color: t?.color ?? null,
       ends_at: t?.endsAt ?? null,
+      vague_for: t?.vague ? t.startedAt : null,
       updated_at: value.updatedAt,
     },
     base,

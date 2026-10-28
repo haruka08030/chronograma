@@ -69,7 +69,18 @@ export function useCompleteWithLog() {
     const endDateArg = draft.endDate !== draft.date ? draft.endDate : null
     // 記録を足して完了にする 1 つの操作なので、元に戻すも 1 回で両方戻す。予定は記録を足すだけ（完了が無い）
     useTaskStore.getState().asOneUndo(() => {
-      addTimeLog(title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
+      addTimeLog(
+        title,
+        draft.date,
+        draft.startTime,
+        draft.endTime,
+        draft.tags,
+        memo || undefined,
+        endDateArg,
+        draft.color,
+        null,
+        draft.vague,
+      )
       if (!draft.fromEvent) toggleTask(draft.taskId)
     })
     // 記録した件の通知（記録の確認・開始前）を通知センターから閉じる。予定は完了にならないのでここで閉じる

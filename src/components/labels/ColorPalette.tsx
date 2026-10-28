@@ -23,6 +23,7 @@ export function ColorPalette({
   defaultHex,
   bare = false,
   fill = false,
+  vague,
 }: {
   selectedHex: string | null
   onChoose: (hex: string) => void
@@ -34,6 +35,8 @@ export function ColorPalette({
   bare?: boolean
   /** 色の丸を置き場所の幅いっぱいに並べる（幅 320px の予定のカード・右クリックの中のメニュー。12 列だとはみ出す） */
   fill?: boolean
+  /** 記録のラベルだけ: 「なんとなく」（#657）を既定ボタンの上に出す。`selected` は今「なんとなく」か */
+  vague?: { selected: boolean; onChoose: () => void }
 }) {
   const { t } = useTranslation()
   const [editingLabels, setEditingLabels] = useState(false)
@@ -52,6 +55,26 @@ export function ColorPalette({
         <PencilIcon className="h-4 w-4" strokeWidth={1.75} />
       </button>
       <ColorSwatches ariaLabel={t('labels.pickerAria')} selectedHex={selectedHex} onChoose={onChoose} fill={fill} swatches={swatches} />
+      {vague && (
+        <button
+          type="button"
+          onClick={vague.onChoose}
+          aria-pressed={vague.selected}
+          {...tip(t('labels.vagueHint'))}
+          className={`mt-3 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-zinc-700 ring-1 transition-colors dark:text-zinc-200 ${
+            vague.selected
+              ? 'bg-white ring-zinc-400 dark:bg-zinc-800 dark:ring-zinc-500'
+              : 'ring-zinc-200 hover:bg-white dark:ring-zinc-700 dark:hover:bg-zinc-800'
+          }`}
+        >
+          <span className="gc-vague h-4 w-4 shrink-0 rounded-full" aria-hidden />
+          <span className="min-w-0">
+            <span className="block">{t('labels.vague')}</span>
+            {/* ホバーの無い端末（スマホ）はヒントの代わりに、開いたときだけ説明を下に */}
+            <span className="hidden text-xs text-zinc-500 [@media(hover:none)]:block dark:text-zinc-400">{t('labels.vagueHint')}</span>
+          </span>
+        </button>
+      )}
       {onDefault && (
         <button
           type="button"

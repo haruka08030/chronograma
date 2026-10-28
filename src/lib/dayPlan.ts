@@ -1,5 +1,6 @@
 import { addDays } from 'date-fns'
-import { isEventTask, isLogTask, isSleepTask, isTodoTask, type Task } from '../types/task'
+import { isEventTask, isLogTask, isTodoTask, type Task } from '../types/task'
+import { isCountedLog } from './vagueLog'
 import { isActiveTask } from './taskLifecycle'
 import { minutesOfLogOnCalendarDay, taskPlacementDate } from './taskTimeRange'
 import { fromDateKey, toDateKey } from './dateKey'
@@ -109,8 +110,8 @@ export function getDayPlan(
   for (const task of tasks) {
     if (!isActiveTask(task)) continue
     if (isLogTask(task)) {
-      // 睡眠は記録の時間に入れない（毎日 7〜8 時間で他の記録が見えなくなる）
-      if (!isSleepTask(task)) loggedMinutes += minutesOfLogOnCalendarDay(task, dateKey)
+      // 睡眠は記録の時間に入れない（毎日 7〜8 時間で他の記録が見えなくなる）。「なんとなく」も入れない（#657）
+      if (isCountedLog(task)) loggedMinutes += minutesOfLogOnCalendarDay(task, dateKey)
       continue
     }
     // 予定（バイト・授業）は Google の予定と同じく数えない（To-Do・やり残し・完了）。カレンダーで見る。

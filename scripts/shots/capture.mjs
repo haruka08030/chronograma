@@ -136,6 +136,19 @@ const addClass = (cell, title) => [
 ]
 /** 足す To-Do で種データの To-Do から引き継がない値 */
 /** 今日の昼寝（11:00–12:30。種データの今日の睡眠 s10 と同じ日に起きた睡眠） */
+/** 今日の「なんとなく」の記録（#657）。課題（確率論）と授業の間の 11:30–13:00 */
+const TODAY_VAGUE = {
+  id: 'vague-today',
+  title: '課題と ES を行き来',
+  kind: 'log',
+  completed: true,
+  vague: true,
+  tags: [],
+  startTime: '11:30',
+  endTime: '13:00',
+  order: 201,
+}
+
 const TODAY_NAP = (state) => ({
   id: 'nap-today',
   title: '睡眠',
@@ -946,6 +959,17 @@ const SCREENS = [
     rightClick: 'li:has-text("日記を書く")',
   },
   { name: 'stats', view: 'stats' },
+  // 「なんとなく」の記録（#657）: タイムラインは灰の斜線の枠、ふりかえりの棒は一番上に斜線で積む
+  {
+    name: 'planner-vague',
+    view: 'planner',
+    extraTasks: [(state) => ({ ...TODAY_VAGUE, dueDate: state.tasks.find((x) => x.id === 's8').dueDate })],
+  },
+  {
+    name: 'stats-vague',
+    view: 'stats',
+    extraTasks: [(state) => ({ ...TODAY_VAGUE, dueDate: state.tasks.find((x) => x.id === 's8').dueDate })],
+  },
   // ふりかえりを画像にして共有する前の見本（#283。画像は共有先で読みやすいライトで作る）
   { name: 'stats-share', view: 'stats', click: 'button[aria-label="画像にして共有"] >> visible=true' },
   {

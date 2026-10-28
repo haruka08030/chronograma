@@ -14,6 +14,7 @@ import { DEFAULT_GOOGLE_EVENT_HEX } from '../lib/googleColors'
 import { CalendarAddTaskButton, CalendarInlineTaskAdd } from './CalendarInlineTaskAdd'
 import { readDraggedTaskIds } from '../lib/useTimelineDrop'
 import { isLogTask, isSleepTask, type Task } from '../types/task'
+import { isCountedLog, isVagueLog } from '../lib/vagueLog'
 import { completionDayKey, dueMarkDayKey } from '../lib/dayPlan'
 import { appTodayKey, isAppToday } from '../lib/timeZone'
 import { Segmented } from './ui/Segmented'
@@ -169,7 +170,8 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
   )
 
   const totalLoggedMinutes = useMemo(
-    () => logItems.reduce((acc, item) => (isSleepTask(item) ? acc : acc + minutesOfLogOnCalendarDay(item, selectedDateKey)), 0),
+    // 睡眠と「なんとなく」（#657）は記録した時間に入れない
+    () => logItems.reduce((acc, item) => (isCountedLog(item) ? acc + minutesOfLogOnCalendarDay(item, selectedDateKey) : acc), 0),
     [logItems, selectedDateKey],
   )
 
@@ -318,6 +320,7 @@ export function CalendarDayPanel({ selectedDateKey }: { selectedDateKey: string 
                     key={item.id}
                     time={item.startTime}
                     dotStyle={isSleepTask(item) ? SLEEP_DOT_STYLE : colorVars(recordHex(item, logCategoryColors))}
+                    dotClass={isVagueLog(item) ? 'gc-vague' : undefined}
                     title={item.title}
                     // 記録は記録のメニュー（色＝ラベル・編集・削除）。睡眠は色を持たないのでカードだけ
                     onContextMenu={

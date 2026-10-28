@@ -1,4 +1,5 @@
 import { isLogTask, isSleepTask, type Task } from '../types/task'
+import { isCountedLog } from './vagueLog'
 import { subDays } from 'date-fns'
 import { fromDateKey, toDateKey } from './dateKey'
 import { isActiveTask } from './taskLifecycle'
@@ -192,7 +193,7 @@ export function logTitleSuggestions(
     .map(({ e }) => ({ title: e.title, category: e.category, typicalMinutes: typicalMinutes(e.logs) }))
 }
 
-/** ラベル名も名前の無い色も無い記録（睡眠・ゴミ箱は除く）。記録の帯の凡例と設定のラベルでまとめて付ける */
+/** ラベル名も名前の無い色も無い記録（睡眠・「なんとなく」・ゴミ箱は除く）。記録の帯の凡例と設定のラベルでまとめて付ける */
 export function isUnlabeledLog(task: Task): boolean {
-  return isLogTask(task) && isActiveTask(task) && !isSleepTask(task) && !task.category && !task.color
+  return isCountedLog(task) && isActiveTask(task) && !task.category && !task.color
 }

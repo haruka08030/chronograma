@@ -16,6 +16,8 @@ export interface WrapUpRow {
   parent_id?: string | null
   is_time_log?: boolean | null
   is_sleep?: boolean | null
+  /** 「なんとなく」の記録（`051`）。記録した時間・予定との突き合わせに入れない */
+  is_vague?: boolean | null
   is_event?: boolean | null
   completed?: boolean | null
   scheduled_date?: string | null
@@ -246,7 +248,7 @@ export function wrapUpDigest(
   for (const row of rows) {
     const active = isActiveRow(row)
     if (row.is_time_log) {
-      if (!active || row.is_sleep || row.parent_id) continue
+      if (!active || row.is_sleep || row.is_vague || row.parent_id) continue
       const minutes = logMinutesOnDay(row, day)
       loggedMinutes += minutes
       if (minutes > 0 && row.start_time && row.end_time) {

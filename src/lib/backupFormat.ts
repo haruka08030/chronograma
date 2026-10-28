@@ -23,6 +23,7 @@ import { readCarriedDays } from './carryDays'
 import { readEventSeries } from './eventSeries'
 import { readMovedPlans } from './movedPlans'
 import { readDreamId, readSomedayTier } from './somedayTier'
+import { readVague } from './vagueLog'
 import { isLabelId, normalizeLabelIds } from './labelIds'
 import { normalizeLabelTargets } from './labelTargets'
 import { readTimeZone } from './timeZone'
@@ -288,7 +289,10 @@ export function normalizeTaskRow(raw: unknown): Task | null {
   // 夢の一歩だった To-Do の元の夢（#430）は To-Do の行だけ
   const dreamId = kind === 'todo' ? readDreamId(row.dreamId ?? row.dream_id) : null
   const movedPlans = kind === 'todo' ? readMovedPlans(row.movedPlans ?? row.moved_plans) : null
+  // 「なんとなく」（#657）は記録の行だけ。印のある行だけ項目を持つ
+  const vague = kind === 'log' && readVague(row.vague ?? row.is_vague)
   return {
+    ...(vague ? { vague: true as const } : {}),
     ...(series ? { series } : {}),
     ...(movedPlans ? { movedPlans } : {}),
     ...(somedayTier ? { somedayTier } : {}),

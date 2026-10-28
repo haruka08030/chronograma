@@ -65,6 +65,7 @@ import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
 import { calendarWeekEnd, monthGridDays, weekdayLabelsFrom } from '../lib/weekStart'
 import { formatDate } from '../lib/dateFormat'
 import { isSubmitEnter } from '../lib/keyboard'
+import { isVagueLog } from '../lib/vagueLog'
 
 /** 月のマスの 1 行（時刻つきの予定・To-Do）は「● 時刻 タイトル」の文字だけ。時間が過ぎたら（完了・未完了とも）灰色の文字 */
 function rowTextClass(state: PlanVisualState): string {
@@ -142,7 +143,8 @@ export function CalendarView({
   const recordsByDate = useMemo(() => {
     const map = new Map<string, Map<string, number>>()
     for (const t of tasks) {
-      if (!isLogTask(t) || !isActiveTask(t) || t.parentId) continue
+      // 「なんとなく」はラベル別に入れない（#657）
+      if (!isLogTask(t) || isVagueLog(t) || !isActiveTask(t) || t.parentId) continue
       for (const day of days) {
         const key = toDateKey(day)
         const min = minutesOfLogOnCalendarDay(t, key)
