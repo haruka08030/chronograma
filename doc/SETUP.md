@@ -1,0 +1,214 @@
+# 設定の手順
+
+Supabase（ログインと同期）・バックアップ・通知・Google・Notion を自分の環境で動かすときの手順。公開するときの順番と秘密の一覧は [`PUBLISHING.md`](./PUBLISHING.md)。
+
+## Supabase（ログインと同期）
+
+1. [Supabase](https://supabase.com) でプロジェクトを作成します。
+2. **SQL Editor** で `supabase/migrations/` の SQL を番号順に全部実行し、テーブルと RLS を作成します（[`001_chronograma_schema.sql`](../supabase/migrations/001_chronograma_schema.sql) から最後の番号まで。一覧は [`supabase/migrations/README.md`](../supabase/migrations/README.md)）。
+   どのファイルも何度流しても同じ形になります。先に **Database → Extensions** で `pg_cron` を有効にしておくと、`010`（古い同期の印）と `011`（端末のエラーの記録）を 30 日で消す毎日のジョブができます（後から有効にしたら `010`・`011` を流し直す）。
+3. **Authentication → URL Configuration** で **Site URL** に本番のオリジン（開発時は `http://localhost:5173` など）を設定し、**Redirect URLs** にも同じオリジンを追加します（マジックリンクのリダイレクト用）。
+   アカウント削除用の Edge Function をデプロイします: `supabase functions deploy account`（設定 → アカウント の「アカウントを削除」が使う）。
+   ブラウザから呼ぶ Edge Function（account・google-calendar・notion・canvas）は、secret `ALLOWED_ORIGINS` に入れたオリジンからだけ呼べます。本番の URL を入れてください: `supabase secrets set ALLOWED_ORIGINS=https://your-app.vercel.app`（複数はカンマ区切り）。開発用（`http://localhost:5173`・`:4173`）は環境変数 `ALLOW_DEV_ORIGINS=true` のときだけ足します（ローカルの `supabase functions serve` なら `supabase/functions/.env` に書く。本番の secret には入れない）。
+   連携のトークン（Google のリフレッシュトークンとアクセストークン・Notion / Canvas のトークン・Canvas のフィード URL）は、DB に置く前に Edge Function が暗号化します。鍵を secret に入れてください: `supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。入れる前に保存したトークン（平文）は、`daily-reminders` が 5 分ごとに少しずつ暗号化し直します（それまでの間、平文のトークンは使わずにエラーにします）。鍵が無い間は連携の保存を断り、500 を返します。
+   **鍵の入れ替え**（漏れたときや定期的に）は、連携を切らずにできます:
+   1. 今の鍵を前の鍵に回し、新しい鍵を入れる（2 つを 1 回で）: `supabase secrets set TOKEN_ENCRYPTION_PREVIOUS_KEYS=<今の鍵> TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)`。前の鍵がすでにあるなら、カンマ区切りで並べる（`TOKEN_ENCRYPTION_PREVIOUS_KEYS=<今の鍵>,<その前の鍵>`）。secret は次の呼び出しから効き、デプロイし直しは要りません
+   2. 連携の関数は前の鍵でも開け、読んだついでに新しい鍵で閉じ直します。使われていない連携の行も `daily-reminders` が 5 分ごとに（表ごと 100 行まで）閉じ直します
+   3. 全部閉じ直されたか SQL Editor で確かめる（新しい鍵の名前は暗号文の `enc:v2:` の次の 8 文字。新しく保存された行で分かる）: `select count(*) from google_oauth where refresh_token not like 'enc:v2:<新しい鍵の名前>:%'`（`google_oauth.access_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url` も同じ）が 0 になったら。Google のアクセストークンは作り直せるので、どの鍵でも開けなければ `daily-reminders` が空にします
+   4. 前の鍵を外す: `supabase secrets unset TOKEN_ENCRYPTION_PREVIOUS_KEYS`（漏れた鍵はこれで使えなくなる）。0 にならない行は、どの鍵でも開けない壊れた値です（`daily-reminders` のログに `token sweep: unreadable values`）。その連携はつなぎ直しになります
+   **鍵を消したり、前の鍵に回さずに替えたりすると、保存済みの連携はすべてつなぎ直しになります**。
+   ログイン用メールは、Supabase の標準のメール送信だと 1 時間に送れる数がごく少なく、超えると `email rate limit exceeded` になります。人に使ってもらう前に **Authentication → Emails → SMTP Settings** で自前の SMTP（Resend・SendGrid など）を設定し、**Authentication → Rate Limits** でメールの上限を上げてください。
+   コードでのログインを使うには、**Authentication → Emails → Templates** の **Magic Link** に `{{ .Token }}`（6 桁のコード）を入れます（標準の文面はリンクだけ）。
+4. **Project Settings → API** から **Project URL** と **anon public** キーをコピーします。
+5. リポジトリのルートに `.env` を置き、`.env.example` を参考に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定します。開発サーバーを再起動します。
+
+ヘッダーの「ログイン」からメールアドレスを送信し、届いたリンクかコードでサインインすると、約 1.8 秒のデバウンス後に変更がサーバーへ同期されます。同期は端末ごとの前回同期状態との**三方向マージ**なので、複数端末で編集しても他端末の追加を消しません（他の端末の変更は Realtime の通知ですぐ、ほかにアプリに戻ったときと表示中の一定間隔でも取り込みます）。
+
+## バックアップ
+
+- **Supabase 側**: DB の自動バックアップがあるかはプランによります。Pro
+  以上は毎日のバックアップがあり（保てる日数はプランごと）、任意の時点に戻せる
+  PITR は有料の追加機能です。Free
+  プランには自動バックアップが無く、しばらく使われないプロジェクトは一時停止されます。細かい条件は
+  Supabase の料金表と **Database → Backups**
+  の画面で確かめてください。自分で控えを取るなら
+  `supabase db dump --linked -f backup.sql`（スキーマ）と
+  `supabase db dump --linked --data-only -f data.sql`（データ）。
+- **アプリ側**: 各端末が IndexedDB
+  に自動で控えを残します（`src/lib/autoBackup.ts`）。毎日の控え（その日はじめて開いたときの状態、14
+  日分）・同期で手元のタスクが減る直前（5 件分）・ログアウトの直前（5
+  件分）。戻すのは **設定**
+  の自動バックアップか、エラーの画面の「自動バックアップから戻す」から。控えはその端末の中だけにあり、ほかの端末やサーバーには送りません。JSON
+  の書き出し・取り込みは別にあります。
+
+## 通知（Web Push、任意）
+
+アプリを閉じていても、朝のまとめ・予定の前・締切の前（前日 20:00 と 3 時間前）・予定のあとの記録の確認（「予定どおり / 記録する」）・夜のまとめ（その日の数字つき）・タイマーの止め忘れ・「あと何分」の時間（最大 5 分ほど遅れます。アプリを開いていればちょうどの時刻）を届けます。予定の前の通知の「記録を始める」を押すと、その予定のタイマーを動かした状態でアプリが開きます。タスクごとの通知（詳細の「通知」）も同じ仕組みです。設定しない場合は、アプリを開いている間だけのブラウザ通知になります。iPhone ではホーム画面に追加したアプリでのみ届きます（iOS 16.4 以降）。
+
+1. VAPID 鍵を作る: `npx web-push generate-vapid-keys`
+2. 公開鍵を `.env`（とホスティングの環境変数）の `VITE_VAPID_PUBLIC_KEY` に設定
+3. Edge Function のシークレットを設定してデプロイ:
+
+```bash
+supabase secrets set \
+  VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... \
+  VAPID_SUBJECT=mailto:you@example.com \
+  CRON_SECRET=$(openssl rand -hex 24)
+supabase functions deploy daily-reminders
+```
+
+4. **Database → Extensions** で `pg_cron` と `pg_net` を有効にし、SQL Editor で
+   `CRON_SECRET` を Vault に入れてから、5
+   分ごとの呼び出しを登録します（`YOUR_PROJECT_REF` と `YOUR_CRON_SECRET`
+   を置き換え）。cron の文には秘密を書かず、呼ぶたびに Vault
+   から読みます（`cron.job` の表に平文で残らない）:
+
+```sql
+select vault.create_secret('YOUR_CRON_SECRET', 'chronograma_cron_secret');
+
+select cron.schedule(
+  'chronograma-daily-reminders',
+  '*/5 * * * *',
+  $$
+  select net.http_post(
+    url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/daily-reminders',
+    headers := jsonb_build_object(
+      'x-cron-secret',
+      (select decrypted_secret from vault.decrypted_secrets where name = 'chronograma_cron_secret')
+    ),
+    timeout_milliseconds := 60000
+  );
+  $$
+);
+```
+
+`timeout_milliseconds` は応答を待つ上限です（pg_net の既定は 5
+秒で、利用者が多いと送り終える前に切れる）。
+
+秘密を平文で書いたジョブがすでにある場合は、上の `vault.create_secret`
+を流したあと、古いジョブを外して上の `cron.schedule` で登録し直します:
+
+```sql
+select cron.unschedule('chronograma-daily-reminders');
+-- ここで上の cron.schedule(...) を流す
+select jobname, schedule, command from cron.job where jobname = 'chronograma-daily-reminders';  -- 秘密が文に無いこと
+```
+
+秘密を変えるときは、Edge Function の secret と Vault の両方を変えます:
+`supabase secrets set CRON_SECRET=NEW_SECRET` と
+`select vault.update_secret((select id from vault.secrets where name = 'chronograma_cron_secret'), 'NEW_SECRET');`
+
+通知時刻は各端末のタイムゾーンで判定し、1 日 1
+回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。1
+回が失敗しても（読み込みの失敗・デプロイ中・タイムアウト）、次の回が前の成功の回から今まで（上限
+60 分）の分を送ります（`reminder_runs`、migration
+`012`。送った通知は二度送りません）。
+
+**VAPID 鍵の入れ替え**（漏れたとき・作り直したとき）。前の鍵の購読にはプッシュサービスが 403 を返すので、`daily-reminders` はその購読を消し（`reminder_runs.last_key_mismatch` に数える。`supabase/metrics/health.sql` の 4）、端末はアプリを開いたときに購読の鍵が今の公開鍵と違えば今の鍵で購読し直します（`src/lib/webPush.ts` の `subscribedWithKey`）:
+
+1. 新しい鍵を作る: `npx web-push generate-vapid-keys`
+2. 公開鍵・秘密鍵を両方の側で同時に替える: Supabase の `supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=...` と、ホスティング（Vercel）の `VITE_VAPID_PUBLIC_KEY`（替えたら再デプロイ。公開鍵はビルドに入る）。片方だけ替えると、新しい購読にも 403 が返って消され続けます
+3. 替えたあと、各端末はアプリを開くまで通知が届きません（開いたときに購読し直す）。`last_key_mismatch` が 0 に戻れば、残っていた前の鍵の購読は片付いています
+
+## Google でログイン（任意）
+
+ログインの画面に「Google でログイン」を出すには、`VITE_GOOGLE_CLIENT_ID`
+を設定したうえで次を行います（カレンダー連携と同じ Web
+クライアントを使えます）。
+
+1. **Google Cloud Console → Credentials → OAuth 2.0 Client (Web)** の
+   **Authorized redirect URIs** に
+   `https://<project-ref>.supabase.co/auth/v1/callback` を追加
+2. Supabase の **Authentication → Providers → Google** を有効にし、Client ID /
+   Secret を設定
+3. **Authentication → URL Configuration** の **Redirect URLs**
+   に本番と開発のオリジンが入っていること（マジックリンクと同じ）
+
+ログインで求める権限はメールアドレスと名前・プロフィール画像だけです。カレンダーは設定から別に連携します。同じメールアドレスでメールと
+Google の両方からログインすると、Supabase が同じアカウントにまとめます（Google
+側で確認済みのアドレスのとき）。
+
+## Google Calendar 連携（任意）
+
+予定の取り込みと書き込みは Supabase **Edge Function** `google-calendar`
+経由です。Google
+の予定をカレンダーとタイムラインに出し、アプリの予定を作る・直す・消すと Google
+カレンダーにも反映します（題名・日時・メモ・一番近い色。予定の ID
+はアプリの予定から決めるので二重にならない）。リフレッシュトークンとアクセストークン（期限まで使い回す。`039`）は
+`google_oauth` 表に暗号化して保存します。
+
+1. **Google Cloud Console**
+   で次の2点（開発中はスコープの手動追加は不要。アプリが OAuth URL
+   に自動付与する。一般公開には OAuth 同意画面に
+   `calendar.events.owned`・`calendar.calendarlist.readonly` を登録し（理由は
+   [`doc/GOOGLE_VERIFICATION.md`](./GOOGLE_VERIFICATION.md)）、プライバシーポリシー（`/privacy.html`）の
+   URL を添えて Google の審査を受ける）:
+   - **APIs & Services → Library** で **Google Calendar API** を有効化
+   - **APIs & Services → Credentials → OAuth 2.0 Client (Web)** の **Authorized
+     redirect URIs** に `http://localhost:5173` と本番 URL（例
+     `https://your-app.vercel.app`）を追加
+2. **Authentication → Providers → Google** で Client ID / Secret
+   を設定（上記と同じ Web クライアント）。
+3. Edge Function をデプロイし、シークレットを設定します（詳細は
+   [`supabase/functions/google-calendar/README.md`](../supabase/functions/google-calendar/README.md)）:
+
+```bash
+supabase link --project-ref YOUR_PROJECT_REF
+supabase secrets set \
+  GOOGLE_CLIENT_ID=your_web_oauth_client_id \
+  GOOGLE_CLIENT_SECRET=your_web_oauth_client_secret
+supabase functions deploy google-calendar
+```
+
+Vercel では
+`VITE_SUPABASE_URL`・`VITE_SUPABASE_ANON_KEY`・`VITE_GOOGLE_CLIENT_ID`（Google
+Cloud の Web クライアント ID）が必要です。カレンダー連携は Supabase Auth
+ではなくアプリから直接 Google OAuth し、Edge Function が authorization code を
+refresh token に交換して保存します。
+
+Vercel にデプロイすると `vercel.json` のヘッダーが付きます（`/assets/`
+は長期キャッシュ、`/`・`/index.html`・`/sw.js`
+は毎回確認、Content-Security-Policy・Strict-Transport-Security
+などのセキュリティヘッダー）。CSP の接続先（`connect-src`）はこのアプリの
+Supabase プロジェクト `https://lcgtczpmohouwqgssfmu.supabase.co`（と
+`wss://`）だけです。別の Supabase
+プロジェクト・独自ドメインで動かす場合や、ブラウザから直接ほかの外部 API
+を呼ぶ処理を足す場合は `vercel.json` の `connect-src`
+を書き換えてください。画像（`img-src`）は自分のオリジンと `data:` / `blob:`
+だけです。
+
+リンクを共有したときのプレビュー（OGP）の画像・URL は、ビルドのときに公開の URL
+を前に付けた絶対 URL になります。Vercel
+では本番ドメイン（独自ドメインを足せばそれ）が自動で入ります。ほかのホスティングでは環境変数
+`SITE_URL`（例 `https://your-app.example`）を設定してください。
+
+## Notion 連携（任意）
+
+Notion
+のデータベースから「要アクション」のステータスの行をタスクとして取り込み、そのタスクを完了にすると
+Notion 側のステータスを次へ進めます。Edge Function `notion`
+経由で、統合トークンは `notion_connection`
+表に保存します（ブラウザには返しません）。詳細は
+[`supabase/functions/notion/README.md`](../supabase/functions/notion/README.md)。
+
+1. `supabase/migrations/` の SQL を全部実行しておきます（`notion_connection` は
+   `001` で作られます）。
+2. Edge Function
+   をデプロイします。シークレットの設定は要りません（呼び出し元の制限は上の
+   `ALLOWED_ORIGINS` を使います）:
+
+```bash
+supabase functions deploy notion
+```
+
+3. 使う人がアプリで **設定 → 外部連携 → Notion**
+   を開き、画面の手順どおりにつなぎます:
+   - [Notion のインテグレーション](https://www.notion.so/profile/integrations)
+     で「内部インテグレーション」を作り、シークレットをコピーする
+   - 取り込みたいデータベースを開き、右上の「…」→「接続」でそのインテグレーションを追加する
+   - シークレットとデータベースの URL を貼って「接続する」
+4. 「ステータスの列」「日付の列」「要アクションのステータス」と、それぞれ「完了したら」進めるステータスを選ぶと同期が始まります（アプリを開いている間は
+   5 分ごと）。
+
+アプリから Notion のトークンは取り消せません。連携をやめたあと Notion
+からのアクセスも止めるには、Notion の設定でインテグレーションを外します。

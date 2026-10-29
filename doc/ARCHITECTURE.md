@@ -11,7 +11,8 @@
 | [`UI_CONSISTENCY.md`](./UI_CONSISTENCY.md) | 同じ役割の色・見た目・挙動を共有している部品 |
 | [`IDEAS.md`](./IDEAS.md) | まだ作業に分けていないアイデアと方向性 |
 | [`PUBLISHING.md`](./PUBLISHING.md) | 公開の手順・秘密と環境変数の一覧 |
-| ルート `README.md` | プロジェクト概要・起動手順・Supabase と通知の手順 |
+| [`SETUP.md`](./SETUP.md) | Supabase・バックアップ・通知・Google・Notion の設定の手順 |
+| ルート `README.md` | プロジェクト概要・設計の全体像・起動手順 |
 | 本ファイル | ファイルの地図と、保存・同期・DB・運用の技術的な事実 |
 
 具体的な作業は GitHub の Issue。挙動は `RULES.md` を正とし、ここには書かない。
@@ -186,7 +187,7 @@
 
 - 正本は `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` / `user_settings` / `user_extra_time_zones` / `push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection` / `edge_rate_limits`、索引・トリガー・関数・RLS）と番号順のファイル。一覧と短い説明は `supabase/migrations/README.md`
 - どれも何度流しても同じ形。変更は新しい番号のファイルで足し、コミット済みのファイルは書き換えない。本番は `supabase db push --linked`（先に `--dry-run`）
-- ルート `README.md` の Supabase 節は本節と `migrations/README.md` に合わせる
+- `SETUP.md` の Supabase 節は本節と `migrations/README.md` に合わせる
 
 ### 書き込みの確かめ
 
@@ -231,7 +232,7 @@
 
 - `google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が service_role で読み書き）。`google_oauth.access_token` / `access_token_expires_at`（`039`）はアクセストークンの使い回し
 - トークンの列（`google_oauth.refresh_token` / `access_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url`）は `enc:v2:<鍵の名前>:` で始まる AES-GCM の暗号文（`_shared/secretBox.ts`。今の鍵 `TOKEN_ENCRYPTION_KEY`、前の鍵 `TOKEN_ENCRYPTION_PREVIOUS_KEYS` は開くときだけ、鍵の名前は鍵から決まる 8 桁の 16 進、追加データは表・列・利用者。`enc:v1:` は今の鍵・前の鍵の順に試す）。今の鍵の `enc:v2:` でない値は読んだときに閉じ直し、読まれない行は `daily-reminders` が回の終わりに表ごと 100 行まで閉じ直す（`_shared/tokenSweep.ts`）。平文は閉じ直す処理のほかでは開かない（`PlaintextSecretError`）
-- Web Push: pg_cron が 5 分ごとに Edge Function `daily-reminders` を `x-cron-secret` 付きで呼ぶ（`net.http_post` の `timeout_milliseconds := 60000`、秘密は Vault。手順はルート `README.md` の「通知」）。何をいつ出すかは `daily-reminders/schedule.ts`（純粋関数、サーバーとブラウザで共有）
+- Web Push: pg_cron が 5 分ごとに Edge Function `daily-reminders` を `x-cron-secret` 付きで呼ぶ（`net.http_post` の `timeout_milliseconds := 60000`、秘密は Vault。手順は `SETUP.md` の「通知」）。何をいつ出すかは `daily-reminders/schedule.ts`（純粋関数、サーバーとブラウザで共有）
   - 送る時間は前の成功の回から今まで（上限 60 分。`reminder_runs`（`012`、1 行、service_role だけ）の `last_ok_at`、失敗が 1 つでもあった回は進めない）。送った通知は購読ごとの `reminder_sent`。前の回が走っている間（`running_since`、10 分より古ければ取り直す）は何もしない。幅と記録は `daily-reminders/batch.ts` の `runWindowStart` / `runFinishPatch`
   - 回の終わりに時刻・数・最後の失敗を残す（`021`、`runStatsPatch`）。プッシュサービスが 403 を返して消した購読は `last_key_mismatch`（`046`、`runKeyMismatchPatch`）。端末は購読の `applicationServerKey` が今の `VITE_VAPID_PUBLIC_KEY` と違えば購読し直す（`webPush.ts` の `subscribedWithKey`）
   - 購読・タスクは 1000 行ずつキーの順に読む（`batch.ts` の `fetchAllAfter`、offset は使わない）。未完了のタスクは部分索引 `tasks_reminder_open_idx`（`026`）と同じ条件。購読の `endpoint` はプッシュサービスの URL だけ（`_shared/pushEndpoint.ts`）

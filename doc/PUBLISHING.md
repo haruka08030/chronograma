@@ -1,6 +1,6 @@
 # 公開の手順
 
-友達より広く使ってもらうときに、上から順に行う。各項目の詳しい設定は [`README.md`](../README.md) の該当の節。
+友達より広く使ってもらうときに、上から順に行う。各項目の詳しい設定は [`SETUP.md`](./SETUP.md) の該当の節。
 
 ## 1. Supabase のコードと DB を本番にそろえる
 
@@ -12,7 +12,7 @@
 for f in account canvas daily-reminders google-calendar notion; do supabase functions deploy $f; done
 ```
 
-4. 通知の cron の秘密を Vault から読む形にする（README「通知」の SQL。`cron.job` の文に秘密が残っていないことを確かめる）
+4. 通知の cron の秘密を Vault から読む形にする（SETUP.md「通知」の SQL。`cron.job` の文に秘密が残っていないことを確かめる）
 
 ## 2. 秘密と環境変数
 
@@ -22,7 +22,7 @@ for f in account canvas daily-reminders google-calendar notion; do supabase func
 | Vercel | `VITE_GOOGLE_CLIENT_ID` | Google でログイン・カレンダー連携のボタン |
 | Vercel | `VITE_VAPID_PUBLIC_KEY` | 通知の購読 |
 | Supabase secrets | `ALLOWED_ORIGINS` | Edge Function を呼べるオリジン（本番の URL） |
-| Supabase secrets | `TOKEN_ENCRYPTION_KEY` | 連携のトークンの暗号化（今の鍵）。替えるときは今の鍵を `TOKEN_ENCRYPTION_PREVIOUS_KEYS` に回す（手順はルート `README.md`）。回さずに替えると保存済みの連携はすべてつなぎ直し |
+| Supabase secrets | `TOKEN_ENCRYPTION_KEY` | 連携のトークンの暗号化（今の鍵）。替えるときは今の鍵を `TOKEN_ENCRYPTION_PREVIOUS_KEYS` に回す（手順は `SETUP.md` の「Supabase」）。回さずに替えると保存済みの連携はすべてつなぎ直し |
 | Supabase secrets | `TOKEN_ENCRYPTION_PREVIOUS_KEYS` | 鍵の入れ替えの間だけ。前の鍵（カンマ区切り）。開くときだけ使い、全部閉じ直したら外す |
 | Supabase secrets | `GOOGLE_CLIENT_ID`・`GOOGLE_CLIENT_SECRET` | カレンダー連携（`google-calendar`） |
 | Supabase secrets | `VAPID_PUBLIC_KEY`・`VAPID_PRIVATE_KEY`・`VAPID_SUBJECT` | 通知の送信 |
@@ -49,11 +49,11 @@ for f in account canvas daily-reminders google-calendar notion; do supabase func
 
 ## 5. Supabase のプランとバックアップ
 
-- Free プランは自動バックアップが無く、しばらく使われないとプロジェクトが一時停止する。人のデータを預かるなら毎日のバックアップがあるプラン（Pro 以上）にするか、`supabase db dump` で自分で控えを取る（README「バックアップ」）
+- Free プランは自動バックアップが無く、しばらく使われないとプロジェクトが一時停止する。人のデータを預かるなら毎日のバックアップがあるプラン（Pro 以上）にするか、`supabase db dump` で自分で控えを取る（SETUP.md「バックアップ」）
 - 端末の中にも自動の控えがある（`src/lib/autoBackup.ts`。設定のバックアップから戻せる）
 
 ## 6. 出した後に見るところ
 
-- 端末のエラー: `client_errors` の表（見る SQL は [`CURSOR_CONTEXT.md`](./CURSOR_CONTEXT.md) の「端末のエラー」の節）
+- 端末のエラー: `client_errors` の表（見る SQL は [`ARCHITECTURE.md`](./ARCHITECTURE.md) の「端末のエラー」の節）
 - 通知の cron: `net._http_response` の 200 以外（cron の実行記録は呼び出しが非同期なので常に成功と残る）
 - CI: `.github/workflows/ci.yml` の check・functions・database の 3 つ

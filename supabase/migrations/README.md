@@ -81,8 +81,8 @@
 | `canvas_connection` | Canvas LMS のアクセストークン・フィードの URL（どちらも暗号化して保存）と学校の URL（学校ごとに 1 行、主キー `(user_id, id)`、`id` はホスト名）。クライアント向けポリシーなし（Edge Function `canvas` が service_role で読み書き） |
 | `sync_tombstones` | 消えた行の印（`lists` / `list_sections` / `tasks` / `habits`）。印があれば、その行はいまサーバーに無い。書くのはトリガーだけ、端末は読むだけ。1 人 50,000 件まで（超えたら古い印から消す）、30 日より古い印は毎日消す（`010`）。アカウントの削除では Edge Function `account` が先に消す |
 | `sync_tombstone_purges` | 上限で消した印の一番新しい `deleted_at`（利用者ごとに 1 行、`last_deleted_at`）。書くのはトリガーだけ、端末は本人の行を読むだけ。差分の目印がこれより前なら端末は全部を取り直す |
-| `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗・端末の保存・連携・通知の購読の失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（[`../metrics/health.sql`](../metrics/health.sql)・`doc/CURSOR_CONTEXT.md` の「端末のエラー」） |
-| `feedback` | 設定の「お問い合わせ・フィードバック」から送られた文面（`src/lib/feedback.ts`）。送れるのはログイン中の人。端末からは insert だけ。見るのは SQL Editor から（`doc/CURSOR_CONTEXT.md` の「お問い合わせ・フィードバック」） |
+| `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗・端末の保存・連携・通知の購読の失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（[`../metrics/health.sql`](../metrics/health.sql)・`doc/ARCHITECTURE.md` の「端末のエラー」） |
+| `feedback` | 設定の「お問い合わせ・フィードバック」から送られた文面（`src/lib/feedback.ts`）。送れるのはログイン中の人。端末からは insert だけ。見るのは SQL Editor から（`doc/ARCHITECTURE.md` の「お問い合わせ・フィードバック」） |
 | `reminder_runs` | 通知の送信の実行の記録（1 行）。最後に全部うまくいった回の時刻 `last_ok_at` と、走っている回の目印 `running_since`、最後の回の時刻・数と最後の失敗の時刻（`021`）・鍵が合わずに消した購読の数（`046`）。読み書きは Edge Function `daily-reminders`（service_role）だけ |
 | `app_versions_seen` | どの版のアプリがまだ同期しているか（1 人 × アプリの版 × 同期の取り決めの版で 1 行、`last_seen`）。端末は同期の最初に 1 日 1 回 `note_app_version` を呼ぶ（`src/lib/versionSeen.ts`）。表は端末から読めず書けない。版の下限（`app_config.min_sync_version`）を上げる前に [`../metrics/versions.sql`](../metrics/versions.sql) で版ごとの直近 7 日の人数を見る |
 
@@ -97,4 +97,4 @@
 
 - 動きは pgTAP の [`../tests/`](../tests/) で確かめる（手元は `supabase start` → `supabase test db`、CI でも流す）。
 
-ルートの [`README.md`](../../README.md) の Supabase 節と、`doc/CURSOR_CONTEXT.md` の DB 節は本ファイルと同期させる。
+[`doc/SETUP.md`](../../doc/SETUP.md) の Supabase 節と、`doc/ARCHITECTURE.md` の DB 節は本ファイルと同期させる。

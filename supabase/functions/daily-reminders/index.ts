@@ -1,5 +1,5 @@
 // Sends Web Push reminders: morning summary (with yesterday's numbers, #278), before plans, before deadlines, record prompts after plans,
-// the evening wrap-up with the day's numbers, a stale-timer nudge, the focus timer's time-up (#290) and payments / expiry dates (#454). Invoked by pg_cron every 5 minutes (see README). Requires CRON_SECRET.
+// the evening wrap-up with the day's numbers, a stale-timer nudge, the focus timer's time-up (#290) and payments / expiry dates (#454). Invoked by pg_cron every 5 minutes (see doc/SETUP.md). Requires CRON_SECRET.
 // 送る時間は前の成功の回から今まで（上限 60 分。表 `reminder_runs`、migration 012）。
 //
 // 回の終わりに、連携のトークンのうち今の鍵で閉じていない行を少しずつ閉じ直す（`_shared/tokenSweep.ts`、鍵の入れ替え）。

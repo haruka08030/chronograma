@@ -1,6 +1,6 @@
 # Chronograma — アイデアと方向性
 
-まだ作業に分けていないもの。完了条件を一文で書けるようになったら GitHub の Issue にして、ここから消す（方向性として残す部分は残し、Issue 番号を添える）。実装の正はコードと [`CURSOR_CONTEXT.md`](./CURSOR_CONTEXT.md)、守り続ける決まりは [`RULES.md`](./RULES.md)。
+まだ作業に分けていないもの。完了条件を一文で書けるようになったら GitHub の Issue にして、ここから消す（方向性として残す部分は残し、Issue 番号を添える）。実装の正はコードと [`ARCHITECTURE.md`](./ARCHITECTURE.md)、守り続ける決まりは [`RULES.md`](./RULES.md)。
 
 ## 性質の違うものを 1 つの To‑Do に混ぜない
 

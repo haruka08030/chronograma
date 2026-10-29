@@ -20,7 +20,7 @@ main に出すとき（DB と Edge Function は main へのマージでは出な
 3. 秘密や環境変数を足した・替えたら、先に入れる（Supabase の secrets・Vercel の環境変数。一覧は `doc/PUBLISHING.md` の 2）
 4. dev を main にマージする
 
-スキーマは `supabase/migrations/` の番号順のファイル、一覧は `supabase/migrations/README.md`。ルート `README.md` と `doc/CURSOR_CONTEXT.md` もこれに合わせる。
+スキーマは `supabase/migrations/` の番号順のファイル、一覧は `supabase/migrations/README.md`。`doc/SETUP.md` と `doc/ARCHITECTURE.md` もこれに合わせる。
 
 起動時に読まないもの:
 
