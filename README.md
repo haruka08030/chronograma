@@ -4,7 +4,8 @@
 
 ## プロジェクト概要
 
-**Chronograma** は学生向けの **React** のシングルページアプリ（PWA）です。1 日を計画して、記録して、ふりかえります。ローカルの作業フォルダ名が `jikanwari` のままの場合があります。
+**Chronograma** は学生向けの **React** のシングルページアプリ（PWA）です。
+1日を計画して、記録して、ふりかえります。
 
 ### 主役: 計画 → 記録 → ふりかえり
 
@@ -14,19 +15,38 @@
 
 ### その他にできること
 
-- **To‑Do**: ラベル（記録・カレンダーと共通の色の名前）で分ける。期限・時刻・繰り返し、検索・クイック追加、ドラッグでの並べ替え、複数選択と一括操作、直近削除の Undo
-- **いつか**: 夢とやりたいを切り替えて見る。夢は 2 列のタイル（次の一歩・進み具合、かなえた夢は日付つきで残る）、やりたいは行の棚と「今週これどう？」。夢の一歩を予定にしても元の夢を覚える
-- **チェックリスト**: ラベルとは別のリスト（買い物など）。いつかとともに今日の計画・期限・統計・通知に混ざらない。クイック追加で `@買い物 牛乳` のように追加先を指定
-- **カレンダー**: 月／週／3 日／スケジュール表示、時間割（授業を学期の間の毎週の予定に）、よく入れる予定、日付パネルでその日の予定・記録を確認
-- **習慣**: ヒートマップ・週次スコア・曜日トグル・時間指定モード（なし／固定時刻／時間帯）など
-- **連携（任意）**: Google カレンダー（取り込みと、アプリの予定の書き込み）・Notion・Canvas
+- **To‑Do**:
+  ラベル（記録・カレンダーと共通の色の名前）で分ける。期限・時刻・繰り返し、検索・クイック追加、ドラッグでの並べ替え、複数選択と一括操作、直近削除の
+  Undo
+- **いつか**: 夢とやりたいを切り替えて見る。夢は 2
+  列のタイル（次の一歩・進み具合、かなえた夢は日付つきで残る）、やりたいは行の棚と「今週これどう？」。夢の一歩を予定にしても元の夢を覚える
+- **チェックリスト**:
+  ラベルとは別のリスト（買い物など）。いつかとともに今日の計画・期限・統計・通知に混ざらない。クイック追加で
+  `@買い物 牛乳` のように追加先を指定
+- **カレンダー**: 月／週／3
+  日／スケジュール表示、時間割（授業を学期の間の毎週の予定に）、よく入れる予定、日付パネルでその日の予定・記録を確認
+- **習慣**:
+  ヒートマップ・週次スコア・曜日トグル・時間指定モード（なし／固定時刻／時間帯）など
+- **連携（任意）**: Google
+  カレンダー（取り込みと、アプリの予定の書き込み）・Notion・Canvas
 - **外観**: ライト／ダーク、日本語と英語の UI
 
-**既定の保存先**はブラウザの **IndexedDB**（Zustand の永続化。使えないブラウザでは localStorage）です。**Supabase** を環境変数で設定すると、**Google アカウント**かメール（届いたリンク、またはコードの入力）でログインし、リスト・タスク・習慣を **クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
+**既定の保存先**はブラウザの **IndexedDB**（Zustand
+の永続化。使えないブラウザでは localStorage）です。**Supabase**
+を環境変数で設定すると、**Google
+アカウント**かメール（届いたリンク、またはコードの入力）でログインし、リスト・タスク・習慣を
+**クラウド同期**できます。未設定のときは認証なしのローカル専用動作です。
 
-**スマホ・タブレット**も同じ Web アプリで対応しています（**PWA**）。ホーム画面に追加するとアプリとして起動でき、ログイン中は通知がアプリを閉じていても届きます。以前あった Flutter 版（`mobile/`）は廃止しました（Git 履歴には残っています）。
+**スマホ・タブレット**も同じ Web
+アプリで対応しています（**PWA**）。ホーム画面に追加するとアプリとして起動でき、ログイン中は通知がアプリを閉じていても届きます。以前あった
+Flutter 版（`mobile/`）は廃止しました（Git 履歴には残っています）。
 
-実装寄りの全体像（主要ファイル、同期の挙動、マイグレーション一覧など）は [`doc/CURSOR_CONTEXT.md`](doc/CURSOR_CONTEXT.md) を参照してください。人に公開するときの手順は [`doc/PUBLISHING.md`](doc/PUBLISHING.md)。作業は GitHub の Issue、アイデアと方向性は [`doc/IDEAS.md`](doc/IDEAS.md)、実装で守る決まりは [`doc/RULES.md`](doc/RULES.md) です。
+実装寄りの全体像（主要ファイル、同期の挙動、マイグレーション一覧など）は
+[`doc/CURSOR_CONTEXT.md`](doc/CURSOR_CONTEXT.md)
+を参照してください。人に公開するときの手順は
+[`doc/PUBLISHING.md`](doc/PUBLISHING.md)。作業は GitHub の
+Issue、アイデアと方向性は [`doc/IDEAS.md`](doc/IDEAS.md)、実装で守る決まりは
+[`doc/RULES.md`](doc/RULES.md) です。
 
 ## 設計の全体像（Architecture）
 
@@ -55,7 +75,9 @@ npm install
 npm run dev
 ```
 
-ビルドは `npm run build`、Lint は `npm run lint`、整形は `npm run format`（確認だけなら `npm run format:check`）です。`npm install` で入るコミット前のフック（`.githooks/pre-commit`）が、ステージしたファイルの書式を確かめ、崩れていればコミットを止めます。
+ビルドは `npm run build`、Lint は `npm run lint`、整形は
+`npm run format`（確認だけなら `npm run format:check`）です。`npm install`
+で入るコミット前のフック（`.githooks/pre-commit`）が、ステージしたファイルの書式を確かめ、崩れていればコミットを止めます。
 
 端末のタイムゾーンと今日を決めて全部のテストを回すのは `npm run test:tz`（Los Angeles の夏時間の切り替わる日、東京の年末の 15:30Z とうるう日。時刻は `FAKE_NOW` と `src/test/fakeNow.ts`）。CI は Los Angeles の 2026-11-01 で 1 回回します。
 
@@ -67,14 +89,19 @@ supabase test db  # supabase/tests を流す
 supabase db reset # migration を足した・変えたときに流し直す
 ```
 
-CI は migration を 2 回流し（何度流しても同じ形になること）、Edge Function を `deno check` し、DB のテストを流します。
+CI は migration を 2 回流し（何度流しても同じ形になること）、Edge Function を
+`deno check` し、DB のテストを流します。
 
 ## スマホで使う（PWA）
 
 - **iPhone / iPad**: Safari で開き、共有ボタン →「ホーム画面に追加」
-- **Android / Chrome / Edge**: アプリ内の「アプリとして使う」（アカウントメニュー、または設定）からインストール
-- Service Worker（[`public/sw.js`](public/sw.js)）は**本番ビルドだけ**登録します。動作確認は `npm run build && npm run preview`
-- 通知タップやホーム画面のショートカットは `/?view=planner` のような URL で該当画面を開きます
+- **Android / Chrome / Edge**:
+  アプリ内の「アプリとして使う」（アカウントメニュー、または設定）からインストール
+- Service
+  Worker（[`public/sw.js`](public/sw.js)）は**本番ビルドだけ**登録します。動作確認は
+  `npm run build && npm run preview`
+- 通知タップやホーム画面のショートカットは `/?view=planner` のような URL
+  で該当画面を開きます
 
 ## Supabase のセットアップ（マルチデバイス同期）
 
@@ -100,8 +127,20 @@ CI は migration を 2 回流し（何度流しても同じ形になること）
 
 ### バックアップ
 
-- **Supabase 側**: DB の自動バックアップがあるかはプランによります。Pro 以上は毎日のバックアップがあり（保てる日数はプランごと）、任意の時点に戻せる PITR は有料の追加機能です。Free プランには自動バックアップが無く、しばらく使われないプロジェクトは一時停止されます。細かい条件は Supabase の料金表と **Database → Backups** の画面で確かめてください。自分で控えを取るなら `supabase db dump --linked -f backup.sql`（スキーマ）と `supabase db dump --linked --data-only -f data.sql`（データ）。
-- **アプリ側**: 各端末が IndexedDB に自動で控えを残します（`src/lib/autoBackup.ts`）。毎日の控え（その日はじめて開いたときの状態、14 日分）・同期で手元のタスクが減る直前（5 件分）・ログアウトの直前（5 件分）。戻すのは **設定** の自動バックアップか、エラーの画面の「自動バックアップから戻す」から。控えはその端末の中だけにあり、ほかの端末やサーバーには送りません。JSON の書き出し・取り込みは別にあります。
+- **Supabase 側**: DB の自動バックアップがあるかはプランによります。Pro
+  以上は毎日のバックアップがあり（保てる日数はプランごと）、任意の時点に戻せる
+  PITR は有料の追加機能です。Free
+  プランには自動バックアップが無く、しばらく使われないプロジェクトは一時停止されます。細かい条件は
+  Supabase の料金表と **Database → Backups**
+  の画面で確かめてください。自分で控えを取るなら
+  `supabase db dump --linked -f backup.sql`（スキーマ）と
+  `supabase db dump --linked --data-only -f data.sql`（データ）。
+- **アプリ側**: 各端末が IndexedDB
+  に自動で控えを残します（`src/lib/autoBackup.ts`）。毎日の控え（その日はじめて開いたときの状態、14
+  日分）・同期で手元のタスクが減る直前（5 件分）・ログアウトの直前（5
+  件分）。戻すのは **設定**
+  の自動バックアップか、エラーの画面の「自動バックアップから戻す」から。控えはその端末の中だけにあり、ほかの端末やサーバーには送りません。JSON
+  の書き出し・取り込みは別にあります。
 
 ### 通知（Web Push、任意）
 
@@ -119,7 +158,11 @@ supabase secrets set \
 supabase functions deploy daily-reminders
 ```
 
-4. **Database → Extensions** で `pg_cron` と `pg_net` を有効にし、SQL Editor で `CRON_SECRET` を Vault に入れてから、5 分ごとの呼び出しを登録します（`YOUR_PROJECT_REF` と `YOUR_CRON_SECRET` を置き換え）。cron の文には秘密を書かず、呼ぶたびに Vault から読みます（`cron.job` の表に平文で残らない）:
+4. **Database → Extensions** で `pg_cron` と `pg_net` を有効にし、SQL Editor で
+   `CRON_SECRET` を Vault に入れてから、5
+   分ごとの呼び出しを登録します（`YOUR_PROJECT_REF` と `YOUR_CRON_SECRET`
+   を置き換え）。cron の文には秘密を書かず、呼ぶたびに Vault
+   から読みます（`cron.job` の表に平文で残らない）:
 
 ```sql
 select vault.create_secret('YOUR_CRON_SECRET', 'chronograma_cron_secret');
@@ -140,9 +183,11 @@ select cron.schedule(
 );
 ```
 
-`timeout_milliseconds` は応答を待つ上限です（pg_net の既定は 5 秒で、利用者が多いと送り終える前に切れる）。
+`timeout_milliseconds` は応答を待つ上限です（pg_net の既定は 5
+秒で、利用者が多いと送り終える前に切れる）。
 
-秘密を平文で書いたジョブがすでにある場合は、上の `vault.create_secret` を流したあと、古いジョブを外して上の `cron.schedule` で登録し直します:
+秘密を平文で書いたジョブがすでにある場合は、上の `vault.create_secret`
+を流したあと、古いジョブを外して上の `cron.schedule` で登録し直します:
 
 ```sql
 select cron.unschedule('chronograma-daily-reminders');
@@ -150,9 +195,15 @@ select cron.unschedule('chronograma-daily-reminders');
 select jobname, schedule, command from cron.job where jobname = 'chronograma-daily-reminders';  -- 秘密が文に無いこと
 ```
 
-秘密を変えるときは、Edge Function の secret と Vault の両方を変えます: `supabase secrets set CRON_SECRET=NEW_SECRET` と `select vault.update_secret((select id from vault.secrets where name = 'chronograma_cron_secret'), 'NEW_SECRET');`
+秘密を変えるときは、Edge Function の secret と Vault の両方を変えます:
+`supabase secrets set CRON_SECRET=NEW_SECRET` と
+`select vault.update_secret((select id from vault.secrets where name = 'chronograma_cron_secret'), 'NEW_SECRET');`
 
-通知時刻は各端末のタイムゾーンで判定し、1 日 1 回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。1 回が失敗しても（読み込みの失敗・デプロイ中・タイムアウト）、次の回が前の成功の回から今まで（上限 60 分）の分を送ります（`reminder_runs`、migration `012`。送った通知は二度送りません）。
+通知時刻は各端末のタイムゾーンで判定し、1 日 1
+回ずつ送ります。失効した購読（アプリ削除・通知拒否）は自動で削除されます。1
+回が失敗しても（読み込みの失敗・デプロイ中・タイムアウト）、次の回が前の成功の回から今まで（上限
+60 分）の分を送ります（`reminder_runs`、migration
+`012`。送った通知は二度送りません）。
 
 **VAPID 鍵の入れ替え**（漏れたとき・作り直したとき）。前の鍵の購読にはプッシュサービスが 403 を返すので、`daily-reminders` はその購読を消し（`reminder_runs.last_key_mismatch` に数える。`supabase/metrics/health.sql` の 4）、端末はアプリを開いたときに購読の鍵が今の公開鍵と違えば今の鍵で購読し直します（`src/lib/webPush.ts` の `subscribedWithKey`）:
 
@@ -162,23 +213,45 @@ select jobname, schedule, command from cron.job where jobname = 'chronograma-dai
 
 ### Google でログイン（任意）
 
-ログインの画面に「Google でログイン」を出すには、`VITE_GOOGLE_CLIENT_ID` を設定したうえで次を行います（カレンダー連携と同じ Web クライアントを使えます）。
+ログインの画面に「Google でログイン」を出すには、`VITE_GOOGLE_CLIENT_ID`
+を設定したうえで次を行います（カレンダー連携と同じ Web
+クライアントを使えます）。
 
-1. **Google Cloud Console → Credentials → OAuth 2.0 Client (Web)** の **Authorized redirect URIs** に `https://<project-ref>.supabase.co/auth/v1/callback` を追加
-2. Supabase の **Authentication → Providers → Google** を有効にし、Client ID / Secret を設定
-3. **Authentication → URL Configuration** の **Redirect URLs** に本番と開発のオリジンが入っていること（マジックリンクと同じ）
+1. **Google Cloud Console → Credentials → OAuth 2.0 Client (Web)** の
+   **Authorized redirect URIs** に
+   `https://<project-ref>.supabase.co/auth/v1/callback` を追加
+2. Supabase の **Authentication → Providers → Google** を有効にし、Client ID /
+   Secret を設定
+3. **Authentication → URL Configuration** の **Redirect URLs**
+   に本番と開発のオリジンが入っていること（マジックリンクと同じ）
 
-ログインで求める権限はメールアドレスと名前・プロフィール画像だけです。カレンダーは設定から別に連携します。同じメールアドレスでメールと Google の両方からログインすると、Supabase が同じアカウントにまとめます（Google 側で確認済みのアドレスのとき）。
+ログインで求める権限はメールアドレスと名前・プロフィール画像だけです。カレンダーは設定から別に連携します。同じメールアドレスでメールと
+Google の両方からログインすると、Supabase が同じアカウントにまとめます（Google
+側で確認済みのアドレスのとき）。
 
 ### Google Calendar 連携（任意）
 
-予定の取り込みと書き込みは Supabase **Edge Function** `google-calendar` 経由です。Google の予定をカレンダーとタイムラインに出し、アプリの予定を作る・直す・消すと Google カレンダーにも反映します（題名・日時・メモ・一番近い色。予定の ID はアプリの予定から決めるので二重にならない）。リフレッシュトークンとアクセストークン（期限まで使い回す。`039`）は `google_oauth` 表に暗号化して保存します。
+予定の取り込みと書き込みは Supabase **Edge Function** `google-calendar`
+経由です。Google
+の予定をカレンダーとタイムラインに出し、アプリの予定を作る・直す・消すと Google
+カレンダーにも反映します（題名・日時・メモ・一番近い色。予定の ID
+はアプリの予定から決めるので二重にならない）。リフレッシュトークンとアクセストークン（期限まで使い回す。`039`）は
+`google_oauth` 表に暗号化して保存します。
 
-1. **Google Cloud Console** で次の2点（開発中はスコープの手動追加は不要。アプリが OAuth URL に自動付与する。一般公開には OAuth 同意画面に `calendar.events.owned`・`calendar.calendarlist.readonly` を登録し（理由は [`doc/GOOGLE_VERIFICATION.md`](doc/GOOGLE_VERIFICATION.md)）、プライバシーポリシー（`/privacy.html`）の URL を添えて Google の審査を受ける）:
+1. **Google Cloud Console**
+   で次の2点（開発中はスコープの手動追加は不要。アプリが OAuth URL
+   に自動付与する。一般公開には OAuth 同意画面に
+   `calendar.events.owned`・`calendar.calendarlist.readonly` を登録し（理由は
+   [`doc/GOOGLE_VERIFICATION.md`](doc/GOOGLE_VERIFICATION.md)）、プライバシーポリシー（`/privacy.html`）の
+   URL を添えて Google の審査を受ける）:
    - **APIs & Services → Library** で **Google Calendar API** を有効化
-   - **APIs & Services → Credentials → OAuth 2.0 Client (Web)** の **Authorized redirect URIs** に `http://localhost:5173` と本番 URL（例 `https://your-app.vercel.app`）を追加
-2. **Authentication → Providers → Google** で Client ID / Secret を設定（上記と同じ Web クライアント）。
-3. Edge Function をデプロイし、シークレットを設定します（詳細は [`supabase/functions/google-calendar/README.md`](supabase/functions/google-calendar/README.md)）:
+   - **APIs & Services → Credentials → OAuth 2.0 Client (Web)** の **Authorized
+     redirect URIs** に `http://localhost:5173` と本番 URL（例
+     `https://your-app.vercel.app`）を追加
+2. **Authentication → Providers → Google** で Client ID / Secret
+   を設定（上記と同じ Web クライアント）。
+3. Edge Function をデプロイし、シークレットを設定します（詳細は
+   [`supabase/functions/google-calendar/README.md`](supabase/functions/google-calendar/README.md)）:
 
 ```bash
 supabase link --project-ref YOUR_PROJECT_REF
@@ -188,27 +261,55 @@ supabase secrets set \
 supabase functions deploy google-calendar
 ```
 
-Vercel では `VITE_SUPABASE_URL`・`VITE_SUPABASE_ANON_KEY`・`VITE_GOOGLE_CLIENT_ID`（Google Cloud の Web クライアント ID）が必要です。カレンダー連携は Supabase Auth ではなくアプリから直接 Google OAuth し、Edge Function が authorization code を refresh token に交換して保存します。
+Vercel では
+`VITE_SUPABASE_URL`・`VITE_SUPABASE_ANON_KEY`・`VITE_GOOGLE_CLIENT_ID`（Google
+Cloud の Web クライアント ID）が必要です。カレンダー連携は Supabase Auth
+ではなくアプリから直接 Google OAuth し、Edge Function が authorization code を
+refresh token に交換して保存します。
 
-Vercel にデプロイすると `vercel.json` のヘッダーが付きます（`/assets/` は長期キャッシュ、`/`・`/index.html`・`/sw.js` は毎回確認、Content-Security-Policy・Strict-Transport-Security などのセキュリティヘッダー）。CSP の接続先（`connect-src`）はこのアプリの Supabase プロジェクト `https://lcgtczpmohouwqgssfmu.supabase.co`（と `wss://`）だけです。別の Supabase プロジェクト・独自ドメインで動かす場合や、ブラウザから直接ほかの外部 API を呼ぶ処理を足す場合は `vercel.json` の `connect-src` を書き換えてください。画像（`img-src`）は自分のオリジンと `data:` / `blob:` だけです。
+Vercel にデプロイすると `vercel.json` のヘッダーが付きます（`/assets/`
+は長期キャッシュ、`/`・`/index.html`・`/sw.js`
+は毎回確認、Content-Security-Policy・Strict-Transport-Security
+などのセキュリティヘッダー）。CSP の接続先（`connect-src`）はこのアプリの
+Supabase プロジェクト `https://lcgtczpmohouwqgssfmu.supabase.co`（と
+`wss://`）だけです。別の Supabase
+プロジェクト・独自ドメインで動かす場合や、ブラウザから直接ほかの外部 API
+を呼ぶ処理を足す場合は `vercel.json` の `connect-src`
+を書き換えてください。画像（`img-src`）は自分のオリジンと `data:` / `blob:`
+だけです。
 
-リンクを共有したときのプレビュー（OGP）の画像・URL は、ビルドのときに公開の URL を前に付けた絶対 URL になります。Vercel では本番ドメイン（独自ドメインを足せばそれ）が自動で入ります。ほかのホスティングでは環境変数 `SITE_URL`（例 `https://your-app.example`）を設定してください。
+リンクを共有したときのプレビュー（OGP）の画像・URL は、ビルドのときに公開の URL
+を前に付けた絶対 URL になります。Vercel
+では本番ドメイン（独自ドメインを足せばそれ）が自動で入ります。ほかのホスティングでは環境変数
+`SITE_URL`（例 `https://your-app.example`）を設定してください。
 
 ### Notion 連携（任意）
 
-Notion のデータベースから「要アクション」のステータスの行をタスクとして取り込み、そのタスクを完了にすると Notion 側のステータスを次へ進めます。Edge Function `notion` 経由で、統合トークンは `notion_connection` 表に保存します（ブラウザには返しません）。詳細は [`supabase/functions/notion/README.md`](supabase/functions/notion/README.md)。
+Notion
+のデータベースから「要アクション」のステータスの行をタスクとして取り込み、そのタスクを完了にすると
+Notion 側のステータスを次へ進めます。Edge Function `notion`
+経由で、統合トークンは `notion_connection`
+表に保存します（ブラウザには返しません）。詳細は
+[`supabase/functions/notion/README.md`](supabase/functions/notion/README.md)。
 
-1. `supabase/migrations/` の SQL を全部実行しておきます（`notion_connection` は `001` で作られます）。
-2. Edge Function をデプロイします。シークレットの設定は要りません（呼び出し元の制限は上の `ALLOWED_ORIGINS` を使います）:
+1. `supabase/migrations/` の SQL を全部実行しておきます（`notion_connection` は
+   `001` で作られます）。
+2. Edge Function
+   をデプロイします。シークレットの設定は要りません（呼び出し元の制限は上の
+   `ALLOWED_ORIGINS` を使います）:
 
 ```bash
 supabase functions deploy notion
 ```
 
-3. 使う人がアプリで **設定 → 外部連携 → Notion** を開き、画面の手順どおりにつなぎます:
-   - [Notion のインテグレーション](https://www.notion.so/profile/integrations) で「内部インテグレーション」を作り、シークレットをコピーする
+3. 使う人がアプリで **設定 → 外部連携 → Notion**
+   を開き、画面の手順どおりにつなぎます:
+   - [Notion のインテグレーション](https://www.notion.so/profile/integrations)
+     で「内部インテグレーション」を作り、シークレットをコピーする
    - 取り込みたいデータベースを開き、右上の「…」→「接続」でそのインテグレーションを追加する
    - シークレットとデータベースの URL を貼って「接続する」
-4. 「ステータスの列」「日付の列」「要アクションのステータス」と、それぞれ「完了したら」進めるステータスを選ぶと同期が始まります（アプリを開いている間は 5 分ごと）。
+4. 「ステータスの列」「日付の列」「要アクションのステータス」と、それぞれ「完了したら」進めるステータスを選ぶと同期が始まります（アプリを開いている間は
+   5 分ごと）。
 
-アプリから Notion のトークンは取り消せません。連携をやめたあと Notion からのアクセスも止めるには、Notion の設定でインテグレーションを外します。
+アプリから Notion のトークンは取り消せません。連携をやめたあと Notion
+からのアクセスも止めるには、Notion の設定でインテグレーションを外します。
