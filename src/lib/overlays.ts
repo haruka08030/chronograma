@@ -26,12 +26,17 @@ export type TaskMenuRequest =
   /** 締切の「日時を指定…」（日付と時刻を一度に選ぶ） */
   | { kind: 'dueDateTime'; x: number; y: number; taskIds: string[]; onDone?: () => void }
 
+/** 「学校の使い方」の節（`SchoolGuide`） */
+export type SchoolGuideSection = 'terms' | 'timetable' | 'courses' | 'absences' | 'assignments'
+
 type OverlayState = {
   detailTaskId: string | null
   menu: TaskMenuRequest | null
+  /** 開いている「学校の使い方」と最初に見せる節（`true` は先頭から）。閉じていれば null */
+  schoolGuide: SchoolGuideSection | true | null
 }
 
-export const useOverlays = create<OverlayState>(() => ({ detailTaskId: null, menu: null }))
+export const useOverlays = create<OverlayState>(() => ({ detailTaskId: null, menu: null, schoolGuide: null }))
 
 export function openTaskDetail(taskId: string) {
   useOverlays.setState({ detailTaskId: taskId, menu: null })
@@ -55,4 +60,13 @@ export function closeTaskMenu() {
  */
 export function openCalendarItemMenu(task: Pick<Task, 'id' | 'kind'>, x: number, y: number) {
   openTaskMenu(isEventTask(task) || isLogTask(task) ? { kind: 'event', x, y, taskId: task.id } : { kind: 'task', x, y, taskIds: [task.id] })
+}
+
+/** 「学校の使い方」を開く（追加機能のカードの ⓘ・学校のページ・その場の 1 行の「詳しく」から）。節を渡すとそこから見せる */
+export function openSchoolGuide(section?: SchoolGuideSection) {
+  useOverlays.setState({ schoolGuide: section ?? true })
+}
+
+export function closeSchoolGuide() {
+  useOverlays.setState({ schoolGuide: null })
 }

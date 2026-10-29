@@ -233,6 +233,11 @@ export function withAbsenceLimit(school: School, termId: string, title: string, 
   return withTerm(school, { ...term, absenceLimits })
 }
 
+/** どこかの学期で 1 回でも欠席にしたか（欠席の付け方の 1 行の説明は、付けたら出さない） */
+export function hasAnyAbsence(school: School): boolean {
+  return school.terms.some((term) => Object.values(term.absences).some((dates) => dates.length > 0))
+}
+
 /** その日に欠席にしたか */
 export function isAbsent(school: School, title: string, date: string): boolean {
   return termOn(school, date)?.absences[courseKey(title)]?.includes(date) ?? false

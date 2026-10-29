@@ -38,10 +38,14 @@ export function readHabitFrequency(raw: unknown): HabitFrequency {
 
 export type HabitTimeMode = 'none' | 'fixed' | 'range'
 
-/** その日だけの時間（タイムラインで習慣の枠を動かした日）。時刻ひとつの習慣は終わりを持たない */
+/**
+ * その日だけの時間（タイムラインで習慣の枠を動かした日）。時刻ひとつの習慣は終わりを持たない。
+ * `extra` は決めた曜日以外の日に置いた「この日もやる」日（`isHabitExtraOn`）
+ */
 export interface HabitTimeOverride {
   startTime: string
   endTime: string | null
+  extra?: true
 }
 
 /** yyyy-MM-dd → その日だけの時間 */
@@ -56,9 +60,10 @@ export function readHabitTimeOverrides(raw: unknown): HabitTimeOverrides | undef
   const out: HabitTimeOverrides = {}
   for (const [date, v] of Object.entries(raw as Record<string, unknown>)) {
     if (!OVERRIDE_DATE_RE.test(date) || typeof v !== 'object' || v === null) continue
-    const { startTime, endTime } = v as Record<string, unknown>
+    const { startTime, endTime, extra } = v as Record<string, unknown>
     if (typeof startTime !== 'string' || !OVERRIDE_TIME_RE.test(startTime)) continue
     out[date] = { startTime, endTime: typeof endTime === 'string' && OVERRIDE_TIME_RE.test(endTime) ? endTime : null }
+    if (extra === true) out[date].extra = true
   }
   return Object.keys(out).length > 0 ? out : undefined
 }

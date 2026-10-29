@@ -110,6 +110,7 @@ export const BACKUP_EXCLUDED = {
   onboardingCompleted: '端末で閉じた案内',
   onboardingFinishedOn: '端末で閉じた案内（終えた日）',
   installNudgeDismissed: '端末で閉じた案内',
+  hintsDismissed: '端末で閉じた案内',
   signInNudgeDismissed: '端末で閉じた案内',
 } as const satisfies Partial<Record<keyof TaskState, string>>
 

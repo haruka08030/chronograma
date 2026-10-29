@@ -201,6 +201,8 @@ export interface TaskState {
   onboardingFinishedOn: string | null
   /** iPhone の Safari でのホーム画面への追加の誘いを閉じたか（端末に保存） */
   installNudgeDismissed: boolean
+  /** 使う前だけ出す 1 行の説明（`FirstUseHint`）のうち × で閉じたものの id（端末に保存） */
+  hintsDismissed: string[]
   /** ログインしていない人へのログインの誘い（2 台目・ホーム画面のアプリでは空になる）を閉じたか（端末に保存） */
   signInNudgeDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
@@ -363,6 +365,8 @@ export interface TaskState {
    * その日だけ習慣の時間を変える（タイムラインで枠を動かした・習慣の段のチップを格子に置いた）。習慣の時間と同じにしたらその日の分は消す
    */
   setHabitDayTime: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
+  /** 決めた曜日以外の日に、その日だけ習慣を置く（「この日もやる」日。予定の作成カードで習慣を選んだとき） */
+  addHabitExtraDay: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
   /**
    * 習慣の枠のカードで時間を直す。`scope` が `day` ならその日だけ（日ごとの時間）、`weekday` ならその日から先の同じ曜日。
    * 曜日は `until`（yyyy-MM-dd、含む）までならその曜日の日ごとの時間を入れ、null（ずっと）なら曜日ごとの時間を変える
@@ -477,6 +481,7 @@ export interface TaskState {
   /** 3 ステップをやり終えて案内を閉じる（終えたあとの誘いを出せるようにする） */
   completeOnboarding: () => void
   dismissInstallNudge: () => void
+  dismissHint: (id: string) => void
   dismissSignInNudge: () => void
   setDailyCapacityMinutes: (minutes: number) => void
   setSleepPrefs: (patch: Partial<SleepPrefs>) => void

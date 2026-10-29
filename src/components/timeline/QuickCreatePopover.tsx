@@ -36,6 +36,10 @@ import { toastTitle } from '../../lib/undoWindow'
 import { MENU_ROW_HOVER, MENU_ROW_PRESS } from '../ui/surface'
 import { RecentLogChips } from '../RecentLogChips'
 import { useExitGhost } from '../../hooks/useExitGhost'
+import { habitsMatchingTitle } from '../../lib/habitSuggest'
+import { buildHabitRecordIndex } from '../../lib/habitTiming'
+import { isLogTask } from '../../types/task'
+import { placeHabitAt } from '../../lib/timelineBlockEdit'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -134,6 +138,13 @@ export function QuickCreatePopover({
     [asLog, tasks, dateKey, slotMinutes, excludedListIds],
   )
   const showFit = fit != null && title.trim() === ''
+  // 題名に名前の合う習慣（選ぶと予定は作らず、その日の習慣の枠をこの時間に置く。決めた曜日以外の日は「この日もやる」日）
+  const habits = useTaskStore((s) => s.habits)
+  const habitRecords = useMemo(() => buildHabitRecordIndex(tasks.filter(isLogTask)), [tasks])
+  const habitMatches = useMemo(
+    () => (asLog ? [] : habitsMatchingTitle(habits, title, dateKey, habitRecords)),
+    [asLog, habits, title, dateKey, habitRecords],
+  )
   const [pickedListId, setListId] = useState(() => (plannable.some((l) => l.id === lastListId) ? lastListId : INBOX_LIST_ID))
   // 名前からアプリの予定と分かったら、その予定のリスト（選べないリストなら今のまま）
   const inferredList = inferred?.kind === 'app' ? inferred.listId : null
@@ -210,6 +221,12 @@ export function QuickCreatePopover({
     )
     onClose()
   }
+
+  const placeHabit = (habitId: string) => {
+    placeHabitAt(habitId, dateKey, startTime, endTime)
+    onClose()
+  }
+  const habitText = t('quickCreate.habit', { title: FIT_TITLE }).split(FIT_TITLE)
 
   // 題名だけ切り詰めるので、文の前後（言語で語順が違う）を分けて出す
   const fitText =
@@ -316,6 +333,21 @@ export function QuickCreatePopover({
           }}
         />
       )}
+      {habitMatches.map((h) => (
+        <button
+          key={h.id}
+          type="button"
+          onClick={() => placeHabit(h.id)}
+          className={`-mx-1.5 mt-1.5 flex w-[calc(100%+0.75rem)] min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm text-zinc-600 transition-colors dark:text-zinc-300 ${MENU_ROW_HOVER} ${MENU_ROW_PRESS}`}
+        >
+          <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(h.color)} aria-hidden />
+          <span className="flex min-w-0 items-center">
+            <span className="shrink-0 whitespace-pre">{habitText[0]}</span>
+            <span className="min-w-0 truncate font-medium text-zinc-800 dark:text-zinc-100">{h.title}</span>
+            <span className="shrink-0 whitespace-pre">{habitText[1]}</span>
+          </span>
+        </button>
+      ))}
       {showFit && fit.estimateMinutes != null && (
         // 既にある To-Do を枠の開始に見積もりの長さで置く（1 件だけ。選ぶ前に選択肢を並べない）
         <button

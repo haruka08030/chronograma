@@ -15,6 +15,7 @@ export {
   habitRecordsFor,
   habitTimesOn,
   habitUsualTimesOn,
+  isHabitExtraOn,
   isoWeekdayOf,
   isTimedHabit,
   plannedRecordTimes,

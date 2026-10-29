@@ -114,7 +114,7 @@ export function SleepTimesField({
   // 空欄の候補を開いたときの最初の位置
   const [usual] = useState(() => {
     const s = useTaskStore.getState()
-    return defaultSleepTimes(s.tasks, sleepPlanOn(s.addons.sleepSchedule ?? {}, dateKey))
+    return defaultSleepTimes(s.tasks, sleepPlanOn(s.addons.sleepSchedule ?? {}, dateKey, s.addons.sleepDays))
   })
   const inFuture = isToday && Boolean(wake) && timeToMinutes(wake) > nowMin
   const canSave = Boolean(bed && wake && bed !== wake && !inFuture)

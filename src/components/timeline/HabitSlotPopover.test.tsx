@@ -102,3 +102,25 @@ describe('済んだ枠のカードのその日の記録（#661）', () => {
     expect(screen.queryByRole('button', { name: /Open record/ })).toBeNull()
   })
 })
+
+describe('この日もやる日の枠のカード（#667）', () => {
+  // 2026-10-20 は火曜日。月曜だけの習慣をその日にも置いた
+  const extra: Habit = {
+    ...habit,
+    timeMode: 'range',
+    startTime: '18:00',
+    endTime: '19:00',
+    frequency: { type: 'weekly', weekdays: [1] },
+    timeOverrides: { '2026-10-20': { startTime: '07:00', endTime: '08:00', extra: true } },
+  }
+
+  it('休むの代わりに「この日の予定から外す」を出し、押すとその日の枠を消す', async () => {
+    useTaskStore.setState({ habits: [extra], tasks: [] })
+    const onClose = vi.fn()
+    render(<HabitSlotPopover habitId="gym" dateKey="2026-10-20" anchor={anchor} onClose={onClose} />)
+    expect(screen.queryByRole('button', { name: 'Rest this day' })).toBeNull()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Remove from this day' }))
+    expect(get().timeOverrides).toBeUndefined()
+    expect(onClose).toHaveBeenCalled()
+  })
+})

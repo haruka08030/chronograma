@@ -30,6 +30,8 @@ type DueDatePopoverProps = {
   kind?: 'due' | 'scheduled' | 'date'
   /** これより前の日は選べない（`yyyy-MM-dd`。終了日の下限など） */
   min?: string
+  /** これより後の日は選べない（`yyyy-MM-dd`） */
+  max?: string
 }
 
 /** Google カレンダー（Web）風の日付ピッカー・ポップオーバー（期限・予定日・記録の日付で共通）。 */
@@ -41,6 +43,7 @@ export function DueDatePopover({
   trigger,
   kind = 'due',
   min,
+  max,
 }: DueDatePopoverProps) {
   const { t } = useTranslation()
 
@@ -95,7 +98,7 @@ export function DueDatePopover({
             )}
             className={`fixed z-[90] w-[272px] p-3 ${POPOVER_PANEL}`}
           >
-            <DatePickerBody value={value} min={min} kind={kind} onPick={pick} autoFocus />
+            <DatePickerBody value={value} min={min} max={max} kind={kind} onPick={pick} autoFocus />
           </div>,
           document.body,
         )}

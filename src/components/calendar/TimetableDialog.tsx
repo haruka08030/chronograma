@@ -36,12 +36,15 @@ import { TimeInput } from '../TimeInput'
 import { ColorLabelSelect } from '../labels/ColorLabelSelect'
 import { PlusIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
+import { chipClass } from '../ui/chipClass'
 import { fieldClass } from '../ui/fieldClass'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT } from '../ui/textClass'
 import { useDialogDraft } from '../../hooks/useDialogDraft'
 import { Switch } from '../settings/SettingsPrimitives'
+import { FirstUseHint } from '../ui/FirstUseHint'
+import { openSchoolGuide } from '../../lib/overlays'
 
 /**
  * 時間割（#279）。週表示の見出しの「時間割」で開くダイアログ。上で学期を選び（最初は今日の学期）、中身は追加機能「学校」のページと同じ
@@ -56,7 +59,6 @@ export function TimetableDialog({ onClose }: { onClose: () => void }) {
     <Modal onClose={onClose} labelledBy="timetable-title" width="lg" className="flex max-h-[min(90vh,820px)] flex-col overflow-hidden">
       <div className="border-b border-zinc-200 px-4 pb-3 pt-5 dark:border-zinc-700 sm:px-6">
         <ModalTitle id="timetable-title">{t('timetable.title')}</ModalTitle>
-        <p className={`mt-1 ${HINT_TEXT}`}>{t('timetable.intro')}</p>
         <div className="mt-2">
           <SchoolTermBar term={term} onSelect={setTermId} />
         </div>
@@ -100,6 +102,9 @@ export function TimetableBody({ term }: { term: Term }) {
 
   return (
     <>
+      <FirstUseHint id="school-timetable" show={classes.size === 0} onMore={() => openSchoolGuide('timetable')}>
+        {t('timetable.intro')}
+      </FirstUseHint>
       <DisclosureButton open={settingsOpen} onToggle={() => setSettingsOpen((o) => !o)} className="-ml-3">
         {t('timetable.settingsSummary')}
       </DisclosureButton>
@@ -356,6 +361,9 @@ function ClassEditor({
     const names = termCourses(tasks, timetable.periods, school, term, links, lms).map((c) => c.title)
     return [...new Map([...names, ...lms].map((n) => [courseKey(n), n])).values()]
   }, [tasks, timetable.periods, school, term, links])
+  // 候補はチップで見せる（打ち始めなくても見え、指の端末でも同じ）。打った名前と同じものは外し、打っていればそれを含むものだけ。入っているマスの編集では出さない
+  const typed = courseKey(title)
+  const picks = current ? [] : courses.filter((c) => courseKey(c) !== typed && (!typed || courseKey(c).includes(typed))).slice(0, 8)
   const inputRef = useRef<HTMLInputElement>(null)
   const weekdayLabels = t('habits.weekdays', { returnObjects: true }) as string[]
   const place = t('timetable.cellPlace', { weekday: weekdayLabels[weekday - 1], n: periodIndex + 1 })
@@ -417,20 +425,23 @@ function ClassEditor({
           onKeyDown={(e) => {
             if (isSubmitEnter(e)) save()
           }}
-          list={courses.length > 0 ? 'timetable-courses' : undefined}
           maxLength={100}
           placeholder={t('timetable.classNamePlaceholder')}
           className={fieldClass({}, 'w-full')}
         />
-        {courses.length > 0 && (
-          <datalist id="timetable-courses">
-            {courses.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
-        )}
       </label>
-      {courses.length > 0 && <p className={`mt-1 ${HINT_TEXT}`}>{t('timetable.courseHint')}</p>}
+      {picks.length > 0 && (
+        <div className="mt-2">
+          <div className="flex flex-wrap gap-1.5">
+            {picks.map((c) => (
+              <button key={c} type="button" onClick={() => patch({ title: c })} className={chipClass({ variant: 'outline', size: 'md' })}>
+                {c}
+              </button>
+            ))}
+          </div>
+          <p className={`mt-1 ${HINT_TEXT}`}>{t('timetable.courseHint')}</p>
+        </div>
+      )}
       <div className="mt-3">
         <ColorLabelSelect
           current={color}

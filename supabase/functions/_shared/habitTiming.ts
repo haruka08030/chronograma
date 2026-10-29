@@ -6,10 +6,11 @@
 /** 曜日（1=月 … 7=日） */
 type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
-/** その日・その曜日だけの時間。時刻ひとつの習慣は終わりを持たない */
+/** その日・その曜日だけの時間。時刻ひとつの習慣は終わりを持たない。`extra` は決めた曜日以外の日に置いた「この日もやる」日（その日だけの時間だけ） */
 interface TimeOfDay {
   startTime: string
   endTime: string | null
+  extra?: true
 }
 
 /** 判定に使う習慣の項目（アプリの `Habit` と同じ名前） */
@@ -165,6 +166,16 @@ export function indexHabitRecords<R extends TimingRecord>(records: Iterable<R>, 
     push(active, t.habitId ? linkKey(t.habitId) : titleKey(t.title), span)
   }
   return { active, deleted }
+}
+
+/**
+ * 決めた曜日以外の日に置いた「この日もやる」日か（曜日を指定した習慣だけ。休み・やめた日は呼ぶ側で見る）。
+ * その日はやったら時刻によらず達成、やらなくても未達成に数えない
+ */
+export function isHabitExtraOn(h: TimingHabit, dateKey: string): boolean {
+  if (h.timeOverrides?.[dateKey]?.extra !== true) return false
+  const { frequency } = habitAsOf(h, dateKey)
+  return frequency.type === 'weekly' && !frequency.weekdays.includes(isoWeekdayOf(dateKey))
 }
 
 /** 時刻で判定する習慣か（時間を決めていない習慣はいつやっても達成） */
@@ -343,6 +354,8 @@ function isOnTime(habit: TimingHabit, dateKey: string, record: TimingRecord): bo
 export function habitDayStatus(h: TimingHabit, dateKey: string, index?: HabitRecordIndex<TimingRecord>): HabitDayStatus {
   const habit = habitAsOf(h, dateKey)
   const checked = habit.completedDates.includes(dateKey)
+  // この日もやる日は、やったら時刻・時間の目標によらず達成
+  if (isHabitExtraOn(h, dateKey)) return checked || (!!index && habitRecordsFor(index, h, dateKey).length > 0) ? 'done' : 'missed'
   if (index && habit.goalMinutes) {
     const minutes = habitMinutesOn(index, habit, dateKey)
     if (minutes >= habit.goalMinutes) return 'done'

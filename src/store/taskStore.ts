@@ -216,6 +216,7 @@ export const useTaskStore = create<TaskState>()(
         onboardingCompleted: false,
         onboardingFinishedOn: null,
         installNudgeDismissed: false,
+        hintsDismissed: [] as string[],
         signInNudgeDismissed: false,
         dailyCapacityMinutes: 480,
         sleepPrefs: DEFAULT_SLEEP_PREFS,

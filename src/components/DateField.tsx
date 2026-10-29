@@ -11,6 +11,7 @@ export function DateField({
   value,
   onChange,
   min,
+  max,
   disabled = false,
   ariaLabel,
   align = 'left',
@@ -22,6 +23,7 @@ export function DateField({
   value: string | null
   onChange: (value: string) => void
   min?: string
+  max?: string
   disabled?: boolean
   ariaLabel?: string
   align?: 'left' | 'right'
@@ -39,6 +41,7 @@ export function DateField({
       kind="date"
       value={value || null}
       min={min}
+      max={max}
       onChange={(v) => v && onChange(v)}
       align={align}
       wrapperClassName={inline ? 'relative inline-block' : 'relative'}

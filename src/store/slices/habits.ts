@@ -21,6 +21,7 @@ type HabitsActions = Pick<
   | 'addHabit'
   | 'updateHabit'
   | 'setHabitDayTime'
+  | 'addHabitExtraDay'
   | 'setHabitTime'
   | 'clearHabitDayTime'
   | 'setHabitRest'
@@ -44,9 +45,10 @@ const HABIT_WEEKDAY_TIME_MAX_WEEKS = 53
 const sameTimes = (a: HabitTimeOverride | null, b: HabitTimeOverride | null) =>
   !!a && !!b && a.startTime === b.startTime && a.endTime === b.endTime
 
-/** その日だけの時間を `times` にする（いつもの時間と同じなら消す） */
+/** その日だけの時間を `times` にする（いつもの時間と同じなら消す。この日もやる日は時間だけ変えて残す） */
 function putDayTime(habit: Habit, overrides: HabitTimeOverrides, dateKey: string, times: HabitTimeOverride) {
-  if (sameTimes(habitUsualTimesOn(habit, dateKey), times)) delete overrides[dateKey]
+  if (overrides[dateKey]?.extra) overrides[dateKey] = { ...times, extra: true }
+  else if (sameTimes(habitUsualTimesOn(habit, dateKey), times)) delete overrides[dateKey]
   else overrides[dateKey] = times
 }
 
@@ -107,12 +109,8 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
       // 時刻ひとつの習慣も終わりを持たせる（習慣の段から格子に置いた日は枠になる）
       const next = { startTime, endTime }
       if (next.startTime === current?.startTime && next.endTime === current.endTime) return
-      // その曜日のいつもの時間に戻したら、その日だけの時間は消す
-      const base = habitUsualTimesOn(habit, dateKey)
-      const usual = !!base && next.startTime === base.startTime && next.endTime === base.endTime
       const overrides: HabitTimeOverrides = { ...habit.timeOverrides }
-      if (usual) delete overrides[dateKey]
-      else overrides[dateKey] = next
+      putDayTime(habit, overrides, dateKey, next)
       pushUndo(label)
       const now = new Date().toISOString()
       set((s) => ({
@@ -171,6 +169,14 @@ export function createHabitsSlice({ set, get, undo }: SliceContext): HabitsActio
           return updated
         }),
       }))
+    },
+    addHabitExtraDay: (id, dateKey, startTime, endTime, label) => {
+      const habit = get().habits.find((h) => h.id === id)
+      if (!habit) return
+      const overrides: HabitTimeOverrides = { ...habit.timeOverrides, [dateKey]: { startTime, endTime, extra: true } }
+      pushUndo(label)
+      const now = new Date().toISOString()
+      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, timeOverrides: overrides, updatedAt: now } : h)) }))
     },
     clearHabitDayTime: (id, dateKey, label) => {
       const habit = get().habits.find((h) => h.id === id)

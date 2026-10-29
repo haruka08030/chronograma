@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
 import { useTaskStore, selectHabitsByDay } from '../store/taskStore'
-import { isHabitScheduledOnDate } from '../lib/habitSchedule'
+import { isHabitExtraOnDate, isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { isRoutine } from '../types/habit'
 import { getDayLeftBehind, getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
 import { useNavShortcut } from '../lib/shortcuts'
@@ -213,9 +213,9 @@ export function TodayPlannerView() {
   })
   const candidatePool = useMemo(() => [...suggestions, ...moreSuggestions], [suggestions, moreSuggestions])
 
-  // ルーティンは毎日の予定なので行に出さない（タイムラインの枠だけ）
+  // ルーティンは毎日の予定なので行に出さない（タイムラインの枠だけ）。この日もやる日の習慣は出す
   const dayHabits = useMemo(
-    () => habits.filter((h) => !isRoutine(h) && isHabitScheduledOnDate(h, date)),
+    () => habits.filter((h) => !isRoutine(h) && (isHabitScheduledOnDate(h, date) || isHabitExtraOnDate(h, date))),
     // date は dateKey から毎回作り直すので key で依存を取る
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [habits, dateKey],

@@ -21,6 +21,7 @@ export function DatePickerBody({
   onPick,
   kind = 'due',
   min,
+  max,
   footer = true,
   month,
   autoFocus = false,
@@ -29,6 +30,8 @@ export function DatePickerBody({
   onPick: (key: string | null) => void
   kind?: 'due' | 'scheduled' | 'date'
   min?: string
+  /** これより後の日は選べない（`yyyy-MM-dd`） */
+  max?: string
   /** 下の「今日・明日・なし」。上に同じ項目を並べるとき（右クリックメニュー）は出さない */
   footer?: boolean
   /** 最初に見せる月（カレンダー画面の月表示では、選んでいる日ではなく見ている月から始める） */
@@ -148,7 +151,7 @@ export function DatePickerBody({
           const inMonth = isSameMonth(day, viewMonth)
           const today = key === todayKey
           const selected = value != null && key === value
-          const beforeMin = min != null && key < min
+          const outOfRange = (min != null && key < min) || (max != null && key > max)
           return (
             <div key={key} className="flex justify-center">
               <button
@@ -157,7 +160,7 @@ export function DatePickerBody({
                 tabIndex={key === tabKey ? 0 : -1}
                 onClick={() => pick(key)}
                 aria-pressed={selected}
-                disabled={beforeMin}
+                disabled={outOfRange}
                 className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] transition-colors disabled:pointer-events-none disabled:opacity-30
                   ${
                     today || selected
@@ -179,7 +182,7 @@ export function DatePickerBody({
           <div className="flex gap-1">
             <button
               type="button"
-              disabled={min != null && todayKey < min}
+              disabled={(min != null && todayKey < min) || (max != null && todayKey > max)}
               onClick={() => pick(todayKey)}
               className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-300 dark:hover:bg-zinc-700"
             >
@@ -187,7 +190,7 @@ export function DatePickerBody({
             </button>
             <button
               type="button"
-              disabled={min != null && tomorrowKey < min}
+              disabled={(min != null && tomorrowKey < min) || (max != null && tomorrowKey > max)}
               onClick={() => pick(tomorrowKey)}
               className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-300 dark:hover:bg-zinc-700"
             >

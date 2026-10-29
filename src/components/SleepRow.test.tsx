@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { SleepRow } from './SleepRow'
@@ -76,5 +76,38 @@ describe('記録の無い朝（#649）', () => {
     expect(bed).toHaveValue('')
     expect(wake).toHaveValue('')
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+})
+
+describe('候補を開いたときの最初の位置（#666）', () => {
+  /** 空欄の寝た時刻の欄を開いて、ハイライトした候補の時刻 */
+  const openedAt = () => {
+    const [bed] = screen.getAllByRole('combobox')
+    fireEvent.focus(bed!)
+    return document.getElementById(bed!.getAttribute('aria-activedescendant')!)?.textContent
+  }
+
+  it('その朝だけの時刻があればその時刻、無ければ曜日の予定', () => {
+    at(7, 9)
+    useTaskStore.getState().logSleep('2026-10-07', '22:00', '06:00')
+    // 2026-10-08 は木曜日
+    useTaskStore.getState().setSleepSchedule({ 4: { bed: '23:00', wake: '07:00' } })
+    at(8, 9)
+    const { unmount } = render(<SleepRow dateKey="2026-10-08" />)
+    expect(openedAt()).toContain('23:00')
+    unmount()
+    act(() => useTaskStore.getState().setSleepPlanDay('2026-10-08', { bed: '01:00', wake: '08:00' }))
+    render(<SleepRow dateKey="2026-10-08" />)
+    expect(openedAt()).toContain('01:00')
+  })
+
+  it('その朝を予定なしにした日は前回の夜の睡眠の時刻', () => {
+    at(7, 9)
+    useTaskStore.getState().logSleep('2026-10-07', '22:00', '06:00')
+    useTaskStore.getState().setSleepSchedule({ 4: { bed: '23:00', wake: '07:00' } })
+    act(() => useTaskStore.getState().setSleepPlanDay('2026-10-08', null))
+    at(8, 9)
+    render(<SleepRow dateKey="2026-10-08" />)
+    expect(openedAt()).toContain('22:00')
   })
 })

@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { isHabitDeleted } from '../types/habit'
-import { buildHabitRecordIndex, habitDayStatus } from '../lib/habitTiming'
+import { buildHabitRecordIndex, habitDayStatus, isHabitExtraOn } from '../lib/habitTiming'
 import { appToday } from '../lib/timeZone'
 import { habitSlotId, isPlacedPointHabitOn } from '../lib/habitSlots'
-import { unplaceHabitSlot } from '../lib/timelineBlockEdit'
+import { removeHabitExtraDay, unplaceHabitSlot } from '../lib/timelineBlockEdit'
 import { toDateKey } from '../lib/dateKey'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
 import { useHabitRestEntry } from './habits/useHabitRestEntry'
@@ -16,7 +16,8 @@ const ICON = 'h-4 w-4 flex-shrink-0'
  * 習慣のカードを右クリック（タッチは長押し）したときのメニュー（編集・今日の記録・休み・アーカイブ・削除）。
  * 休みは日のマスで開いたらその日、行で開いたら今日から（その日だけ・カレンダーで選んだ日まで。休みの日なら「休みを外す」）。
  * アーカイブした習慣は「戻す」と削除だけ。削除は確認なしで消して「元に戻す」で戻せる。
- * タイムラインで開いたときは習慣そのものの削除を出さない（その日だけ外すのは「休む」、#614・#616）
+ * タイムラインで開いたときは習慣そのものの削除を出さない（その日だけ外すのは「休む」、#614・#616）。
+ * この日もやる日の枠は「休む」の代わりに「この日の予定から外す」（やる前だけ、#667）
  */
 export function HabitContextMenu({
   x,
@@ -82,8 +83,20 @@ export function HabitContextMenu({
   } else {
     const todayKey = toDateKey(appToday())
     // 時間外の記録も「付いている」（カードの丸・今日の計画と同じ）
-    const doneToday = habitDayStatus(habit, todayKey, buildHabitRecordIndex(tasks)) !== 'missed'
-    const rest = restEntry.entry
+    const records = buildHabitRecordIndex(tasks)
+    const doneToday = habitDayStatus(habit, todayKey, records) !== 'missed'
+    const extraDay = onTimeline && dateKey && isHabitExtraOn(habit, dateKey) ? dateKey : null
+    const rest: ActionEntry | null = !extraDay
+      ? restEntry.entry
+      : habitDayStatus(habit, extraDay, records) === 'missed'
+        ? {
+            kind: 'leaf',
+            id: 'removeExtra',
+            label: t('habits.removeExtraDay'),
+            icon: <TrashIcon className={ICON} strokeWidth={1.75} />,
+            run: () => removeHabitExtraDay(habitSlotId(habit.id, extraDay)),
+          }
+        : null
     entries = [
       { kind: 'leaf', id: 'edit', label: t('common.edit'), icon: <PencilIcon className={ICON} strokeWidth={1.75} />, run: onEdit },
       {
@@ -93,7 +106,7 @@ export function HabitContextMenu({
         icon: <CheckIcon className={ICON} />,
         run: () => toggleHabitDate(habit.id, todayKey),
       },
-      rest,
+      ...(rest ? [rest] : []),
       ...(onTimeline && dateKey && isPlacedPointHabitOn(habit, dateKey)
         ? [
             {

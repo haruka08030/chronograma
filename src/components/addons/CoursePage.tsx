@@ -51,6 +51,7 @@ export function CoursePage({
   const renameAddedCourse = useTaskStore((s) => s.renameAddedCourse)
   const removeCourse = useTaskStore((s) => s.removeCourse)
   const setCourseLink = useTaskStore((s) => s.setCourseLink)
+  const openSettingsWithScroll = useTaskStore((s) => s.openSettingsWithScroll)
   const rows = useTermCourses(term)
   const row = rows.find((r) => courseKey(r.title) === courseKey(title))
   const lms = useMemo(() => lmsCourses(tasks), [tasks])
@@ -200,6 +201,7 @@ export function CoursePage({
                 if (inTermRange(d, term)) setCourseAbsent(title, d, true)
               }}
               min={term.termStart}
+              max={term.termEnd}
               ariaLabel={t('absences.addDate')}
               className={fieldClass({ size: 'sm' })}
             />
@@ -215,7 +217,16 @@ export function CoursePage({
           {t('school.assignments')}
         </h2>
         {lms.length === 0 ? (
-          <p className={`mt-1 ${HINT_TEXT}`}>{t('school.noLms')}</p>
+          <>
+            <p className={`mt-1 ${HINT_TEXT}`}>{t('school.noLms')}</p>
+            <button
+              type="button"
+              onClick={() => openSettingsWithScroll('canvas')}
+              className={buttonClass({ variant: 'secondary', size: 'sm' }, 'mt-2')}
+            >
+              {t('school.connectLms')}
+            </button>
+          </>
         ) : (
           <>
             <label className="mt-1 flex items-center gap-2">

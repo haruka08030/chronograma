@@ -694,6 +694,7 @@ export default {
     selectAria: 'Course linked to “{{title}}”',
     more_one: '{{count}} more',
     more_other: '{{count}} more',
+    hint: 'The course is picked from the event name. If it’s wrong, pick another on the right.',
   },
   eventCard: {
     more: 'More options',
@@ -721,6 +722,7 @@ export default {
     kindTodo: 'To-do',
     fit: 'Place {{title}} ({{meta}})',
     fitMetaDue: '{{length}} · due {{due}}',
+    habit: 'Put habit “{{title}}” here',
   },
   shortcuts: {
     title: 'Keyboard shortcuts',
@@ -841,6 +843,7 @@ export default {
     rest: 'Rest',
     restOneDay: 'This day only',
     restThisDay: 'Rest this day',
+    removeExtraDay: 'Remove from this day',
     dayTime: 'Time on {{date}}',
     restUntil: 'Rest until',
     restClear: 'End rest',
@@ -1302,6 +1305,8 @@ export default {
     myEventTimeCleared: 'Set “{{title}}” back to the event time',
     habitDayTime: 'Set “{{name}}” to {{time}} on {{date}} only',
     habitUnplaced: 'Moved “{{name}}” on {{date}} back to the Habits row',
+    habitExtraAdded: 'Added “{{name}}” on {{date}} at {{time}}',
+    habitExtraRemoved: 'Removed “{{name}}” from {{date}}',
     blockToAllDay: 'Moved “{{title}}” to all day on {{date}}',
     taskMovedToDate: 'Moved “{{title}}” to {{date}}',
     tasksMovedToDate: 'Moved {{count}} tasks to {{date}}',
@@ -1464,6 +1469,7 @@ export default {
     },
     school: {
       name: 'School',
+      guide: 'How it works',
       description:
         'Put classes in the weekday × period timetable to make weekly events for the term. Also counts your absences per class and how many more you can miss (you can add classes that are not in the timetable too).',
     },
@@ -1514,6 +1520,62 @@ export default {
     noLms: 'Connect Canvas or Moodle to see assignments for the course.',
     noAssignments: 'No open assignments.',
     timetableOnlyHint: 'Timetable classes leave the list when you remove them from the timetable.',
+    fromLms: 'Canvas / Moodle course',
+    connectLms: 'Connect Canvas or Moodle',
+    guide: 'How School works',
+    hintAbsence: 'When you miss a class, mark it with “Mark absent” on the event card, or “Absent today” here.',
+  },
+  hints: {
+    more: 'More',
+    dismiss: 'Close this tip',
+  },
+  schoolGuide: {
+    title: 'How School works',
+    terms: {
+      title: 'Terms',
+      items: [
+        'A term holds your classes. Timetable classes, absences and allowed absences are kept per term.',
+        'Terms can’t overlap. The school page and the timetable start with today’s term (or the next one to begin).',
+        'Deleting a term also deletes its absences and allowed absences. Events created from the timetable stay.',
+      ],
+    },
+    timetable: {
+      title: 'Timetable',
+      items: [
+        'Tap a cell and enter a class name to create a weekly event on that weekday from today until the end of the term.',
+        'Pick a Canvas or Moodle course name to see its assignments on the event card.',
+        'Tap a filled cell to edit its name and label, or delete it. Only classes from today on change.',
+        'Under “Periods and holidays”, set period times and count, and whether to skip holidays. Changing periods doesn’t move classes you’ve already added.',
+        'When you make an event repeat, the end date starts at the end of the term.',
+      ],
+    },
+    courses: {
+      title: 'Class list',
+      items: [
+        'The list has timetable classes, classes you added with “Add a class”, and Canvas / Moodle courses with deadlines in the term.',
+        'Classes with the fewest absences left come first.',
+        '“Add a class” suggests weekly Google Calendar events in the term and Canvas / Moodle courses not in the list.',
+        'Remove Canvas / Moodle courses and added classes with “Remove from the list” on the class page. Timetable classes leave the list when you remove them from the timetable.',
+      ],
+    },
+    absences: {
+      title: 'Absences',
+      items: [
+        'When you miss a class, use “Mark absent” on the event card or “Absent today” in the list. For earlier days, use “Add a missed day” on the class page.',
+        'Set allowed absences per class. If unset, timetable classes allow 1/3 of the term’s classes; other classes just show the count.',
+        'Event cards show absences for timetable classes and for events named like a class in the list (Google Calendar events too).',
+        'Only days within the term count. Missed classes aren’t counted as unrecorded time on the timeline.',
+      ],
+    },
+    assignments: {
+      title: 'Assignments',
+      items: [
+        'Connect Canvas or Moodle (Settings → Integrations) to bring assignments in as To-Dos with deadlines, tagged with the course name.',
+        'A class’s event card shows up to 3 open assignments for its course, soonest deadline first.',
+        'An event links to a course when its name or label name matches the course name (ignoring width and case).',
+        'If the wrong course is linked, pick another on the event card or the class page. Your choice applies to every event with that name.',
+      ],
+    },
   },
   absences: {
     title: 'Class absences',
@@ -1544,6 +1606,7 @@ export default {
     attendanceLast: '1 left',
     attendanceNone: 'no more absences',
     attendanceOver: '{{count}} over the limit',
+    hintCardAbsence: 'Use “Mark absent” for classes you miss. Set allowed absences on the class page.',
     markAbsent: 'Mark absent',
     unmarkAbsent: 'Undo absence',
     cellAttendance: 'Abs {{absent}}/{{limit}}',

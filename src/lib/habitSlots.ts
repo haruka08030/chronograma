@@ -1,6 +1,14 @@
 import type { Habit } from '../types/habit'
 import { isHabitDueOnDate } from './habitSchedule'
-import { habitAsOf, habitDayStatus, habitTimesOn, habitUsualTimesOn, plannedRecordTimes, type HabitRecordIndex } from './habitTiming'
+import {
+  habitAsOf,
+  habitDayStatus,
+  habitTimesOn,
+  habitUsualTimesOn,
+  isHabitExtraOn,
+  plannedRecordTimes,
+  type HabitRecordIndex,
+} from './habitTiming'
 import type { PlannedItem } from '../types/plannedItem'
 import { fromDateKey } from './dateKey'
 import { timeToMinutes } from './clockTime'
@@ -83,6 +91,8 @@ export function pointHabitsOn(
  * 時刻ひとつの習慣（目標なし）・時間を決めていない習慣を、その日だけ格子に置いた（終わりのある枠にした）か。習慣の段のチップに戻せる
  */
 export function isPlacedPointHabitOn(h: Habit, dateKey: string): boolean {
+  // この日もやる日は戻すチップが無い（外すのは `removeHabitExtraDay`）
+  if (isHabitExtraOn(h, dateKey)) return false
   const habit = habitAsOf(h, dateKey)
   if (habit.timeMode === 'none') return isUntimedPlacedOn(habit, dateKey)
   return !habit.goalMinutes && habitUsualTimesOn(habit, dateKey)?.endTime === null && habitTimesOn(habit, dateKey)?.endTime != null

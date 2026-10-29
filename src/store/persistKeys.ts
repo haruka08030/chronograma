@@ -33,6 +33,7 @@ export const DATA_KEYS = [
   'onboardingCompleted',
   'onboardingFinishedOn',
   'installNudgeDismissed',
+  'hintsDismissed',
   'signInNudgeDismissed',
   'dailyCapacityMinutes',
   'sleepPrefs',

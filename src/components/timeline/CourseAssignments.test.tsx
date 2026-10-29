@@ -49,7 +49,7 @@ describe('授業の予定のカードの課題（#309）', () => {
   it('名前が科目と同じ授業は、未完了の課題を締切順に 3 件まで出し、押すと開く', () => {
     const onOpen = open(tasks)
     const section = screen.getByRole('region', { name: 'Assignments for this course' })
-    const rows = within(section).getAllByRole('button')
+    const rows = within(within(section).getByRole('list')).getAllByRole('button')
     expect(rows.map((r) => r.textContent)).toEqual([
       expect.stringContaining('レポート 2'),
       expect.stringContaining('レポート 3'),
@@ -90,6 +90,25 @@ describe('授業の予定のカードの課題（#309）', () => {
     open([lecture('LIT-80'), { ...assignment('5', 'LIT-80', '2026-10-08'), completed: true }, assignment('1', 'CSE-101', null)])
     expect(screen.queryByRole('region', { name: 'Assignments for this course' })).toBeNull()
     expect(screen.queryByRole('combobox', { name: /^Course linked/ })).toBeNull()
+  })
+
+  it('科目をまだ選び直していない間だけ、つなぎ方の 1 行を出し、× で閉じたら二度と出さない（#670）', () => {
+    useTaskStore.setState({ hintsDismissed: [] })
+    const hint = /The course is picked from the event name/
+    open(tasks)
+    expect(screen.getByText(hint)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close this tip' }))
+    expect(screen.queryByText(hint)).toBeNull()
+    expect(useTaskStore.getState().hintsDismissed).toEqual(['card-course'])
+  })
+
+  it('科目を選んだあとは、つなぎ方の 1 行を出さない（#670）', () => {
+    useTaskStore.setState({ hintsDismissed: [] })
+    open(tasks)
+    act(() => {
+      useTaskStore.setState({ courseLinks: [{ title: 'CSE-101', course: 'CSE-101' }] })
+    })
+    expect(screen.queryByText(/The course is picked from the event name/)).toBeNull()
   })
 
   it('LMS の課題が無ければ選ぶ欄も出さない', () => {
