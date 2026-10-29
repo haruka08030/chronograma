@@ -63,7 +63,7 @@ export function readHabitTimeOverrides(raw: unknown): HabitTimeOverrides | undef
   return Object.keys(out).length > 0 ? out : undefined
 }
 
-/** 曜日（1=月）→ その曜日の時間。曜日を指定した習慣で「曜日ごとに時間を変える」ときだけ */
+/** 曜日（1=月）→ その曜日の時間。「曜日ごとに時間を変える」・枠のカードで「これ以降の◯曜日」の時間を変えたときだけ */
 export type HabitWeekdayTimes = Partial<Record<HabitWeekday, HabitTimeOverride>>
 
 /** 保存データ・同期・バックアップの曜日ごとの時間を読む。読めない曜日は捨て、1 つも無ければ undefined */
@@ -99,13 +99,18 @@ export interface Habit {
   updatedAt: string
   /** yyyy-MM-dd で達成済み */
   completedDates: string[]
-  /** アーカイブした時刻（ISO）。null は使用中。アーカイブした習慣は今日の計画・一覧・タイムライン・統計から外れ、達成日は残す */
+  /** アーカイブした時刻（ISO）。null は使用中。アーカイブした習慣はやめた日（`endedOn`）から先の今日の計画・タイムライン・統計から外れ、達成日は残す */
   archivedAt: string | null
   /**
-   * ゴミ箱に入れた時刻（ISO）。入れた習慣はどの画面・統計にも出さず、ゴミ箱から達成日ごと戻せる。
+   * ゴミ箱に入れた時刻（ISO）。入れた習慣は一覧に出さず、やめた日（`endedOn`）から先の日にも出さない。ゴミ箱から達成日ごと戻せる。
    * `TRASH_KEEP_DAYS` 日たつと完全に消す。ゴミ箱に無ければ項目ごと無い
    */
   deletedAt?: string
+  /**
+   * やめた日（yyyy-MM-dd。アーカイブ・ゴミ箱へ入れた日のうち早いほう）。この日から先は予定の日にせず、前の日はそのときの習慣のまま（`isHabitEndedOn`）。
+   * アーカイブもゴミ箱でもなければ項目ごと無い
+   */
+  endedOn?: string
   /** 日ごとの時間（タイムラインで枠を動かした日だけ）。無い日は上の時間。1 日も無ければ項目ごと無い */
   timeOverrides?: HabitTimeOverrides
   /**
@@ -114,7 +119,7 @@ export interface Habit {
    */
   restDates?: string[]
   /**
-   * 曜日を指定した習慣の曜日ごとの時間（「曜日ごとに時間を変える」）。無い曜日・ほかの頻度は上の時間。
+   * 曜日ごとの時間（「曜日ごとに時間を変える」、どの頻度でも）。無い曜日は上の時間。
    * その日だけの時間（`timeOverrides`）がさらに優先。使わなければ項目ごと無い
    */
   weekdayTimes?: HabitWeekdayTimes
@@ -187,6 +192,11 @@ export function readHabitGoalMinutes(raw: unknown): number | undefined {
 /** その日を休みにした習慣か */
 export function isHabitRestOn(habit: Pick<Habit, 'restDates'>, dateKey: string): boolean {
   return habit.restDates?.includes(dateKey) ?? false
+}
+
+/** 保存データ・同期・バックアップのやめた日を読む。yyyy-MM-dd でなければ undefined */
+export function readHabitEndedOn(raw: unknown): string | undefined {
+  return typeof raw === 'string' && OVERRIDE_DATE_RE.test(raw) ? raw : undefined
 }
 
 /** ゴミ箱にあるか */

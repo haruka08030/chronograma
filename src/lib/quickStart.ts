@@ -13,6 +13,7 @@
 import type { ActiveTimer, TaskState } from '../store/storeTypes'
 import type { SyncState } from '../types/sync'
 import { isLogTask, isSleepTask, type Task } from '../types/task'
+import { isVagueLog } from './vagueLog'
 import { isActiveTask } from './taskLifecycle'
 
 export type QuickStartRequest = 'last'
@@ -28,6 +29,8 @@ export interface ResumeSeed {
   tags: string[]
   taskId: string | null
   color: string | null
+  /** 前回が「なんとなく」の記録なら、また「なんとなく」で始める（#657） */
+  vague?: true
 }
 
 /** 記録の終わり（日付が変わる記録は終わりの日）。並べ替え用 */
@@ -49,6 +52,7 @@ export function lastLogSeed(tasks: readonly Task[]): ResumeSeed | null {
     tags: last.category ? [last.category] : [],
     taskId: source && isActiveTask(source) ? source.id : null,
     color: last.color ?? null,
+    ...(isVagueLog(last) ? { vague: true as const } : {}),
   }
 }
 
@@ -59,7 +63,8 @@ export function runQuickStart(store: Pick<TaskState, 'tasks' | 'startTimer'> & {
   if (store.activeTimer) return { kind: 'running', title: store.activeTimer.taskTitle }
   const seed = lastLogSeed(store.tasks)
   if (!seed) return { kind: 'none' }
-  store.startTimer(seed.title, seed.tags, seed.taskId, seed.color)
+  if (seed.vague) store.startTimer(seed.title, seed.tags, seed.taskId, seed.color, { vague: true })
+  else store.startTimer(seed.title, seed.tags, seed.taskId, seed.color)
   return { kind: 'started', title: seed.title }
 }
 

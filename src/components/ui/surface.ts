@@ -28,10 +28,12 @@ export const POPOVER_PANEL = `${FLOATING_SURFACE} rounded-xl shadow-xl animate-p
 
 /**
  * タイムラインの予定を押したときのカード（新規作成・予定・Google の予定）。
- * スマホでは下から出るシート（`sheet`）、PC では押した所の横に小さく出る。
+ * スマホでは下から出るシート（`sheet`。背の上限は見えている画面の 85%、入らない分は中でスクロール）、PC では押した所の横に小さく出る（`useAnchoredCard`）。
  */
 export function anchoredCardClass(sheet: boolean): string {
   return `fixed z-[60] ${FLOATING_SURFACE} shadow-2xl outline-none ${
-    sheet ? 'animate-sheet-in rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]' : 'animate-pop-in rounded-2xl'
+    sheet
+      ? 'animate-sheet-in max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]'
+      : 'animate-pop-in rounded-2xl'
   }`
 }

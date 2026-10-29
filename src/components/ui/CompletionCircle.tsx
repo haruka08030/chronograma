@@ -1,10 +1,18 @@
 import type { CSSProperties, MouseEvent } from 'react'
-import { CheckIcon } from '../icons'
+import { CheckIcon, StarFilledIcon, StarIcon } from '../icons'
 import { PRIORITY_RING_CLASS } from '../../lib/priorityColor'
 import { colorVars } from '../../lib/logCategoryColors'
 import type { Priority } from '../../types/task'
 
 /** 完了の印の形。To-Do は丸、チェックリスト（買い物）は四角、いつか（Wish）は ☆（かなえたら ★） */
+/** かなえたの ★ の色（いつかの丸・夢のタイル・メニューで同じ） */
+export const FULFILLED_TEXT = 'text-amber-500 dark:text-amber-400'
+
+/** かなえたの印 ★。夢のタイルなど、押せない所に置く */
+export function FulfilledMark({ className = 'h-4 w-4' }: { className?: string }) {
+  return <StarFilledIcon className={`shrink-0 ${FULFILLED_TEXT} ${className}`} strokeWidth={1.5} />
+}
+
 /** まだの丸の灰色の輪（To-Do の丸。今日の画面の習慣のまだの丸も同じ、#510） */
 export const COMPLETION_RING_IDLE = 'border-zinc-300 dark:border-zinc-600'
 
@@ -53,13 +61,17 @@ export function CompletionCircle({
       >
         <span
           aria-hidden
-          className={`flex items-center justify-center leading-none transition-colors ${small ? 'h-4 w-4 text-sm' : 'h-5 w-5 text-base'} ${
+          className={`flex items-center justify-center transition-colors ${small ? 'h-4 w-4' : 'h-5 w-5'} ${
             completed
-              ? 'text-amber-500 hover:text-zinc-300 dark:text-amber-400 dark:hover:text-zinc-600'
+              ? `${FULFILLED_TEXT} hover:text-zinc-300 dark:hover:text-zinc-600`
               : 'text-zinc-300 hover:text-amber-500 dark:text-zinc-600 dark:hover:text-amber-400'
           }`}
         >
-          {completed ? '★' : '☆'}
+          {completed ? (
+            <StarFilledIcon className={small ? 'h-3.5 w-3.5' : 'h-[18px] w-[18px]'} strokeWidth={1.5} />
+          ) : (
+            <StarIcon className={small ? 'h-3.5 w-3.5' : 'h-[18px] w-[18px]'} strokeWidth={1.5} />
+          )}
         </span>
       </button>
     )
@@ -96,11 +108,22 @@ export function CompletionCircle({
  * 大きさ・枠の太さは完了の丸と同じ（20px、サブタスクは 16px）。並べたときに丸の大きさがそろう
  * `hex` の代わりに `style` で `--c` を渡せる（睡眠の色など）
  */
-export function EventMark({ hex, style, small = false }: { hex?: string; style?: CSSProperties; small?: boolean }) {
+export function EventMark({
+  hex,
+  style,
+  small = false,
+  dotClass = 'gc-dot',
+}: {
+  hex?: string
+  style?: CSSProperties
+  small?: boolean
+  /** 丸の塗り方（ラベルなしのこれからの予定は縁だけの `gc-dot-none`、`planDotClass`） */
+  dotClass?: string
+}) {
   return (
     <span
       aria-hidden
-      className={`gc-dot flex-shrink-0 rounded-full border-[1.5px] ${small ? 'h-4 w-4' : 'h-5 w-5'}`}
+      className={`${dotClass} flex-shrink-0 rounded-full border-[1.5px] ${small ? 'h-4 w-4' : 'h-5 w-5'}`}
       style={style ?? (hex ? colorVars(hex) : undefined)}
     />
   )

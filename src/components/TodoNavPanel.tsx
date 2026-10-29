@@ -31,6 +31,7 @@ import { colorVars } from '../lib/logCategoryColors'
 import { NAME_MAX_LENGTH } from '../lib/textLimits'
 import { compareByOrder } from '../lib/orderCompare'
 import { useExitGhost } from '../hooks/useExitGhost'
+import { useLabeledSwatches } from '../hooks/useLabeledSwatches'
 
 const DUE_VIEWS: { id: SmartView; icon: string }[] = [
   { id: 'all', icon: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z' },
@@ -335,6 +336,7 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   const exitRef = useExitGhost(ref)
+  const swatches = useLabeledSwatches()
   useDismiss({ open: true, onClose, inside: [ref] })
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
@@ -350,6 +352,7 @@ function ColorPicker({ current, onChange, onClose }: { current: string; onChange
         ariaLabel={t('sidebar.listColorDialog')}
         columns={6}
         selectedHex={current}
+        swatches={swatches}
         onChoose={(hex) => {
           onChange(hex)
           onClose()

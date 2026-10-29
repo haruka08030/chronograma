@@ -5,10 +5,11 @@ import { INBOX_LIST_ID } from '../store/storeConstants'
 import type { CalendarEvent } from '../types/calendarEvent'
 import type { Task } from '../types/task'
 import { appTimeZone, instantFromWall } from './timeZone'
-import { nudgedDayRange, nudgeTimelineBlock } from './timelineBlockEdit'
+import { applyBlockMove, applyBlockResize, logLimitAt, nudgedDayRange, nudgeTimelineBlock } from './timelineBlockEdit'
+import { everyDaySleepSchedule, sleepPlanOn, sleepSlotId } from './sleepSchedule'
 
-const moveGoogleEvent = vi.hoisted(() => vi.fn())
-vi.mock('./googleEventEdit', async (orig) => ({ ...(await orig<typeof import('./googleEventEdit')>()), moveGoogleEvent }))
+const setMyGoogleEventTime = vi.hoisted(() => vi.fn())
+vi.mock('./googleEventEdit', async (orig) => ({ ...(await orig<typeof import('./googleEventEdit')>()), setMyGoogleEventTime }))
 
 /** 2026-10-07 15:00（記録はこれより先にできない） */
 const NOW = new Date(2026, 9, 7, 15, 0)
@@ -30,7 +31,7 @@ const times = (id: string) => {
 }
 
 beforeEach(() => {
-  moveGoogleEvent.mockReset()
+  setMyGoogleEventTime.mockReset()
   while (useTaskStore.getState().undoLastOperation()) {
     /* 前のテストの履歴を残さない */
   }
@@ -154,24 +155,29 @@ describe('nudgeTimelineBlock: Google の予定（ドラッグと同じ決まり�
     }
   }
 
-  it('書き換えられる予定は Google へ送る', () => {
+  it('自分の時間にする（Google へは送らない、#625）', () => {
     useTaskStore.setState({ calendarEvents: [gEvent()], googleCanWrite: true })
     expect(nudgeTimelineBlock('event-g', 'move', 1, NOW)).toEqual({ title: 'Meeting', startTime: '10:15', endTime: '11:15' })
-    expect(moveGoogleEvent).toHaveBeenCalledWith(
+    expect(setMyGoogleEventTime).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'g' }),
       expect.objectContaining({ date: '2026-10-07', startTime: '10:15', endTime: '11:15' }),
     )
     nudgeTimelineBlock('event-g', 'resize', -1, NOW)
-    expect(moveGoogleEvent).toHaveBeenLastCalledWith(
+    expect(setMyGoogleEventTime).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: 'g' }),
       expect.objectContaining({ startTime: '10:00', endTime: '10:45' }),
     )
   })
 
-  it('書き込めない・変更を許されていない・日をまたぐ予定は動かさない', () => {
-    useTaskStore.setState({ calendarEvents: [gEvent()], googleCanWrite: false })
-    expect(nudgeTimelineBlock('event-g', 'move', 1, NOW)).toBeNull()
-    useTaskStore.setState({ calendarEvents: [gEvent({ editable: false })], googleCanWrite: true })
+  it('主催者でない・書き込めない予定も自分の時間にできる', () => {
+    useTaskStore.setState({ calendarEvents: [gEvent({ editable: false })], googleCanWrite: false })
+    expect(nudgeTimelineBlock('event-g', 'move', 1, NOW)).toEqual({ title: 'Meeting', startTime: '10:15', endTime: '11:15' })
+  })
+
+  it('終日・日をまたぐ予定は動かさない', () => {
+    useTaskStore.setState({
+      calendarEvents: [gEvent({ isAllDay: true, startTime: null, endTime: null, start: '2026-10-07', end: '2026-10-08' })],
+    })
     expect(nudgeTimelineBlock('event-g', 'move', 1, NOW)).toBeNull()
     const tz = appTimeZone()
     const night = gEvent({
@@ -182,6 +188,61 @@ describe('nudgeTimelineBlock: Google の予定（ドラッグと同じ決まり�
     })
     useTaskStore.setState({ calendarEvents: [night], googleCanWrite: true })
     expect(nudgeTimelineBlock('event-g', 'move', -1, NOW)).toBeNull()
-    expect(moveGoogleEvent).not.toHaveBeenCalled()
+    expect(setMyGoogleEventTime).not.toHaveBeenCalled()
+  })
+})
+
+describe('睡眠の予定の枠（#660）', () => {
+  // 2026-10-08（木）の朝。曜日の予定は毎日 23:30–07:00
+  const WAKE = '2026-10-08'
+  const id = sleepSlotId(WAKE)
+  const ctx = { logLimit: logLimitAt(NOW) }
+  const planOn = (day: string) => {
+    const { sleepSchedule, sleepDays } = useTaskStore.getState().addons
+    return sleepPlanOn(sleepSchedule ?? {}, day, sleepDays)
+  }
+  beforeEach(() => {
+    useTaskStore.setState((s) => ({
+      addons: { ...s.addons, sleepSchedule: everyDaySleepSchedule({ bed: '23:30', wake: '07:00' }), sleepDays: {} },
+    }))
+  })
+
+  it('朝の区間を 30 分下げると、寝る・起きるとも 30 分遅れ、その朝だけ変わる', () => {
+    expect(applyBlockMove(id, WAKE, '00:30', '07:30', ctx)).toBe(true)
+    expect(planOn(WAKE)).toEqual({ bed: '00:00', wake: '07:30' })
+    expect(planOn('2026-10-15')).toEqual({ bed: '23:30', wake: '07:00' })
+  })
+
+  it('夜の区間（前の日の列）をつかんで動かしても同じ 1 つの睡眠として動く', () => {
+    expect(applyBlockMove(id, '2026-10-07', '23:00', '23:59', ctx)).toBe(true)
+    expect(planOn(WAKE)).toEqual({ bed: '23:00', wake: '06:30' })
+  })
+
+  it('起きる日が変わる動かし方はしない', () => {
+    expect(applyBlockMove(id, WAKE, '17:30', '18:00', ctx)).toBe(false)
+    expect(planOn(WAKE)).toEqual({ bed: '23:30', wake: '07:00' })
+  })
+
+  it('朝の区間の下の端で起きるだけ、夜の区間の上の端で寝るだけ変わる。いつもの時刻に戻すとその朝の時刻は消える', () => {
+    expect(applyBlockResize(id, '00:00', '08:00', WAKE, ctx)).toBe(true)
+    expect(planOn(WAKE)).toEqual({ bed: '23:30', wake: '08:00' })
+    expect(applyBlockResize(id, '22:30', '24:00', '2026-10-07', ctx)).toBe(true)
+    expect(planOn(WAKE)).toEqual({ bed: '22:30', wake: '08:00' })
+    useTaskStore.getState().setSleepPlanDay(WAKE, { bed: '23:30', wake: '07:00' })
+    expect(useTaskStore.getState().addons.sleepDays).toEqual({})
+  })
+
+  it('Alt+↑↓ で 15 分ずつ動く・伸びる。⌘Z で戻る', () => {
+    expect(nudgeTimelineBlock(id, 'move', 1, NOW)).toMatchObject({ startTime: '23:45', endTime: '07:15' })
+    expect(nudgeTimelineBlock(id, 'resize', -1, NOW)).toMatchObject({ startTime: '23:45', endTime: '07:00' })
+    useTaskStore.getState().undoLastOperation()
+    useTaskStore.getState().undoLastOperation()
+    expect(planOn(WAKE)).toEqual({ bed: '23:30', wake: '07:00' })
+  })
+
+  it('その日は予定なしにできる', () => {
+    useTaskStore.getState().setSleepPlanDay(WAKE, null)
+    expect(planOn(WAKE)).toBeNull()
+    expect(planOn('2026-10-09')).toEqual({ bed: '23:30', wake: '07:00' })
   })
 })

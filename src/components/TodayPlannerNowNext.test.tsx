@@ -37,7 +37,7 @@ function todo(id: string, over: Partial<Task> = {}): Task {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date(2026, 9, 8, 10, 0, 0))
-  useTaskStore.getState().setSelectedCalendarDateKey(DAY)
+  useTaskStore.getState().setPlannerDateKey(DAY)
   useTaskStore.setState({ calendarEvents: [] })
 })
 

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
-import { useTaskStore, selectLiveHabits } from '../../store/taskStore'
+import { useTaskStore, selectHabitsByDay } from '../../store/taskStore'
 import type { HabitRecordIndex } from '../../lib/habitTiming'
 import { isPlacedPointHabitOn, pointHabitsOn, untimedHabitsOn } from '../../lib/habitSlots'
 import { colorVars } from '../../lib/logCategoryColors'
@@ -10,8 +10,11 @@ import { appTodayKey } from '../../lib/timeZone'
 import { tip } from '../../lib/tooltip'
 import { CheckIcon, ChevronDownIcon } from '../icons'
 import { DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/taskDrag'
-import { HabitDayPopover, type HabitDayItem } from './HabitDayPopover'
+import type { HabitDayItem } from './HabitDayPopover'
+import { HabitDayPopover } from '../lazyOverlays'
+import { OverlaySuspense } from '../ui/OverlaySuspense'
 import { HabitDotMark as DotMark, type DotState } from './HabitDotMark'
+import { HABIT_OFF_TIME_TEXT } from '../../lib/habitMark'
 import { habitDotState, habitStarted } from './habitDotState'
 import { useHabitToggle } from './useHabitToggle'
 
@@ -34,7 +37,7 @@ type Popover = { key: string; anchor: Element }
 
 /**
  * 終日の行の下の習慣の段。その日にやる習慣を 1 件 1 つの色の丸で詰めて横に並べ、段の高さを 1 行に保つ。
- * 丸の並びは週を通して習慣の並び（習慣の画面の順）に固定し、同じ習慣を横にたどれるようにする。丸の見た目は `HabitDotMark`。
+ * 丸の並びは週を通して習慣の並び（習慣の画面の順）に固定し、同じ習慣を横にたどれるようにする。丸の見た目は `HabitDotMark`（習慣画面と同じ `gc-mark*`。時間外は点線の輪）。
  * 丸はほかの画面（習慣の表・詳細・今日）と同じく、押すと ✓ / 取り消し（今日で始まっている分と過ぎた日。先の日・まだの時刻は押しても何もしない）。
  * 押し間違えは当たりを丸の間隔いっぱい×段の高さに広げ、✓ のたびに「元に戻す」のトーストを出して防ぐ。
  * 名前・カード・その日の一覧へは、左の「習慣 ▾」（今日、無ければ最初の日の一覧。一覧の ‹ › で日を替える）と「+N」（その日の一覧）から。PC は丸のヒントにも名前。
@@ -67,7 +70,7 @@ export function WeekHabitRow({
   keepEmpty: boolean
 }) {
   const { t, i18n } = useTranslation()
-  const habits = useTaskStore(selectLiveHabits)
+  const habits = useTaskStore(selectHabitsByDay)
   const toggle = useHabitToggle()
   const named = gridDays.length === 1
   const [popover, setPopover] = useState<Popover | null>(null)
@@ -88,8 +91,14 @@ export function WeekHabitRow({
       const key = toDateKey(day)
       // 時刻順（時刻ひとつの習慣、その後ろに時間を決めていない習慣）
       const byTime: Item[] = [
-        ...pointHabitsOn(habits, key, habitIndex).map(({ habit, slot, done }) => ({ habit, id: slot.id, time: slot.startTime, done })),
-        ...untimedHabitsOn(habits, key, habitIndex).map(({ habit, id, done }) => ({ habit, id, time: null, done })),
+        ...pointHabitsOn(habits, key, habitIndex).map(({ habit, slot, done, offTime }) => ({
+          habit,
+          id: slot.id,
+          time: slot.startTime,
+          done,
+          offTime,
+        })),
+        ...untimedHabitsOn(habits, key, habitIndex).map(({ habit, id, done, offTime }) => ({ habit, id, time: null, done, offTime })),
       ]
       // 丸と一覧は習慣の並びに固定（日によって入れ替わらない）
       const dots = [...byTime].sort((a, b) => order.get(a.habit.id)! - order.get(b.habit.id)!)
@@ -201,28 +210,30 @@ export function WeekHabitRow({
         })}
       </div>
       {popover && popDay && (
-        <HabitDayPopover
-          anchor={popover.anchor}
-          dateKey={popover.key}
-          // 1 日表示は段と同じ並び（まだを時刻順→達成）
-          items={named ? popDay.named : popDay.dots}
-          highlightId={null}
-          logLimitMin={logLimitMin}
-          openHabitCard={openHabitCard}
-          openHabitMenu={openHabitMenu}
-          // 丸のある日だけを ‹ › でたどる（週・3 日）
-          onStep={
-            withDots.length > 1
-              ? (dir) => {
-                  const next = withDots[popIndex + dir]
-                  if (next) setPopover({ key: next.key, anchor: popover.anchor })
-                }
-              : undefined
-          }
-          canPrev={popIndex > 0}
-          canNext={popIndex < withDots.length - 1}
-          onClose={() => setPopover(null)}
-        />
+        <OverlaySuspense onLoadFailed={() => setPopover(null)}>
+          <HabitDayPopover
+            anchor={popover.anchor}
+            dateKey={popover.key}
+            // 1 日表示は段と同じ並び（まだを時刻順→達成）
+            items={named ? popDay.named : popDay.dots}
+            highlightId={null}
+            logLimitMin={logLimitMin}
+            openHabitCard={openHabitCard}
+            openHabitMenu={openHabitMenu}
+            // 丸のある日だけを ‹ › でたどる（週・3 日）
+            onStep={
+              withDots.length > 1
+                ? (dir) => {
+                    const next = withDots[popIndex + dir]
+                    if (next) setPopover({ key: next.key, anchor: popover.anchor })
+                  }
+                : undefined
+            }
+            canPrev={popIndex > 0}
+            canNext={popIndex < withDots.length - 1}
+            onClose={() => setPopover(null)}
+          />
+        </OverlaySuspense>
       )}
     </div>
   )
@@ -262,6 +273,11 @@ function DotsDay({
 }) {
   const { t } = useTranslation()
   const d = DOTS[size]
+  // ヒント・読み上げは「21:00 読書」。時間外にやった日は「（時間外）」を添える（丸の下に文字を置く余白が無いので）
+  const dotLabel = (item: Item) => {
+    const name = item.time !== null ? `${item.time} ${item.habit.title}` : item.habit.title
+    return item.offTime ? t('common.withNote', { title: name, note: t('planner.habitOffTime') }) : name
+  }
   // 入らない日は入るだけ並べて、残りを「+N」にする（幅が分からない間・テストの jsdom は全部）
   const inner = width - d.pad
   const fits = width <= 0 || items.length * d.minW <= inner
@@ -311,7 +327,7 @@ function DotsDay({
               e.stopPropagation()
               openHabitMenu(item.id, e.clientX, e.clientY)
             }}
-            {...tip(item.time !== null ? `${item.time} ${item.habit.title}` : item.habit.title, { name: true })}
+            {...tip(dotLabel(item), { name: true })}
             className={`group flex h-full shrink-0 items-center justify-center rounded outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-500 ${
               can ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
             }`}
@@ -322,7 +338,7 @@ function DotsDay({
                 can ? 'group-hover:bg-zinc-200/70 dark:group-hover:bg-zinc-700' : ''
               }`}
             >
-              <DotMark state={stateOf(item)} large={size === 'lg'} list={size === 'lg'} />
+              <DotMark state={stateOf(item)} large={size === 'lg'} />
             </span>
           </span>
         )
@@ -435,8 +451,9 @@ function NamedHabit({
   openHabitCard: (slotId: string, el?: Element | null) => void
   openHabitMenu: (slotId: string, x: number, y: number) => boolean
 }) {
+  const { t } = useTranslation()
   const label = item.time !== null ? `${item.time} ${item.habit.title}` : item.habit.title
-  const dot = <DotMark state={state} large list />
+  const dot = <DotMark state={state} large />
   return (
     <div
       data-block-id={item.id}
@@ -480,6 +497,7 @@ function NamedHabit({
       >
         {item.time !== null && <span className="shrink-0 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">{item.time}</span>}
         <span className="truncate">{item.habit.title}</span>
+        {item.offTime && <span className={`shrink-0 text-[10px] ${HABIT_OFF_TIME_TEXT}`}>{t('planner.habitOffTime')}</span>}
       </button>
     </div>
   )

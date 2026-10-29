@@ -1,4 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useFitInViewport } from '../../hooks/useFitInViewport'
+import { pointRect } from '../../lib/viewportFit'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useDismiss } from '../../hooks/useDismiss'
@@ -170,14 +172,14 @@ export function ActionMenu({
   }
   const keepSub = () => window.clearTimeout(subTimer.current)
 
-  // 押した所に出し、右・下にはみ出すなら内側へ寄せる（拡大アニメーション中でも本来の大きさで測る）
-  useLayoutEffect(() => {
-    const el = menuRef.current
-    if (!el || sheet) return
-    el.style.left = `${Math.max(EDGE, Math.min(x, window.innerWidth - el.offsetWidth - EDGE))}px`
-    const top = above ? y - el.offsetHeight - EDGE : y
-    el.style.top = `${Math.max(EDGE, Math.min(top, window.innerHeight - el.offsetHeight - EDGE))}px`
-  }, [x, y, q, above, sheet])
+  // 押した所の下（`above` なら上）に出し、入らなければ反対側・画面の中へ。高すぎる分はメニューの中でスクロール
+  useFitInViewport(menuRef, {
+    anchor: pointRect(x, y),
+    placement: 'below',
+    prefer: above ? 'above' : 'below',
+    gap: above ? EDGE : 0,
+    disabled: sheet,
+  })
 
   // 閉じたら開いた元（行・… のボタン）へフォーカスを戻す。Esc で閉じても次の Tab がサイドバーからやり直しにならない。
   // 閉じる間に別の所（開いたダイアログなど）へ移っていたら奪わない（useFocusTrap と同じ戻し方）
@@ -198,17 +200,16 @@ export function ActionMenu({
   }, [searchable, above])
 
   // 中のメニューは開いた項目の横に。右に入らなければ左に出す
-  useLayoutEffect(() => {
-    const el = subRef.current
-    const menu = menuRef.current
-    const item = sub ? menu?.querySelector(`[data-sub="${sub}"]`) : null
-    if (sheet || !sub || !el || !menu || !item) return
-    const m = menu.getBoundingClientRect()
-    const r = item.getBoundingClientRect()
-    const right = m.right - 4
-    const left = right + el.offsetWidth + EDGE <= window.innerWidth ? right : m.left - el.offsetWidth + 4
-    el.style.left = `${Math.max(EDGE, left)}px`
-    el.style.top = `${Math.max(EDGE, Math.min(r.top - 5, window.innerHeight - el.offsetHeight - EDGE))}px`
+  useFitInViewport(subRef, {
+    anchor: () => {
+      const m = menuRef.current?.getBoundingClientRect()
+      const r = sub ? menuRef.current?.querySelector(`[data-sub="${sub}"]`)?.getBoundingClientRect() : null
+      return m && r ? { top: r.top - 5, bottom: r.bottom, left: m.left + 4, right: m.right - 4 } : null
+    },
+    placement: 'side',
+    gap: 0,
+    disabled: sheet || !sub,
+    watch: sub,
   })
 
   const onKeyDown = (e: React.KeyboardEvent) => {

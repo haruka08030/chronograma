@@ -105,6 +105,8 @@ describe('useGoogleCalendarEvents', () => {
         scheduledDate: '2026-10-14',
         startTime: '10:00',
         endTime: '11:00',
+        // Google に送っていたのは前に作った予定だけ（#626）
+        createdAt: '2026-10-01T00:00:00Z',
         updatedAt: '2026-10-01T00:00:00Z',
         deletedAt: null,
         archivedAt: null,

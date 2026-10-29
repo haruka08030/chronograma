@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
-import { defaultSleepTimes, looksLikeSleep, sleepEndingOn, sleepMinutes, sleepSpan, summarizeSleep, wakeDateOf } from './sleep'
+import {
+  defaultSleepTimes,
+  looksLikeSleep,
+  napsEndingOn,
+  overlappingSleep,
+  sleepNightOn,
+  sleepEndingOn,
+  sleepMinutes,
+  sleepPeriods,
+  sleepSpan,
+  summarizeSleep,
+  wakeDateOf,
+  weekendGap,
+} from './sleep'
 import { getDayPlan } from './dayPlan'
 import { TASK_DEFAULTS } from './taskDefaults'
 
@@ -68,6 +81,32 @@ describe('wakeDateOf / sleepEndingOn', () => {
   })
 })
 
+describe('昼寝（#645）', () => {
+  const night = log('n', { kind: 'sleep', dueDate: '2026-09-30', startTime: '02:00', endTime: '06:00' })
+  const nap = log('p', { kind: 'sleep', dueDate: '2026-09-30', startTime: '13:00', endTime: '17:00' })
+  const tasks = [nap, night]
+
+  it('その日にいちばん早く寝た睡眠が夜の睡眠、残りが昼寝（昼寝の方が長くても）', () => {
+    expect(sleepEndingOn(tasks, '2026-09-30')?.id).toBe('n')
+    expect(napsEndingOn(tasks, '2026-09-30').map((t) => t.id)).toEqual(['p'])
+  })
+  it('1 晩分の時刻は夜の睡眠、昼寝は長さだけ分けて持つ', () => {
+    expect(sleepNightOn(tasks, '2026-09-30')).toMatchObject({ bed: '02:00', wake: '06:00', minutes: 240, napMinutes: 240 })
+    expect(summarizeSleep(tasks, '2026-09-30', 1)).toMatchObject({ avgMinutes: 240, avgNapMinutes: 240, avgWake: '06:00' })
+  })
+  it('徹夜して昼寝だけの日は、その昼寝がその日の睡眠', () => {
+    expect(sleepNightOn([nap], '2026-09-30')).toMatchObject({ bed: '13:00', minutes: 240, napMinutes: 0 })
+  })
+  it('入力欄の初期値は前の夜の睡眠の時刻（昼寝は使わない）', () => {
+    expect(defaultSleepTimes(tasks)).toEqual({ bed: '02:00', wake: '06:00' })
+  })
+  it('時間の重なる睡眠を見つける（日をまたいでも）', () => {
+    const over = log('o', { kind: 'sleep', dueDate: '2026-09-29', endDate: '2026-09-30', startTime: '23:30', endTime: '07:00' })
+    expect(overlappingSleep([over], { dueDate: '2026-09-30', endDate: null, startTime: '06:00', endTime: '08:00' })?.id).toBe('o')
+    expect(overlappingSleep([over], { dueDate: '2026-09-30', endDate: null, startTime: '07:00', endTime: '08:00' })).toBeNull()
+  })
+})
+
 describe('looksLikeSleep', () => {
   it('matches the title or the label', () => {
     expect(looksLikeSleep(log('睡眠'))).toBe(true)
@@ -111,5 +150,39 @@ describe('summarizeSleep', () => {
     expect(s.count).toBe(0)
     expect(s.avgBed).toBeNull()
     expect(s.nights).toHaveLength(7)
+  })
+})
+
+describe('sleepPeriods / weekendGap（睡眠のページ、#628）', () => {
+  const night = (wakeDay: string, bed: string, wake: string) =>
+    log(`n-${wakeDay}`, { kind: 'sleep', dueDate: wakeDay, endDate: null, startTime: bed, endTime: wake })
+
+  it('週は月曜はじまりで今週は今日まで、月は 1 日から。記録の無い期間も返す', () => {
+    // 2026-10-27 は火曜
+    const tasks = [night('2026-10-26', '00:00', '07:00'), night('2026-10-27', '01:00', '07:00'), night('2026-10-20', '00:00', '08:00')]
+    const p = sleepPeriods(tasks, '2026-10-27', 3, 2)
+    expect(p.map((x) => [x.kind, x.startKey, x.endKey, x.summary.count])).toEqual([
+      ['week', '2026-10-26', '2026-10-27', 2],
+      ['week', '2026-10-19', '2026-10-25', 1],
+      ['week', '2026-10-12', '2026-10-18', 0],
+      ['month', '2026-10-01', '2026-10-27', 3],
+      ['month', '2026-09-01', '2026-09-30', 0],
+    ])
+    expect(p[0]!.summary.avgMinutes).toBe(390)
+  })
+
+  it('土日（起きた日）と平日の寝た・起きた時刻の差。どちらかが 2 晩に足りなければ null', () => {
+    const weekdays = ['2026-10-19', '2026-10-20', '2026-10-21'].map((d) => night(d, '00:00', '07:00'))
+    const weekend = [night('2026-10-24', '01:00', '09:00'), night('2026-10-25', '01:00', '09:30')]
+    const g = weekendGap([...weekdays, ...weekend], '2026-10-26')
+    expect(g?.bedLater).toBe(60)
+    expect(g?.wakeLater).toBe(135)
+    expect(weekendGap([...weekdays, weekend[0]!], '2026-10-26')).toBeNull()
+  })
+
+  it('睡眠の予定があれば、候補の最初の位置はそれ', () => {
+    const tasks = [night('2026-10-26', '01:00', '08:00')]
+    expect(defaultSleepTimes(tasks)).toEqual({ bed: '01:00', wake: '08:00' })
+    expect(defaultSleepTimes(tasks, { bed: '23:00', wake: '06:30' })).toEqual({ bed: '23:00', wake: '06:30' })
   })
 })

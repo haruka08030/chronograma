@@ -6,7 +6,7 @@ import { colorVars } from '../../lib/logCategoryColors'
 import { formatDate } from '../../lib/dateFormat'
 import { openTaskDetail, openTaskMenu } from '../../lib/overlays'
 import { useLongPress } from '../../hooks/useLongPress'
-import { CheckIcon } from '../icons'
+import { FulfilledMark } from '../ui/CompletionCircle'
 import { GROUP_HEADING_TEXT } from '../ListSectionHeading'
 
 /** タイルの並び（スマホ 2 列、広い画面ほど増やす）。夢とかなえた夢で同じ */
@@ -14,7 +14,7 @@ const GRID = 'grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-co
 
 /**
  * 夢の 1 枚。セクションの色の薄い塗り＋縁（`gc-plan`。セクションの外は白地に灰色の縁）、題名、一歩があれば次の一歩と細い進み具合、セクション名。
- * 押すと詳細（一歩の追加はそこで）、右クリック・長押しで行と同じメニュー（かなえた・やりたいへ移す・削除）
+ * 押すと詳細（一歩の追加と、右上の … のかなえた・やりたいへ移す・削除はそこで）、右クリック・長押しでも同じメニュー
  */
 function DreamTile({ task, hex, sectionName }: { task: Task; hex: string | null; sectionName: string | null }) {
   const { t } = useTranslation()
@@ -48,7 +48,7 @@ function DreamTile({ task, hex, sectionName }: { task: Task; hex: string | null;
             : 'border border-zinc-200 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400'
       }`}
     >
-      {doneDate && <CheckIcon className="h-4 w-4 text-[#188038] dark:text-[#81c995]" strokeWidth={2.5} aria-hidden />}
+      {doneDate && <FulfilledMark />}
       {/* タイル全体を押せるよう、題名のボタンを枠いっぱいに広げる */}
       <button
         type="button"

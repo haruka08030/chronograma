@@ -70,7 +70,7 @@ export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: str
   const laterButtonRef = useRef<HTMLButtonElement>(null)
   useFocusBackOnClose(mode === 'timer', timerButtonRef)
   useFocusBackOnClose(mode === 'manual', laterButtonRef)
-  const { title, category, taskId, color, setTitle, setLabel, pick, reset } = useLogDraft()
+  const { title, category, taskId, color, vague, setTitle, setLabel, pick, reset } = useLogDraft()
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const recent = useMemo(() => frequentLogs(tasks, 2), [tasks])
@@ -133,7 +133,7 @@ export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: str
   })
 
   // 題名もラベルも空なら「記録」で始める（あとから題名・ラベルを付けられる。押せないボタンで止めない）
-  const name = title.trim() || category.trim() || t('quickLog.untitled')
+  const name = title.trim() || category.trim() || (vague ? t('labels.vague') : t('quickLog.untitled'))
   const overnight = Boolean(start && end && timeToMinutes(end) < timeToMinutes(start))
   // 記録は今より先には作れない（今日は「今」まで。日をまたぐのも不可）
   const nowMin = minutesOfDay(zonedNow())
@@ -151,12 +151,12 @@ export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: str
     if (!name) return
     const tags = category.trim() ? [category.trim()] : []
     if (mode === 'timer') {
-      startTimer(name, tags, taskId, color)
+      startTimer(name, tags, taskId, color, { vague })
     } else {
       if (!canSaveManual) return
       // 終わりが始まりより前なら日をまたいだ記録（夜〜翌朝の睡眠など）
       const endDate = overnight ? toDateKey(addDays(fromDateKey(dateKey), 1)) : null
-      const id = addTimeLog(name, dateKey, start, end, tags, undefined, endDate, color, taskId, true)
+      const id = addTimeLog(name, dateKey, start, end, tags, undefined, endDate, color, taskId, vague)
       if (details) openTaskDetail(id)
     }
     close()
@@ -294,7 +294,7 @@ export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: str
               ))}
             </div>
           )}
-          <TimeLogTagField value={category} color={color} onChange={setLabel} compact />
+          <TimeLogTagField value={category} color={color} vague={vague} onChange={setLabel} compact />
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={close} className={buttonClass({ variant: 'ghost', size: 'sm' })}>
               {t('common.cancel')}

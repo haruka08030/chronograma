@@ -6,20 +6,23 @@ import { useTaskStore, INBOX_LIST_ID } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { unplannedListIds } from '../../lib/listKind'
 import { colorVars } from '../../lib/logCategoryColors'
-import { anchoredCardStyle, isAnchoredSheet, type AnchorRect } from './anchoredCard'
+import { isAnchoredSheet, useAnchoredCard, type AnchorRect } from './anchoredCard'
 import { TimeLogTagField } from '../TimeLogTagField'
 import { LogTitleInput } from '../LogTitleInput'
 import { useLogDraft } from '../../hooks/useLogDraft'
 import { addGoogleEvent } from '../../lib/googleEventEdit'
+import { inferEventDestination } from '../../lib/eventDestination'
+import { googleSkipKey } from '../../lib/googleSkip'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { appTimeZone, gmtLabel, zoneCityName, zoneLongName, zoneOptionLabel } from '../../lib/timeZone'
 import { timesPatchFromZone } from '../../lib/taskTimeZone'
 import { TimeZonePicker } from '../TimeZonePicker'
-import { ClockIcon } from '../icons'
+import { ClockIcon, CloseIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
 import { PillToggle } from '../ui/PillToggle'
 import { isCancelEscape, isModKey, isSubmitEnter } from '../../lib/keyboard'
-import { tip } from '../../lib/tooltip'
+import { shortcutTip, tip } from '../../lib/tooltip'
+import { iconButtonClass } from '../ui/iconButtonClass'
 import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { endKeepingLength, minutesToTime, toMinutes } from '../../lib/clockTime'
@@ -69,7 +72,9 @@ const TITLE_INPUT =
  * 空き時間をクリック / ドラッグしたときの作成カード（Google カレンダーのクイック作成相当）。
  * 上で To-Do（完了の丸つき）か予定（バイト・授業など。完了の丸なし）かを選び、タイトルとリストだけ決めて保存。
  * Google とつないで書き込めるときは、予定のリストの欄に「Google カレンダー」も並ぶ（Google の予定として作る）。
- * 選んだもの（To-Do / 予定、予定を Google に作るか）は次に開いたときも同じ。
+ * リストを選んだ予定はアプリの中だけ（Google には送らない）。予定の名前を打つと、前のその名前の予定から作成先を先に選ぶ
+ * （`inferEventDestination`。自分で選び直したら、その名前を打っている間は変えない）。
+ * 選んだもの（To-Do / 予定、予定を Google に作るか）は次に開いたときも同じ（名前から分からないときの作成先）。
  * 日時を押すと開始・終了の時刻欄になり、その場で分単位に直せる（Google と同じ。仮の枠も動く）。
  * 細かい設定は「その他のオプション」で作ってから詳細を開く。外側クリック・Esc は破棄（Google と同じ）。
  * `asLog`（「今日」の記録の列）では、リストの代わりに分類を選んで記録として保存する。
@@ -100,17 +105,27 @@ export function QuickCreatePopover({
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   // 記録の列では、名前を打つと推定したラベルを先に選び、過去の記録を候補に出す
-  const { title, category, taskId, color, setTitle, setLabel, pick } = useLogDraft({ infer: asLog })
+  const { title, category, taskId, color, vague, setTitle, setLabel, pick } = useLogDraft({ infer: asLog })
   const googleWritable = useTaskStore((s) => s.googleConnected && s.googleCanWrite)
   const [choice, setChoice] = useState<QuickCreateChoice>(readChoice)
   const asEvent = !asLog && choice.kind === 'event'
-  const toGoogle = asEvent && googleWritable && choice.eventToGoogle
+  const tasks = useTaskStore((s) => s.tasks)
+  const calendarEvents = useTaskStore((s) => s.calendarEvents)
+  const skipNames = useTaskStore((s) => s.addons.googleSkip)
+  // 自分で作成先を選んだときの名前（その名前の間は名前から選び直さない）
+  const nameKey = googleSkipKey(title)
+  const [pickedFor, setPickedFor] = useState<string | null>(null)
+  const inferred = useMemo(
+    () => (asEvent && pickedFor !== nameKey ? inferEventDestination(title, tasks, calendarEvents, skipNames) : null),
+    [asEvent, pickedFor, nameKey, title, tasks, calendarEvents, skipNames],
+  )
+  const inferredGoogle = inferred?.kind === 'google' && googleWritable
+  const toGoogle = asEvent && googleWritable && (inferred ? inferredGoogle : choice.eventToGoogle)
   const [editingTime, setEditingTime] = useState(false)
   /** 別のタイムゾーンで作る（Google と同じく、時刻の数字はそのままでそのタイムゾーンの時刻になる）。記録はいつも手元の時刻 */
   const [zone, setZone] = useState<string | null>(null)
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   const plannable = useMemo(() => [...lists].filter((l) => !excludedListIds.has(l.id)).sort(compareByOrder), [lists, excludedListIds])
-  const tasks = useTaskStore((s) => s.tasks)
   const slotStart = toMinutes(startTime) ?? 0
   const slotMinutes = (toMinutes(endTime) ?? 0) - slotStart
   // 枠に入る To-Do を 1 件だけ（記録の列では出さない。書き始めたら消す）
@@ -119,7 +134,10 @@ export function QuickCreatePopover({
     [asLog, tasks, dateKey, slotMinutes, excludedListIds],
   )
   const showFit = fit != null && title.trim() === ''
-  const [listId, setListId] = useState(() => (plannable.some((l) => l.id === lastListId) ? lastListId : INBOX_LIST_ID))
+  const [pickedListId, setListId] = useState(() => (plannable.some((l) => l.id === lastListId) ? lastListId : INBOX_LIST_ID))
+  // 名前からアプリの予定と分かったら、その予定のリスト（選べないリストなら今のまま）
+  const inferredList = inferred?.kind === 'app' ? inferred.listId : null
+  const listId = inferredList && plannable.some((l) => l.id === inferredList) ? inferredList : pickedListId
   const ref = useRef<HTMLDivElement>(null)
   const exitRef = useExitGhost(ref)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -132,7 +150,7 @@ export function QuickCreatePopover({
   const save = (openDetail: boolean) => {
     if (asLog) {
       // 空欄なら分類名で記録（記録の入力はどこでも同じ規則）
-      const name = title.trim() || category.trim() || t('quickCreate.untitled')
+      const name = title.trim() || category.trim() || (vague ? t('labels.vague') : t('quickCreate.untitled'))
       const id = addTimeLog(
         name,
         dateKey,
@@ -143,7 +161,7 @@ export function QuickCreatePopover({
         undefined,
         color,
         taskId,
-        true,
+        vague,
       )
       onCreated(id, openDetail)
       return
@@ -178,7 +196,7 @@ export function QuickCreatePopover({
       })
     })
     if (!id) return
-    lastListId = listId
+    lastListId = pickedListId
     onCreated(id, openDetail)
   }
 
@@ -217,7 +235,7 @@ export function QuickCreatePopover({
   }
 
   const df = useDateFormat()
-  const { style, sheet } = anchoredCardStyle(anchor, WIDTH, 270 + (editingTime ? 30 : 0) + (showFit ? 32 : 0))
+  const { style, sheet } = useAnchoredCard(ref, anchor, WIDTH)
   const listColor = toGoogle ? DEFAULT_GOOGLE_EVENT_HEX : (plannable.find((l) => l.id === listId)?.color ?? '#7986CB')
 
   return (
@@ -233,22 +251,35 @@ export function QuickCreatePopover({
         if (isCancelEscape(e) && !e.defaultPrevented) onClose()
       }}
     >
-      {!asLog && (
-        // Google と同じく「予定 / To-Do」。予定には完了の丸が付かない
-        <PillToggle
-          ariaLabel={t('quickCreate.kind')}
-          options={[
-            { value: 'event', label: t('quickCreate.kindEvent') },
-            { value: 'todo', label: t('quickCreate.kindTodo') },
-          ]}
-          value={choice.kind}
-          onChange={(kind) => {
-            setChoice((c) => ({ ...c, kind }))
-            inputRef.current?.focus()
-          }}
-          className="mb-3"
-        />
-      )}
+      {/* 上の行: 「予定 / To-Do」と、ほかのカードと同じ右上の × */}
+      <div className="-mr-2 -mt-2 mb-2 flex items-center justify-between gap-2">
+        {!asLog ? (
+          // Google と同じく「予定 / To-Do」。予定には完了の丸が付かない
+          <PillToggle
+            ariaLabel={t('quickCreate.kind')}
+            options={[
+              { value: 'event', label: t('quickCreate.kindEvent') },
+              { value: 'todo', label: t('quickCreate.kindTodo') },
+            ]}
+            value={choice.kind}
+            onChange={(kind) => {
+              setChoice((c) => ({ ...c, kind }))
+              inputRef.current?.focus()
+            }}
+          />
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          onClick={onClose}
+          className={iconButtonClass()}
+          aria-label={t('common.close')}
+          {...shortcutTip(t('common.close'), 'close')}
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </div>
       {asLog ? (
         <LogTitleInput
           inputRef={inputRef}
@@ -350,7 +381,7 @@ export function QuickCreatePopover({
       </div>
       {asLog ? (
         <div className="mt-3">
-          <TimeLogTagField value={category} color={color} onChange={setLabel} compact />
+          <TimeLogTagField value={category} color={color} vague={vague} onChange={setLabel} compact />
         </div>
       ) : (
         <label className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
@@ -361,7 +392,10 @@ export function QuickCreatePopover({
             onChange={(e) => {
               const v = e.target.value
               // Google の予定のカレンダー選びと同じく、予定の作成先はリストの欄で選ぶ（To-Do のリスト選びでは変えない）
-              if (asEvent) setChoice((c) => ({ ...c, eventToGoogle: v === GOOGLE_TARGET }))
+              if (asEvent) {
+                setChoice((c) => ({ ...c, eventToGoogle: v === GOOGLE_TARGET }))
+                setPickedFor(nameKey)
+              }
               if (v !== GOOGLE_TARGET) setListId(v)
             }}
             className="min-w-0 flex-1 rounded-md bg-transparent py-1 outline-none hover:bg-zinc-50 dark:hover:bg-zinc-700"

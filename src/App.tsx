@@ -13,6 +13,7 @@ import { FloatingTimer } from './components/FloatingTimer.tsx'
 import { UndoToast } from './components/UndoToast.tsx'
 import { MoveToast } from './components/MoveToast'
 import { CanvasSubmittedToast } from './components/CanvasSubmittedToast'
+import { ToastStack } from './components/ui/Toast'
 import { StorageFullBanner } from './components/StorageFullBanner'
 import { DndTaskDragShell } from './components/DndTaskDragShell'
 import { TimerDropZone } from './components/TimerDropZone'
@@ -35,6 +36,7 @@ import { SignedOutNotice } from './components/SignedOutNotice'
 import { useReminders } from './hooks/useReminders'
 import { useFollowToday } from './hooks/useFollowToday'
 import { useQuickStartLaunch } from './hooks/useQuickStartLaunch'
+import { HabitEditHost } from './components/habits/HabitEditHost'
 import { DndContext, DragOverlay } from '@dnd-kit/core'
 
 // 最初に開く「今日の計画」以外の画面は、開いたときに読み込む（最初の読み込みを軽くする）
@@ -45,6 +47,7 @@ const TaskBinView = lazyNamed(() => import('./components/TaskBinView'), 'TaskBin
 const CompletedTasksView = lazyNamed(() => import('./components/CompletedTasksView'), 'CompletedTasksView')
 const SettingsView = lazyNamed(() => import('./components/SettingsView'), 'SettingsView')
 const AddonsView = lazyNamed(() => import('./components/addons/AddonsView'), 'AddonsView')
+const SleepView = lazyNamed(() => import('./components/SleepView'), 'SleepView')
 const TaskList = lazyNamed(() => import('./components/TaskList'), 'TaskList')
 const SearchResults = lazyNamed(() => import('./components/SearchResults'), 'SearchResults')
 const ShortcutsHelp = lazyNamed(() => import('./components/ShortcutsHelp'), 'ShortcutsHelp')
@@ -107,6 +110,8 @@ export default function App() {
         return <CalendarHubView />
       case 'stats':
         return <StatsView />
+      case 'sleep':
+        return <SleepView />
       case 'habits':
         return <HabitsView />
       case 'completed':
@@ -208,23 +213,29 @@ export default function App() {
         <OverlayHost />
         <AccountSyncLoader />
         {/* 画面の外の部品は 1 つずつ包む。落ちたらその部品だけ消え、画面を替えると戻る */}
-        <PartBoundary name="undoToast" resetKey={partKey}>
-          <UndoToast />
-        </PartBoundary>
+        {/* トーストは 1 つの置き場に下から積む（同時に出ても重ならない） */}
+        <ToastStack>
+          <PartBoundary name="undoToast" resetKey={partKey}>
+            <UndoToast />
+          </PartBoundary>
+          <PartBoundary name="moveToast" resetKey={partKey}>
+            <MoveToast />
+          </PartBoundary>
+          <PartBoundary name="canvasSubmitted" resetKey={partKey}>
+            <CanvasSubmittedToast />
+          </PartBoundary>
+        </ToastStack>
         <PartBoundary name="tooltip" resetKey={partKey}>
           <TooltipHost />
-        </PartBoundary>
-        <PartBoundary name="moveToast" resetKey={partKey}>
-          <MoveToast />
-        </PartBoundary>
-        <PartBoundary name="canvasSubmitted" resetKey={partKey}>
-          <CanvasSubmittedToast />
         </PartBoundary>
         <PartBoundary name="timer" resetKey={partKey}>
           <FloatingTimer />
         </PartBoundary>
         <PartBoundary name="recordPrompt" resetKey={partKey}>
           <RecordPromptHost />
+        </PartBoundary>
+        <PartBoundary name="habitEdit" resetKey={partKey}>
+          <HabitEditHost />
         </PartBoundary>
         <PartBoundary name="bottomNav" resetKey={partKey}>
           <MobileBottomNav onNavigate={() => setSidebarOpen(false)} />

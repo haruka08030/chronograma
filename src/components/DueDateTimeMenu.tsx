@@ -1,5 +1,7 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useFitInViewport } from '../hooks/useFitInViewport'
+import { pointRect } from '../lib/viewportFit'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../store/taskStore'
@@ -18,7 +20,6 @@ import { sectionLabelClass } from './ui/sectionLabelClass'
 import { useExitGhost } from '../hooks/useExitGhost'
 import { SheetBackdrop } from './ui/SheetBackdrop'
 
-const EDGE = 8
 const WIDTH = 288
 
 /**
@@ -54,18 +55,11 @@ export function DueDateTimeMenu({
   const [time, setTime] = useState<string>(() => (sharedDate && times.size === 1 ? ([...times][0] ?? '') : ''))
   const panelRef = useRef<HTMLDivElement>(null)
   const panelExit = useExitGhost(panelRef)
-  const [pos, setPos] = useState({ left: x, top: y })
 
   useDismiss({ open: true, onClose, inside: [panelRef], swallow: sheet })
 
-  // PC: 画面からはみ出さないよう、押した所の下（入らなければ上）に置く
-  useLayoutEffect(() => {
-    if (sheet || !panelRef.current) return
-    const r = panelRef.current.getBoundingClientRect()
-    const left = Math.min(Math.max(EDGE, x), window.innerWidth - r.width - EDGE)
-    const top = y + r.height + EDGE > window.innerHeight ? Math.max(EDGE, window.innerHeight - r.height - EDGE) : y
-    setPos({ left, top })
-  }, [sheet, x, y])
+  // PC: 押した所の下（入らなければ上・画面の中）に置く。高すぎる分はパネルの中でスクロール
+  useFitInViewport(panelRef, { anchor: pointRect(x, y), placement: 'below', gap: 0, disabled: sheet })
 
   if (targets.length === 0) return null
 
@@ -85,7 +79,7 @@ export function DueDateTimeMenu({
         aria-label={t('taskMenu.dueDateTime')}
         data-popover-keep
         className={`${anchoredCardClass(sheet)} p-2 ${sheet ? 'inset-x-0 bottom-0' : ''}`}
-        style={sheet ? undefined : { left: pos.left, top: pos.top, width: WIDTH }}
+        style={sheet ? undefined : { width: WIDTH }}
       >
         {sheet && <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-600" aria-hidden />}
         <MenuLabel>

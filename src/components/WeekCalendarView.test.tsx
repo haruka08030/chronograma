@@ -432,7 +432,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(useTaskStore.getState().habits[0]!.completedDates).not.toContain('2026-10-07')
     // 名前・カードへは左の「習慣 ▾」から（今日の一覧）。一覧の ✓ でも達成
     openHabitList()
-    const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
+    const list = await screen.findByRole('dialog', { name: 'Habits on 10/7' })
     const row = list.querySelector<HTMLElement>(`[data-block-id="habit-slot::${id}::2026-10-07"]`)!
     fireEvent.click(within(row).getByRole('button', { name: 'Done as planned (log it)' }))
     expect(useTaskStore.getState().habits[0]!.completedDates).toContain('2026-10-07')
@@ -441,7 +441,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(await screen.findByRole('dialog', { name: 'Stretch' })).toBeInTheDocument()
   })
 
-  it('今日でもまだ始まっていない時刻の習慣は、段・一覧とも「先」の丸（✓ を出さない）', () => {
+  it('今日でもまだ始まっていない時刻の習慣は、段・一覧とも「先」の丸（✓ を出さない）', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
     useTaskStore.setState({ habits: [], tasks: [] })
@@ -470,13 +470,13 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(useTaskStore.getState().habits.find((h) => h.id === late)!.completedDates).toEqual([])
     expect(screen.queryByRole('dialog')).toBeNull()
     openHabitList()
-    const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
+    const list = await screen.findByRole('dialog', { name: 'Habits on 10/7' })
     expect(state(list, early)).toBe('today')
     expect(state(list, late)).toBe('future')
     expect(within(list).getAllByRole('button', { name: 'Done as planned (log it)' })).toHaveLength(1)
   })
 
-  it('一覧の行は右クリックで習慣のメニュー、10/8（先の日）は ✓ を出さない', () => {
+  it('一覧の行は右クリックで習慣のメニュー、10/8（先の日）は ✓ を出さない', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
     useTaskStore.setState({ habits: [], tasks: [] })
@@ -497,7 +497,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     openHabitList()
     expect(screen.getByRole('button', { name: 'Previous day' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
-    const list = screen.getByRole('dialog', { name: 'Habits on 10/8' })
+    const list = await screen.findByRole('dialog', { name: 'Habits on 10/8' })
     expect(within(list).queryByRole('button', { name: 'Done as planned (log it)' })).toBeNull()
     fireEvent.contextMenu(within(list).getByText('Stretch'), { clientX: 100, clientY: 100 })
     expect(screen.getByRole('menu')).toBeInTheDocument()
@@ -644,7 +644,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     const slotId = `habit-slot::${id}::2026-10-08`
     openHabitList()
     fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Habits on 10/8' })).getByText('Stretch'))
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Habits on 10/8' })).getByText('Stretch'))
     const card = await screen.findByRole('dialog', { name: 'Stretch' })
     fireEvent.click(within(card).getByRole('button', { name: 'Place on timeline' }))
     expect(useTaskStore.getState().habits[0]!.timeOverrides?.['2026-10-08']).toEqual({ startTime: '07:00', endTime: '08:00' })
@@ -739,14 +739,14 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(useTaskStore.getState().habits.find((h) => h.id === puff)!.completedDates).toEqual([])
     openHabitList()
     fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
-    const list = screen.getByRole('dialog', { name: 'Habits on 10/8' })
+    const list = await screen.findByRole('dialog', { name: 'Habits on 10/8' })
     // 一覧も段の丸と同じ並び
     expect([...list.querySelectorAll('[data-block-id]')].map((r) => r.textContent)).toEqual(['Wash puff', '22:00Stretch'])
     fireEvent.click(within(list).getByText('Wash puff'))
     expect(await screen.findByRole('dialog', { name: 'Wash puff' })).toBeInTheDocument()
   })
 
-  it('スマホの 1 日表示は次の 1 件だけ題名つきで丸の ✓ を 1 タップ、残りの丸も押すと ✓（一覧は「習慣 ▾」）', () => {
+  it('スマホの 1 日表示は次の 1 件だけ題名つきで丸の ✓ を 1 タップ、残りの丸も押すと ✓（一覧は「習慣 ▾」）', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
     useTaskStore.setState({ habits: [], tasks: [] })
@@ -777,7 +777,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(useTaskStore.getState().habits.find((h) => h.id === water)!.completedDates).toContain('2026-10-07')
     // 一覧は左の「習慣 ▾」から（1 日なので ‹ › は出さない）
     openHabitList()
-    const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
+    const list = await screen.findByRole('dialog', { name: 'Habits on 10/7' })
     expect(within(list).queryByRole('button', { name: 'Next day' })).toBeNull()
     expect(within(list).queryByRole('button', { name: 'Done as planned (log it)' })).toBeNull()
     fireEvent.keyDown(document, { key: 'Escape' })
@@ -786,7 +786,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     expect(useTaskStore.getState().habits.find((h) => h.id === puff)!.completedDates).toContain('2026-10-07')
   })
 
-  it('スマホの 1 日表示は、全部済んだ日を「✓ N」1 つにまとめ、押すと一覧（✓ しても閉じない）', () => {
+  it('スマホの 1 日表示は、全部済んだ日を「✓ N」1 つにまとめ、押すと一覧（✓ しても閉じない）', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(instantFromWall('2026-10-07', '16:00', appTimeZone()))
     useTaskStore.setState({ habits: [], tasks: [] })
@@ -806,7 +806,7 @@ describe('WeekCalendarView: 習慣の枠', () => {
     const view = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />)
     expect(rowDots(view.container)).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: 'All 2 habits done' }))
-    const list = screen.getByRole('dialog', { name: 'Habits on 10/7' })
+    const list = await screen.findByRole('dialog', { name: 'Habits on 10/7' })
     fireEvent.click(within(list).getAllByRole('button', { name: 'Mark as not done' })[0]!)
     expect(useTaskStore.getState().habits.find((h) => h.id === ids[0])!.completedDates).not.toContain('2026-10-07')
     expect(screen.getByRole('dialog', { name: 'Habits on 10/7' })).toBeInTheDocument()

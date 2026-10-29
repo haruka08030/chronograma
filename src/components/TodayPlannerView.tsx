@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays } from 'date-fns'
-import { useTaskStore, selectLiveHabits } from '../store/taskStore'
+import { useTaskStore, selectHabitsByDay } from '../store/taskStore'
 import { isHabitScheduledOnDate } from '../lib/habitSchedule'
 import { isRoutine } from '../types/habit'
 import { getDayLeftBehind, getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
@@ -14,7 +14,7 @@ import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
 import { isAppToday, appToday, appTodayKey } from '../lib/timeZone'
-import { CalendarArrowIcon, CheckIcon } from './icons'
+import { CalendarArrowIcon, CheckIcon, PostponeIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { DayNav } from './ui/DayNav'
 import { SelectionBar } from './ui/SelectionBar'
@@ -37,6 +37,7 @@ import { PlannerSuggestions } from './today/PlannerSuggestions'
 import { PlannerHabitRows, PlannerHabits } from './today/PlannerHabits'
 import { splitHabitDayKey } from '../lib/habitDayKey'
 import { usePlannerHabitRows } from '../hooks/usePlannerHabitRows'
+import { useShowsOnboarding } from '../hooks/useShowsOnboarding'
 import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
 import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSuggestions'
@@ -61,9 +62,9 @@ const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
  * 左の並び: 見出し（`PlannerHeader`）→ 引き落とし・期限（`PlannerDues`、追加機能）→ To-Do（`PlannerTodoSection`）→ 習慣 → 候補 → 完了 → 締め（`PlannerWrapUp`）
  */
 export function TodayPlannerView() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const tasks = useTaskStore((s) => s.tasks)
-  const habits = useTaskStore(selectLiveHabits)
+  const habits = useTaskStore(selectHabitsByDay)
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const deferredComplete = useDeferredComplete(toggleTask)
@@ -87,9 +88,9 @@ export function TodayPlannerView() {
   const isCoarse = useIsCoarsePointer()
   const isDesktop = useIsDesktop()
 
-  // 見ている日はカレンダー・習慣と共有する（d / w / m で切り替えても同じ日・その日を含む週と月が出る）
-  const dateKey = useTaskStore((s) => s.selectedCalendarDateKey)
-  const setDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
+  // 見ている日はこの画面だけのもの（カレンダー・習慣で日を動かしても変わらない）
+  const dateKey = useTaskStore((s) => s.plannerDateKey)
+  const setDateKey = useTaskStore((s) => s.setPlannerDateKey)
   useNavShortcut({
     today: () => setDateKey(toDateKey(appToday())),
     prev: () => setDateKey(toDateKey(addDays(fromDateKey(dateKey), -1))),
@@ -150,10 +151,12 @@ export function TodayPlannerView() {
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
-  const [paneOf, setPaneOf] = useState(() => ({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom) }))
+  // はじめの案内は「やること」の面にあるので、出ている間はそちらから開く
+  const onboarding = useShowsOnboarding(viewingToday)
+  const [paneOf, setPaneOf] = useState(() => ({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom, onboarding) }))
   const paneCurrent = paneOf.dateKey === dateKey && paneOf.opened === opened
-  if (!paneCurrent) setPaneOf({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom) })
-  const mobilePane = paneCurrent ? paneOf.pane : openedPlannerPane(dateKey, wrapUpFrom)
+  if (!paneCurrent) setPaneOf({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom, onboarding) })
+  const mobilePane = paneCurrent ? paneOf.pane : openedPlannerPane(dateKey, wrapUpFrom, onboarding)
   const setMobilePane = (pane: PlannerPane) => {
     choosePlannerPane(pane, todayKey)
     setPaneOf({ dateKey, opened, pane })
@@ -276,8 +279,8 @@ export function TodayPlannerView() {
       return [
         {
           // 別の日を見ているときは、見ている日の翌日へ（本当の明日ではない）
-          label: viewingToday ? t('taskList.selectionTomorrow') : t('taskList.selectionNextDay'),
-          icon: <CalendarArrowIcon className="h-3.5 w-3.5" />,
+          label: viewingToday ? t('taskMenu.toTomorrow') : t('taskMenu.toNextDay'),
+          icon: <PostponeIcon className="h-3.5 w-3.5" />,
           onClick: () =>
             rescheduleTasks(
               ids,
@@ -313,7 +316,7 @@ export function TodayPlannerView() {
 
   /** 行が共通で使うもの */
   const rowEnv: PlannerRowEnv = {
-    day: { dateKey, date, tomorrowKey, now, t, shortDate: (key) => df.shortDate(key) },
+    day: { dateKey, date, tomorrowKey, now, t, language: i18n.resolvedLanguage, shortDate: (key) => df.shortDate(key) },
     viewingToday,
     rowIds,
     selectedCount: selected.size,

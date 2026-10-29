@@ -19,6 +19,8 @@ export function useLogDraft({ infer = true }: { infer?: boolean } = {}) {
   const [category, setCategoryValue] = useState('')
   /** ラベルの欄で選んだ名前の無い色（null は外した、undefined はまだ選んでいない） */
   const [pickedColor, setPickedColor] = useState<string | null | undefined>(undefined)
+  /** 「なんとなく」を選んだか（#657。ラベル・色は空） */
+  const [vague, setVague] = useState(false)
   /** 自分でラベルを選んだ（外した）か */
   const chosen = useRef(false)
   /** 選んだ予定・To-Do（紐づける To-Do と、ラベル名の無い予定の色）。名前を変えたら外す */
@@ -30,7 +32,9 @@ export function useLogDraft({ infer = true }: { infer?: boolean } = {}) {
     /** 選んだ予定・To-Do に紐づける To-Do */
     taskId: linked?.taskId ?? null,
     /** ラベルが無いときに記録に付ける色（自分で選んだ色 → 選んだ予定の色） */
-    color: category ? null : pickedColor !== undefined ? pickedColor : (linked?.color ?? null),
+    color: category || vague ? null : pickedColor !== undefined ? pickedColor : (linked?.color ?? null),
+    /** 「なんとなく」の記録にする */
+    vague,
     setTitle: (v: string) => {
       setTitleValue(v)
       if (infer && !chosen.current) setCategoryValue(inferLabel(v))
@@ -38,19 +42,23 @@ export function useLogDraft({ infer = true }: { infer?: boolean } = {}) {
     /** ラベルの欄で選んだ（分類か、名前の無い色か、ラベルなし） */
     setLabel: (v: LogLabel) => {
       chosen.current = true
-      setCategoryValue(v.tags[0] ?? '')
-      setPickedColor(v.color)
+      setVague(v.vague === true)
+      setCategoryValue(v.vague ? '' : (v.tags[0] ?? ''))
+      setPickedColor(v.vague ? null : v.color)
     },
     pick: (s: LogSuggestion) => {
       setTitleValue(s.title)
       setLink(s.taskId || s.color ? { title: s.title, taskId: s.taskId ?? null, color: s.color ?? null } : null)
-      if (s.category) setCategoryValue(s.category)
-      else if (infer && !chosen.current) setCategoryValue(inferLabel(s.title))
+      if (s.category) {
+        setVague(false)
+        setCategoryValue(s.category)
+      } else if (infer && !chosen.current) setCategoryValue(inferLabel(s.title))
     },
     reset: () => {
       chosen.current = false
       setLink(null)
       setPickedColor(undefined)
+      setVague(false)
       setTitleValue('')
       setCategoryValue('')
     },

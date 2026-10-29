@@ -113,7 +113,8 @@ describe('changedForGoogle', () => {
     expect(changedForGoogle(prev, [{ ...a, deletedAt: '2026-10-14T00:00:00Z' }, b, todo])).toEqual(['a'])
     expect(changedForGoogle(prev, [b, todo])).toEqual(['a'])
     expect(changedForGoogle(prev, [{ ...a, order: 5 }, b, { ...todo, title: 'x' }])).toEqual([])
-    expect(changedForGoogle(prev, [a, b, { ...todo, kind: 'event' } as Task])).toEqual(['t'])
+    // To-Do を予定にしても、新しく Google には作らない（#626）
+    expect(changedForGoogle(prev, [a, b, { ...todo, kind: 'event' } as Task])).toEqual([])
     expect(changedForGoogle(prev, [{ ...a, kind: 'todo' } as Task, b, todo])).toEqual(['a'])
   })
 
@@ -121,6 +122,31 @@ describe('changedForGoogle', () => {
     const a = event('a', { timeZoneAnchor: 'Asia/Tokyo' })
     const moved = { ...a, scheduledDate: '2026-10-13', startTime: '21:00', endTime: '22:30', timeZoneAnchor: 'America/New_York' }
     expect(changedForGoogle([a], [moved])).toEqual([])
+  })
+})
+
+describe('送るのは前に作った予定だけ（#626）', () => {
+  const NEW = '2026-10-27T00:00:00+09:00'
+
+  it('GOOGLE_PUSH_UNTIL より後に作った予定は Google に置かない', () => {
+    expect(shouldBeOnGoogle(event('a', { createdAt: '2026-10-26T14:59:59Z' }))).toBe(true)
+    expect(shouldBeOnGoogle(event('a', { createdAt: NEW }))).toBe(false)
+    expect(shouldBeOnGoogle(event('a', { createdAt: '2026-11-01T00:00:00Z' }))).toBe(false)
+  })
+
+  it('新しい予定は作っても直しても消しても送らず、前の予定は今までどおり直す・消す', () => {
+    const fresh = event('n', { createdAt: NEW })
+    const old = event('o')
+    expect(changedForGoogle([old], [old, fresh])).toEqual([])
+    expect(changedForGoogle([old, fresh], [old, { ...fresh, title: '移動' }])).toEqual([])
+    expect(changedForGoogle([old, fresh], [old])).toEqual([])
+    expect(changedForGoogle([old, fresh], [{ ...old, title: 'x' }, fresh])).toEqual(['o'])
+    expect(changedForGoogle([old], [])).toEqual(['o'])
+  })
+
+  it('送らない名前を変えても新しい予定は送らない', () => {
+    const fresh = event('n', { title: '移動', createdAt: NEW, scheduledDate: '2026-11-01' })
+    expect(changedForGoogleSkip([fresh], new Set(['移動']), new Set(), '2026-10-27')).toEqual([])
   })
 })
 

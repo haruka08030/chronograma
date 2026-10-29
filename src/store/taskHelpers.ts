@@ -4,6 +4,7 @@
  */
 import { isLogTask, isTodoTask, type Task, type TaskKind } from '../types/task'
 import { newId } from '../lib/id'
+import { asSleepIfNamed } from '../lib/sleep'
 import { inferLogCategory } from '../lib/logCategory'
 import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
 import { appDayKeyOf, appTimeZone } from '../lib/timeZone'
@@ -53,6 +54,32 @@ export function expandDescendantIds(rootIds: Iterable<string>, allTasks: Task[])
   return out
 }
 
+/**
+ * 戻すときに一緒に戻す行: 選んだ行と、その下で同じ時刻に入れた（一緒に消した・アーカイブした）もの。
+ * 先に別に入れた子とその下は箱に残す（親を戻すと、先に消した小タスクまで戻っていた、#611）
+ */
+export function takenTogetherIds(
+  rootIds: Iterable<string>,
+  allTasks: Task[],
+  stampOf: (t: Task) => string | null | undefined,
+): Set<string> {
+  const byId = new Map(allTasks.map((t) => [t.id, t]))
+  const out = new Set(rootIds)
+  let added = true
+  while (added) {
+    added = false
+    for (const t of allTasks) {
+      if (!t.parentId || !out.has(t.parentId) || out.has(t.id)) continue
+      const stamp = stampOf(t)
+      if (stamp && stamp === stampOf(byId.get(t.parentId)!)) {
+        out.add(t.id)
+        added = true
+      }
+    }
+  }
+  return out
+}
+
 export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new Date().toISOString()): Task {
   const applied = { ...task, ...patch, updatedAt: now }
   // 日付・時刻の列はいつもアプリのタイムゾーンで書く（`taskTimeZone.ts`）
@@ -75,6 +102,14 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
   }
   // 毎週の印は予定だけ。To-Do にしたらその回は繰り返しから外れる
   if (patch.kind !== undefined && patch.kind !== 'event' && 'series' in applied) delete applied.series
+  // ラベル・色を選び直したら「なんとなく」を外す（「なんとなく」を選んだときは withLogCategory がラベル・色を外す）
+  if (
+    patch.vague !== true &&
+    (patch.category !== undefined || patch.tags !== undefined || patch.color !== undefined) &&
+    'vague' in applied
+  ) {
+    delete applied.vague
+  }
   // 記録の分類は category が正。前の書き方（tags の先頭）で来た分類も category にする
   if (isLogTask(task) && patch.tags !== undefined && patch.category === undefined) applied.category = patch.tags[0] ?? null
   // 色＝分類: 記録の分類を選び直したら、Google から写した色より分類の色を優先する
@@ -311,22 +346,25 @@ export function completedRecordPatch(
   return {
     tasks: [
       ...s.tasks,
-      makeTask(
-        {
-          title,
-          listId: INBOX_ID,
-          dueDate,
-          startTime,
-          endTime,
-          kind: 'log',
-          completed: true,
-          tags,
-          // 色＝ラベル。ラベルが決まればその色で描き、決まらないときは Google の色をそのまま残す（名前の無い色）
-          color: tags.length > 0 ? null : (color ?? null),
-          habitId: habitId ?? null,
-        },
-        maxOrder + 1,
-        now,
+      // 題名かラベルが「睡眠」なら睡眠（#651。習慣のチェックの記録はそのまま）
+      asSleepIfNamed(
+        makeTask(
+          {
+            title,
+            listId: INBOX_ID,
+            dueDate,
+            startTime,
+            endTime,
+            kind: 'log',
+            completed: true,
+            tags,
+            // 色＝ラベル。ラベルが決まればその色で描き、決まらないときは Google の色をそのまま残す（名前の無い色）
+            color: tags.length > 0 ? null : (color ?? null),
+            habitId: habitId ?? null,
+          },
+          maxOrder + 1,
+          now,
+        ),
       ),
     ],
   }

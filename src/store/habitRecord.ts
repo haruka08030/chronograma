@@ -2,6 +2,7 @@
  * 習慣の達成と記録（純粋な関数。localStorage・i18n を読まない）。
  * 時間を決めた習慣は、達成にすると予定どおりの時刻の記録（完了した時間ログ）を作り、外すとその日の記録をゴミ箱へ入れる
  */
+import { checkRecordTimes } from '../lib/planCheck'
 import { buildHabitRecordIndex, habitAsOf, habitRecordFor, habitRecordsFor, isTimedHabit, plannedRecordTimes } from '../lib/habitTiming'
 import { logLabelFromTask } from '../lib/logCategoryColors'
 import { completedRecordPatch, type CategoryInferenceState } from './taskHelpers'
@@ -17,12 +18,14 @@ export function completeHabitAsPlannedPatch(
   s: HabitState,
   habitId: string,
   dateKey: string,
-  env: { now: string; colorNames: ReadonlySet<string> },
+  env: { now: string; colorNames: ReadonlySet<string>; limitMin?: number | null },
 ): Pick<TaskState, 'habits'> | Pick<TaskState, 'habits' | 'tasks'> | null {
   const habit = s.habits.find((h) => h.id === habitId)
   if (!habit) return null
   const index = buildHabitRecordIndex(s.tasks)
-  const times = plannedRecordTimes(habit, dateKey)
+  const planned = plannedRecordTimes(habit, dateKey)
+  // 枠の途中で達成にしたら、記録は今まで（タイムラインの ✓ と同じ、#638）
+  const times = planned && env.limitMin !== undefined ? checkRecordTimes(planned, env.limitMin) : planned
   // その日に同じ名前の記録があれば（タイマーや手入力で記録済み）、それで判定するので新しく作らない
   const needsRecord = times !== null && !habitRecordFor(index, habit, dateKey)
   const alreadyChecked = habit.completedDates.includes(dateKey)

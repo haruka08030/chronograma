@@ -1,3 +1,4 @@
+import { normalizeSleepPrefs, type SleepPrefs } from './sleepPrefs'
 import { taskKindFlags, taskKindFromFlags, type Task, type TaskKind, type Priority, type Recurrence } from '../types/task'
 import { normalizeListKind, type TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
@@ -10,6 +11,7 @@ import {
   readHabitGoalMinutes,
   readHabitPastRules,
   readHabitKind,
+  readHabitEndedOn,
   type Habit,
 } from '../types/habit'
 import type { TaskReminder } from '../../supabase/functions/daily-reminders/schedule.ts'
@@ -21,6 +23,7 @@ import { readCarriedDays } from './carryDays'
 import { readEventSeries } from './eventSeries'
 import { readMovedPlans } from './movedPlans'
 import { readDreamId, readSomedayTier } from './somedayTier'
+import { readVague } from './vagueLog'
 import { isLabelId, normalizeLabelIds } from './labelIds'
 import { normalizeLabelTargets } from './labelTargets'
 import { readTimeZone } from './timeZone'
@@ -47,6 +50,7 @@ export type BackupPrefs = {
   theme: 'light' | 'dark' | 'system'
   weekStartsOn: WeekStartDay
   dailyCapacityMinutes: number
+  sleepPrefs: SleepPrefs
   defaultBlockMinutes: number
   eventReminderMinutes: number | null
   appTimeZone: string | null
@@ -285,7 +289,10 @@ export function normalizeTaskRow(raw: unknown): Task | null {
   // 夢の一歩だった To-Do の元の夢（#430）は To-Do の行だけ
   const dreamId = kind === 'todo' ? readDreamId(row.dreamId ?? row.dream_id) : null
   const movedPlans = kind === 'todo' ? readMovedPlans(row.movedPlans ?? row.moved_plans) : null
+  // 「なんとなく」（#657）は記録の行だけ。印のある行だけ項目を持つ
+  const vague = kind === 'log' && readVague(row.vague ?? row.is_vague)
   return {
+    ...(vague ? { vague: true as const } : {}),
     ...(series ? { series } : {}),
     ...(movedPlans ? { movedPlans } : {}),
     ...(somedayTier ? { somedayTier } : {}),
@@ -405,6 +412,8 @@ export function normalizeHabitRow(raw: unknown): Habit | null {
     ...(readHabitKind(rec.kind) ? { kind: 'routine' as const } : {}),
     // ゴミ箱に無い習慣には無い
     ...(deletedAt ? { deletedAt } : {}),
+    // アーカイブ・ゴミ箱でない習慣・古いバックアップには無い
+    ...(readHabitEndedOn(rec.endedOn) ? { endedOn: readHabitEndedOn(rec.endedOn) } : {}),
   }
 }
 
@@ -455,6 +464,7 @@ function readPrefs(raw: unknown): Partial<BackupPrefs> | undefined {
     typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : undefined
   const capacity = minutes(raw.dailyCapacityMinutes, 60, 24 * 60)
   if (capacity !== undefined) out.dailyCapacityMinutes = capacity
+  if (raw.sleepPrefs !== undefined) out.sleepPrefs = normalizeSleepPrefs(raw.sleepPrefs)
   const block = minutes(raw.defaultBlockMinutes, 15, 24 * 60)
   if (block !== undefined) out.defaultBlockMinutes = block
   if (raw.eventReminderMinutes === null) out.eventReminderMinutes = null

@@ -25,6 +25,8 @@ export interface CompleteWithLogDraft {
   tags: string[]
   /** 元の To-Do の名前の無い色 */
   color: string | null
+  /** 「なんとなく」の記録にする（#657） */
+  vague?: boolean
   /** 元が予定（完了の無いもの）。記録を作るだけで、完了にはしない */
   fromEvent?: boolean
 }
@@ -83,7 +85,7 @@ export function CompleteWithLogModal({
             )
           )}
         </LogTimeRow>
-        <TimeLogTagField value={draft.tags[0] ?? ''} color={draft.color} onChange={onChange} compact />
+        <TimeLogTagField value={draft.tags[0] ?? ''} color={draft.color} vague={draft.vague} onChange={onChange} compact />
         <textarea
           value={draft.memo}
           onChange={(e) => onChange({ memo: e.target.value })}

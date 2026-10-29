@@ -53,8 +53,9 @@ export function settingSyncStep(
   return { kind: 'apply' }
 }
 
-/** ラベル表・他のタイムゾーン・動いているタイマー（`timerSync.ts`）・よく入れる予定（`eventTemplates.ts`）・授業と科目のつながり（`courseLinks.ts`）・時間割（`timetable.ts`）・追加機能（`addons.ts`）・睡眠のタイマー（`sleepTimer.ts`）・やらなかった予定（`skippedEvents.ts`） */
-export type SettingKey = 'labels' | 'zones' | 'timer' | 'templates' | 'courses' | 'timetable' | 'addons' | 'sleepTimer' | 'skipped'
+/** ラベル表・他のタイムゾーン・動いているタイマー（`timerSync.ts`）・よく入れる予定（`eventTemplates.ts`）・授業と科目のつながり（`courseLinks.ts`）・時間割（`timetable.ts`）・追加機能（`addons.ts`）・睡眠のタイマー（`sleepTimer.ts`）・やらなかった予定（`skippedEvents.ts`）・Google の予定の自分の時間（`myEventTimes.ts`） */
+export type SettingKey =
+  'labels' | 'zones' | 'timer' | 'templates' | 'courses' | 'timetable' | 'addons' | 'sleepTimer' | 'skipped' | 'myTimes'
 
 /**
  * 版と中身の控えは本体と同じ置き場所（`dataStore.ts`。IndexedDB なら本体と同じトランザクション）に置く。

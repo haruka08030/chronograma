@@ -1,5 +1,5 @@
 import { isLogTask, isSleepTask, type Task } from '../types/task'
-import { isHabitActive, isRoutine, type Habit } from '../types/habit'
+import { isRoutine, type Habit } from '../types/habit'
 import type { PlannedItem } from '../types/plannedItem'
 import { getDayPlan } from './dayPlan'
 import { buildHabitRecordIndex, habitDayStatus, type HabitRecordIndex } from './habitTiming'
@@ -19,6 +19,7 @@ import { clockOf } from './clockTime'
 import { formatDuration, timeToMinutes } from './timeGrid'
 import { monthHabitWeekStarts, reviewPeriodDays, reviewPeriodStart, shiftReviewPeriod, type ReviewPeriod } from './reviewPeriod'
 import { unrecordedMinutesOnDay, type AbsentOn } from './unrecordedGaps'
+import { isVagueLog } from './vagueLog'
 
 /** 予定の長さ（分）。0:00 終わりはその日の終わりまで（23:00–0:00） */
 function plannedItemMinutes(p: PlannedItem): number {
@@ -35,6 +36,8 @@ export interface WeekReviewDay {
   total: number
   /** 記録の無い時間（起きている間の 30 分以上の抜け。タイムラインの点線の枠の合計） */
   unrecordedMinutes: number
+  /** 「なんとなく」の記録の時間（#657）。記録した時間・ラベル別には入れず、記録の無い時間と合わせて棒に斜線で積む */
+  vagueMinutes: number
   /** 分類ごとの記録時間（多い順、キーは `labelOf`、タグ無しは空文字）。日ごとの棒を分類の色で積む */
   tagMinutes: { tag: string; minutes: number }[]
   /** その日の「計画どおり実行」の分母（数えた時間つきの予定）と分子（#284 の数え方、`followRate` と同じ） */
@@ -56,6 +59,21 @@ export function dayTooltipText(t: TFunction, label: string, day: WeekReviewDay):
         ? t('weekReview.dayTooltipPlanTime', { time: formatDuration(day.plannedMinutes) })
         : ''
   return t('weekReview.dayTooltip', { day: label, logged: formatDuration(day.loggedMinutes), plan, done: day.done, total: day.total })
+}
+
+/**
+ * 「なんとなく」の時間（#657）の内訳「なんとなく 3時間（記録なし 2時間・なんとなくで記録 1時間）」。
+ * 棒のツールチップ・読み上げと「記録した時間」の枠の小さな数字のヒントで使う
+ */
+export function vagueBreakdown(t: TFunction, vagueMinutes: number, unrecordedMinutes: number): string {
+  const parts = [
+    unrecordedMinutes > 0 ? t('weekReview.vagueUnrecorded', { time: formatDuration(unrecordedMinutes) }) : null,
+    vagueMinutes > 0 ? t('weekReview.vagueLogged', { time: formatDuration(vagueMinutes) }) : null,
+  ].filter(Boolean)
+  return t('weekReview.vagueBreakdown', {
+    time: formatDuration(vagueMinutes + unrecordedMinutes),
+    parts: parts.join(t('weekReview.vagueSeparator')),
+  })
 }
 
 /** 記録のラベル（`recordLabelKey`）を決めるのに使うもの。予定は「その予定から作る記録」の形（分類なし・色だけ）で渡す */
@@ -83,6 +101,8 @@ export interface WeekReview {
   loggedMinutes: number
   /** 記録の無い時間の合計（今日は今まで） */
   unrecordedMinutes: number
+  /** 「なんとなく」の記録の時間の合計 */
+  vagueMinutes: number
   done: number
   total: number
   /**
@@ -164,7 +184,7 @@ export function getReview(
 
   const habitWeeks = period === 'month' ? monthHabitWeekStarts(anchor) : [reviewPeriodStart('week', anchor)]
   for (const h of habits) {
-    if (!isHabitActive(h) || isRoutine(h)) continue
+    if (isRoutine(h)) continue
     for (const week of habitWeeks) {
       if (toDateKey(week) > todayKey) break
       if (habitAsOfWeek(h, week).frequency.type !== 'timesPerWeek') continue
@@ -182,6 +202,7 @@ export function getReview(
     plannedMinutes: sum((d) => d.plannedMinutes),
     loggedMinutes: sum((d) => d.loggedMinutes),
     unrecordedMinutes: sum((d) => d.unrecordedMinutes),
+    vagueMinutes: sum((d) => d.vagueMinutes),
     done: sum((d) => d.done),
     total: sum((d) => d.total),
     followRate: timedPlanned > 0 ? followed / timedPlanned : null,
@@ -276,6 +297,7 @@ function collectReviewDays(
       plannedMinutes: 0,
       loggedMinutes: plan.loggedMinutes,
       unrecordedMinutes: unrecordedMinutesOnDay(tasks, key, logLimit, null, excludedListIds, absentOn),
+      vagueMinutes: 0,
       done: plan.done.length,
       total: plan.done.length + plan.open.length,
       tagMinutes: [],
@@ -299,9 +321,12 @@ function collectReviewDays(
       planned.push(item)
       planLabel.set(item, labelOf({ category: null, color }))
     }
-    const logs = tasks.filter(
+    const dayLogs = tasks.filter(
       (t) => isLogTask(t) && !t.parentId && t.startTime && t.endTime && isActiveTask(t) && !isSleepTask(t) && logOverlapsDateKey(t, key),
     )
+    // 「なんとなく」（#657）はラベル別・予定との突き合わせに入れず、時間だけ数える
+    const logs = dayLogs.filter((t) => !isVagueLog(t))
+    for (const log of dayLogs) if (isVagueLog(log)) day.vagueMinutes += minutesOfLogOnCalendarDay(log, key)
     const dayTagMinutes = new Map<string, number>()
     for (const log of logs) {
       const min = minutesOfLogOnCalendarDay(log, key)

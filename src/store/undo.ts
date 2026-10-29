@@ -26,6 +26,7 @@ const SETTINGS = [
   'eventTemplates',
   'timetable',
   'addons',
+  'myEventTimes',
   // はじめの案内を × で閉じたのを戻す（自動で終わったときは積まない）
   'onboardingDone',
   'onboardingFinishedOn',
@@ -82,6 +83,7 @@ function dataView(s: TaskState): DataView {
     eventTemplates: s.eventTemplates,
     timetable: s.timetable,
     addons: s.addons,
+    myEventTimes: s.myEventTimes,
     onboardingDone: s.onboardingDone,
     onboardingFinishedOn: s.onboardingFinishedOn,
   }

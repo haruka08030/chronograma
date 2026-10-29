@@ -1,4 +1,5 @@
 /** 設定（テーマ・色・ラベル・通知・タイムゾーン） */
+import { normalizeSleepPrefs } from '../../lib/sleepPrefs'
 import { normalizeTimeLogTagPresetList } from '../../lib/timeLogTags'
 import { categoryHex, isHexColor, labelForHex, nextCategoryColor } from '../../lib/logCategoryColors'
 import { hexForGoogleKey } from '../../lib/googleColors'
@@ -41,6 +42,7 @@ type SettingsActions = Pick<
   | 'dismissInstallNudge'
   | 'dismissSignInNudge'
   | 'setDailyCapacityMinutes'
+  | 'setSleepPrefs'
   | 'setDefaultBlockMinutes'
   | 'setAppTimeZone'
   | 'setWeekStartsOn'
@@ -209,6 +211,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     dismissInstallNudge: () => set({ installNudgeDismissed: true }),
     dismissSignInNudge: () => set({ signInNudgeDismissed: true }),
     setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
+    setSleepPrefs: (patch) => set((s) => ({ sleepPrefs: normalizeSleepPrefs({ ...s.sleepPrefs, ...patch }) })),
     setDefaultBlockMinutes: (minutes) => set({ defaultBlockMinutes: Math.min(24 * 60, Math.max(15, Math.round(minutes))) }),
     setAppTimeZone: (tz) => {
       const next = tz && isValidTimeZone(tz) ? tz : null

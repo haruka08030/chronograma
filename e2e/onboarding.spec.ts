@@ -4,6 +4,7 @@ test('はじめて開くと今日の画面に 3 ステップの案内が出て�
   page,
   t,
   ja,
+  isMobile,
 }) => {
   await page.goto('/')
   const guide = page.getByRole('region', { name: t('onboarding.heading') })
@@ -22,6 +23,8 @@ test('はじめて開くと今日の画面に 3 ステップの案内が出て�
   await guide.getByRole('button', { name: t('onboarding.close') }).click()
   await expect(guide).toHaveCount(0)
   await page.reload()
+  // スマホは案内を閉じたあと、締めの時刻からはタイムラインの面で開くので「やること」に替える
+  if (isMobile) await page.getByRole('tab', { name: t('planner.paneList') }).click()
   // 例の題名（時刻を除いた部分）の行が残っている
   await expect(page.getByRole('option', { name: ja ? 'バイト' : 'essay' })).toBeVisible()
   await expect(page.getByRole('region', { name: t('onboarding.heading') })).toHaveCount(0)

@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useFitInViewport } from '../../hooks/useFitInViewport'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
 import type { Habit } from '../../types/habit'
@@ -8,25 +9,26 @@ import { dateFnsLocale, fromDateKey } from '../../lib/dateKey'
 import { appTodayKey } from '../../lib/timeZone'
 import { startTaskDrag } from '../../lib/taskDrag'
 import { tip } from '../../lib/tooltip'
-import { ChevronLeftIcon, ChevronRightIcon } from '../icons'
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from '../icons'
 import { HabitDotMark } from './HabitDotMark'
+import { HABIT_OFF_TIME_TEXT } from '../../lib/habitMark'
 import { useHabitToggle } from './useHabitToggle'
 import { habitDotState, habitStarted } from './habitDotState'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useTouchContextMenu } from '../../hooks/useTouchContextMenu'
-import { MENU_ROW_ACTIVE, MENU_ROW_HOVER, POPOVER_PANEL } from '../ui/surface'
+import { FLOATING_SURFACE, MENU_ROW_ACTIVE, MENU_ROW_HOVER, POPOVER_PANEL } from '../ui/surface'
+import { isAnchoredSheet } from '../timeline/anchoredCard'
+import { shortcutTip } from '../../lib/tooltip'
 
-/** ポップオーバーの幅（位置合わせ用。`w-[260px]`） */
-const PANEL_WIDTH = 260
-
-export type HabitDayItem = { habit: Habit; id: string; time: string | null; done: boolean }
+export type HabitDayItem = { habit: Habit; id: string; time: string | null; done: boolean; offTime?: boolean }
 
 /**
  * 習慣の段の「習慣 ▾」・「+N」から開く、その日の習慣の一覧。名前を見ながら ✓ を付けられる。上に日付、週・3 日は ‹ › で丸のある日を替える。
  * 行は段と同じ並び（週・3 日は習慣の並び、1 日表示はまだを時刻順→達成）で、時刻は前に小さく灰色で。押した丸の行は目立たせ、その行の ✓ にフォーカスする（Enter・Space で ✓）。
  * ✓ で達成・取り消し（始まった時刻から。先の日・先の時刻は輪だけ）。✓ しても閉じない（続けて付けられる）。Esc・外側を押すと閉じる。
  * 行を押すとカード、右クリック（タッチは長押し）でメニュー、格子へドラッグでその日だけの枠。
- * 開いたマス（PC）・「+N」の左端に合わせて、そのすぐ下に出す。body 直下に固定で出す（段の外にはみ出しても切れない）
+ * 開いたマス（PC）・「+N」の左端に合わせて、そのすぐ下に出す。スマホ幅は予定のカードと同じく下からのシート（閉じた押下は下へ届けない）。
+ * body 直下に固定で出す（段の外にはみ出しても切れない）。右上の × でも閉じる
  */
 export function HabitDayPopover({
   anchor,
@@ -60,45 +62,25 @@ export function HabitDayPopover({
   const toggle = useHabitToggle()
   const panelRef = useRef<HTMLDivElement>(null)
   const dialogId = useId()
-  const [style, setStyle] = useState<CSSProperties>({ position: 'fixed', visibility: 'hidden' })
   /** 格子へドラッグしている間は、下の格子に落とせるよう見えなくして素通しにする（離したら閉じる） */
   const [dragging, setDragging] = useState(false)
-  useDismiss({ open: true, onClose, inside: [panelRef, anchor] })
+  // スマホ幅は下からのシート（予定のカードと同じ `isAnchoredSheet`）
+  const [sheet] = useState(isAnchoredSheet)
+  useDismiss({ open: true, onClose, inside: [panelRef, anchor], swallow: sheet })
   // スマホは長押しで右クリックと同じメニュー（パネルはカレンダーの外にあるので、ここでも拾う）
   useTouchContextMenu(panelRef)
 
-  useEffect(() => {
-    const place = () => {
-      const rect = anchor.getBoundingClientRect()
-      setStyle({
-        position: 'fixed',
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - PANEL_WIDTH - 8)),
-        top: rect.bottom + 2,
-        maxHeight: window.innerHeight - rect.bottom - 16,
-      })
-    }
-    place()
-    const onMove = (e: Event) => {
-      if (e.target instanceof Node && panelRef.current?.contains(e.target)) return
-      place()
-    }
-    window.addEventListener('scroll', onMove, true)
-    window.addEventListener('resize', onMove)
-    return () => {
-      window.removeEventListener('scroll', onMove, true)
-      window.removeEventListener('resize', onMove)
-    }
-  }, [anchor])
+  // 押した丸の下（入らなければ上・画面の中）に出し、高すぎる分はパネルの中でスクロール。周りがスクロールしたら付いていく
+  useFitInViewport(panelRef, { anchor: () => anchor.getBoundingClientRect(), placement: 'below', gap: 2, disabled: sheet })
 
-  // 置けて見えるようになったら、押した丸の行の ✓ にフォーカスする（隠れている間はフォーカスできない）
-  const placed = style.visibility !== 'hidden'
+  // 押した丸の行の ✓ にフォーカスする（置くのは描く前に済んでいる）
   const focusedRef = useRef(false)
   useEffect(() => {
-    if (!placed || focusedRef.current || highlightId === null) return
+    if (focusedRef.current || highlightId === null) return
     focusedRef.current = true
     const row = panelRef.current?.querySelector<HTMLElement>('[data-highlight]')
     ;(row?.querySelector<HTMLElement>('button[aria-pressed]') ?? row?.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true })
-  }, [placed, highlightId])
+  }, [highlightId])
 
   const limit = logLimitMin(dateKey)
   const today = appTodayKey()
@@ -113,8 +95,11 @@ export function HabitDayPopover({
       data-popover-keep
       role="dialog"
       aria-label={label}
-      style={style}
-      className={`z-[80] w-[260px] overflow-y-auto p-1 ${POPOVER_PANEL} ${dragging ? 'pointer-events-none opacity-0' : ''}`}
+      className={`fixed z-[80] overflow-y-auto p-1 ${
+        sheet
+          ? `${FLOATING_SURFACE} inset-x-0 bottom-0 max-h-[70dvh] animate-sheet-in rounded-t-2xl pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-2xl`
+          : `w-[260px] ${POPOVER_PANEL}`
+      } ${dragging ? 'pointer-events-none opacity-0' : ''}`}
     >
       <div className="flex h-7 items-center gap-1 px-1 text-[11px] text-zinc-500 dark:text-zinc-400">
         {onStep && (
@@ -128,8 +113,18 @@ export function HabitDayPopover({
             <ChevronRightIcon className="h-3.5 w-3.5" />
           </StepButton>
         )}
+        {/* 予定のカードと同じ ×（ヒントは Esc） */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t('common.close')}
+          {...shortcutTip(t('common.close'), 'close')}
+          className={STEP_BUTTON_CLASS}
+        >
+          <CloseIcon className="h-3.5 w-3.5" />
+        </button>
       </div>
-      {items.map(({ habit, id, time, done }) => {
+      {items.map(({ habit, id, time, done, offTime }) => {
         // 始まった（記録にできる）時刻からは ✓ で予定どおり達成。時間なしは今日と過ぎた日（先の日の記録は付けない）
         const started = habitStarted(time, limit)
         const missed = past && !done
@@ -182,11 +177,11 @@ export function HabitDayPopover({
                 className="-ml-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full outline-none hover:bg-zinc-200/70 focus-visible:ring-2 focus-visible:ring-accent-500 pointer-coarse:h-11 pointer-coarse:w-11 dark:hover:bg-zinc-600"
               >
                 {/* 段の丸と同じ見た目（過ぎた日のやらなかった分は、付けられるよう灰色の縁の丸で） */}
-                <HabitDotMark state={habitDotState({ time, done }, dateKey, today, limit)} large list />
+                <HabitDotMark state={habitDotState({ time, done, offTime }, dateKey, today, limit)} large />
               </button>
             ) : (
               <span className="-ml-1.5 flex h-7 w-7 shrink-0 items-center justify-center pointer-coarse:h-11 pointer-coarse:w-11">
-                <HabitDotMark state="future" large list />
+                <HabitDotMark state="future" large />
               </span>
             )}
             <button
@@ -198,6 +193,8 @@ export function HabitDayPopover({
             >
               {time !== null && <span className="shrink-0 text-[11px] tabular-nums text-zinc-400 dark:text-zinc-500">{time}</span>}
               <span className="truncate">{habit.title}</span>
+              {/* 時間外は習慣画面・今日画面と同じくグレーの「時間外」を添える */}
+              {offTime && <span className={`shrink-0 text-[11px] ${HABIT_OFF_TIME_TEXT}`}>{t('planner.habitOffTime')}</span>}
             </button>
           </div>
         )
@@ -206,6 +203,10 @@ export function HabitDayPopover({
     document.body,
   )
 }
+
+/** 一覧の上の ‹ ›・× の形 */
+const STEP_BUTTON_CLASS =
+  'grid h-6 w-6 shrink-0 place-items-center rounded-md hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent pointer-coarse:h-9 pointer-coarse:w-9 dark:hover:bg-zinc-700'
 
 /** 一覧の上の ‹ ›（前・次の日） */
 function StepButton({
@@ -220,13 +221,7 @@ function StepButton({
   children: ReactNode
 }) {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      {...tip(label, { name: true })}
-      className="grid h-6 w-6 place-items-center rounded-md hover:bg-zinc-100 disabled:opacity-30 disabled:hover:bg-transparent pointer-coarse:h-9 pointer-coarse:w-9 dark:hover:bg-zinc-700"
-    >
+    <button type="button" disabled={disabled} onClick={onClick} {...tip(label, { name: true })} className={STEP_BUTTON_CLASS}>
       {children}
     </button>
   )

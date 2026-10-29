@@ -57,7 +57,7 @@
   --animate-fade-out: fade-out 150ms ease-out forwards;
   --animate-pop-out: pop-out 150ms var(--ease-standard) forwards;
   --animate-sheet-out: sheet-out 150ms var(--ease-standard) forwards;
-  /* 完了にした行が 1.5 秒残ったあと、縮んで消える（`useDeferredComplete`。動きを減らす設定では下の設定で止まり、すぐ消える） */
+  /* 完了にした行が 0.6 秒残ったあと、縮んで消える（`useDeferredComplete`。動きを減らす設定では下の設定で止まり、すぐ消える） */
   --animate-row-collapse: row-collapse 200ms var(--ease-standard) forwards;
   /* 記録中の赤い点。点滅ではなく、ゆっくり明るさが変わる */
   --animate-breathe: breathe 3s ease-in-out infinite;
@@ -382,6 +382,43 @@ body {
 }
 .dark .gc-sleep {
   background-color: color-mix(in srgb, var(--color-sleep) 16%, var(--gc-surface));
+}
+
+/*
+ * ラベルなしのこれからの予定: 塗らずに中立の灰の縁だけ（時間が過ぎた灰色の塗り `gc-missed` と見分ける）。
+ * gc-plan-none は枠・帯、gc-dot-none は小さな丸
+ */
+.gc-plan-none {
+  background-color: var(--gc-surface);
+  border: 1px solid color-mix(in srgb, #9e9e9e 80%, var(--gc-surface));
+  color: color-mix(in srgb, #9e9e9e 25%, var(--gc-ink));
+}
+.dark .gc-plan-none {
+  border-color: #71717a;
+  color: #e4e4e7;
+}
+.gc-dot-none {
+  background-color: var(--gc-surface);
+  border: 1px solid #9e9e9e;
+}
+.dark .gc-dot-none {
+  border-color: #a1a1aa;
+}
+
+/*
+ * 「なんとなく」の時間（#657。なんとなくの記録と、ふりかえりの棒の記録なしの時間）: 灰の斜線＋灰の縁。
+ * ドロップダウンの丸・タイムラインの枠・ふりかえりの棒で同じ印にし、ほかの意味には使わない
+ */
+.gc-vague {
+  background-color: var(--gc-surface);
+  background-image: repeating-linear-gradient(135deg, color-mix(in srgb, #9e9e9e 55%, transparent) 0 1.5px, transparent 1.5px 5px);
+  border: 1px solid color-mix(in srgb, #9e9e9e 85%, var(--gc-surface));
+  color: color-mix(in srgb, #9e9e9e 25%, var(--gc-ink));
+}
+.dark .gc-vague {
+  background-image: repeating-linear-gradient(135deg, color-mix(in srgb, #a1a1aa 45%, transparent) 0 1.5px, transparent 1.5px 5px);
+  border-color: #71717a;
+  color: #e4e4e7;
 }
 
 /* 終わった予定（完了・未完了とも）: グレー */

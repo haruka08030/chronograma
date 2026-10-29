@@ -100,7 +100,7 @@ describe('記録中に題名・ラベルを直す（#391）', () => {
     expect(screen.getByRole('button', { name: '統計のレポート' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '勉強' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'バイト' }))
+    fireEvent.click(screen.getByRole('radio', { name: /^バイト（/ }))
     expect(useTaskStore.getState().activeTimer).toMatchObject({ tags: ['バイト'], color: null })
 
     tick(5 * 60_000)

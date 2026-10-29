@@ -76,7 +76,7 @@ export function FloatingTimer() {
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [labelMenu, setLabelMenu] = useState(false)
-  const labelChoice = useLogLabelChoice(activeTimer?.tags[0] ?? '', activeTimer?.color, editActiveTimer)
+  const labelChoice = useLogLabelChoice(activeTimer?.tags[0] ?? '', activeTimer?.color, editActiveTimer, activeTimer?.vague === true)
   const titleEntry = useTextEntry({
     onSubmit: () => {
       editActiveTimer({ taskTitle: titleDraft })
@@ -214,7 +214,17 @@ export function FloatingTimer() {
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2">
             {/* ラベルは押すと色の一覧から選び直す（無ければ「ラベル」） */}
             {!labelMenu &&
-              (labelChoice.current ? (
+              (labelChoice.vague ? (
+                <button
+                  type="button"
+                  onClick={() => setLabelMenu(true)}
+                  {...tip(t('floatingTimer.editLabel'))}
+                  className={chipClass({ variant: 'outline', size: 'sm' }, 'min-h-7 gap-1.5 md:min-h-0')}
+                >
+                  <span className="gc-vague h-3 w-3 shrink-0 rounded-full" aria-hidden />
+                  {labelChoice.text}
+                </button>
+              ) : labelChoice.current ? (
                 <button
                   type="button"
                   onClick={() => setLabelMenu(true)}
@@ -325,6 +335,13 @@ export function FloatingTimer() {
               defaultHex={NEUTRAL_HEX}
               bare
               fill
+              vague={{
+                selected: labelChoice.vague,
+                onChoose: () => {
+                  labelChoice.chooseVague()
+                  setLabelMenu(false)
+                },
+              }}
             />
           </div>
           <button

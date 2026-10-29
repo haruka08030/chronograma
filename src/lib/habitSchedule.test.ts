@@ -65,9 +65,10 @@ describe('週に◯回の習慣の予定', () => {
     expect(isHabitDueOnDate(h, fromDateKey(THU))).toBe(true)
   })
 
-  it('アーカイブした習慣はどの日にも入らない', () => {
-    const h = habit({ type: 'timesPerWeek', count: 1 }, [], { archivedAt: OLD })
-    expect(isHabitDueOnDate(h, fromDateKey(MON))).toBe(false)
+  it('アーカイブした習慣はやめた日から先に入らない', () => {
+    const h = habit({ type: 'timesPerWeek', count: 1 }, [], { archivedAt: OLD, endedOn: TUE })
+    expect(isHabitDueOnDate(h, fromDateKey(MON))).toBe(true)
+    expect(isHabitDueOnDate(h, fromDateKey(TUE))).toBe(false)
   })
 
   it('時間を決めた習慣のタイムラインの枠は、回数を満たした週のやっていない日には出さない', () => {

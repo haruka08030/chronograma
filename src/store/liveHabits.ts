@@ -15,3 +15,11 @@ export function selectLiveHabits(s: Pick<TaskState, 'habits'>): Habit[] {
   }
   return lastLive
 }
+
+/**
+ * 日ごとに出す画面・数字（タイムライン・今日の計画・ふりかえり・まとめ・書き出し）の習慣。ゴミ箱の習慣も含む:
+ * やめた日より前はそのときの習慣のまま出し、やめた日から先は日の判定（`isHabitScheduledOn`）が外す
+ */
+export function selectHabitsByDay(s: Pick<TaskState, 'habits'>): Habit[] {
+  return s.habits
+}

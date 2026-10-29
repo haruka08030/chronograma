@@ -39,12 +39,17 @@ const C = {
   rule: '#e4e4e7', // zinc-200
   insightBg: '#f5f6f7', // accent-50 の 70%（白の上）
   insightInk: '#202124', // accent-800
+  /** 「なんとなく」の斜線と縁（画面の `gc-vague` と同じ灰） */
+  vagueLine: '#c4c4c4',
+  vagueEdge: '#a6a6a6',
 }
 
 /** 1 本の棒の 1 段（ラベルの色と分） */
 export interface ImageSegment {
   hex: string
   minutes: number
+  /** 「なんとなく」の時間（#657。なんとなくの記録＋記録の無い時間）。灰の斜線で一番上に積み、棒の上の合計には入れない */
+  vague?: boolean
 }
 
 export interface ImageDay {
@@ -132,10 +137,14 @@ export function buildReviewImageModel(
 ): ReviewImageModel {
   const byKey = new Map(review.days.map((d) => [d.dateKey, d]))
   const days: ImageDay[] = opts.dayKeys.map((key, i) => {
-    const segments = (byKey.get(key)?.tagMinutes ?? [])
+    const day = byKey.get(key)
+    const segments: ImageSegment[] = (day?.tagMinutes ?? [])
       .filter((x) => x.minutes > 0)
       .map((x) => ({ hex: opts.labelHex(x.tag), minutes: x.minutes }))
     const total = segments.reduce((a, x) => a + x.minutes, 0)
+    // 「なんとなく」の時間は一番上に斜線で（画面の棒と同じ）
+    const vague = day ? day.vagueMinutes + day.unrecordedMinutes : 0
+    if (vague > 0) segments.push({ hex: C.vagueEdge, minutes: vague, vague: true })
     return {
       label: opts.dayLabel(key, i),
       segments,
@@ -214,6 +223,8 @@ export type DrawOp =
       r?: number | [number, number, number, number]
       fill?: string
       stroke?: string
+      /** 中に引く斜線の色（「なんとなく」の段） */
+      hatch?: string
     }
   | {
       kind: 'text'
@@ -342,6 +353,7 @@ export function layoutReviewImage(model: ReviewImageModel, measure: MeasureText)
   const barTop = y + L.chartTop
   const baseY = y + L.chartHeight
   const barArea = baseY - barTop
+  // 棒の高さは「なんとなく」の段も積んだ高さ（棒の上の合計の文字は記録だけ、`totalText`）
   const dayTotals = model.days.map((d) => d.segments.reduce((a, x) => a + x.minutes, 0))
   const max = Math.max(60, ...dayTotals)
   model.days.forEach((day, i) => {
@@ -366,8 +378,9 @@ export function layoutReviewImage(model: ReviewImageModel, measure: MeasureText)
           w: bw,
           h: Math.max(1, segBottom - segTop + (j > 0 ? 1 : 0)),
           r: isTop ? [3, 3, 0, 0] : 0,
-          fill: dotFill(seg.hex),
+          fill: seg.vague ? C.surface : dotFill(seg.hex),
           stroke: seg.hex,
+          ...(seg.vague ? { hatch: C.vagueLine } : {}),
         })
         segBottom = segTop
       })
@@ -466,6 +479,9 @@ export type ImageContext = Pick<
   | 'fillRect'
   | 'fillText'
   | 'setTransform'
+  | 'save'
+  | 'restore'
+  | 'clip'
 >
 
 function roundedPath(ctx: ImageContext, x: number, y: number, w: number, h: number, r: number | [number, number, number, number]) {
@@ -500,6 +516,21 @@ export function drawReviewImage(ctx: ImageContext, layout: ReviewImageLayout, sc
       if (op.fill) {
         ctx.fillStyle = op.fill
         ctx.fill()
+      }
+      if (op.hatch) {
+        // 枠の中だけに 45° の斜線（5px おき）。線を引いたら縁のために枠の形を引き直す
+        ctx.save()
+        ctx.clip()
+        ctx.strokeStyle = op.hatch
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        for (let d = -op.h; d < op.w; d += 5) {
+          ctx.moveTo(op.x + d, op.y + op.h)
+          ctx.lineTo(op.x + d + op.h, op.y)
+        }
+        ctx.stroke()
+        ctx.restore()
+        roundedPath(ctx, op.x + half, op.y + half, op.w - half * 2, op.h - half * 2, op.r ?? 0)
       }
       if (op.stroke) {
         ctx.strokeStyle = op.stroke

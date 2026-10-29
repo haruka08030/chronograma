@@ -14,7 +14,10 @@ import { normalizeDayMoods } from '../lib/dayMood'
 import { normalizeTimetable } from '../lib/timetable'
 import { normalizeAddons } from '../lib/addons'
 import { normalizeSleepTimer } from '../lib/sleepTimer'
+import { normalizeSleepPrefs } from '../lib/sleepPrefs'
 import { normalizeSkippedEvents } from '../lib/skippedEvents'
+import { normalizeMyEventTimes } from '../lib/myEventTimes'
+import { normalizeEventColorChoices } from '../lib/googleEventColors'
 import { normalizeStoredRows } from '../lib/backupFormat'
 import { withTaskDefaults } from '../lib/taskDefaults'
 import type { Task } from '../types/task'
@@ -45,7 +48,7 @@ export const STORED_SETTINGS: Record<SettingDataKey, StoredSetting> = {
   logLabelIds: { normalize: normalizeLabelIds, stamp: 'logLabelsUpdatedAt' },
   logLabelsUpdatedAt: {},
   logLabelPendingAdds: { normalize: strings },
-  googleEventColors: {},
+  googleEventColors: { normalize: normalizeEventColorChoices, stamp: 'addonsUpdatedAt' },
   activeTimer: { stamp: 'activeTimerUpdatedAt' },
   activeTimerUpdatedAt: {},
   dailyReminders: {},
@@ -57,6 +60,7 @@ export const STORED_SETTINGS: Record<SettingDataKey, StoredSetting> = {
   installNudgeDismissed: {},
   signInNudgeDismissed: {},
   dailyCapacityMinutes: {},
+  sleepPrefs: { normalize: normalizeSleepPrefs },
   defaultBlockMinutes: {},
   eventReminderMinutes: {},
   appTimeZone: {},
@@ -69,6 +73,8 @@ export const STORED_SETTINGS: Record<SettingDataKey, StoredSetting> = {
   courseLinksUpdatedAt: {},
   skippedEvents: { normalize: normalizeSkippedEvents, stamp: 'skippedEventsUpdatedAt' },
   skippedEventsUpdatedAt: {},
+  myEventTimes: { normalize: normalizeMyEventTimes, stamp: 'myEventTimesUpdatedAt' },
+  myEventTimesUpdatedAt: {},
   dayMoods: { normalize: normalizeDayMoods },
   timetable: { normalize: normalizeTimetable, stamp: 'timetableUpdatedAt' },
   timetableUpdatedAt: {},

@@ -16,6 +16,8 @@ export interface WrapUpRow {
   parent_id?: string | null
   is_time_log?: boolean | null
   is_sleep?: boolean | null
+  /** 「なんとなく」の記録（`051`）。記録した時間・予定との突き合わせに入れない */
+  is_vague?: boolean | null
   is_event?: boolean | null
   completed?: boolean | null
   scheduled_date?: string | null
@@ -49,6 +51,8 @@ export interface WrapUpHabitRow {
   kind?: string | null
   archived_at?: string | null
   deleted_at?: string | null
+  /** アーカイブ・ゴミ箱へ入れた日（`050`） */
+  ended_on?: string | null
 }
 
 export interface WrapUpDigest {
@@ -179,9 +183,8 @@ function readPastRules(raw: unknown): HabitPastRule[] | undefined {
   return out.length > 0 ? out : undefined
 }
 
-/** 習慣の行を数え方の形に（アプリの `rowToHabit` と同じ読み方）。ゴミ箱の習慣は null */
-export function habitFromRow(row: WrapUpHabitRow): SlotHabit | null {
-  if (row.deleted_at) return null
+/** 習慣の行を数え方の形に（アプリの `rowToHabit` と同じ読み方）。アーカイブ・ゴミ箱の習慣もやめた日より前は数える */
+export function habitFromRow(row: WrapUpHabitRow): SlotHabit {
   return {
     id: row.id,
     title: row.title ?? '',
@@ -192,6 +195,8 @@ export function habitFromRow(row: WrapUpHabitRow): SlotHabit | null {
     pastRules: readPastRules(row.past_rules),
     ...(row.kind === 'routine' ? { kind: 'routine' as const } : {}),
     archivedAt: row.archived_at ?? null,
+    deletedAt: row.deleted_at ?? null,
+    endedOn: typeof row.ended_on === 'string' && DATE_KEY.test(row.ended_on) ? row.ended_on : null,
   }
 }
 
@@ -243,7 +248,7 @@ export function wrapUpDigest(
   for (const row of rows) {
     const active = isActiveRow(row)
     if (row.is_time_log) {
-      if (!active || row.is_sleep || row.parent_id) continue
+      if (!active || row.is_sleep || row.is_vague || row.parent_id) continue
       const minutes = logMinutesOnDay(row, day)
       loggedMinutes += minutes
       if (minutes > 0 && row.start_time && row.end_time) {
@@ -283,8 +288,7 @@ export function wrapUpDigest(
     (r) => r.active,
   )
   for (const row of habitRows) {
-    const habit = habitFromRow(row)
-    const slot = habit && habitPlanSlot(habit, day, records)
+    const slot = habitPlanSlot(habitFromRow(row), day, records)
     if (slot) planned.push(slot)
   }
   const pad = (n: number) => String(n).padStart(2, '0')

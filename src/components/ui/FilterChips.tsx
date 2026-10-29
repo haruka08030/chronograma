@@ -5,15 +5,15 @@ import { chipClass } from './chipClass'
 import { CloseIcon } from '../icons'
 import { colorVars } from '../../lib/logCategoryColors'
 
-/** 選んでいる絞り込み 1 つ（× で外す） */
-export type FilterChip = { key: string; label: string; icon?: ReactNode; onRemove: () => void }
+/** 選んでいる絞り込み 1 つ（× で外す）。`removeLabel` は読み上げの名前（無ければ「◯◯の絞り込みを外す」） */
+export type FilterChip = { key: string; label: string; icon?: ReactNode; onRemove: () => void; removeLabel?: string }
 
 /** 色ラベルの丸（絞り込みのメニュー・チップ） */
 export function ColorDot({ hex }: { hex: string }) {
   return <span className="gc-dot h-3 w-3 rounded-full" style={colorVars(hex)} aria-hidden />
 }
 
-/** 選んでいる絞り込みのチップ（今日やる候補・To-Do 一覧・完了済みで共通）。押すとその絞り込みを外す */
+/** 選んでいる絞り込み・外せる値のチップ（今日やる候補・To-Do 一覧・完了済み・授業の欠席の日で共通）。押すとそれを外す */
 export function FilterChips({ chips, className = '' }: { chips: FilterChip[]; className?: string }) {
   const { t } = useTranslation()
   if (chips.length === 0) return null
@@ -24,7 +24,7 @@ export function FilterChips({ chips, className = '' }: { chips: FilterChip[]; cl
           key={chip.key}
           type="button"
           onClick={chip.onRemove}
-          aria-label={t('filter.remove', { name: chip.label })}
+          aria-label={chip.removeLabel ?? t('filter.remove', { name: chip.label })}
           className={chipClass({ variant: 'fill', hover: true })}
         >
           {chip.icon}

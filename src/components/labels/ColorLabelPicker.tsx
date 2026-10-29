@@ -8,7 +8,7 @@ import { ColorLabelSelect } from './ColorLabelSelect'
  * 名前の付いた色を選ぶとその分類に、名前の無い色は色だけ付く（名前を付ければ後からまとめて分類になる）。
  *
  * 予定（`plan`）は色だけを付ける。ToDo のタグは分類とは別物なので書き換えない。
- * 「既定」はどちらも「ラベルなし」。リストの色はラベルではないので使わない。
+ * 「既定」はどちらも「ラベルなし」。To-Do の色はリストの色を引き継がない。
  */
 export function ColorLabelPicker({
   task,
@@ -32,6 +32,7 @@ export function ColorLabelPicker({
       defaultHex={color.defaultHex}
       compact={compact}
       label={rowLabel}
+      vague={color.vague ?? undefined}
     />
   )
 }

@@ -1,4 +1,5 @@
 import { isLogTask, type Task } from '../types/task'
+import { withVague } from './vagueLog'
 
 /**
  * タスクの、無いときの値（どれも必ず持つ項目。値が無いことは null で表し、種類は To-Do）。
@@ -41,6 +42,11 @@ export function withTaskDefaults(t: Task): Task {
  * 何も変わらなければ同じオブジェクト
  */
 export function withLogCategory(t: Task): Task {
+  // 「なんとなく」は記録だけが持ち、ラベル・色は持たない（`vagueLog.ts`）
+  if ('vague' in t) {
+    const v = withVague(t, t.vague === true)
+    if (v !== t) return withLogCategory(v)
+  }
   if (!isLogTask(t)) return t.category == null ? t : { ...t, category: null }
   const category = t.category ?? t.tags[0] ?? null
   const same = category === t.category && (category ? t.tags.length === 1 && t.tags[0] === category : t.tags.length === 0)

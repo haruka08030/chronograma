@@ -21,6 +21,21 @@ describe('TimeInput の候補', () => {
     expect(screen.queryByRole('listbox')).toBeNull()
   })
 
+  it('候補から選んだ後、そのまま消して打ち直せる', async () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<TimeInput value="15:00" onChange={onChange} ariaLabel="開始" />)
+    const input = screen.getByRole('combobox', { name: '開始' })
+    await userEvent.click(input)
+    await userEvent.click(screen.getByRole('option', { name: /15:30/ }))
+    rerender(<TimeInput value="15:30" onChange={onChange} ariaLabel="開始" />)
+    expect(input).toHaveFocus()
+    await userEvent.keyboard('{Backspace}{Backspace}')
+    expect(input).toHaveValue('15:')
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    await userEvent.keyboard('45{Enter}')
+    expect(onChange).toHaveBeenLastCalledWith('15:45')
+  })
+
   it('終わりの欄（durationFrom）は開始の 15 分後から長さを添えて並べ、予定は日の終わりまで', async () => {
     render(<TimeInput value="" onChange={vi.fn()} ariaLabel="終了" durationFrom="22:30" />)
     await userEvent.click(screen.getByRole('combobox', { name: '終了' }))

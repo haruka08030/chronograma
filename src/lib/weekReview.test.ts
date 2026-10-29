@@ -315,6 +315,27 @@ describe('getReview（週）: 記録なしの時間（#298）', () => {
     expect(review.unrecordedMinutes).toBe(240)
   })
 
+  it('「なんとなく」の記録（#657）は記録した時間・ラベル別・予定との突き合わせに入れず、なんとなくの時間として数える。記録なしの枠は埋める', () => {
+    const tasks = [
+      log('a', '2026-10-02', '09:00', '10:00', { category: '課題', tags: ['課題'] }),
+      log('v', '2026-10-02', '10:00', '12:00', { vague: true }),
+      log('b', '2026-10-02', '12:00', '13:00', { category: 'ES', tags: ['ES'] }),
+      // 時間を決めた To-Do。「なんとなく」と重なっても予定どおりにしない
+      task('p', { scheduledDate: '2026-10-02', startTime: '10:00', endTime: '11:00' }),
+    ]
+    const review = getReview(tasks, [], 'week', at('20:00'), new Set(), at('20:00'))
+    const day = review.days.find((d) => d.dateKey === '2026-10-02')!
+    expect(day.loggedMinutes).toBe(120)
+    expect(day.vagueMinutes).toBe(120)
+    expect(day.unrecordedMinutes).toBe(0)
+    expect(day.tagMinutes.map((x) => x.tag).sort()).toEqual(['ES', '課題'])
+    expect(review.loggedMinutes).toBe(120)
+    expect(review.vagueMinutes).toBe(120)
+    expect(review.labelMinutes.map((x) => x.tag).sort()).toEqual(['ES', '課題'])
+    expect(review.unplanned.map((x) => x.title).sort()).toEqual(['a', 'b'])
+    expect(day.followed).toBe(0)
+  })
+
   it('月のふりかえりでも、月の日ごとの記録なしを足す（前の週の日も同じ月なら入る）', () => {
     const tasks = [
       // 9/30 は 9 月なので 10 月には入らない

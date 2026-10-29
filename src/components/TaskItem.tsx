@@ -12,20 +12,10 @@ import { isSubmitEnter } from '../lib/keyboard'
 import { DueDatePopover } from './DueDatePopover'
 import { isAppPast, isAppToday, isAppTomorrow } from '../lib/timeZone'
 import { RowSelectCheckbox } from './ui/RowSelectCheckbox'
-import {
-  ArchiveIcon,
-  CalendarArrowIcon,
-  CalendarIcon,
-  CheckIcon,
-  ClockIcon,
-  DueIcon,
-  EllipsisIcon,
-  RepeatIcon,
-  StarIcon,
-  TrashIcon,
-} from './icons'
+import { ArchiveIcon, CalendarIcon, CheckIcon, DreamIcon, DueIcon, EllipsisIcon, RepeatIcon, TrashIcon } from './icons'
+import { DayMoveIcon } from './ui/DayMoveIcon'
 import { CompletionCircle, EventMark } from './ui/CompletionCircle'
-import { planHex } from '../lib/planVisual'
+import { PASSED_TEXT_CLASS, planDotClass, planDotHex, planHex, type PlanVisualState } from '../lib/planVisual'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
 import { useTextEntry } from '../hooks/useTextEntry'
 import { tip } from '../lib/tooltip'
@@ -33,7 +23,7 @@ import { ChildDueChip } from './ui/ChildDueChip'
 import { useChildDue } from '../hooks/useChildDue'
 import { recurrenceLabel } from '../lib/recurrenceLabel'
 import { isTinyDrag, startTaskDrag } from '../lib/taskDrag'
-import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
+import { SCHEDULED_TONE_CLASS, type DateTone } from './ui/dueTone'
 import { fromDateKey } from '../lib/dateKey'
 import { formatShortDateWeekday } from '../lib/dateFormat'
 import { chipClass } from './ui/chipClass'
@@ -49,6 +39,7 @@ import { ROW_CURSOR_CLASS, ROW_SELECTED_CLASS, ROW_PRESS_CLASS, ROW_LIFTED_CLASS
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { TITLE_MAX_LENGTH } from '../lib/textLimits'
 import { dueDateLabel } from './ui/dueDateLabel'
+import { DueChip } from './ui/DueChip'
 import { DAY_ROW_PAD_CLASS, DAY_ROW_TIME_CLASS } from './ui/DayRow'
 
 function dateTone(d: Date): DateTone {
@@ -93,6 +84,8 @@ export const TaskItem = memo(function TaskItem({
   keepHandleSpace = false,
   showChildDue = false,
   compact = false,
+  calendarState,
+  onMenu,
 }: {
   task: Task
   onClick?: () => void
@@ -127,6 +120,13 @@ export const TaskItem = memo(function TaskItem({
   showChildDue?: boolean
   /** 1 行に詰める（カレンダーの日パネル）: 左に開始時刻、メモ・タグ・実行日は出さず、締切だけ右に出す */
   compact?: boolean
+  /**
+   * カレンダーの行（スケジュール・日のパネル）の予定の見せ方（`planVisualState`）。時間が過ぎた行（完了・未完了とも）は題名を灰色にし、
+   * 完了は取り消し線を引かずに塗りの ✓ だけで見せる（月のマス・終日の行・タイムラインと同じ）
+   */
+  calendarState?: PlanVisualState
+  /** 右クリック・長押しのメニュー（無ければ To-Do のメニュー。カレンダーは予定なら予定のメニュー、`openCalendarItemMenu`） */
+  onMenu?: (p: { clientX: number; clientY: number }) => void
 }) {
   const { t, i18n } = useTranslation()
   // 締切の言葉と色（「明日まで」「1日遅れ」）は今日で変わるので、行は memo でも日をまたいだら描き直す
@@ -324,6 +324,7 @@ export const TaskItem = memo(function TaskItem({
   /** 一覧がメニューを持っていれば任せる（選択中のまとめて操作）。無ければこの行だけのメニューを開く */
   const openMenuAt = (p: { clientX: number; clientY: number }) => {
     if (selection?.onContextMenu) selection.onContextMenu(p as React.MouseEvent)
+    else if (onMenu) onMenu(p)
     else openTaskMenu({ kind: 'task', x: p.clientX, y: p.clientY, taskIds: [task.id] })
   }
 
@@ -349,7 +350,7 @@ export const TaskItem = memo(function TaskItem({
         listKind === 'tasks' && !isSubtask
           ? {
               label: todayToggle([task.id]).label,
-              icon: <CalendarArrowIcon className="h-4 w-4" />,
+              icon: <DayMoveIcon later={todayToggle([task.id]).toTomorrow} className="h-4 w-4" />,
               tone: 'date',
               run: () => todayToggle([task.id]).run(),
             }
@@ -421,7 +422,11 @@ export const TaskItem = memo(function TaskItem({
 
         {/* 予定（バイト・授業）には完了の丸を出さない。日パネル（compact）は字が小さいので丸も小さく（サブタスクと同じ 16px） */}
         {isEventTask(task) ? (
-          <EventMark hex={planHex(task)} small={isSubtask || compact} />
+          <EventMark
+            hex={calendarState ? planDotHex(calendarState, planHex(task)) : planHex(task)}
+            dotClass={calendarState ? planDotClass(calendarState, planHex(task)) : undefined}
+            small={isSubtask || compact}
+          />
         ) : (
           <CompletionCircle
             completed={shownCompleted}
@@ -472,7 +477,15 @@ export const TaskItem = memo(function TaskItem({
               }}
               className={`${childProgress ? 'flex items-baseline gap-2' : 'block truncate'} w-full text-left ${hasRowAction ? 'cursor-pointer' : 'cursor-text'} outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-accent-400/50
                         ${isSubtask ? 'text-[13px]' : 'text-sm'}
-                        transition-colors ${shownCompleted && !timeLog ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-200'}`}
+                        transition-colors ${
+                          calendarState
+                            ? calendarState === 'upcoming' && !shownCompleted
+                              ? 'text-zinc-800 dark:text-zinc-200'
+                              : PASSED_TEXT_CLASS
+                            : shownCompleted && !timeLog
+                              ? 'line-through text-zinc-400 dark:text-zinc-500'
+                              : 'text-zinc-800 dark:text-zinc-200'
+                        }`}
             >
               {childProgress ? (
                 <>
@@ -497,12 +510,7 @@ export const TaskItem = memo(function TaskItem({
 
           {!compact && (
             <div className="flex items-center gap-2 mt-0.5 empty:hidden flex-wrap">
-              {dueTone && dueText && (!task.completed || timeLog) && (
-                <span className={`inline-flex items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
-                  <DueIcon className="w-3 h-3" />
-                  {dueText}
-                </span>
-              )}
+              {dueTone && dueText && (!task.completed || timeLog) && <DueChip tone={dueTone} text={dueText} />}
               {submitted && (
                 <span {...tip(t('canvas.submittedMarkHint'))} className="text-[11px] text-zinc-500 dark:text-zinc-400">
                   {t('canvas.submittedMark')}
@@ -511,7 +519,7 @@ export const TaskItem = memo(function TaskItem({
               {childDue && <ChildDueChip due={childDue} />}
               {scheduled && (!task.completed || timeLog) && (
                 <span className={`inline-flex items-center gap-0.5 text-[11px] ${SCHEDULED_TONE_CLASS[scheduled.tone]}`}>
-                  <ClockIcon className="w-3 h-3" />
+                  <CalendarIcon className="w-3 h-3" />
                   {scheduled.text}
                 </span>
               )}
@@ -529,7 +537,7 @@ export const TaskItem = memo(function TaskItem({
                   className="inline-flex min-w-0 items-center gap-0.5 text-[11px] text-zinc-500 dark:text-zinc-400"
                   aria-label={t('someday.stepOfDreamAria', { title: stepOfDream })}
                 >
-                  <StarIcon className="h-3 w-3 shrink-0" aria-hidden />
+                  <DreamIcon className="h-3 w-3 shrink-0" />
                   <span className="max-w-[12rem] truncate">{stepOfDream}</span>
                 </span>
               )}
@@ -559,12 +567,7 @@ export const TaskItem = memo(function TaskItem({
           )}
         </div>
 
-        {compact && dueTone && dueText && !task.completed && (
-          <span className={`inline-flex shrink-0 items-center gap-0.5 text-[11px] ${DUE_TONE_CLASS[dueTone]}`}>
-            <DueIcon className="w-3 h-3" />
-            {dueText}
-          </span>
-        )}
+        {compact && dueTone && dueText && !task.completed && <DueChip tone={dueTone} text={dueText} className="shrink-0" />}
 
         {listKind === 'someday' && !task.completed && !dream && (
           // いつかは締切の代わりに「予定する」（日付を選ぶと未分類へ移ってその日の予定になる）。出し方は締切のボタンと同じ
@@ -614,7 +617,7 @@ export const TaskItem = memo(function TaskItem({
                 className={`transition-colors cursor-pointer rounded-md p-1.5 md:-my-0.5 md:p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 touch-manipulation
                 ${open ? '' : 'md:[@media(hover:hover)]:hidden md:group-hover:inline-flex md:group-focus-within:inline-flex'}`}
               >
-                <DueIcon className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-date-500' : 'text-zinc-400'}`} />
+                <DueIcon className={`w-5 h-5 md:w-4 md:h-4 ${task.dueDate ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-400'}`} />
               </button>
             )}
           />

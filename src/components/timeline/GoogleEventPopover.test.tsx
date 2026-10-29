@@ -39,9 +39,9 @@ describe('GoogleEventPopover', () => {
 })
 
 describe('GoogleEventPopover: 記録にする・▶', () => {
-  it('終わった予定は「記録にする」だけ。押すと記録の画面を頼んでカードを閉じる', () => {
+  it('終わった予定は「記録にする」と、今から始める ▶。記録にするを押すと記録の画面を頼んでカードを閉じる', () => {
     showEvent()
-    expect(screen.queryByRole('button', { name: 'Start logging' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Start logging' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Log it' }))
     expect(useTaskStore.getState().recordPromptTaskId).toBe('event-g1')
   })
@@ -67,12 +67,43 @@ describe('GoogleEventPopover: 記録にする・▶', () => {
   })
 })
 
-describe('GoogleEventPopover: 色（#573）', () => {
-  it('色の一覧も ⋮ もカードに出さない', () => {
-    useTaskStore.setState({ googleCanWrite: true })
+describe('GoogleEventPopover: 色（#639）', () => {
+  it('色の四角を押すと色の一覧。選んだ色はアプリだけに付き、書き込めない予定にも付けられる', () => {
+    useTaskStore.setState({ googleCanWrite: false, googleEventColors: {} })
     showEvent()
-    expect(screen.queryByRole('button', { name: /Use Google color/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'More options' })).toBeNull()
-    useTaskStore.setState({ googleCanWrite: false })
+    const button = screen.getByRole('button', { name: /^Change color/ })
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(button)
+    fireEvent.click(screen.getByRole('radio', { name: /Sage/ }))
+    const { googleEventColors, calendarEvents } = useTaskStore.getState()
+    expect(googleEventColors['e:g1']).toMatchObject({ title: '説明会' })
+    expect(calendarEvents.find((e) => e.id === 'g1')?.color).toBe(googleEventColors['e:g1']!.hex)
+    // 選んだら一覧は閉じる
+    expect(screen.queryByRole('button', { name: /Use Google color/ })).toBeNull()
+  })
+
+  it('「Google の色に戻す」で付けた色を外す。繰り返しの予定はすべての回に付ける', () => {
+    useTaskStore.setState({ googleEventColors: {} })
+    useTaskStore.getState().setCalendarEvents([
+      {
+        id: 'g3_1',
+        recurringEventId: 'g3',
+        summary: 'ゼミ',
+        start: '2026-10-05T15:00:00+09:00',
+        end: '2026-10-05T16:00:00+09:00',
+        startTime: '15:00',
+        endTime: '16:00',
+        date: '2026-10-05',
+        isAllDay: false,
+      },
+    ])
+    render(<GoogleEventPopover eventId="g3_1" anchor={anchor} onClose={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Change color/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Sage/ }))
+    expect(Object.keys(useTaskStore.getState().googleEventColors)).toEqual(['s:g3'])
+    fireEvent.click(screen.getByRole('button', { name: /^Change color/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Use Google color/ }))
+    expect(useTaskStore.getState().googleEventColors).toEqual({})
   })
 })

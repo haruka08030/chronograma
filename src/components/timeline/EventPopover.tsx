@@ -7,7 +7,7 @@ import { colorVars, labelForHex, recordHex } from '../../lib/logCategoryColors'
 import { CourseAssignments } from './CourseAssignments'
 import { ClassAttendance } from './ClassAttendance'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { anchoredCardStyle, isAnchoredSheet, memoHeightEstimate, type AnchorRect } from './anchoredCard'
+import { isAnchoredSheet, useAnchoredCard, type AnchorRect } from './anchoredCard'
 import { ColorLabelPicker } from '../labels/ColorLabelPicker'
 import { useDismiss } from '../../hooks/useDismiss'
 import { useHotkey } from '../../hooks/useHotkey'
@@ -21,16 +21,16 @@ import { shortcutTip, tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
+import { PASSED_TEXT_CLASS } from '../../lib/planVisual'
 import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
 import { MemoPreview } from '../ui/MemoPreview'
 import { isEventTask, isLogTask, type Task } from '../../types/task'
-import { isClassTask } from '../../lib/timetable'
-import { useAddonOn } from '../../hooks/useAddon'
 import { endKeepingLength } from '../../lib/clockTime'
 import { isOvernightTimeLog } from '../../lib/taskTimeRange'
 import { useTaskTimes } from '../detail/useTaskTimes'
 import { CardTimeRange } from './CardTimeRange'
+import { TaskCardMeta } from './TaskCardMeta'
 import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
 import { deleteTaskAsking } from '../../lib/seriesScope'
 import { SeriesScopeField, SeriesSummary } from '../detail/SeriesScopeField'
@@ -109,8 +109,6 @@ function EventPopoverBody({
   const logCategoryColors = useTaskStore((s) => s.logCategoryColors)
   const timeLogTagPresets = useTaskStore((s) => s.timeLogTagPresets)
   const activeTimer = useTaskStore((s) => s.activeTimer)
-  const timetable = useTaskStore((s) => s.timetable)
-  const timetableOn = useAddonOn('timetable')
   const toggleTask = useTaskStore((s) => s.toggleTask)
   const openRecordPrompt = useTaskStore((s) => s.openRecordPrompt)
   // タイムゾーンを決めたタスクはそのタイムゾーンの時刻で見せて直す（詳細と同じ）
@@ -121,7 +119,7 @@ function EventPopoverBody({
   const list = lists.find((l) => l.id === task.listId)
   // カレンダーの予定と同じ色（タスク自身の色 → リストの色）
   const hex = isLog ? recordHex(task, logCategoryColors) : task.color || NEUTRAL_HEX
-  const { dateKey, canLogAsPlanned, ended: planEnded } = planTiming(task)
+  const { dateKey, canLogAsPlanned } = planTiming(task)
   const dateText = dateKey ? df.monthDayWeekdayLong(dateKey) : ''
   // メモがリンクだけ（Canvas・Notion の取り込み）なら URL の文字は出さず、上の列の「開く」ボタンにする
   const sourceLink = sourceLinkOf(task.description)
@@ -137,13 +135,7 @@ function EventPopoverBody({
     }
     updateTimes({ startTime: v, endTime: endKeepingLength(tv.startTime!, tv.endTime!, v) })
   }
-  // 時間割の授業は欠席の行（#452）の分だけ高い
-  const attendanceRow = timetableOn && isClassTask(task, timetable) ? 42 : 0
-  const { style, sheet } = anchoredCardStyle(
-    anchor,
-    WIDTH,
-    (isLog ? 270 : 280) + (editableTimes ? 30 : 0) + attendanceRow + memoHeightEstimate(memo),
-  )
+  const { style, sheet } = useAnchoredCard(ref, anchor, WIDTH)
   // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに。予定（完了の無いもの）は「記録にする」
   const recordAndComplete = () => {
     openRecordPrompt(task.id)
@@ -151,15 +143,7 @@ function EventPopoverBody({
   }
 
   return (
-    <div
-      ref={exitRef}
-      role="dialog"
-      aria-label={task.title}
-      tabIndex={-1}
-      className={anchoredCardClass(sheet)}
-      // 色の一覧を開くと背が伸びる。画面からはみ出す分はカードの中でスクロール（Google の予定のカードも同じ）
-      style={{ ...style, maxHeight: sheet ? '85vh' : `calc(100vh - ${Number(style.top ?? 0)}px - 12px)`, overflowY: 'auto' }}
-    >
+    <div ref={exitRef} role="dialog" aria-label={task.title} tabIndex={-1} className={anchoredCardClass(sheet)} style={style}>
       <div className="flex justify-end gap-0.5 px-2 pt-2">
         {/* Google の予定のカードの「Google カレンダーで開く」と同じ位置 */}
         {sourceLink && <TaskSourceLink link={sourceLink} className={iconButtonClass()} iconClassName="h-4 w-4" />}
@@ -186,7 +170,7 @@ function EventPopoverBody({
           onClick={onClose}
           className={iconButtonClass()}
           aria-label={t('common.close')}
-          {...tip(t('common.close'), 'Esc')}
+          {...shortcutTip(t('common.close'), 'close')}
         >
           <CloseIcon className="h-4 w-4" />
         </button>
@@ -196,7 +180,8 @@ function EventPopoverBody({
         <span className="gc-dot mt-1.5 h-3.5 w-3.5 rounded" style={colorVars(hex)} aria-hidden />
         <div className="min-w-0">
           <p
-            className={`break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100 ${task.completed && !isLog ? 'line-through opacity-60' : ''}`}
+            // 完了は取り消し線にせず灰色の文字（カレンダーの行・タイムラインの枠と同じ。済んだことはカードの「未完了に戻す」でも分かる）
+            className={`break-words text-lg leading-snug ${task.completed && !isLog ? PASSED_TEXT_CLASS : 'text-zinc-900 dark:text-zinc-100'}`}
           >
             {task.title}
           </p>
@@ -221,6 +206,8 @@ function EventPopoverBody({
               {tv.startTime && tv.endTime && ` · ${tv.startTime} – ${tv.endTime}`}
             </p>
           )}
+          {/* To-Do は一覧の行と同じ締切・ラベル・タグ（記録・予定には無い） */}
+          {!isLog && !isEvent && <TaskCardMeta task={task} />}
           {/* 操作は題名・時刻のすぐ下（色・課題はその下）。予定（バイト・授業）には完了を出さない */}
           {!isLog && (
             <CardActions
@@ -244,8 +231,9 @@ function EventPopoverBody({
                       },
                     }
               }
+              // 終わった予定も、やり忘れて今からやるときのために出す
               onStart={
-                !task.completed && !planEnded
+                !task.completed
                   ? () => {
                       if (startTimerForTask(task.id)) onClose()
                     }

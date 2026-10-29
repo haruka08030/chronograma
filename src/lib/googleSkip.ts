@@ -4,6 +4,7 @@ import { courseKey } from './courseLinks'
  * Google カレンダーに送らない予定の名前（#461）。移動・面接対策のような自分の段取りのための予定は、
  * アプリの中だけに置き、Google には送らない。名前は全角半角・大文字小文字・空白の違いだけ同じに数える
  * （授業と科目のつながりと同じ `courseKey`。部分一致はしない）。
+ * 前に作ったアプリの予定を送るときに外し（`lib/googlePush.ts`）、作成先を名前から選ぶときはアプリだけの名前に数える（`lib/eventDestination.ts`）。
  * 追加機能の設定（`user_addons.addons.googleSkip`）に持ち、端末間で同期する
  */
 
@@ -33,17 +34,4 @@ export function normalizeGoogleSkip(raw: unknown): string[] {
 /** 比べるための形の集まり */
 export function googleSkipKeys(names: readonly string[]): Set<string> {
   return new Set(names.map(googleSkipKey))
-}
-
-export function isGoogleSkipped(names: readonly string[], title: string): boolean {
-  const key = googleSkipKey(title)
-  return !!key && names.some((n) => googleSkipKey(n) === key)
-}
-
-/** 送らない・送るを切り替えた並び（送らないにした名前は先頭に。上限を超えたら古いものから落とす） */
-export function withGoogleSkip(names: readonly string[], title: string, skip: boolean): string[] {
-  const key = googleSkipKey(title)
-  if (!key) return [...names]
-  const rest = names.filter((n) => googleSkipKey(n) !== key)
-  return normalizeGoogleSkip(skip ? [title, ...rest] : rest)
 }

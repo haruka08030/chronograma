@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
    */
   const dayDigest = async (userId: string, date: string, timeZone: string, excluded: ReadonlySet<string>): Promise<WrapUpDigest> => {
     const columns =
-      'id,list_id,title,parent_id,is_time_log,is_sleep,is_event,completed,scheduled_date,due_date,start_time,end_time,end_date,source_task_id,habit_id,moved_plans,deleted_at,archived_at'
+      'id,list_id,title,parent_id,is_time_log,is_sleep,is_vague,is_event,completed,scheduled_date,due_date,start_time,end_time,end_date,source_task_id,habit_id,moved_plans,deleted_at,archived_at'
     /** `day`: その日のあたりの行（`wrapUpRowFilter`）、`moved`: その日から移した予定のある行 */
     const readRows = (which: 'day' | 'moved') =>
       fetchAllAfter(
@@ -310,11 +310,9 @@ Deno.serve(async (req) => {
           let query = admin
             .from('habits')
             .select(
-              'id,title,time_mode,start_time,end_time,frequency,completed_dates,time_overrides,weekday_times,rest_dates,goal_minutes,past_rules,kind,archived_at,deleted_at',
+              'id,title,time_mode,start_time,end_time,frequency,completed_dates,time_overrides,weekday_times,rest_dates,goal_minutes,past_rules,kind,archived_at,deleted_at,ended_on',
             )
             .eq('user_id', userId)
-            .is('deleted_at', null)
-            .is('archived_at', null)
           if (after !== null) query = query.gt('id', after)
           const { data, error } = await query.order('id').limit(limit)
           if (error) throw new Error(error.message)

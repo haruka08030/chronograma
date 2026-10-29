@@ -6,7 +6,7 @@ import { isCancelEscape, isImeKeyEvent, isSubmitEnter, shortcutLabel } from '../
 import { requestListCursor, SHORTCUTS } from '../lib/shortcuts'
 import { searchTasks } from '../lib/searchTasks'
 import { openTaskDetail } from '../lib/overlays'
-import { CloseIcon } from './icons'
+import { CloseIcon, SearchIcon } from './icons'
 
 /** To-Do・検索の画面の上の検索欄。`inputRef` は /（`useGlobalShortcuts`）がフォーカスに使う。⌘K は画面を替えない検索パレット（`SearchPalette`） */
 export function SearchBox({ inputRef }: { inputRef: RefObject<HTMLInputElement | null> }) {
@@ -41,19 +41,10 @@ export function SearchBox({ inputRef }: { inputRef: RefObject<HTMLInputElement |
   return (
     <header className="flex-shrink-0 flex items-center gap-3 px-4 md:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800">
       <div className="relative min-w-0 flex-1 max-w-2xl">
-        <svg
+        <SearchIcon
           className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
           strokeWidth={1.75}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-          />
-        </svg>
+        />
         <input
           ref={inputRef}
           value={searchQuery}

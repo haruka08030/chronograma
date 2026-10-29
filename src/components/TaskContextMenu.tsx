@@ -13,17 +13,19 @@ import { ActionMenu, type ActionEntry, type ActionLeaf } from './ui/ActionMenu'
 import {
   ArchiveIcon,
   ArrowRightIcon,
-  CalendarArrowIcon,
   CalendarIcon,
   CheckIcon,
   ClockIcon,
+  DueIcon,
   DuplicateIcon,
   FlagIcon,
   PencilIcon,
   PlayIcon,
   SectionIcon,
+  StarFilledIcon,
   TrashIcon,
 } from './icons'
+import { DayMoveIcon } from './ui/DayMoveIcon'
 import { startTimerForTask } from '../lib/timerDrop'
 import { openTaskMenu } from '../lib/overlays'
 import { canPickTime, timeSlotDateKey } from '../lib/timeSlotTarget'
@@ -59,7 +61,10 @@ export function TaskContextMenu({
   onOpenDetail,
   above = false,
   quick = false,
+  inDetail = false,
 }: {
+  /** 詳細の … から開いた（「編集」は出さない） */
+  inDetail?: boolean
   /** 指で行を押したときの短いシート（`openTaskMenu` の `quick`） */
   quick?: boolean
   x: number
@@ -107,6 +112,8 @@ export function TaskContextMenu({
   // いつかの夢は本体を予定にしない（一歩＝子を予定にする、#221）。段を変えられるのはルートの行だけ
   const schedulableWishes = targets.filter((x) => !x.completed && !(x.somedayTier === 'dream' && !x.parentId)).map((x) => x.id)
   const tierRoots = targets.filter((x) => !x.parentId && !x.completed)
+  // 小タスクはどちらの段でもないので両方を出す（選ぶと親から外れてその段の行になる、#606）
+  const tierChildren = targets.filter((x) => x.parentId && !x.completed)
   const allDreams = tierRoots.length > 0 && tierRoots.every((x) => x.somedayTier === 'dream')
   const done = (fn: () => void) => () => {
     fn()
@@ -248,7 +255,7 @@ export function TaskContextMenu({
           kind: 'leaf',
           id: 'today-toggle',
           label: todayToggle.label,
-          icon: <CalendarArrowIcon className={ICON} />,
+          icon: <DayMoveIcon later={todayToggle.toTomorrow} className={ICON} />,
           keys: shortcutLabel(['Shift', 'T']),
           run: done(todayToggle.run),
         },
@@ -290,7 +297,7 @@ export function TaskContextMenu({
       kind: 'sub',
       id: 'due',
       label: t('common.due'),
-      icon: <CalendarIcon className={ICON} />,
+      icon: <DueIcon className={ICON} />,
       // 今の締切（時刻があれば時刻も）。選んだタスクで違えば出さない
       hint: menuDateHint(targets.map((x) => ({ date: x.dueDate, time: x.dueDate ? x.dueTime : null }))),
       leaves: dueLeaves,
@@ -329,6 +336,14 @@ export function TaskContextMenu({
       ),
     },
   ]
+  // 行のアーカイブのアイコンと同じ（いつか・チェックリストの行にも出るので、そのメニューにも置く）
+  const archiveEntry: ActionEntry = {
+    kind: 'leaf',
+    id: 'archive',
+    label: t('taskItem.archive'),
+    icon: <ArchiveIcon className={ICON} />,
+    run: done(() => bulk.archive(taskIds)),
+  }
   const deleteEntry: ActionEntry = {
     kind: 'leaf',
     id: 'delete',
@@ -338,20 +353,21 @@ export function TaskContextMenu({
     danger: true,
     run: done(() => bulk.remove(taskIds)),
   }
-  // いつか: 予定する・かなえた・削除だけ（かなえたものは削除だけ）
+  // いつか: 予定する・段を移す・かなえた・アーカイブ・削除だけ（かなえたものはアーカイブ・削除だけ）
+  const tierLeaf = (tier: 'dream' | 'wish'): ActionEntry => ({
+    kind: 'leaf',
+    id: `tier-${tier}`,
+    label: t(tier === 'dream' ? 'someday.moveToDream' : 'someday.moveToWish'),
+    detail: t(tier === 'dream' ? 'someday.moveToDreamDetail' : 'someday.moveToWishDetail'),
+    icon: <ArrowRightIcon className={ICON} />,
+    run: done(() => setSomedayTier(taskIds, tier)),
+  })
   const tierEntry: ActionEntry[] =
     tierRoots.length > 0 && tierRoots.length === targets.length
-      ? [
-          {
-            kind: 'leaf',
-            id: 'tier',
-            label: t(allDreams ? 'someday.moveToWish' : 'someday.moveToDream'),
-            detail: t(allDreams ? 'someday.moveToWishDetail' : 'someday.moveToDreamDetail'),
-            icon: <ArrowRightIcon className={ICON} />,
-            run: done(() => setSomedayTier(taskIds, allDreams ? 'wish' : 'dream')),
-          },
-        ]
-      : []
+      ? [tierLeaf(allDreams ? 'wish' : 'dream')]
+      : tierChildren.length > 0 && tierChildren.length === targets.length
+        ? [tierLeaf('dream'), tierLeaf('wish')]
+        : []
   const somedayEntries: ActionEntry[] = [
     ...(openWishes.length > 0
       ? [
@@ -361,15 +377,16 @@ export function TaskContextMenu({
             kind: 'leaf' as const,
             id: 'complete',
             label: t('someday.fulfill'),
-            icon: <CheckIcon className={ICON} />,
+            icon: <StarFilledIcon className={ICON} />,
             keys: shortcutLabel(['mod', '↵']),
             run: done(() => bulk.complete(openWishes)),
           },
         ]
       : []),
-    { ...deleteEntry, divider: openWishes.length > 0 },
+    { ...archiveEntry, divider: openWishes.length > 0 },
+    deleteEntry,
   ]
-  // チェックリスト（買い物）: チェック（全部済みなら外す）・削除だけ
+  // チェックリスト（買い物）: チェック（全部済みなら外す）・アーカイブ・削除だけ
   const allChecked = targets.every((x) => x.completed)
   const checklistEntries: ActionEntry[] = [
     allChecked
@@ -388,7 +405,8 @@ export function TaskContextMenu({
           keys: shortcutLabel(['mod', '↵']),
           run: done(() => bulk.complete(taskIds)),
         },
-    { ...deleteEntry, divider: true },
+    { ...archiveEntry, divider: true },
+    deleteEntry,
   ]
   // 全部済みなら「未完了に戻す」（済んだものに「完了にする」を出しても何も起きない）
   const allDone = targets.length > 0 && targets.every((x) => x.completed)
@@ -460,13 +478,7 @@ export function TaskContextMenu({
                 },
               ]
             : []),
-          {
-            kind: 'leaf',
-            id: 'archive',
-            label: t('taskItem.archive'),
-            icon: <ArchiveIcon className={ICON} />,
-            run: done(() => bulk.archive(taskIds)),
-          },
+          archiveEntry,
           deleteEntry,
         ]
   // 指で行を押したときの短いシート: よく使う操作（今日やる・明日へ / 記録開始 / 完了）、日付、詳細を開く。ほかは詳細から
@@ -484,9 +496,9 @@ export function TaskContextMenu({
         ]
       : []
   const quickEntries: ActionEntry[] = allWishes
-    ? [...somedayEntries.filter((e) => e.id !== 'delete'), ...openEntry]
+    ? [...somedayEntries.filter((e) => e.id !== 'delete' && e.id !== 'archive'), ...openEntry]
     : allChecklist
-      ? [...checklistEntries.filter((e) => e.id !== 'delete'), ...openEntry]
+      ? [...checklistEntries.filter((e) => e.id !== 'delete' && e.id !== 'archive'), ...openEntry]
       : [
           ...setTimeEntry,
           ...todayToggleEntry,
@@ -517,7 +529,7 @@ export function TaskContextMenu({
           </div>
         )
       }
-      entries={quick ? quickEntries : entries}
+      entries={quick ? quickEntries : inDetail ? entries.filter((e) => e.id !== 'open') : entries}
       onClose={onClose}
       // いつか・チェックリスト・短いシートは項目が少ないので検索欄を出さない
       searchable={!quick && !allWishes && !allChecklist}

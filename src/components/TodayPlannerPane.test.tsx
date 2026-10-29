@@ -9,7 +9,7 @@ import { TodayPlannerView } from './TodayPlannerView'
 /**
  * スマホの今日の計画で最初に出す面: 選ぶ前（今日の締めの時刻まで・先の日）は「やること」、
  * 決めた後（過ぎた日・今日の締めの時刻から・夜の通知から）は予定と記録が並ぶ「タイムライン」。
- * タブで選んだら、その日のうちはそれに従う
+ * タブで選んだら、その日のうちはそれに従う。はじめの案内を終えるまでは「やること」
  */
 
 beforeAll(() => {
@@ -40,8 +40,8 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   at(10)
   forgetPlannerPane()
-  useTaskStore.setState({ tasks: [], dailyReminders: { planTime: null, wrapUpTime: null } })
-  useTaskStore.getState().setSelectedCalendarDateKey(TODAY)
+  useTaskStore.setState({ tasks: [], onboardingDone: true, dailyReminders: { planTime: null, wrapUpTime: null } })
+  useTaskStore.getState().setPlannerDateKey(TODAY)
 })
 
 afterEach(() => {
@@ -59,7 +59,7 @@ describe('スマホで最初に出す面', () => {
   })
 
   it('過ぎた日はタイムラインから（ふりかえりの棒から開いたときも同じ）', () => {
-    useTaskStore.getState().setSelectedCalendarDateKey(YESTERDAY)
+    useTaskStore.getState().setPlannerDateKey(YESTERDAY)
     render(<TodayPlannerView />)
     expect(shownPane()).toBe('Timeline')
   })
@@ -68,6 +68,13 @@ describe('スマホで最初に出す面', () => {
     at(17)
     render(<TodayPlannerView />)
     expect(shownPane()).toBe('Timeline')
+  })
+
+  it('はじめの案内を終えるまでは、締めの時刻を過ぎても「やること」から（案内はそちらにある）', () => {
+    useTaskStore.setState({ onboardingDone: false })
+    at(21)
+    render(<TodayPlannerView />)
+    expect(shownPane()).toBe('To do')
   })
 
   it('夜のまとめの時刻を決めていれば、その時刻から', () => {
@@ -92,7 +99,7 @@ describe('スマホで最初に出す面', () => {
 
   it('タブで選んだら、その日のうちは過ぎた日を開いても・開き直しても従う', async () => {
     const user = userEvent.setup()
-    useTaskStore.getState().setSelectedCalendarDateKey(YESTERDAY)
+    useTaskStore.getState().setPlannerDateKey(YESTERDAY)
     const { unmount } = render(<TodayPlannerView />)
     await user.click(screen.getByRole('tab', { name: 'To do' }))
     expect(shownPane()).toBe('To do')
@@ -103,7 +110,7 @@ describe('スマホで最初に出す面', () => {
 
   it('選んだ面は日をまたいだら忘れる', async () => {
     const user = userEvent.setup()
-    useTaskStore.getState().setSelectedCalendarDateKey(YESTERDAY)
+    useTaskStore.getState().setPlannerDateKey(YESTERDAY)
     const { unmount } = render(<TodayPlannerView />)
     await user.click(screen.getByRole('tab', { name: 'To do' }))
     unmount()
@@ -130,10 +137,10 @@ describe('スマホで最初に出す面', () => {
   })
 
   it('夜の通知から開くと、まだ描いていなくてもタイムライン', () => {
-    useTaskStore.getState().setSelectedCalendarDateKey(YESTERDAY)
+    useTaskStore.getState().setPlannerDateKey(YESTERDAY)
     act(() => openWrapUpFromNotification())
     render(<TodayPlannerView />)
-    expect(useTaskStore.getState().selectedCalendarDateKey).toBe(TODAY)
+    expect(useTaskStore.getState().plannerDateKey).toBe(TODAY)
     expect(shownPane()).toBe('Timeline')
   })
 })

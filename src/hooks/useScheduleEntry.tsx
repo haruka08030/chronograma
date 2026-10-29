@@ -7,7 +7,7 @@ import { useDateFormat } from './useDateFormat'
 import { appToday } from '../lib/timeZone'
 import { toDateKey } from '../lib/dateKey'
 import { DatePickerBody } from '../components/DatePickerBody'
-import { ClockIcon } from '../components/icons'
+import { CalendarIcon } from '../components/icons'
 import type { ActionEntry, ActionLeaf } from '../components/ui/ActionMenu'
 import { menuDateHint } from '../lib/menuDateHint'
 
@@ -44,7 +44,7 @@ export function useScheduleEntry(taskIds: string[], done: (fn: () => void) => ()
     kind: 'sub',
     id: 'scheduled',
     label: t('taskMenu.scheduled'),
-    icon: <ClockIcon className={iconClass} />,
+    icon: <CalendarIcon className={iconClass} />,
     // 今の実行日（時刻があれば開始時刻も）。選んだタスクで違えば出さない
     hint: menuDateHint(targets.map((x) => ({ date: x.scheduledDate ?? null, time: x.scheduledDate ? (x.startTime ?? null) : null }))),
     leaves,

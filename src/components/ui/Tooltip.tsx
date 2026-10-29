@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { INVERSE_SURFACE } from './surface'
+import { fitRect } from '../../lib/viewportFit'
 
 /** マウスを乗せてから出るまで（Google カレンダーと同じく、通り過ぎただけでは出さない） */
 const SHOW_DELAY_MS = 500
@@ -76,9 +77,7 @@ export function TooltipHost() {
     const { rect } = shown
     const w = el.offsetWidth
     const h = el.offsetHeight
-    const below = rect.bottom + GAP
-    const top = below + h + EDGE <= window.innerHeight ? below : rect.top - GAP - h
-    const left = Math.max(EDGE, Math.min(rect.left + rect.width / 2 - w / 2, window.innerWidth - w - EDGE))
+    const { left, top } = fitRect({ width: w, height: h }, { anchor: rect, placement: 'below', align: 'center', gap: GAP, edge: EDGE })
     el.style.left = `${left}px`
     el.style.top = `${top}px`
     el.style.visibility = 'visible'

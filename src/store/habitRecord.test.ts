@@ -65,6 +65,18 @@ const state = (h: Habit, tasks: Task[] = []) => ({
 })
 
 describe('completeHabitAsPlannedPatch（習慣の記録化）', () => {
+  it('枠の途中で達成にしたら、記録は今まで。始まる前・終わった後は予定どおり', () => {
+    const at = (limitMin: number | null) => {
+      const patch = completeHabitAsPlannedPatch(state(habit()), 'h1', '2026-10-02', { ...env, limitMin })!
+      const tasks = 'tasks' in patch ? patch.tasks : []
+      return [tasks[0]!.startTime, tasks[0]!.endTime]
+    }
+    expect(at(6 * 60 + 20)).toEqual(['06:00', '06:20'])
+    expect(at(5 * 60)).toEqual(['06:00', '06:30'])
+    expect(at(7 * 60)).toEqual(['06:00', '06:30'])
+    expect(at(null)).toEqual(['06:00', '06:30'])
+  })
+
   it('時間を決めた習慣は、達成にして予定どおりの時刻の記録を作る', () => {
     const patch = completeHabitAsPlannedPatch(state(habit()), 'h1', '2026-10-02', env)!
     expect(patch.habits[0]!.completedDates).toEqual(['2026-10-02'])

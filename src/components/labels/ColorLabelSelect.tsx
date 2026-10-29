@@ -17,6 +17,7 @@ export function ColorLabelSelect({
   defaultHex,
   compact,
   label: rowLabel,
+  vague,
 }: {
   current: string | null
   currentText: string
@@ -25,6 +26,8 @@ export function ColorLabelSelect({
   defaultHex: string
   compact?: boolean
   label?: string
+  /** 記録のラベルだけ: 「なんとなく」（#657）。`selected` のときチップは斜線の丸 */
+  vague?: { selected: boolean; onChoose: () => void }
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -54,7 +57,11 @@ export function ColorLabelSelect({
           aria-label={t('labels.pickerAria')}
           className={`inline-flex items-center gap-2 rounded-full border border-zinc-200 text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700/60 ${compact ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'}`}
         >
-          <span className="gc-dot h-3.5 w-3.5 shrink-0 rounded-full" style={colorVars(current ?? defaultHex)} aria-hidden />
+          {vague?.selected ? (
+            <span className="gc-vague h-3.5 w-3.5 shrink-0 rounded-full" aria-hidden />
+          ) : (
+            <span className="gc-dot h-3.5 w-3.5 shrink-0 rounded-full" style={colorVars(current ?? defaultHex)} aria-hidden />
+          )}
           <span>{currentText}</span>
           <CaretDownIcon className="h-3 w-3 text-zinc-500" />
         </button>
@@ -69,6 +76,15 @@ export function ColorLabelSelect({
             defaultLabel={defaultLabel}
             defaultHex={defaultHex}
             fill={compact}
+            vague={
+              vague && {
+                selected: vague.selected,
+                onChoose: () => {
+                  vague.onChoose()
+                  setOpen(false)
+                },
+              }
+            }
           />
         </div>
       )}

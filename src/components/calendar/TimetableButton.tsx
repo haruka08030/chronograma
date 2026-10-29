@@ -5,12 +5,12 @@ import { useAddonOn } from '../../hooks/useAddon'
 
 /**
  * 週表示の見出しの「時間割」（#279）。押すと時間割（曜日 × 時限のマス）を開く。
- * 見た目は月表示の「よく入れる予定」と同じ小さな文字のボタン。追加機能の時間割がオフなら出さない（#453）
+ * 見た目は月表示の「よく入れる予定」と同じ小さな文字のボタン。追加機能の学校がオフなら出さない（#453・#617）
  */
 export function TimetableButton({ className = '' }: { className?: string }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const on = useAddonOn('timetable')
+  const on = useAddonOn('school')
   if (!on) return null
   return (
     <>

@@ -17,7 +17,7 @@ import {
 import { canCopyOnDrop, isCopyModifierHeld, placeCopies, useCopyModifier } from '../lib/dragCopy'
 import { useHotkey } from '../hooks/useHotkey'
 import { SHORTCUTS } from '../lib/shortcuts'
-import { useTimelineDrag, type CreateIntent } from '../lib/useTimelineDrag'
+import { useTimelineDrag, type BlockStop, type CreateIntent } from '../lib/useTimelineDrag'
 import { useTimelineDrop, useTaskNativeDragActive } from '../lib/useTimelineDrop'
 import {
   getCalendarItemDrag,
@@ -206,16 +206,27 @@ export function WeekCalendarView({
   }, [])
 
   const cards = useCalendarCards(gridRef)
-  const { setEventCard, openCard, setGoogleCard, openGoogleCard, openHabitCard, openHabitMenu, createAnchor, setCreateAnchorFromEl } = cards
+  const {
+    setEventCard,
+    openCard,
+    setGoogleCard,
+    openGoogleCard,
+    openHabitCard,
+    openHabitMenu,
+    openSleepCard,
+    createAnchor,
+    setCreateAnchorFromEl,
+  } = cards
 
   /** ブロックを押したとき: 習慣の枠・Google の予定・予定と記録のカード */
   const openBlockCard = useCallback(
     (id: string) => {
       if (parseHabitSlotId(id)) openHabitCard(id)
+      else if (openSleepCard(id)) return
       else if (id.startsWith('event-')) openGoogleCard(id.slice('event-'.length))
       else openCard(id)
     },
-    [openCard, openGoogleCard, openHabitCard],
+    [openCard, openGoogleCard, openHabitCard, openSleepCard],
   )
 
   // ref だけを読むので作り直さない（フックの中の useCallback が描くたびに作り直されないように）
@@ -236,6 +247,8 @@ export function WeekCalendarView({
   const openBlockMenu = useCallback(
     (id: string, x: number, y: number): boolean => {
       if (openHabitMenu(id, x, y)) return true
+      // 睡眠の予定の枠はメニューの代わりにカード（同じ操作がカードにある）
+      if (openSleepCard(id)) return true
       if (id.startsWith('event-')) {
         const s = useTaskStore.getState()
         const event = s.calendarEvents.find((e) => e.id === id.slice('event-'.length))
@@ -252,7 +265,7 @@ export function WeekCalendarView({
       openTaskMenu({ kind: 'event', x, y, taskId: id, brief: true })
       return true
     },
-    [openHabitMenu, setEventCard, setGoogleCard],
+    [openHabitMenu, openSleepCard, setEventCard, setGoogleCard],
   )
   // タッチの長押し: メニューを出せないもの（記録・書き込めない Google の予定）は押したときと同じカード
   const onBlockLongPress = useCallback(
@@ -261,6 +274,18 @@ export function WeekCalendarView({
     },
     [openBlockMenu, openBlockCard],
   )
+  // 日ごとの列のブロックの上下（列が描くたびに知らせる）。動かす・伸び縮みさせる端を、同じ列のブロックの境目で止める
+  const blockStopsRef = useRef(new Map<string, Record<CreateIntent, BlockStop[]>>())
+  const registerBlockStops = useCallback((dateKey: string, stops: Record<CreateIntent, BlockStop[]>) => {
+    blockStopsRef.current.set(dateKey, stops)
+  }, [])
+  const getBlockStops = useCallback((dateKey: string, taskId: string): BlockStop[] => {
+    const day = blockStopsRef.current.get(dateKey)
+    if (!day) return []
+    // 記録は記録の列、ほかは予定の列のブロックで止める
+    const isLog = [...blockStopsRef.current.values()].some((d) => d.log.some((b) => b.id === taskId))
+    return day[isLog ? 'log' : 'schedule'].filter((b) => b.id !== taskId)
+  }, [])
   const timelineDrag = useTimelineDrag({
     getRelativeY,
     getDateKeyFromX,
@@ -269,6 +294,7 @@ export function WeekCalendarView({
     onBlockTap: openBlockCard,
     clickCreateMinutes: defaultBlockMinutes,
     onBlockLongPress,
+    getBlockStops,
   })
   // Tab で止めたブロック: Alt+↑↓ で 15 分ずつ動かし、Alt+Shift+↑↓ で終わりを伸び縮み（ドラッグと同じ決まり・元に戻せる）。
   // カードを開いているときはカードのほうで受ける（層が開いていると 'global' は効かない）
@@ -513,6 +539,7 @@ export function WeekCalendarView({
     handleCreatePointerDown: timelineDrag.handleCreatePointerDown,
     handleBlockPointerDown: timelineDrag.handleBlockPointerDown,
     openPopup: timelineDrag.openPopup,
+    registerBlockStops,
     handleDragEnter: timelineDrop.handleDragEnter,
     handleDragOver: timelineDrop.handleDragOver,
     handleDragLeave: timelineDrop.handleDragLeave,
@@ -529,6 +556,7 @@ export function WeekCalendarView({
     openCard,
     openGoogleCard,
     openHabitCard,
+    openSleepCard,
     setCreateAnchorFromEl,
   }
 
@@ -652,11 +680,13 @@ export function WeekCalendarView({
         </div>
       </div>
 
-      {/* 読めなかったら、遅れて読むカード（予定・Google の予定・作成）を閉じる */}
+      {/* 読めなかったら、遅れて読むカード（予定・Google の予定・習慣の枠・睡眠の予定の枠・作成）を閉じる */}
       <OverlaySuspense
         onLoadFailed={() => {
           cards.closeCard()
           cards.closeGoogleCard()
+          cards.closeHabitCard()
+          cards.closeSleepCard()
           timelineDrag.dismissPopup()
         }}
       >

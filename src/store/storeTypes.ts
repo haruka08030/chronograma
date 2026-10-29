@@ -1,9 +1,11 @@
 /** ストア（`taskStore.ts`）の状態と操作の型。中身は `slices/*.ts` に分けて書く */
+import type { SleepPrefs } from '../lib/sleepPrefs'
+import type { SleepPlan, SleepSchedule } from '../lib/sleepSchedule'
 import type { Task } from '../types/task'
 import type { ListKind, TaskList } from '../types/list'
 import type { ListSection } from '../types/section'
 import type { CalendarEvent } from '../types/calendarEvent'
-import type { Habit } from '../types/habit'
+import type { Habit, HabitTimeOverride } from '../types/habit'
 import type { CategoryColorKey } from '../lib/logCategoryColors'
 import type { EventColorChoices } from '../lib/googleEventColors'
 import type { SyncRejectedRow } from '../lib/supabaseData'
@@ -11,7 +13,9 @@ import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
 import type { CourseLink } from '../lib/courseLinks'
 import type { SkippedEvent } from '../lib/skippedEvents'
+import type { MyEventTime, TimeSpan } from '../lib/myEventTimes'
 import type { Timetable } from '../lib/timetable'
+import type { School } from '../lib/schoolTerms'
 import type { AddonId, Addons } from '../lib/addons'
 import type { SleepTimer } from '../lib/sleepTimer'
 import type { DueItem } from '../lib/dues'
@@ -47,6 +51,7 @@ export type SmartView =
   | 'deleted'
   | 'settings'
   | 'addons'
+  | 'sleep'
 
 /** 設定画面を開いたときの一度きりのスクロール先（永続化しない） */
 export type SettingsScrollTarget = 'appearance' | 'account' | 'install' | 'google' | 'notion' | 'canvas'
@@ -71,6 +76,8 @@ export interface ActiveTimer {
   taskId?: string | null
   /** 元タスクの名前の無い色。記録にそのまま付ける */
   color?: string | null
+  /** 「なんとなく」の記録にする（#657）。持つときはラベル・色を持たない。端末間で同じになる（`user_active_timer.is_vague`） */
+  vague?: true
   /**
    * 「あと何分」の終わりの時刻（ISO、#290）。無い・null は終わりなし（数え上げ）。時間になっても記録は止めない。
    * 端末間で同じになる（`user_active_timer.ends_at`）
@@ -97,8 +104,12 @@ export interface TaskState {
   sectionScrollTarget: string | null
   /** カレンダーハブ内の月 / 週表示（永続化） */
   calendarMode: CalendarMode
-  /** カレンダーハブ・習慣一覧などで共有するフォーカス日（yyyy-MM-dd） */
+  /** 見ている日（yyyy-MM-dd）。画面ごとに持ち、ほかの画面とは共有しない。カレンダー */
   selectedCalendarDateKey: string
+  /** 今日の計画で見ている日 */
+  plannerDateKey: string
+  /** 習慣で見ている日（その日を含む週を出す） */
+  habitsDateKey: string
   /** `system` は OS のライト/ダークに合わせる */
   theme: 'light' | 'dark' | 'system'
   searchQuery: string
@@ -194,6 +205,8 @@ export interface TaskState {
   signInNudgeDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
   dailyCapacityMinutes: number
+  /** 睡眠のいつもの時刻・目標の睡眠時間（`lib/sleepPrefs.ts`、端末に保存） */
+  sleepPrefs: SleepPrefs
   /** 長さを決めずに置いた予定の長さ（分）。空き時間のクリック・ドラッグで置く・時刻だけの入力など */
   defaultBlockMinutes: number
   /** 予定の開始何分前に通知するか（null はオフ） */
@@ -218,6 +231,13 @@ export interface TaskState {
   skippedEvents: SkippedEvent[]
   /** やらなかった予定をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
   skippedEventsUpdatedAt: string | null
+  /**
+   * Google の予定の自分の時間（#625、予定の ID ごと）。アプリで動かした時間で出し、Google の予定の時間は変えない（`lib/myEventTimes.ts`）。
+   * `calendarEvents` にはこれを当てた時間が入る（開催時間は予定の `held`）
+   */
+  myEventTimes: MyEventTime[]
+  /** 自分の時間をこの端末で最後に変えた（または同期で合わせた）時刻。まだ無ければ null */
+  myEventTimesUpdatedAt: string | null
   /** 1 日の気分とひとこと（#324、日付 → 気分）。日ごとに変えた時刻ともとにしたサーバーの版を持ち、日ごとに同期する（`lib/dayMood.ts`） */
   dayMoods: DayMoods
   /** 授業の時間割の設定（#279、時限・学期・祝日を除くか）。マスの中身は予定の行（毎週の印）から出す（`lib/timetable.ts`） */
@@ -296,6 +316,8 @@ export interface TaskState {
   selectListTag: (listId: string, tag: string) => void
   setCalendarMode: (mode: CalendarMode) => void
   setSelectedCalendarDateKey: (key: string) => void
+  setPlannerDateKey: (key: string) => void
+  setHabitsDateKey: (key: string) => void
   setSearchQuery: (q: string) => void
   /** いま開いているリスト・ビューの並び順を変える */
   setSortMode: (mode: SortMode) => void
@@ -341,6 +363,17 @@ export interface TaskState {
    * その日だけ習慣の時間を変える（タイムラインで枠を動かした・習慣の段のチップを格子に置いた）。習慣の時間と同じにしたらその日の分は消す
    */
   setHabitDayTime: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
+  /**
+   * 習慣の枠のカードで時間を直す。`scope` が `day` ならその日だけ（日ごとの時間）、`weekday` ならその日から先の同じ曜日。
+   * 曜日は `until`（yyyy-MM-dd、含む）までならその曜日の日ごとの時間を入れ、null（ずっと）なら曜日ごとの時間を変える
+   * （今日より前の日は前の設定のまま、今日〜その日の前の同じ曜日も前の時間のまま）。時刻ひとつの習慣は `endTime: null`
+   */
+  setHabitTime: (
+    id: string,
+    dateKey: string,
+    times: HabitTimeOverride,
+    scope: { kind: 'day' } | { kind: 'weekday'; until: string | null },
+  ) => void
   /** その日だけの時間を消して、いつもの時間に戻す（格子に置いた時刻ひとつの習慣を習慣の段のチップに戻す） */
   clearHabitDayTime: (id: string, dateKey: string, label?: ToastText) => void
   /**
@@ -356,6 +389,8 @@ export interface TaskState {
   permanentlyDeleteHabits: (ids: string[]) => void
   /** 今日の計画・一覧・タイムライン・統計から外す（達成日は残す）。「元に戻す」付きのトースト */
   archiveHabit: (id: string) => void
+  /** 寝る時間の習慣を睡眠に移す（#653）: 習慣の時間を睡眠の予定に、その記録を睡眠に直し、習慣はアーカイブ。⌘Z で 1 回で戻す */
+  moveHabitToSleep: (id: string) => void
   /** アーカイブから戻す */
   restoreHabit: (id: string) => void
   /** 達成 ⇄ 未達成。時間を決めた習慣は、達成で予定どおりの時刻の記録を作り、外すとその記録をゴミ箱へ */
@@ -391,11 +426,14 @@ export interface TaskState {
     color?: string | null,
     /** 元の To-Do（記録の候補から To-Do を選んだとき）。統計の「見積もりと記録」に入る */
     sourceTaskId?: string | null,
-    /** 後から記録（記録パネル・タイムラインの記録の列）: 題名かラベルが「睡眠」「sleep」などなら睡眠にする（`looksLikeSleep`） */
-    sleepByName?: boolean,
+    /** 「なんとなく」の記録にする（#657）。ラベル・色は付けず、推定もしない */
+    vague?: boolean,
   ) => string
-  /** 朝に入れる睡眠（寝た時刻・起きた時刻）。その朝の睡眠が既にあれば書き換える */
-  logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string) => void
+  /**
+   * 睡眠（寝た時刻・起きた時刻、起きた日）を入れる。`id` を渡せばその睡眠を直す。
+   * 渡さなければ、時間の重なる睡眠があればそれを直し（2 台で「起きた」を押しても 2 つにしない）、無ければ足す（昼寝、#645）
+   */
+  logSleep: (wakeDateKey: string, bedTime: string, wakeTime: string, id?: string) => void
   /** 「寝る」: 睡眠のタイマーを始める。記録のタイマーが動いていれば、先に記録にして止める */
   goToBed: () => void
   /**
@@ -408,11 +446,18 @@ export interface TaskState {
   /** 止めたばかりの睡眠のタイマーを戻す（トーストの「元に戻す」）。ほかで寝ると押していれば戻さない */
   restoreCancelledSleep: () => boolean
   /** 記録を開始。既に走っていれば先にそれを記録として閉じる（黙って捨てない） */
-  startTimer: (title: string, tags?: string[], taskId?: string | null, color?: string | null, options?: { minutes?: number | null }) => void
+  startTimer: (
+    title: string,
+    tags?: string[],
+    taskId?: string | null,
+    color?: string | null,
+    /** `minutes` は「あと何分」（#290）、`vague` は「なんとなく」の記録にする（#657） */
+    options?: { minutes?: number | null; vague?: boolean },
+  ) => void
   /** 動いているタイマーの「あと何分」の終わり（ISO）を付ける・選び直す。null で外す（数え上げに戻す）。#290 */
   setTimerEnd: (endsAt: string | null) => void
   /** 動いているタイマーの題名・ラベルを直す（止めた記録にそのまま入る）。空の題名は無視。ラベルを選び直したら元の To-Do の色は外す */
-  editActiveTimer: (patch: { taskTitle?: string; tags?: string[]; color?: string | null }) => void
+  editActiveTimer: (patch: { taskTitle?: string; tags?: string[]; color?: string | null; vague?: boolean }) => void
   stopTimer: () => void
   /** 止め忘れたタイマーを、指定した終了時刻までの記録にして閉じる */
   resolveStaleTimer: (endedAt: string) => void
@@ -434,6 +479,7 @@ export interface TaskState {
   dismissInstallNudge: () => void
   dismissSignInNudge: () => void
   setDailyCapacityMinutes: (minutes: number) => void
+  setSleepPrefs: (patch: Partial<SleepPrefs>) => void
   setDefaultBlockMinutes: (minutes: number) => void
   setEventReminderMinutes: (minutes: number | null) => void
   setAppTimeZone: (tz: string | null) => void
@@ -462,6 +508,12 @@ export interface TaskState {
   dropRestoredSkipped: (liveIds: ReadonlySet<string>) => void
   /** 「消す」: やらなかった予定からも消す */
   removeSkippedEvent: (id: string) => void
+  /** Google の予定を自分の時間にする（「元に戻す」付き）。開催時間と同じなら自分の時間を外す。時刻つきの予定だけ */
+  setMyEventTime: (event: CalendarEvent, mine: TimeSpan) => void
+  /** 自分の時間を外して開催時間に戻す（「元に戻す」付き） */
+  clearMyEventTime: (eventId: string) => void
+  /** Google から取った予定（開催時間）に合わせて、はみ出した自分の時間を削る・重ならなくなったら外す */
+  fitMyEventTimes: (events: readonly CalendarEvent[]) => void
   /**
    * 予定に毎週の繰り返しを付ける・変える・やめる（`rule` が null）。その回から後に当てはまる（`changeSeriesRule`）。
    * 変わったら true
@@ -471,35 +523,44 @@ export interface TaskState {
   setSeriesEditScope: (taskId: string, scope: SeriesScope | null) => void
   /** 毎週の予定をゴミ箱へ（この予定のみ / 以降すべて / すべて）。消した数を返す */
   deleteEventSeries: (taskId: string, scope: SeriesScope) => number
+  /** 睡眠の予定（曜日ごとの寝る・起きる時刻、#652）を決める。⌘Z で戻せる */
+  setSleepSchedule: (schedule: SleepSchedule) => void
+  /**
+   * その朝（起きる日）だけの睡眠の予定（#660）。plan が null ならその日は予定なし、undefined なら曜日の予定に戻す。
+   * `label` を渡すと「元に戻す」付きで知らせる
+   */
+  setSleepPlanDay: (wakeDateKey: string, plan: SleepPlan | null | undefined, label?: ToastText) => void
   /** 追加機能をオン・オフする */
   setAddonOn: (id: AddonId, on: boolean) => void
   /** 引き落とし・期限の日を足す・直す（同じ id があれば置き換える、#454） */
   saveDue: (item: DueItem) => void
   /** 引き落とし・期限の日を消す */
   deleteDue: (id: string) => void
-  /**
-   * 授業の欠席の一覧（#503）に授業を足す（`from` が null）・直す。休める回数（null は決めない）も一緒に決める。
-   * 名前を直したら休んだ日・休める回数も新しい名前に移す
-   */
-  saveAbsenceCourse: (from: string | null, title: string, limit: number | null) => void
-  /** 授業を欠席の一覧から外す（休んだ日・休める回数も消す。⌘Z で戻せる） */
-  removeAbsenceCourse: (title: string) => void
-  /** 授業名・日付で欠席にする・取り消す（Google カレンダーの予定・一覧から。`lib/timetable.ts` の `withAbsence`） */
+  /** 学校の学期と授業を保存する（#622、`lib/schoolTerms.ts`。同じ中身なら何もしない。⌘Z で戻せる。`label` を渡すと「元に戻す」のトーストを出す） */
+  saveSchool: (school: School, label?: ToastText) => void
+  /** 授業名・日付で欠席にする・取り消す（その日の学期に数える。学期が無ければ何もしない） */
   setCourseAbsent: (title: string, date: string, absent: boolean) => void
-  /** この名前の予定を Google カレンダーに送らない・送る（#461） */
-  setGoogleSkip: (title: string, skip: boolean) => void
+  /** 授業の休める回数を決める（null は決めない。時間割の授業は学期の回数の 1/3） */
+  setCourseAbsenceLimit: (termId: string, title: string, limit: number | null) => void
+  /** 学期に授業を足す（「授業を追加」。時間割・LMS に無くても並ぶ） */
+  addCourse: (termId: string, title: string) => void
+  /** 追加した授業の名前を直す（欠席・休める回数も新しい名前に移す） */
+  renameAddedCourse: (from: string, to: string) => void
+  /** 授業を学期の一覧から外す（欠席・休める回数も消す。Canvas・Moodle の科目は外した印を付ける。⌘Z で戻せる） */
+  removeCourse: (termId: string, title: string, lms: boolean) => void
   /** 時間割の設定を保存する（同じ中身なら何もしない） */
   saveTimetable: (timetable: Timetable) => void
   /**
    * 時間割のマスに授業を入れる。学期の間（今日より前は作らない）の、その曜日の毎週の予定を作る。作った回の数を返す
    */
-  addTimetableClass: (cls: { weekday: number; startTime: string; endTime: string; title: string; color: string | null }) => number
+  addTimetableClass: (
+    cls: { weekday: number; startTime: string; endTime: string; title: string; color: string | null },
+    term: { termStart: string; termEnd: string },
+  ) => number
   /** 時間割の授業（その回から後）の名前・ラベルを直す */
   updateTimetableClass: (firstTaskId: string, patch: { title?: string; color?: string | null }) => void
   /** 授業の回（その予定の名前・日付）を欠席にする・取り消す（#452、`lib/timetable.ts` の `withAbsence`） */
   setClassAbsent: (taskId: string, absent: boolean) => void
-  /** 授業の休める回数を決める（null は学期の回数の 1/3） */
-  setClassAbsenceLimit: (title: string, limit: number | null) => void
   /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
   toggleTask: (id: string) => void
   updateTask: (
@@ -530,6 +591,7 @@ export interface TaskState {
         | 'completed'
         | 'completedAt'
         | 'sectionId'
+        | 'vague'
       >
     >,
     /** 「元に戻す」トーストに出す文（ドラッグで動かしたときなど、変わったことが目に入りにくいとき） */

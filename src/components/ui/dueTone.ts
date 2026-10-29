@@ -11,6 +11,18 @@ export const DUE_TONE_CLASS: Record<DateTone, string> = {
 }
 
 /**
+ * 締切でない「近い・尽きた」の文字（期限の日・欠席の残り）。赤・オレンジは締切だけなので色は付けず、
+ * 濃さと太さで段階を見せる（尽きた・今日 > 明日 > それ以外 > 過ぎた）
+ */
+export const NOTICE_TONE_CLASS: Record<DateTone, string> = {
+  overdue: 'text-zinc-800 dark:text-zinc-100 font-semibold',
+  today: 'text-zinc-800 dark:text-zinc-100 font-medium',
+  tomorrow: 'text-zinc-600 dark:text-zinc-300 font-medium',
+  future: 'text-zinc-500 dark:text-zinc-400',
+  past: 'text-zinc-400 dark:text-zinc-500',
+}
+
+/**
  * 実行日（やる日）の文字色。過ぎたまま残っていても責める色にはしない（責める色は締切だけ。
  * 今日の計画でも同じものは灰色の「やり残し」に入る）
  */

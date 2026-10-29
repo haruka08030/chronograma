@@ -16,7 +16,8 @@ import type { TaskList } from '../types/list'
 import { Modal } from './ui/Modal'
 import { MENU_ROW_ACTIVE, MENU_ROW_HOVER } from './ui/surface'
 import { HINT_TEXT, META_TEXT } from './ui/textClass'
-import { CalendarArrowIcon, ClockIcon, PencilIcon, PlayIcon, SearchIcon } from './icons'
+import { ClockIcon, PencilIcon, PlayIcon, SearchIcon } from './icons'
+import { DayMoveIcon } from './ui/DayMoveIcon'
 
 /** 一度に出す結果の数（パレットは「探してすぐ選ぶ」所。全部見るなら To-Do の検索欄） */
 const MAX_RESULTS = 30
@@ -192,7 +193,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
         <div className="flex flex-wrap items-center gap-1 border-t border-zinc-100 px-2 py-1.5 dark:border-zinc-700">
           {actions.today && (
             <PaletteButton
-              icon={<CalendarArrowIcon className={ICON} />}
+              icon={<DayMoveIcon later={todayToggle([current.id]).toTomorrow} className={ICON} />}
               label={todayToggle([current.id]).label}
               keys={keyHint(SHORTCUTS.paletteToday.display)}
               onClick={() => run('today', current)}

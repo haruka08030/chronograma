@@ -13,6 +13,10 @@ import { habitSlotId } from '../../lib/habitSlots'
 import { startTaskDrag } from '../../lib/taskDrag'
 import { startNativeTaskDragGhost } from '../../lib/nativeTaskDragGhost'
 import { CheckIcon, PlayIcon } from '../icons'
+import { RowActionButton } from '../ui/RowActionButton'
+import { requestHabitDetail } from '../../lib/habitEditRequest'
+import { isHabitDeleted } from '../../types/habit'
+import { useDateFormat } from '../../hooks/useDateFormat'
 import { ROW_PRESS_CLASS } from '../ui/rowStateClass'
 import { META_TONE_CLASS } from './plannerRowMeta'
 import type { useDeferredComplete } from '../../hooks/useDeferredComplete'
@@ -22,10 +26,10 @@ type Deferred = ReturnType<typeof useDeferredComplete>
 
 /**
  * 今日の計画の「習慣」。To-Do の欄のすぐ下に、To-Do と同じ高さの行で出す（まだ選ぶ前の候補より上。その日やると決まっているもの）。
- * 行: その色の丸（押すと達成、もう一度押すと外す）・名前・右に時刻 / 今週の回数 / 時間の目標の進み・▶（その名前のタイマー）。
+ * 行: その色の丸（押すと達成、もう一度押すと外す）・名前（押すと習慣の詳細）・右に時刻 / 今週の回数 / 時間の目標の進み・▶（その名前のタイマー）。
  * まだの行は右のタイムラインへドラッグできる（予定の列＝その日だけの枠、記録の列＝その時間の記録）。
  * 出すのはまだの習慣だけ（済んだものは「完了 N 件」の中の `PlannerHabitRows`）。全部済んだら見出しも出さない。
- * 丸を押した行は済んだ見た目でその場に 1.5 秒残し、縮んでから「完了 N 件」へ移る（To-Do と同じ `useDeferredComplete`）
+ * 丸を押した行は済んだ見た目でその場に 0.6 秒残し、縮んでから「完了 N 件」へ移る（To-Do と同じ `useDeferredComplete`）
  */
 export function PlannerHabits({
   rows,
@@ -92,6 +96,7 @@ function HabitRow({
   deferred?: Deferred
 }) {
   const { t } = useTranslation()
+  const df = useDateFormat()
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const startTimer = useTaskStore((s) => s.startTimer)
@@ -109,6 +114,8 @@ function HabitRow({
   const date = fromDateKey(dateKey)
   const weekly = day.frequency.type === 'timesPerWeek'
   const open = status === 'missed' && !weekMet
+  const stopped = !!h.archivedAt || isHabitDeleted(h)
+  const nameTone = status !== 'missed' || weekMet ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
   const canTime = viewingToday && open && activeTimer?.taskTitle !== h.title
   // 右の文字: 時間外・目標の進みのどちらか → 今週の回数（週に◯回）か時刻
   const meta = [
@@ -125,6 +132,7 @@ function HabitRow({
         deferred?.isLeaving(key) ? 'animate-row-collapse overflow-hidden' : ''
       }`}
       style={colorVars(h.color)}
+      data-habit-row={h.id}
       // まだの習慣は To-Do と同じく右のタイムラインへ: 予定の列でその日だけその時間の枠、記録の列でその時間にやった記録
       draggable={open}
       onDragStart={
@@ -144,7 +152,11 @@ function HabitRow({
         role="checkbox"
         aria-checked={status !== 'missed'}
         aria-label={weekMet ? `${h.title} ${t('habits.weekGoalMet')}` : h.title}
-        {...tip(record ? t('habits.offTimeTooltip', { date: dateKey, start: record.startTime, end: record.endTime }) : undefined)}
+        {...tip(
+          record
+            ? t('habits.offTimeTooltip', { date: df.monthDayWeekday(dateKey), start: record.startTime, end: record.endTime })
+            : undefined,
+        )}
         onClick={() => (deferred ? deferred.toggle(key, savedStatus !== 'missed') : toggleHabitDate(h.id, dateKey))}
         className="-m-2.5 flex-shrink-0 touch-manipulation p-2.5"
       >
@@ -162,32 +174,35 @@ function HabitRow({
           {status !== 'missed' && <CheckIcon className={`h-3 w-3 ${pending ? 'animate-check-in' : ''}`} strokeWidth={2.75} />}
         </span>
       </button>
-      <span
-        className={`min-w-0 flex-1 truncate py-2.5 text-[15px] ${
-          status !== 'missed' || weekMet ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-800 dark:text-zinc-100'
-        }`}
-      >
-        {h.title}
-      </span>
+      {/* 名前を押すと習慣の詳細（To-Do の行と同じく、行を押すと詳細。画面は移らない）。やめた習慣（前の日の行）は名前だけ */}
+      {stopped ? (
+        <span className={`min-w-0 flex-1 truncate py-2.5 text-[15px] ${nameTone}`}>{h.title}</span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => requestHabitDetail(h.id)}
+          className={`min-w-0 flex-1 truncate py-2.5 text-left text-[15px] outline-none focus-visible:underline ${nameTone}`}
+        >
+          {h.title}
+        </button>
+      )}
       {meta.map((m) => (
         <span key={m} className={`shrink-0 text-xs tabular-nums ${META_TONE_CLASS.muted}`}>
           {m}
         </span>
       ))}
       {canTime && (
-        <button
-          type="button"
+        <RowActionButton
+          label={t('quickLog.resume', { title: h.title })}
           onClick={() => {
             const label = logLabelFromTask(h, labelPresets, logCategoryColors)
             startTimer(h.title, label.tags, null, label.color)
             // 時刻を決めていない習慣は記録で判定しないので、始めた時点で達成にする（時間の目標があれば記録の合計で決まる）
             if (!isTimedHabit(day) && !day.goalMinutes) toggleHabitDate(h.id, dateKey)
           }}
-          {...tip(t('quickLog.resume', { title: h.title }), { name: true })}
-          className="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
         >
           <PlayIcon className="h-3 w-3" />
-        </button>
+        </RowActionButton>
       )}
     </li>
   )

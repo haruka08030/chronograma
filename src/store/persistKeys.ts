@@ -35,6 +35,7 @@ export const DATA_KEYS = [
   'installNudgeDismissed',
   'signInNudgeDismissed',
   'dailyCapacityMinutes',
+  'sleepPrefs',
   'defaultBlockMinutes',
   'eventReminderMinutes',
   'appTimeZone',
@@ -47,6 +48,8 @@ export const DATA_KEYS = [
   'courseLinksUpdatedAt',
   'skippedEvents',
   'skippedEventsUpdatedAt',
+  'myEventTimes',
+  'myEventTimesUpdatedAt',
   'dayMoods',
   'timetable',
   'timetableUpdatedAt',
@@ -70,6 +73,8 @@ export const VIEW_KEYS = [
 export const TRANSIENT_KEYS = [
   // 開き直したら今日から（保存すると翌日に開いたとき昨日が選ばれている）
   'selectedCalendarDateKey',
+  'plannerDateKey',
+  'habitsDateKey',
   'filterTag',
   'filterColor',
   'quickAddSectionId',

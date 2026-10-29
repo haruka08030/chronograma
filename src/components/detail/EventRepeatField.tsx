@@ -4,6 +4,8 @@ import { defaultSeriesUntil, isSeriesEvent, liveSeriesRows, maxSeriesUntil, type
 import { isoWeekday } from '../../lib/recurrence'
 import { fromDateKey } from '../../lib/dateKey'
 import { askConfirm } from '../../lib/confirmDialog'
+import { termOn } from '../../lib/schoolTerms'
+import { useSchool } from '../../hooks/useSchool'
 import type { Task } from '../../types/task'
 import { DateField } from '../DateField'
 import { PillToggle } from '../ui/PillToggle'
@@ -11,6 +13,7 @@ import { RepeatIcon } from '../icons'
 import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { HINT_TEXT } from '../ui/textClass'
+import { Switch } from '../settings/SettingsPrimitives'
 
 /** 月曜から日曜（1=月 … 7=日） */
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 7]
@@ -23,6 +26,7 @@ export function EventRepeatField({ task, date }: { task: Task; date: string }) {
   const { t } = useTranslation()
   const setEventRepeat = useTaskStore((s) => s.setEventRepeat)
   const timetable = useTaskStore((s) => s.timetable)
+  const school = useSchool()
   const labels = t('habits.weekdays', { returnObjects: true }) as string[]
   const series = isSeriesEvent(task) ? task.series : null
 
@@ -57,7 +61,7 @@ export function EventRepeatField({ task, date }: { task: Task; date: string }) {
             else
               setEventRepeat(task.id, {
                 weekdays: [isoWeekday(fromDateKey(date))],
-                until: defaultSeriesUntil(date, timetable.termEnd),
+                until: defaultSeriesUntil(date, termOn(school, date)?.termEnd ?? null),
                 skipHolidays: timetable.skipHolidays,
               })
           }}
@@ -91,15 +95,10 @@ export function EventRepeatField({ task, date }: { task: Task; date: string }) {
               className={fieldClass({ size: 'sm' })}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-            <input
-              type="checkbox"
-              checked={series.skipHolidays}
-              onChange={(e) => change({ skipHolidays: e.target.checked })}
-              className="h-4 w-4 rounded border-zinc-300"
-            />
-            {t('eventSeries.skipHolidays')}
-          </label>
+          <div className="flex items-center justify-between gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+            <span>{t('eventSeries.skipHolidays')}</span>
+            <Switch checked={series.skipHolidays} onChange={(v) => change({ skipHolidays: v })} label={t('eventSeries.skipHolidays')} />
+          </div>
           <p className={HINT_TEXT}>{t('eventSeries.fromThisHint')}</p>
         </div>
       )}

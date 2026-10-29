@@ -3,7 +3,8 @@ import i18n from '../../i18n/config'
 import { logLabelFromTask } from '../../lib/logCategoryColors'
 import { timerRecordTimes } from '../../lib/timerRecord'
 import { taskPlacementDate } from '../../lib/taskTimeRange'
-import { looksLikeSleep, sleepEndingOn, sleepSpan } from '../../lib/sleep'
+import { asSleepIfNamed, overlappingSleep, sleepSpan } from '../../lib/sleep'
+import { withVague } from '../../lib/vagueLog'
 import { sleepFromTimer, type SleepTimer } from '../../lib/sleepTimer'
 import { zonedNow } from '../../lib/timeZone'
 import { INBOX_ID } from '../storeConstants'
@@ -47,7 +48,7 @@ export function timerLogTask(timer: ActiveTimer, endedAt: string, tasks: readonl
   const times = timerRecordTimes(timer.startedAt, endedAt)
   if (!times) return null
   const maxOrder = Math.max(0, ...tasks.map((t) => t.order))
-  return makeTask(
+  const made = makeTask(
     {
       title: timer.taskTitle,
       listId: INBOX_ID,
@@ -60,6 +61,7 @@ export function timerLogTask(timer: ActiveTimer, endedAt: string, tasks: readonl
     },
     maxOrder + 1,
   )
+  return timer.vague ? withVague(made, true) : asSleepIfNamed(made)
 }
 
 export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsActions {
@@ -73,7 +75,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       pushUndo()
       set((s) => completedRecordPatch(s, { title, dueDate, startTime, endTime, color }, logColorNames()))
     },
-    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color, sourceTaskId, sleepByName) => {
+    addTimeLog: (title, date, startTime, endTime, tags, description, endDateArg, color, sourceTaskId, vague) => {
       const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
       const endDate = endDateArg !== undefined && endDateArg !== null && endDateArg !== date ? endDateArg : null
       const made = makeTask(
@@ -86,14 +88,14 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
           endTime,
           kind: 'log',
           completed: true,
-          tags: color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title, { taskId: sourceTaskId }),
-          color: color ?? null,
+          tags: vague ? [] : color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title, { taskId: sourceTaskId }),
+          color: vague ? null : (color ?? null),
           sourceTaskId: sourceTaskId ?? null,
         },
         maxOrder + 1,
       )
-      // 後から記録で題名かラベルを「睡眠」にしたものは睡眠（#519）。▶ の記録・習慣のチェックでは題名で睡眠にしない
-      const log: Task = sleepByName && looksLikeSleep(made) ? { ...made, kind: 'sleep' } : made
+      // 題名かラベルが「睡眠」なら睡眠（#519・#651）。「なんとなく」を選んだら題名が睡眠でも「なんとなく」
+      const log: Task = vague ? withVague(made, true) : asSleepIfNamed(made)
       if (description !== undefined) {
         log.description = description
       }
@@ -101,10 +103,13 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       set((s) => ({ tasks: [...s.tasks, log] }))
       return log.id
     },
-    logSleep: (wakeDateKey, bedTime, wakeTime) => {
+    logSleep: (wakeDateKey, bedTime, wakeTime, id) => {
       if (bedTime === wakeTime) return
       const { dueDate, endDate } = sleepSpan(wakeDateKey, bedTime, wakeTime)
-      const existing = sleepEndingOn(get().tasks, wakeDateKey)
+      const tasks = get().tasks
+      const existing =
+        (id ? tasks.find((t) => t.id === id) : undefined) ??
+        overlappingSleep(tasks, { dueDate, endDate, startTime: bedTime, endTime: wakeTime })
       pushUndo()
       if (existing) {
         const now = new Date().toISOString()
@@ -185,14 +190,17 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       const startedAt = new Date(nowMs).toISOString()
       // 「あと何分」を付けて始める（#290）。付けなければ今までどおり数え上げ（項目ごと持たない）
       const endsAt = options?.minutes ? normalizeEndsAt(endsAfter(options.minutes, nowMs), startedAt) : null
+      // 「なんとなく」（#657）はラベル・色を持たず、推定もしない
+      const vague = options?.vague === true
       set({
         activeTimer: {
           taskTitle: title,
           startedAt,
-          tags: color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title, { taskId }),
+          tags: vague ? [] : color ? (tags ?? []) : withInferredCategory(tags ?? [], get(), title, { taskId }),
           taskId: taskId ?? null,
-          color: color ?? null,
+          color: vague ? null : (color ?? null),
           ...(endsAt ? { endsAt } : {}),
+          ...(vague ? { vague: true as const } : {}),
         },
         completePromptTaskId: null,
         labelPromptLogId: null,
@@ -209,18 +217,22 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       void _drop
       set({ activeTimer: next ? { ...rest, endsAt: next } : rest })
     },
-    editActiveTimer: ({ taskTitle, tags, color }) => {
+    editActiveTimer: ({ taskTitle, tags, color, vague }) => {
       const timer = get().activeTimer
       if (!timer) return
       const next = { ...timer }
       const title = taskTitle?.trim()
       if (title && title !== timer.taskTitle) next.taskTitle = title
-      // ラベルを選び直したら色も選んだもの（名前の無い色）に。ラベルだけなら色は外す
-      if (tags && (tags.join('\n') !== timer.tags.join('\n') || (color ?? null) !== (timer.color ?? null))) {
+      // 「なんとなく」を選んだらラベル・色を外す。ラベルを選び直したら「なんとなく」を外す
+      if (vague) {
+        if (!timer.vague) Object.assign(next, { tags: [], color: null, vague: true })
+      } else if (tags && (timer.vague || tags.join('\n') !== timer.tags.join('\n') || (color ?? null) !== (timer.color ?? null))) {
+        // ラベルを選び直したら色も選んだもの（名前の無い色）に。ラベルだけなら色は外す
         next.tags = tags
         next.color = color ?? null
+        delete next.vague
       }
-      if (next.taskTitle === timer.taskTitle && next.tags === timer.tags) return
+      if (next.taskTitle === timer.taskTitle && next.tags === timer.tags && next.vague === timer.vague) return
       set({ activeTimer: next })
     },
     /** 取り残したタイマーを、指定の終了時刻までの記録にして閉じる */
@@ -283,7 +295,7 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
       const { dueDate, endDate, startTime, endTime } = times
       const maxOrder = Math.max(0, ...get().tasks.map((t) => t.order))
       const linked = timer.taskId ? get().tasks.find((t) => t.id === timer.taskId) : null
-      const log = makeTask(
+      const made = makeTask(
         {
           title: timer.taskTitle,
           listId: INBOX_ID,
@@ -300,11 +312,13 @@ export function createTimeLogsSlice({ set, get, undo }: SliceContext): TimeLogsA
         },
         maxOrder + 1,
       )
+      // 題名かラベルが「睡眠」なら睡眠（#651）。「なんとなく」にしたタイマーは「なんとなく」（#657）
+      const log = timer.vague ? withVague(made, true) : asSleepIfNamed(made)
       // 予定（完了の無いもの）から始めた記録は、止めても完了を聞かない
       const completePromptTaskId = linked && !linked.completed && isTodoTask(linked) ? linked.id : null
       // ラベルなしで止めたら、その場でラベルを聞く（統計の 1 位が「ラベルなし」にならないように）。
-      // 同じ位置に出る「完了にしますか？」を優先し、睡眠には聞かない
-      const unlabeled = !log.category && !log.color && log.kind === 'log'
+      // 同じ位置に出る「完了にしますか？」を優先し、睡眠と「なんとなく」には聞かない
+      const unlabeled = !log.category && !log.color && log.kind === 'log' && !log.vague
       pushUndo()
       set((s) => ({
         activeTimer: null,

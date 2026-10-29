@@ -29,8 +29,8 @@ export function MobileBottomNav({
 
   const active: TabId = (() => {
     if (selectedView === 'calendar') return 'calendar'
-    // 統計は「今日」の見出しから開く（記録の延長）
-    if (selectedView === 'planner' || selectedView === 'stats') return 'planner'
+    // 統計は「今日」の見出しから、睡眠のページは今日の睡眠の行の ☾ から開く（記録の延長）
+    if (selectedView === 'planner' || selectedView === 'stats' || selectedView === 'sleep') return 'planner'
     if (selectedView === 'habits') return 'habits'
     if (isTodoNavView(selectedView)) return 'todo'
     return 'settings'

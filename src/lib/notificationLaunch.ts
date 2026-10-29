@@ -40,7 +40,7 @@ function findActive(taskId: string): Task | null {
 function reveal(task: Task, hint: string | null) {
   const s = useTaskStore.getState()
   s.selectView('planner')
-  s.setSelectedCalendarDateKey(taskLaunchDate(task, hint) ?? appTodayKey())
+  s.setPlannerDateKey(taskLaunchDate(task, hint) ?? appTodayKey())
   openTaskDetail(task.id)
 }
 
@@ -59,7 +59,7 @@ export function openTaskFromNotification(taskId: string, date: string | null, wa
   }
   const s = useTaskStore.getState()
   s.selectView('planner')
-  s.setSelectedCalendarDateKey(appTodayKey())
+  s.setPlannerDateKey(appTodayKey())
   // 消した件（ごみ箱・アーカイブ）は待たない
   if (s.tasks.some((t) => t.id === taskId)) return
   const stopTasks = useTaskStore.subscribe((st, prev) => {
@@ -174,7 +174,7 @@ export async function startTimerFromNotification(taskId: string, date: string | 
   cancelWait?.()
   const s = useTaskStore.getState()
   s.selectView('planner')
-  s.setSelectedCalendarDateKey(appTodayKey())
+  s.setPlannerDateKey(appTodayKey())
   const [task] = await Promise.all([waitForTask(taskId, waitMs), waitForTimerSync(TIMER_STOP_WAIT_MS)])
   if (!task) return
   if (!canStartTimerFor(task) || planHasEnded(task)) {
@@ -204,7 +204,7 @@ const wrapUpListeners = new Set<() => void>()
 export function openWrapUpFromNotification() {
   const s = useTaskStore.getState()
   s.selectView('planner')
-  s.setSelectedCalendarDateKey(appTodayKey())
+  s.setPlannerDateKey(appTodayKey())
   wrapUpPending = true
   for (const fn of [...wrapUpListeners]) fn()
 }

@@ -107,44 +107,49 @@ describe('タイムラインの右クリック（brief）: 完了 / 未完了・
   })
 })
 
-describe('予定のメニュー: この名前は Google に送らない（#461）', () => {
-  const seed = (kind: 'event' | 'todo', connected: boolean) =>
+describe('予定のメニュー: Google に送るかは右クリックで選ばない（#626）', () => {
+  it('Google につないでいても「この名前は Google に送らない」は出さない', async () => {
+    const { TaskEventMenu } = await import('./EventContextMenu')
     useTaskStore.setState({
-      googleConnected: connected,
-      googleCanWrite: connected,
+      googleConnected: true,
+      googleCanWrite: true,
       tasks: [
         {
           ...makeTask({ title: '移動', listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime: '10:00', endTime: '10:10' }, 0),
           id: 'm',
-          kind,
+          kind: 'event',
         },
       ],
     })
-
-  it('Google に送っているときだけ出し、押すと名前ごとに切り替わる', async () => {
-    const { TaskEventMenu } = await import('./EventContextMenu')
-    seed('event', true)
     const view = render(<TaskEventMenu x={0} y={0} taskId="m" onClose={() => {}} onOpenDetail={() => {}} />)
-    const item = view.getByRole('menuitem', { name: /Don't send this name to Google/ })
-    fireEvent.click(item)
-    expect(useTaskStore.getState().addons.googleSkip).toEqual(['移動'])
-    view.unmount()
+    expect((await view.findAllByRole('menuitem')).length).toBeGreaterThan(0)
+    expect(view.queryByRole('menuitem', { name: /Google/ })).toBeNull()
+  })
+})
 
-    // 送らないになっている名前はチェックが付き、もう一度押すと戻る
-    const again = render(<TaskEventMenu x={0} y={0} taskId="m" onClose={() => {}} onOpenDetail={() => {}} />)
-    const checked = again.getByRole('menuitem', { name: /Don't send this name to Google/ })
-    expect(checked.querySelectorAll('svg').length).toBe(2)
-    fireEvent.click(checked)
-    expect(useTaskStore.getState().addons.googleSkip).toEqual([])
-    again.unmount()
+describe('EventPopover: ▶ 記録を開始（#648）', () => {
+  function open(completed: boolean) {
+    useTaskStore.setState({
+      activeTimer: null,
+      tasks: [
+        {
+          ...makeTask({ title: '英語', listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime: '10:00', endTime: '11:00' }, 0),
+          id: 'past',
+          completed,
+        },
+      ],
+    })
+    return render(<EventPopover taskId="past" anchor={anchor} onClose={() => {}} onOpenDetail={() => {}} />)
+  }
 
-    // つないでいない・To-Do には出さない
-    seed('event', false)
-    const off = render(<TaskEventMenu x={0} y={0} taskId="m" onClose={() => {}} onOpenDetail={() => {}} />)
-    expect(off.queryByRole('menuitem', { name: /Google/ })).toBeNull()
-    off.unmount()
-    seed('todo', true)
-    const todo = render(<TaskEventMenu x={0} y={0} taskId="m" onClose={() => {}} onOpenDetail={() => {}} />)
-    expect(todo.queryByRole('menuitem', { name: /Google/ })).toBeNull()
+  it('時間の過ぎた予定も ▶ で今から記録を始める', () => {
+    const card = open(false)
+    fireEvent.click(card.getByRole('button', { name: 'Start logging' }))
+    expect(useTaskStore.getState().activeTimer?.taskId).toBe('past')
+  })
+
+  it('完了した To-Do には出さない', () => {
+    const card = open(true)
+    expect(card.queryByRole('button', { name: 'Start logging' })).toBeNull()
   })
 })

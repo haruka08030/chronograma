@@ -1,11 +1,11 @@
 import { addDays, startOfWeek } from 'date-fns'
-import { isHabitActive, isHabitRestOn, type Habit } from '../types/habit'
-import { isHabitScheduledOn } from '../../supabase/functions/_shared/dayResult.ts'
+import { isHabitRestOn, type Habit } from '../types/habit'
+import { isHabitEndedOn, isHabitScheduledOn } from '../../supabase/functions/_shared/dayResult.ts'
 import { habitAsOf, habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { fromDateKey, toDateKey } from './dateKey'
 
 /**
- * その日にやる習慣か。アーカイブした習慣はどの日にも入らない（今日の計画・タイムライン・統計・週のふりかえりから外れる）。
+ * その日にやる習慣か。アーカイブ・ゴミ箱へ入れた習慣はやめた日から先は入らない（今日の計画・タイムライン・統計・週のふりかえりから外れる）。前の日は入る。
  * 週に◯回の習慣はどの日にやってもよいので、毎日入る（その週の回数を満たした日は `isHabitWeekGoalMetOnDate` で控えめにする）。
  * 休みの日（`restDates`）はどの頻度でも入らない（連続・達成率・ヒートマップ・週のふりかえりの数え方がここを通る）
  */
@@ -38,7 +38,7 @@ export function habitWeekDates(date: Date): Date[] {
  * 終わった週はその週の設定、今週は今の設定で数える
  */
 export function habitAsOfWeek(habit: Habit, date: Date): Habit {
-  return habitAsOf(habit, toDateKey(habitWeekDates(date)[6]))
+  return habitAsOf(habit, toDateKey(addDays(startOfWeek(date, { weekStartsOn: HABIT_WEEK_STARTS_ON }), 6)))
 }
 
 /** その日を含む週に達成した日数（時間を決めた習慣は時間どおりの日だけ。`records` を渡したとき） */
@@ -46,14 +46,19 @@ export function habitWeekDoneCount(habit: Habit, date: Date, records?: HabitReco
   return habitWeekDates(date).filter((d) => habitDayStatus(habit, toDateKey(d), records) === 'done').length
 }
 
+/** 週に◯回の習慣で、その日を週の回数に入れないか（休みの日・やめた日から先） */
+export function isHabitOffOn(habit: Habit, dateKey: string): boolean {
+  return isHabitRestOn(habit, dateKey) || isHabitEndedOn(habit, dateKey)
+}
+
 /**
- * 週に◯回の習慣で、その週に求める回数。休みの日を除いた日数より多くは求めない（週まるごと休みなら 0 で、その週は数えない）
+ * 週に◯回の習慣で、その週に求める回数。休みの日・やめた日から先を除いた日数より多くは求めない（週まるごと休みなら 0 で、その週は数えない）
  */
 export function habitWeekRequired(h: Habit, date: Date): number {
   const habit = habitAsOfWeek(h, date)
   if (habit.frequency.type !== 'timesPerWeek') return 0
-  if (!habit.restDates) return habit.frequency.count
-  const open = habitWeekDates(date).filter((d) => !isHabitRestOn(habit, toDateKey(d))).length
+  if (!habit.restDates && !habit.archivedAt && !habit.deletedAt) return habit.frequency.count
+  const open = habitWeekDates(date).filter((d) => !isHabitOffOn(h, toDateKey(d))).length
   return Math.min(habit.frequency.count, open)
 }
 
@@ -62,7 +67,7 @@ export function habitWeekRequired(h: Habit, date: Date): number {
  * その日にやった（達成・時間外）なら false（その日の結果をそのまま出す）
  */
 export function isHabitWeekGoalMetOnDate(habit: Habit, date: Date, records?: HabitRecordIndex): boolean {
-  if (habitAsOfWeek(habit, date).frequency.type !== 'timesPerWeek' || !isHabitActive(habit)) return false
+  if (habitAsOfWeek(habit, date).frequency.type !== 'timesPerWeek' || isHabitEndedOn(habit, toDateKey(date))) return false
   if (habitDayStatus(habit, toDateKey(date), records) !== 'missed') return false
   return habitWeekDoneCount(habit, date, records) >= habitWeekRequired(habit, date)
 }

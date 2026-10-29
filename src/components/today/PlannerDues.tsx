@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { dueSoonTone, duesSoon } from '../../lib/dues'
 import { useDues } from '../../hooks/useDues'
-import { useDateFormat } from '../../hooks/useDateFormat'
-import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { useDueDayText } from '../../hooks/useDueWhenText'
+import { NOTICE_TONE_CLASS } from '../ui/dueTone'
 
 /**
  * 今日の計画の引き落とし・期限の日（#454）。当日と、知らせ始める日（何日前）から当日までのものだけを、見出しの下に 1 行ずつ。
@@ -11,7 +11,7 @@ import { DUE_TONE_CLASS } from '../ui/dueTone'
  */
 export function PlannerDues({ dateKey }: { dateKey: string }) {
   const { t } = useTranslation()
-  const df = useDateFormat()
+  const dayText = useDueDayText()
   const dues = useDues()
   const soon = useMemo(() => duesSoon(dues, dateKey), [dues, dateKey])
   if (soon.length === 0) return null
@@ -23,12 +23,8 @@ export function PlannerDues({ dateKey }: { dateKey: string }) {
             ◇
           </span>
           <span className="min-w-0 flex-1 truncate text-zinc-700 dark:text-zinc-200">{item.title}</span>
-          <span className={`shrink-0 text-xs tabular-nums ${DUE_TONE_CLASS[dueSoonTone(daysLeft)]}`}>
-            {daysLeft === 0
-              ? t('dues.today')
-              : daysLeft === 1
-                ? t('dues.tomorrow')
-                : `${df.monthDay(date)} · ${t('dues.daysLeft', { count: daysLeft })}`}
+          <span className={`shrink-0 text-xs tabular-nums ${NOTICE_TONE_CLASS[dueSoonTone(daysLeft)]}`}>
+            {dayText(date, daysLeft, dateKey)}
           </span>
         </li>
       ))}

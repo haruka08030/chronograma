@@ -114,4 +114,21 @@ describe('TaskContextMenu（PC の右クリック）の並び（#379）', () => 
     expect(screen.queryByRole('menuitem', { name: /^Set a time/ })).toBeNull()
     expect(screen.queryByRole('menuitem', { name: /^Start logging this task/ })).toBeNull()
   })
+
+  it('いつか・チェックリストの行のメニューにも、行のアイコンと同じアーカイブがある', async () => {
+    const user = userEvent.setup()
+    const s = useTaskStore.getState()
+    s.addList('Someday', 'someday')
+    s.addList('Shopping', 'checklist')
+    const listId = (name: string) => useTaskStore.getState().lists.find((l) => l.name === name)!.id
+    const wish = s.addTask('Aurora', listId('Someday'))!
+    const item = s.addTask('Milk', listId('Shopping'))!
+    const { unmount } = renderMenu([wish])
+    await user.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    expect(task(wish).archivedAt).toBeTruthy()
+    unmount()
+    renderMenu([item])
+    await user.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    expect(task(item).archivedAt).toBeTruthy()
+  })
 })

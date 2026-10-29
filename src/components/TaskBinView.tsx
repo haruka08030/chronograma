@@ -127,9 +127,15 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
       return !(parent && flagged(parent))
     }
     const stamp = (t: Task): string => (mode === 'deleted' ? t.deletedAt : t.archivedAt) ?? t.updatedAt
-    // サブタスクの数は 1 回の走査で数える（行ごとに全件を見ると、数千行で行数 × 全件になる）
+    // サブタスクの数は 1 回の走査で数える（行ごとに全件を見ると、数千行で行数 × 全件になる）。
+    // 一緒に入れた子だけ（先に別に入れた子は戻しても戻らない、#611）
+    const boxStamp = (t: Task) => (mode === 'deleted' ? t.deletedAt : t.archivedAt)
     const childCount = new Map<string, number>()
-    for (const t of tasks) if (t.parentId) childCount.set(t.parentId, (childCount.get(t.parentId) ?? 0) + 1)
+    for (const t of tasks) {
+      const parent = t.parentId ? byId.get(t.parentId) : undefined
+      if (!parent || !boxStamp(t) || boxStamp(t) !== boxStamp(parent)) continue
+      childCount.set(parent.id, (childCount.get(parent.id) ?? 0) + 1)
+    }
     return tasks
       .filter(isRootOfBin)
       .map((t) => ({

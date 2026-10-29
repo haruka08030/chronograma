@@ -4,7 +4,7 @@ import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { openTimeSlotUnderRow } from '../../lib/timeSlotTarget'
 import { startTimerForTask } from '../../lib/timerDrop'
-import { CalendarArrowIcon, ClockIcon, PlayIcon } from '../icons'
+import { CalendarArrowIcon, ClockIcon, PlayIcon, PostponeIcon } from '../icons'
 import { RowActionButton } from '../ui/RowActionButton'
 
 /** 時間未定の行の「時間を決める」（空き時間の候補を出す。マウスで乗せたときだけ。スマホは押したときのシートから） */
@@ -28,8 +28,8 @@ export function TomorrowButton({ task, tomorrowKey, viewingToday }: { task: Task
       collapse
       mouseOnly
     >
-      {/* メニュー・シートの「明日へ回す」と同じ印（→ だけでは何をするか分からない） */}
-      <CalendarArrowIcon className="h-3.5 w-3.5" />
+      {/* メニュー・シートの「明日へ回す」と同じ ↪（「今日やる」のカレンダーの矢印と見分ける） */}
+      <PostponeIcon className="h-3.5 w-3.5" />
     </RowActionButton>
   )
 }

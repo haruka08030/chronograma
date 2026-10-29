@@ -1,6 +1,6 @@
 import { addDays, addWeeks, startOfWeek, subDays, subWeeks } from 'date-fns'
 import { isHabitActive, isHabitRestOn, isRoutine, type Habit } from '../types/habit'
-import { habitAsOfWeek, habitWeekDates, habitWeekDoneCount, habitWeekRequired, isHabitScheduledOnDate } from './habitSchedule'
+import { habitAsOfWeek, habitWeekDates, habitWeekDoneCount, habitWeekRequired, isHabitOffOn, isHabitScheduledOnDate } from './habitSchedule'
 import { habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { appDayKeyOf, appToday } from './timeZone'
 import { fromDateKey, toDateKey } from './dateKey'
@@ -89,7 +89,7 @@ export function timesPerWeekTally(
   let open = 0
   for (const d of habitWeekDates(weekAnchor)) {
     const key = toDateKey(d)
-    if (isHabitRestOn(habit, key)) continue
+    if (isHabitOffOn(habit, key)) continue
     if (key > todayKey) open++
     else if (achieved(habit, key, records)) done++
     else if (key === todayKey && habitDayStatus(habit, key, records) === 'missed') open++

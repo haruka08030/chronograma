@@ -49,7 +49,7 @@ export function UntaggedLogList({ ids, showDate = false }: { ids: readonly strin
             <TimeLogTagField
               value={log.category ?? ''}
               color={log.color}
-              onChange={(v) => updateTask(log.id, { category: v.tags[0] ?? null, color: v.color })}
+              onChange={(v) => updateTask(log.id, v.vague ? { vague: true } : { category: v.tags[0] ?? null, color: v.color })}
               compact
             />
           </li>

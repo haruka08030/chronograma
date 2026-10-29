@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import i18n from '../i18n/config'
-import { useTaskStore, selectLiveHabits } from '../store/taskStore'
+import { useTaskStore, selectHabitsByDay } from '../store/taskStore'
 import { useAuth } from '../contexts/AuthContext'
 import { checkLocalReminders } from '../lib/localReminders'
 import { isWebPushActive, listenForPushResubscribe, refreshWebPush, syncWebPush } from '../lib/webPush'
@@ -59,7 +59,7 @@ export function useReminders() {
       const state = useTaskStore.getState()
       checkLocalReminders({
         tasks: state.tasks,
-        habits: selectLiveHabits(state),
+        habits: selectHabitsByDay(state),
         excludedListIds: unplannedListIds(state.lists),
         daily: state.dailyReminders,
         settings: {

@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDismiss } from '../hooks/useDismiss'
+import { fitRect } from '../lib/viewportFit'
 import { POPOVER_PANEL } from './ui/surface'
 import { fieldClass } from './ui/fieldClass'
 import { allTimeZones, zoneCityName, zoneOptionLabel } from '../lib/timeZone'
@@ -74,13 +75,9 @@ export function TimeZonePicker({
     const rect = wrapRef.current?.getBoundingClientRect()
     if (rect) {
       const width = Math.min(WIDTH, window.innerWidth - 16)
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))
-      const below = window.innerHeight - rect.bottom - 8
-      const above = rect.top - 8
-      // 下に入らなければ上に開く（スマホの下から出るカードの中など）
-      const top =
-        below >= LIST_HEIGHT + 48 || below >= above ? rect.bottom + 4 : Math.max(8, rect.top - 4 - Math.min(above, LIST_HEIGHT + 48))
-      setPos({ left, top, maxHeight: Math.max(160, Math.min(LIST_HEIGHT, (top > rect.top ? below : above) - 48)) })
+      // 検索欄（48px）＋一覧。下に入らなければ上、どちらにも入らなければ画面の中で一覧を縮める（キーボードの上に収める）
+      const fit = fitRect({ width, height: LIST_HEIGHT + 48 }, { anchor: rect, placement: 'below' })
+      setPos({ left: fit.left, top: fit.top, maxHeight: Math.min(LIST_HEIGHT, fit.maxHeight - 48) })
     }
     setOpen(true)
   }

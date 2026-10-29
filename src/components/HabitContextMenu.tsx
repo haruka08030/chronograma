@@ -1,24 +1,22 @@
 import { useTranslation } from 'react-i18next'
-import { useTaskStore, selectLiveHabits } from '../store/taskStore'
-import { isHabitRestOn } from '../types/habit'
-import { habitRestRunEnd } from '../lib/habitSchedule'
+import { useTaskStore } from '../store/taskStore'
+import { isHabitDeleted } from '../types/habit'
 import { buildHabitRecordIndex, habitDayStatus } from '../lib/habitTiming'
 import { appToday } from '../lib/timeZone'
 import { habitSlotId, isPlacedPointHabitOn } from '../lib/habitSlots'
 import { unplaceHabitSlot } from '../lib/timelineBlockEdit'
-import { fromDateKey, toDateKey } from '../lib/dateKey'
-import { useDateFormat } from '../hooks/useDateFormat'
+import { toDateKey } from '../lib/dateKey'
 import { ActionMenu, type ActionEntry } from './ui/ActionMenu'
-import { MenuLabel } from './ui/Menu'
-import { DatePickerBody } from './DatePickerBody'
-import { ArchiveIcon, CalendarIcon, CheckIcon, ClockIcon, PencilIcon, RestoreIcon, TrashIcon } from './icons'
+import { useHabitRestEntry } from './habits/useHabitRestEntry'
+import { ArchiveIcon, ArrowUpIcon, CheckIcon, PencilIcon, RestoreIcon, TrashIcon } from './icons'
 
 const ICON = 'h-4 w-4 flex-shrink-0'
 
 /**
  * 習慣のカードを右クリック（タッチは長押し）したときのメニュー（編集・今日の記録・休み・アーカイブ・削除）。
  * 休みは日のマスで開いたらその日、行で開いたら今日から（その日だけ・カレンダーで選んだ日まで。休みの日なら「休みを外す」）。
- * アーカイブした習慣は「戻す」と削除だけ。削除は確認なしで消して「元に戻す」で戻せる
+ * アーカイブした習慣は「戻す」と削除だけ。削除は確認なしで消して「元に戻す」で戻せる。
+ * タイムラインで開いたときは習慣そのものの削除を出さない（その日だけ外すのは「休む」、#614・#616）
  */
 export function HabitContextMenu({
   x,
@@ -40,15 +38,16 @@ export function HabitContextMenu({
   onTimeline?: boolean
 }) {
   const { t } = useTranslation()
-  const df = useDateFormat()
-  const habit = useTaskStore((s) => selectLiveHabits(s).find((h) => h.id === habitId) ?? null)
+  // ゴミ箱の習慣もやめた日より前の枠には出る（戻すだけ）
+  const habit = useTaskStore((s) => s.habits.find((h) => h.id === habitId) ?? null)
   const tasks = useTaskStore((s) => s.tasks)
   const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
   const archiveHabit = useTaskStore((s) => s.archiveHabit)
   const restoreHabit = useTaskStore((s) => s.restoreHabit)
   const deleteHabit = useTaskStore((s) => s.deleteHabit)
-  const setHabitRest = useTaskStore((s) => s.setHabitRest)
-  if (!habit) return null
+  const restoreDeletedHabits = useTaskStore((s) => s.restoreDeletedHabits)
+  const restEntry = useHabitRestEntry(habit, dateKey ?? toDateKey(appToday()))
+  if (!habit || !restEntry) return null
   const remove: ActionEntry = {
     kind: 'leaf',
     id: 'delete',
@@ -59,7 +58,17 @@ export function HabitContextMenu({
     run: () => deleteHabit(habit.id),
   }
   let entries: ActionEntry[]
-  if (habit.archivedAt) {
+  if (isHabitDeleted(habit)) {
+    entries = [
+      {
+        kind: 'leaf',
+        id: 'restore',
+        label: t('habits.restore'),
+        icon: <RestoreIcon className={ICON} />,
+        run: () => restoreDeletedHabits([habit.id]),
+      },
+    ]
+  } else if (habit.archivedAt) {
     entries = [
       {
         kind: 'leaf',
@@ -74,41 +83,7 @@ export function HabitContextMenu({
     const todayKey = toDateKey(appToday())
     // 時間外の記録も「付いている」（カードの丸・今日の計画と同じ）
     const doneToday = habitDayStatus(habit, todayKey, buildHabitRecordIndex(tasks)) !== 'missed'
-    const day = dateKey ?? todayKey
-    const rest: ActionEntry = isHabitRestOn(habit, day)
-      ? {
-          kind: 'leaf',
-          id: 'rest',
-          label: t('habits.restClear'),
-          icon: <CalendarIcon className={ICON} />,
-          hint: df.monthDayWeekday(day),
-          run: () => setHabitRest(habit.id, day, habitRestRunEnd(habit, day), false),
-        }
-      : {
-          kind: 'sub',
-          id: 'rest',
-          label: t('habits.rest'),
-          icon: <CalendarIcon className={ICON} />,
-          hint: df.monthDayWeekday(day),
-          width: 'lg',
-          leaves: [{ id: 'rest-day', label: t('habits.restOneDay'), run: () => setHabitRest(habit.id, day, day, true) }],
-          extra: (close) => (
-            <>
-              <MenuLabel>{t('habits.restUntil')}</MenuLabel>
-              <DatePickerBody
-                footer={false}
-                kind="date"
-                value={null}
-                min={day}
-                month={fromDateKey(day)}
-                onPick={(key) => {
-                  if (key) setHabitRest(habit.id, day, key, true)
-                  close()
-                }}
-              />
-            </>
-          ),
-        }
+    const rest = restEntry.entry
     entries = [
       { kind: 'leaf', id: 'edit', label: t('common.edit'), icon: <PencilIcon className={ICON} strokeWidth={1.75} />, run: onEdit },
       {
@@ -125,7 +100,7 @@ export function HabitContextMenu({
               kind: 'leaf' as const,
               id: 'unplace',
               label: t('habits.unplace'),
-              icon: <ClockIcon className={ICON} />,
+              icon: <ArrowUpIcon className={ICON} />,
               run: () => unplaceHabitSlot(habitSlotId(habit.id, dateKey)),
             },
           ]
@@ -137,7 +112,7 @@ export function HabitContextMenu({
         icon: <ArchiveIcon className={ICON} />,
         run: () => archiveHabit(habit.id),
       },
-      remove,
+      ...(onTimeline ? [] : [remove]),
     ]
   }
   return <ActionMenu x={x} y={y} header={habit.title} entries={entries} onClose={onClose} searchable={false} />

@@ -1,8 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 
-async function addHabit(page: Page, name: string) {
+/** 新しい習慣は時間なしから始まる。`timed` なら「時間を決める」で 9:00〜10:00 にする */
+async function addHabit(page: Page, name: string, { timed = false } = {}) {
   await page.getByRole('button', { name: '+ Add habit' }).click()
   await page.getByPlaceholder('Name (e.g. morning stretch)').fill(name)
+  if (timed) await page.getByRole('button', { name: 'Set a time' }).click()
   await page.getByRole('button', { name: 'Add', exact: true }).click()
 }
 
@@ -42,7 +44,7 @@ for (const size of [
 
 test('今日の画面で習慣の枠を動かすと、その日だけ時間が変わり、読み込み直しても残る', async ({ page }) => {
   await page.goto('/?view=habits')
-  await addHabit(page, 'gym')
+  await addHabit(page, 'gym', { timed: true })
   await page.goto('/?view=planner')
   const slot = page.locator('[data-block-id^="habit-slot::"]')
   await slot.scrollIntoViewIfNeeded()
@@ -67,7 +69,8 @@ test('今日の画面で習慣の枠を動かすと、その日だけ時間が�
 test('今日の画面で習慣の行をタイムラインに落とすと、予定の列はその日だけの枠、記録の列はその時間の記録になる', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-10-21T18:00:00+09:00'))
   await page.goto('/?view=habits')
-  await addHabit(page, 'gym')
+  await addHabit(page, 'gym', { timed: true })
+  // 続けて足すと前の習慣の時間（9:00〜10:00）を引き継ぐ
   await addHabit(page, 'read')
   await page.goto('/?view=planner')
   const column = page.locator('[data-datekey="2026-10-21"]')
@@ -96,6 +99,7 @@ test('睡眠の習慣は時間帯を日をまたいで決められ、今日の�
   await page.goto('/?view=habits')
   await page.getByRole('button', { name: '+ Add habit' }).click()
   await page.getByPlaceholder('Name (e.g. morning stretch)').fill('sleep')
+  await page.getByRole('button', { name: 'Set a time' }).click()
   const start = page.getByRole('combobox').nth(0)
   const end = page.getByRole('combobox').nth(1)
   await start.fill('23:00')

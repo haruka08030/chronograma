@@ -1,4 +1,5 @@
-import type { CSSProperties } from 'react'
+import { type CSSProperties, type RefObject } from 'react'
+import { useFitInViewport } from '../../hooks/useFitInViewport'
 
 export interface AnchorRect {
   top: number
@@ -16,32 +17,23 @@ export function rectOf(el: Element | null): AnchorRect | null {
 const GAP = 8
 const MARGIN = 12
 
-/**
- * Google カレンダーのように、ブロックの横（右に入らなければ左）にカードを出す位置。
- * 狭い画面（スマホ）では下からのシートにする。
- */
 /** スマホ幅ではカードを下からのシートにする */
 export const isAnchoredSheet = () => window.innerWidth < 640
 
-export function anchoredCardStyle(anchor: AnchorRect, width: number, estHeight: number): { style: CSSProperties; sheet: boolean } {
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  if (isAnchoredSheet()) {
-    return { style: { left: 0, right: 0, bottom: 0 }, sheet: true }
-  }
-  let left = anchor.right + GAP
-  let origin = 'left top'
-  if (left + width > vw - MARGIN) {
-    left = anchor.left - GAP - width
-    origin = 'right top'
-  }
-  if (left < MARGIN) left = Math.max(MARGIN, Math.min(vw - width - MARGIN, anchor.left))
-  const top = Math.max(MARGIN, Math.min(anchor.top, vh - estHeight - MARGIN))
-  return { style: { left, top, width, transformOrigin: origin }, sheet: false }
-}
+/** 下からのシート。背の上限は `anchoredCardClass` */
+const SHEET_STYLE: CSSProperties = { left: 0, right: 0, bottom: 0 }
 
-/** カードの置き場所を決めるときの、メモの高さの見積もり（1 行 16px、長いメモは 12 行分まで） */
-export function memoHeightEstimate(text: string): number {
-  const memo = text.trim()
-  return memo ? Math.min(memo.split('\n').length, 12) * 16 + 4 : 0
+/**
+ * Google カレンダーのように、ブロックの横（右に入らなければ左）にカードを出す。
+ * 実際の大きさを測って画面の中に置き、開いた後に背が伸びても（色の一覧・時刻の欄）置き直す。入らない分はカードの中でスクロール。
+ * 狭い画面（スマホ）では下からのシートにする。
+ */
+export function useAnchoredCard(
+  ref: RefObject<HTMLElement | null>,
+  anchor: AnchorRect,
+  width: number,
+): { style: CSSProperties; sheet: boolean } {
+  const sheet = isAnchoredSheet()
+  useFitInViewport(ref, { anchor, placement: 'side', gap: GAP, edge: MARGIN, disabled: sheet })
+  return { style: sheet ? SHEET_STYLE : { width }, sheet }
 }

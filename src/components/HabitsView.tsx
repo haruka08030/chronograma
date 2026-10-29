@@ -13,7 +13,6 @@ import { ExampleChips } from './ui/ExampleChips'
 import { DayNav } from './ui/DayNav'
 import { RepeatIcon } from './icons'
 import { HabitContextMenu } from './HabitContextMenu'
-import { useHabitEditRequest } from '../lib/habitEditRequest'
 import { PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { useRememberScroll } from '../hooks/useRememberScroll'
@@ -46,8 +45,8 @@ export function HabitsView() {
   const archivedHabits = useMemo(() => allHabits.filter((h) => !isHabitActive(h)), [allHabits])
   const tasks = useTaskStore((s) => s.tasks)
   const habitRecords = useMemo(() => buildHabitRecordIndex(tasks), [tasks])
-  const selectedCalendarDateKey = useTaskStore((s) => s.selectedCalendarDateKey)
-  const setSelectedCalendarDateKey = useTaskStore((s) => s.setSelectedCalendarDateKey)
+  const habitsDateKey = useTaskStore((s) => s.habitsDateKey)
+  const setHabitsDateKey = useTaskStore((s) => s.setHabitsDateKey)
   const todayKey = useAppTodayKey()
 
   // 追加フォームの中身は閉じても・画面を離れても残す（`useDialogDraft`）。足したら書きかけを捨て、名前だけ消して続けて足せるようにする
@@ -62,8 +61,6 @@ export function HabitsView() {
     setDetail((prev) => ({ habitId, edit, seq: (prev?.seq ?? 0) + 1 }))
   }, [])
   const closeDetail = useCallback(() => setDetail(null), [])
-  // タイムラインの習慣のカード・メニューの「編集」
-  useHabitEditRequest((habitId) => openDetail(habitId, true))
   // 消した・アーカイブした習慣の詳細は閉じる。閉じたあとも右へ引っ込む動きのあいだは残す
   const detailHabit = detail ? (activeHabits.find((h) => h.id === detail.habitId) ?? null) : null
   const sheetValue = useMemo(() => (detail && detailHabit ? { ...detail, habit: detailHabit } : null), [detail, detailHabit])
@@ -74,19 +71,19 @@ export function HabitsView() {
   /** いま足した習慣。足したらカードを閉じ、今週の表のその行までスクロールしてふわっと出す */
   const [addedId, setAddedId] = useState<string | null>(null)
 
-  const focusDate = useMemo(() => fromDateKey(selectedCalendarDateKey), [selectedCalendarDateKey])
+  const focusDate = useMemo(() => fromDateKey(habitsDateKey), [habitsDateKey])
   const weekDates = useMemo(() => habitWeekDates(focusDate), [focusDate])
   const atThisWeek = weekDates.some((d) => toDateKey(d) === todayKey)
 
   const shiftWeek = useCallback(
     (delta: number) => {
-      setSelectedCalendarDateKey(toDateKey(addDays(focusDate, delta * 7)))
+      setHabitsDateKey(toDateKey(addDays(focusDate, delta * 7)))
     },
-    [focusDate, setSelectedCalendarDateKey],
+    [focusDate, setHabitsDateKey],
   )
   const goToday = useCallback(() => {
-    setSelectedCalendarDateKey(todayKey)
-  }, [setSelectedCalendarDateKey, todayKey])
+    setHabitsDateKey(todayKey)
+  }, [setHabitsDateKey, todayKey])
   const onAdded = useCallback(
     (habitId: string) => {
       discardNewForm({ ...newForm, title: '' })
@@ -132,6 +129,7 @@ export function HabitsView() {
           showComposer ? null : (
             <EmptyState icon={<RepeatIcon strokeWidth={1} />} title={t('habits.empty')}>
               <ExampleChips
+                opensAdd
                 examples={t('habits.examples', { returnObjects: true }) as string[]}
                 onPick={(title) => {
                   patchNewForm({ title })

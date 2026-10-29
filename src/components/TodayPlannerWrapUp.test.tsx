@@ -44,7 +44,7 @@ function at(hour: number, minute = 0) {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   at(10)
-  useTaskStore.getState().setSelectedCalendarDateKey(DAY)
+  useTaskStore.getState().setPlannerDateKey(DAY)
 })
 
 afterEach(() => {
@@ -102,11 +102,11 @@ describe('夜のまとめの通知から開いたとき', () => {
 
   it('通知を押してから今日の計画を描いても受け取る（起動したとき）', () => {
     useTaskStore.setState({ tasks: [todo('a'), todo('b')] })
-    useTaskStore.getState().setSelectedCalendarDateKey('2026-10-01')
+    useTaskStore.getState().setPlannerDateKey('2026-10-01')
     openWrapUpFromNotification()
     expect(useTaskStore.getState().selectedView).toBe('planner')
     // 見ている日は今日に戻る
-    expect(useTaskStore.getState().selectedCalendarDateKey).toBe(DAY)
+    expect(useTaskStore.getState().plannerDateKey).toBe(DAY)
     render(<TodayPlannerView />)
     expect(mood()).toBeInTheDocument()
   })
@@ -136,7 +136,11 @@ describe('ラベルなしの記録（#390・#501）', () => {
     const rows = within(list).getAllByRole('listitem')
     expect(rows.map((r) => within(r).getAllByRole('button')[0]!.textContent)).toEqual(['読書09:00–10:00', '数学11:00–12:00'])
     act(() => within(rows[0]!).getByRole('button', { name: 'Color and label' }).click())
-    act(() => within(rows[0]!).getByRole('radio', { name: 'バイト' }).click())
+    act(() =>
+      within(rows[0]!)
+        .getByRole('radio', { name: /^バイト \(/ })
+        .click(),
+    )
     expect(useTaskStore.getState().tasks.find((x) => x.id === '読書')).toMatchObject({ category: 'バイト' })
     // 付けた行も残り、選んだラベルが見える
     expect(within(list).getAllByRole('listitem')).toHaveLength(2)

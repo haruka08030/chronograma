@@ -26,9 +26,12 @@ import { timeToMinutes } from '../lib/timeGrid'
 import { isAppToday } from '../lib/timeZone'
 import { dayMarkerClass, TODAY_TEXT } from '../lib/dayMarker'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
-import { openTaskMenu } from '../lib/overlays'
+import { openCalendarItemMenu, openTaskMenu } from '../lib/overlays'
 import { isEventTask, type Task } from '../types/task'
-import { planHex, planVisualState } from '../lib/planVisual'
+import { googleEventVisualState, planHex, planTileClass, planVisualState } from '../lib/planVisual'
+import { TaskDueMark } from './calendar/TaskDueMark'
+import { useNow } from '../hooks/useAppClock'
+import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { compareByOrder } from '../lib/orderCompare'
 import { ShowMoreButton } from './ui/ShowMoreButton'
@@ -52,6 +55,10 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
   const { t, i18n } = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
   useRememberScroll(scrollRef, `schedule:${startDateKey}`)
+  // タッチは行の長押しで右クリックと同じメニュー（月・週と同じ）
+  useTouchContextMenu(scrollRef, (target) => !target.closest('[data-touch-menu],[data-task-row]'))
+  // 予定が終わったら灰色にするので、分の境目で描き直す
+  const now = useNow()
   const df = useDateFormat()
   const holidayName = useHolidayName()
   const dues = useDues()
@@ -68,7 +75,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
     const start = fromDateKey(startDateKey)
     return Array.from({ length: SCHEDULE_PAGE_DAYS * pages }, (_, i) => addDays(start, i))
   }, [startDateKey, pages])
-  const { allDayByDate, timedByDate, eventsByDate } = useWeekBuckets(tasks, lists, calendarEvents, days)
+  const { allDayByDate, timedByDate, eventsByDate, dueByDate } = useWeekBuckets(tasks, lists, calendarEvents, days)
   const range = useMemo(() => {
     const end = new Date(days[days.length - 1]!)
     end.setHours(23, 59, 59)
@@ -77,23 +84,33 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
   useGoogleCalendarEvents(range.start, range.end)
 
   const rows = useMemo(() => {
-    const out: { key: string; day: Date; holiday: string | null; dues: DueItem[]; events: CalendarEvent[]; tasks: Task[] }[] = []
+    const out: {
+      key: string
+      day: Date
+      holiday: string | null
+      dues: DueItem[]
+      events: CalendarEvent[]
+      tasks: Task[]
+      due: Task[]
+    }[] = []
     for (const day of days) {
       const key = toDateKey(day)
-      // 一覧は「これからのこと」なので、終えた To‑Do は出さない（終えた日の記録はタイムライン・日のパネル）
-      const dayTasks = [...(allDayByDate.get(key) ?? []), ...(timedByDate.get(key) ?? [])]
-        .filter((x) => !x.completed)
-        .sort((a, b) => byTime(a, b) || compareByOrder(a, b))
+      // 終えた To‑Do も終えた日に出す（月・週と同じく灰色と塗りの ✓）
+      const dayTasks = [...(allDayByDate.get(key) ?? []), ...(timedByDate.get(key) ?? [])].sort(
+        (a, b) => byTime(a, b) || compareByOrder(a, b),
+      )
+      // 締切の日の印（実行日が別の日の未完了。月・週と同じ）
+      const dayDue = dueByDate.get(key) ?? []
       const dayEvents = [...(eventsByDate.get(key) ?? [])].sort((a, b) => byTime(a, b) || a.summary.localeCompare(b.summary))
       // 祝日は予定が無くても出す（休みの日を見ながら予定を決められるように）
       const holiday = holidayName(key)
       // 引き落とし・期限の日（追加機能、#454）も、祝日と同じく予定が無くても出す
       const dayDues = duesOn(dues, key)
-      if (dayTasks.length || dayEvents.length || holiday || dayDues.length)
-        out.push({ key, day, holiday, dues: dayDues, events: dayEvents, tasks: dayTasks })
+      if (dayTasks.length || dayEvents.length || holiday || dayDues.length || dayDue.length)
+        out.push({ key, day, holiday, dues: dayDues, events: dayEvents, tasks: dayTasks, due: dayDue })
     }
     return out
-  }, [days, allDayByDate, timedByDate, eventsByDate, holidayName, dues])
+  }, [days, allDayByDate, timedByDate, eventsByDate, dueByDate, holidayName, dues])
 
   return (
     <div ref={scrollRef} className={PAGE_SCROLL_CLASS}>
@@ -101,7 +118,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
         {rows.length === 0 ? (
           <EmptyState icon={<CalendarIcon strokeWidth={1} />} title={t('calendarHub.scheduleEmpty')} />
         ) : (
-          rows.map(({ key, day, holiday, dues: dayDues, events, tasks: dayTasks }, i) => {
+          rows.map(({ key, day, holiday, dues: dayDues, events, tasks: dayTasks, due }, i) => {
             const today = isAppToday(day)
             // 月が変わるところに月の見出し（Google カレンダーと同じ）
             const newMonth = i === 0 || rows[i - 1]!.day.getMonth() !== day.getMonth()
@@ -129,37 +146,42 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
                     {dayDues.map((d) => (
                       <DueMark key={d.id} item={d} dateKey={key} size="sm" className="px-1 pt-1" />
                     ))}
-                    {events.map((event) => (
-                      // 月・週と同じく、押すと小さなカード、右クリックでメニュー
-                      <button
-                        key={event.id}
-                        type="button"
-                        onClick={(e) => cards.openGoogleCard(event.id, e.currentTarget)}
-                        onContextMenu={(e) => {
-                          e.preventDefault()
-                          openTaskMenu({ kind: 'google', x: e.clientX, y: e.clientY, eventId: event.id })
-                        }}
-                        className={`${event.skipped ? `gc-missed ${SKIPPED_EVENT_CLASS}` : 'gc-plan'} block w-full rounded-lg px-3 py-2 text-left`}
-                        style={colorVars(event.color ?? DEFAULT_GOOGLE_EVENT_HEX)}
-                      >
-                        <div className="truncate text-sm font-medium">{event.summary}</div>
-                        <div className="mt-0.5 text-xs opacity-70">
-                          {event.startTime && event.endTime ? `${event.startTime} – ${event.endTime}` : t('weekCalendar.allDay')}
-                        </div>
-                      </button>
-                    ))}
+                    {events.map((event) => {
+                      const hex = event.color ?? DEFAULT_GOOGLE_EVENT_HEX
+                      return (
+                        // 月・週と同じく、押すと小さなカード、右クリック・長押しでメニュー。時間が過ぎたらグレー
+                        <button
+                          key={event.id}
+                          type="button"
+                          data-touch-menu
+                          onClick={(e) => cards.openGoogleCard(event.id, e.currentTarget)}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            openTaskMenu({ kind: 'google', x: e.clientX, y: e.clientY, eventId: event.id })
+                          }}
+                          className={`${planTileClass(googleEventVisualState(event, key, now), hex)} ${event.skipped ? SKIPPED_EVENT_CLASS : ''} block w-full rounded-lg px-3 py-2 text-left`}
+                          style={colorVars(hex)}
+                        >
+                          <div className="truncate text-sm font-medium">{event.summary}</div>
+                          <div className="mt-0.5 text-xs opacity-70">
+                            {event.startTime && event.endTime ? `${event.startTime} – ${event.endTime}` : t('weekCalendar.allDay')}
+                          </div>
+                        </button>
+                      )
+                    })}
                     {dayTasks.map((task) =>
                       isEventTask(task) ? (
                         // 予定（完了の無いもの）は Google の予定と同じカード。時間が過ぎたらグレー
                         <button
                           key={task.id}
                           type="button"
+                          data-touch-menu
                           onClick={(e) => cards.openCard(task.id, e.currentTarget)}
                           onContextMenu={(e) => {
                             e.preventDefault()
-                            openTaskMenu({ kind: 'event', x: e.clientX, y: e.clientY, taskId: task.id })
+                            openCalendarItemMenu(task, e.clientX, e.clientY)
                           }}
-                          className={`${planVisualState(task, key) === 'upcoming' ? 'gc-plan' : 'gc-missed'} block w-full rounded-lg px-3 py-2 text-left`}
+                          className={`${planTileClass(planVisualState(task, key, now), planHex(task))} block w-full rounded-lg px-3 py-2 text-left`}
                           style={colorVars(planHex(task))}
                         >
                           <div className="truncate text-sm font-medium">{task.title}</div>
@@ -173,10 +195,14 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
                           task={task}
                           dayKey={key}
                           hideDueDatePicker
+                          calendarState={planVisualState(task, key, now)}
                           onRowClick={(e) => cards.openCard(task.id, e.currentTarget)}
                         />
                       ),
                     )}
+                    {due.map((task) => (
+                      <TaskDueMark key={`due-${task.id}`} task={task} dateKey={key} size="sm" onOpen={cards.openCard} />
+                    ))}
                   </div>
                 </div>
               </section>

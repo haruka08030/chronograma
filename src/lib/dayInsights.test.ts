@@ -12,6 +12,7 @@ const day = (i: number, over: Partial<WeekReviewDay> = {}): WeekReviewDay => ({
   plannedMinutes: 0,
   loggedMinutes: 0,
   unrecordedMinutes: 0,
+  vagueMinutes: 0,
   done: 0,
   total: 0,
   tagMinutes: [],
@@ -24,7 +25,7 @@ const day = (i: number, over: Partial<WeekReviewDay> = {}): WeekReviewDay => ({
 /** 起きた日 → 睡眠（寝た時刻は前日 12:00 からの分） */
 const night = (i: number, bedOffset: number, minutes: number): [string, SleepNight] => [
   key(i),
-  { dateKey: key(i), bed: '', wake: '', minutes, bedOffset, wakeOffset: bedOffset + minutes },
+  { dateKey: key(i), bed: '', wake: '', minutes, bedOffset, wakeOffset: bedOffset + minutes, napMinutes: 0 },
 ]
 
 const H = 60

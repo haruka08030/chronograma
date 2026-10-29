@@ -7,6 +7,7 @@ import {
   decideHydrate,
   fetchCourseLinks,
   fetchSkippedEvents,
+  fetchMyEventTimes,
   fetchAddons,
   fetchDayMoods,
   fetchEventTemplates,
@@ -16,6 +17,7 @@ import {
   fetchTimetable,
   pushCourseLinks,
   pushSkippedEvents,
+  pushMyEventTimes,
   pushAddons,
   pushDayMoods,
   pushEventTemplates,
@@ -71,6 +73,7 @@ import { fetchSleepTimer, pushSleepTimer } from '../lib/sleepTimerSync'
 import { createDayMoodPullState, dayMoodSince, runDayMoodSync } from '../lib/dayMood'
 import { hasExistingData } from '../lib/onboarding'
 import { activeTimerSyncDeps, notifyActiveTimerSynced } from '../lib/timerSync'
+import { addonsWithEventColors, splitEventColors } from '../lib/addons'
 import { storeActiveTimerIo } from './activeTimerIo'
 import { isKnownChange, subscribeSyncWake, type WakeEvent } from '../lib/syncWake'
 import {
@@ -78,6 +81,7 @@ import {
   planCourseLinkSync,
   planEventTemplateSync,
   planSkippedSync,
+  planMyEventTimesSync,
   planSleepTimerSync,
   planTimetableSync,
 } from '../lib/settingPlans'
@@ -107,6 +111,7 @@ const SETTING_TABLE: Record<SettingKey, SettingTable> = {
   addons: 'user_addons',
   sleepTimer: 'user_sleep_timer',
   skipped: 'user_skipped_events',
+  myTimes: 'user_my_event_times',
 }
 const SETTING_KEY_OF = Object.fromEntries(Object.entries(SETTING_TABLE).map(([k, t]) => [t, k])) as Record<SettingTable, SettingKey>
 
@@ -193,6 +198,7 @@ function settingsSent(userId: string): boolean {
     ['addons', s.addonsUpdatedAt],
     ['sleepTimer', s.sleepTimerUpdatedAt],
     ['skipped', s.skippedEventsUpdatedAt],
+    ['myTimes', s.myEventTimesUpdatedAt],
   ]
   return (
     local.every(([key, at]) => at === null || at === loadSettingSyncedAt(userId, key)) &&
@@ -478,6 +484,23 @@ export function useSupabaseSync() {
         // まだ一度もやらなかった予定が無ければ送らない。サーバーにも行が無ければ取りに行かない
         emptyWhenUnset: true,
       })
+    /** Google の予定の自分の時間（#625） */
+    const syncMyEventTimes = () =>
+      syncSetting({
+        key: 'myTimes',
+        fetch: () => fetchMyEventTimes(supabase, userId),
+        plan: (remote, syncedAt, offset) => {
+          const st = useTaskStore.getState()
+          return planMyEventTimesSync({ times: st.myEventTimes, updatedAt: st.myEventTimesUpdatedAt, syncedAt }, remote, undefined, offset)
+        },
+        localUpdatedAt: () => useTaskStore.getState().myEventTimesUpdatedAt,
+        applyLocal: ({ times, updatedAt }) =>
+          asIncomingChange(() => useTaskStore.setState({ myEventTimes: times, myEventTimesUpdatedAt: updatedAt })),
+        setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ myEventTimesUpdatedAt: at })),
+        push: (p) => pushMyEventTimes(supabase, userId, p, p.base),
+        // まだ一度も自分の時間を付けていなければ送らない。サーバーにも行が無ければ取りに行かない
+        emptyWhenUnset: true,
+      })
     /** 時間割の設定（時限・学期、#279） */
     const syncTimetable = () =>
       syncSetting({
@@ -497,19 +520,26 @@ export function useSupabaseSync() {
         // 一度も変えていない既定の値は送らない（`planTimetableSync`）。サーバーにも行が無ければ取りに行かない
         emptyWhenUnset: true,
       })
-    /** 追加機能のオン・オフ（#453） */
+    /** 追加機能のオン・オフ（#453）。Google の予定に付けた色（#639）も同じ行で送る */
     const syncAddons = () =>
       syncSetting({
         key: 'addons',
         fetch: () => fetchAddons(supabase, userId),
         plan: (remote, syncedAt, offset, base) => {
           const st = useTaskStore.getState()
-          return planAddonsSync({ addons: st.addons, updatedAt: st.addonsUpdatedAt, syncedAt }, remote, undefined, offset, base)
+          const addons = addonsWithEventColors(st.addons, st.googleEventColors)
+          return planAddonsSync({ addons, updatedAt: st.addonsUpdatedAt, syncedAt }, remote, undefined, offset, base)
         },
-        // 合わせた版の中身を控える（両方で変えたとき、機能・支払い・名前ごとに合わせる）
+        // 合わせた版の中身を控える（両方で変えたとき、機能・支払い・名前・予定の色ごとに合わせる）
         baseOf: (synced) => synced.addons,
         localUpdatedAt: () => useTaskStore.getState().addonsUpdatedAt,
-        applyLocal: ({ addons, updatedAt }) => asIncomingChange(() => useTaskStore.setState({ addons, addonsUpdatedAt: updatedAt })),
+        applyLocal: ({ addons: value, updatedAt }) => {
+          // 色の無い値（前の版のアプリが送った）なら手元の色のまま
+          const { addons, googleEventColors } = splitEventColors(value)
+          asIncomingChange(() =>
+            useTaskStore.setState({ addons, addonsUpdatedAt: updatedAt, ...(googleEventColors ? { googleEventColors } : {}) }),
+          )
+        },
         setLocalUpdatedAt: (at) => asIncomingChange(() => useTaskStore.setState({ addonsUpdatedAt: at })),
         push: (p) => pushAddons(supabase, userId, p, p.base),
         // 一度も変えていなければ送らない（`planAddonsSync`）。サーバーにも行が無ければ取りに行かない
@@ -571,6 +601,7 @@ export function useSupabaseSync() {
         syncEventTemplates(),
         syncCourseLinks(),
         syncSkippedEvents(),
+        syncMyEventTimes(),
         syncTimetable(),
         syncAddons(),
         syncSleepTimer(),
@@ -952,8 +983,10 @@ export function useSupabaseSync() {
         state.eventTemplates === prev.eventTemplates &&
         state.courseLinks === prev.courseLinks &&
         state.skippedEvents === prev.skippedEvents &&
+        state.myEventTimes === prev.myEventTimes &&
         state.timetable === prev.timetable &&
         state.addons === prev.addons &&
+        state.googleEventColors === prev.googleEventColors &&
         state.sleepTimer === prev.sleepTimer &&
         state.dayMoods === prev.dayMoods
       )

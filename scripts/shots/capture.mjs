@@ -78,25 +78,107 @@ const DUES_ON = {
     ],
   },
 }
-/** 追加機能「学校」（#503）をオンにして、授業の欠席の一覧に残りの違う授業を入れた状態（ゼミは今日の予定と同じ名前） */
+/** 今日の学期（前期・後期。`suggestTerm` と同じ） */
+const SHOT_TERM = (() => {
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = today.getMonth() + 1
+  return m >= 3 && m <= 8
+    ? { termStart: `${y}-04-01`, termEnd: `${y}-07-31`, name: `${y} 前期` }
+    : m >= 9
+      ? { termStart: `${y}-10-01`, termEnd: `${y + 1}-01-31`, name: `${y} 後期` }
+      : { termStart: `${y - 1}-10-01`, termEnd: `${y}-01-31`, name: `${y - 1} 後期` }
+})()
+const shotTerm = (extra = {}) => ({ id: 'shot-term', ...SHOT_TERM, absences: {}, absenceLimits: {}, courses: [], hidden: [], ...extra })
+/**
+ * 追加機能「学校」（#503・#622）をオンにして、今日の学期に授業を入れた状態。体育・ゼミは「授業を追加」で入れた授業（ゼミは今日の予定と同じ名前）、
+ * 統計学は時間割の授業で Canvas の科目 stat につないだもの、econ は課題のある科目から自動で並んだもの
+ */
 const SCHOOL_ON = {
-  addons: { enabled: { school: true }, dues: [], absenceCourses: ['統計学', 'ゼミ', '英語コミュニケーション', '体育'] },
-  timetable: {
-    periods: [],
-    termStart: null,
-    termEnd: null,
-    skipHolidays: false,
-    absences: { 統計学: [tzDayKey(-14), tzDayKey(-7), tzDayKey(-3)], ゼミ: [tzDayKey(-7)], 英語コミュニケーション: [tzDayKey(-1)] },
-    absenceLimits: { 統計学: 4, ゼミ: 3, 英語コミュニケーション: 5 },
+  addons: {
+    enabled: { school: true },
+    dues: [],
+    school: {
+      terms: [
+        shotTerm({
+          courses: ['体育', 'ゼミ'],
+          absences: { 統計学: [tzDayKey(-14), tzDayKey(-7), tzDayKey(-3)], ゼミ: [tzDayKey(-7)] },
+          absenceLimits: { 統計学: 4, ゼミ: 3 },
+        }),
+      ],
+    },
   },
+  courseLinks: [{ title: '統計学', course: 'stat' }],
 }
-/** 時間割は追加機能（#453）。撮るときはオンにしておく */
-const TIMETABLE_ON = { addons: { enabled: { timetable: true }, dues: [] } }
+/** 学校のページで撮る Canvas の課題（科目 stat・econ） */
+const lmsTask = (id, title, course, days) => ({
+  id: `canvas-shot-assignment-${id}`,
+  title,
+  tags: [course],
+  dueDate: tzDayKey(days),
+  dueTime: '23:59',
+  listId: '__inbox__',
+})
+const SCHOOL_LMS = [
+  lmsTask('1', '第 5 回 小テスト', 'stat', 1),
+  lmsTask('2', '中間レポート', 'econ', 3),
+  lmsTask('3', '第 6 回 課題', 'econ', 10),
+]
+const SCHOOL_CLASSES = () => [...addClass('2:0', '統計学'), ...addClass('4:1', '英語コミュニケーション')]
+/** 時間割は追加機能の学校（#453・#617）。撮るときはオンにし、今日の学期を入れておく */
+const TIMETABLE_ON = { addons: { enabled: { school: true }, dues: [], school: { terms: [shotTerm()] } } }
+/** 前の版の時間割（学期・欠席を時間割の設定に持っていた）のまま学校をオンにした状態。学校は時間割の設定から 1 つめの学期を作る */
+const LEGACY_SCHOOL_ON = { addons: { enabled: { school: true }, dues: [] } }
 const addClass = (cell, title) => [
   { click: `[data-timetable-cell="${cell}"]` },
   { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: title } },
   { click: '[role=dialog] button:has-text("保存")' },
 ]
+/** 足す To-Do で種データの To-Do から引き継がない値 */
+/** 今日の昼寝（11:00–12:30。種データの今日の睡眠 s10 と同じ日に起きた睡眠） */
+/** 今日の「なんとなく」の記録（#657）。課題（確率論）と授業の間の 11:30–13:00 */
+const TODAY_VAGUE = {
+  id: 'vague-today',
+  title: '課題と ES を行き来',
+  kind: 'log',
+  completed: true,
+  vague: true,
+  tags: [],
+  startTime: '11:30',
+  endTime: '13:00',
+  order: 201,
+}
+
+const TODAY_NAP = (state) => ({
+  id: 'nap-today',
+  title: '睡眠',
+  kind: 'sleep',
+  completed: true,
+  tags: ['睡眠'],
+  dueDate: state.tasks.find((x) => x.id === 's10').endDate,
+  endDate: null,
+  startTime: '11:00',
+  endTime: '12:30',
+  order: 200,
+})
+
+const BLANK_TASK = {
+  description: '',
+  completed: false,
+  completedAt: null,
+  parentId: null,
+  sectionId: null,
+  scheduledDate: null,
+  startTime: null,
+  endTime: null,
+  kind: 'task',
+  series: null,
+  recurrence: null,
+  deletedAt: null,
+  archivedAt: null,
+  color: null,
+  priority: 'none',
+}
 const SEED_CLASSES = [
   ...addClass('1:0', '経済学入門'),
   ...addClass('3:1', '英語コミュニケーション'),
@@ -147,7 +229,47 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 /** 今日やる候補を開く見出し */
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
-/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする、`lang` は表示の言語（既定は 'ja'）、`mobileWidth` はスマホ幅の横幅（既定 390）。手の `select` は <select> の選択肢を選ぶ */
+/**
+ * 画面に固定して出している面（カード・メニュー・シート・候補）のうち、画面の外にはみ出していて、
+ * はみ出した分を面の中でスクロールもできないものを返す。閉じる動きの写し（inert）・見えない面は見ない
+ */
+function findOffscreenFloating(page) {
+  return page.evaluate(() => {
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const out = []
+    for (const el of document.body.querySelectorAll('*')) {
+      const cs = getComputedStyle(el)
+      if (cs.position !== 'fixed' || cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) === 0) continue
+      if (el.closest('[inert]')) continue
+      const r = el.getBoundingClientRect()
+      // 読み上げ用の見えない欄（sr-only・1px）は見ない
+      if (r.width <= 1 || r.height <= 1) continue
+      const outside = r.top < -1 || r.left < -1 || r.bottom > vh + 1 || r.right > vw + 1
+      const clipped = el.scrollHeight > el.clientHeight + 1 && !/(auto|scroll)/.test(cs.overflowY)
+      if (outside || clipped) {
+        const name = el.getAttribute('aria-label') || el.getAttribute('role') || el.className.toString().slice(0, 40)
+        out.push(
+          `${name}（${Math.round(r.left)},${Math.round(r.top)}–${Math.round(r.right)},${Math.round(r.bottom)}${clipped ? '・中が切れている' : ''}）`,
+        )
+      }
+    }
+    return out
+  })
+}
+
+/** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、要素を枠の下の端まで送る scrollToEnd、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`extraTasks` は種データに足す To-Do（種データから作る関数でもよい）、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする、`lang` は表示の言語（既定は 'ja'）、`mobileWidth` はスマホ幅の横幅（既定 390）。手の `select` は <select> の選択肢を選ぶ */
+/** 撮影用の睡眠の予定（平日は 23:30–7:00、土日の朝は 1:00–9:00） */
+const SLEEP_SCHEDULE = {
+  1: { bed: '23:30', wake: '07:00' },
+  2: { bed: '23:30', wake: '07:00' },
+  3: { bed: '23:30', wake: '07:00' },
+  4: { bed: '23:30', wake: '07:00' },
+  5: { bed: '23:30', wake: '07:00' },
+  6: { bed: '01:00', wake: '09:00' },
+  7: { bed: '01:00', wake: '09:00' },
+}
+
 const SCREENS = [
   // 初めて開いた人が見る画面（種データなし。`fresh` は保存データを入れずに開く）
   { name: 'first-run', fresh: true },
@@ -185,6 +307,15 @@ const SCREENS = [
     mobileClick: PLANNER_LIST_TAB,
     taskPatch: { s10: { dueDate: '2000-01-01', endDate: '2000-01-02' } },
   },
+  // 昼寝（#645）: 夜の睡眠の右に「＋昼寝」、行を押すと夜の睡眠の欄の下に昼寝の欄と「昼寝を追加」
+  { name: 'sleep-nap', view: 'planner', mobileClick: PLANNER_LIST_TAB, extraTasks: [TODAY_NAP] },
+  {
+    name: 'sleep-nap-edit',
+    view: 'planner',
+    extraTasks: [TODAY_NAP],
+    click: 'button[aria-label^="睡眠の時刻を編集"] >> visible=true',
+    mobileClick: PLANNER_LIST_TAB,
+  },
   { name: 'sleep-row-narrow', view: 'planner', at: '22:30', mobileOnly: true, mobileWidth: 320, mobileClick: PLANNER_LIST_TAB },
   { name: 'sleep-row-en', view: 'planner', at: '22:30', lang: 'en', mobileClick: 'button:has-text("To do") >> visible=true' },
   // 浮いているタイマーの「あと何分」（#290）: 残り時間・長さを選ぶ並び・時間を過ぎた（`timer` は撮る瞬間からの分で動いているタイマーを置く）
@@ -216,17 +347,27 @@ const SCREENS = [
     view: 'planner',
     click: ['button:has-text("後から記録") >> visible=true', 'button[aria-label="色とラベル"] >> visible=true'],
   },
-  // 名前を付けた色はすぐパレットにラベル名のチップで出る（#596）
+  // 名前の無い色に名前を付けると、パレットの丸のヒントにその名前が出る（#596）
   {
-    name: 'record-label-named',
+    name: 'record-label-named-hover',
     view: 'planner',
+    desktopOnly: true,
     click: ['button:has-text("後から記録") >> visible=true', 'button[aria-label="色とラベル"] >> visible=true'],
     steps: [
       { click: 'button[aria-label="ラベルを編集"] >> visible=true' },
       { fill: { selector: '[role=dialog] input[placeholder="ラベルを追加"][value=""] >> nth=0', text: '趣味' } },
       { click: '[role=dialog] button:has-text("保存")' },
       { wait: 400 },
+      { hover: '[role=radiogroup][aria-label="色とラベル"] [role=radio] >> nth=0' },
     ],
+  },
+  // To-Do のリストの色も、丸のヒントにラベル名（無ければ色名）が出る（#596）
+  {
+    name: 'todo-list-color-hover',
+    view: 'all',
+    desktopOnly: true,
+    click: 'button[aria-label="色を変更"] >> nth=0',
+    steps: [{ hover: '[role=dialog][aria-label="リストの色"] [role=radio][data-tip*="（"] >> nth=0' }],
   },
   // 記録の名前を打つと過去の記録が候補に出る（#415）。後から記録と、記録中に題名を直すところ
   {
@@ -395,12 +536,64 @@ const SCREENS = [
   { name: 'calendar-date-jump', view: 'calendar', click: 'button[aria-label="日付を選択"]' },
   // タイムラインの予定を押したときのカード（右上の丸いアイコンボタン）
   { name: 'calendar-event-card', view: 'calendar', click: '[data-block-id="s6"] >> visible=true' },
+  // カレンダーの To-Do のカードに締切・ラベル・タグ、締切がこの日までのタイルに →|（#615）
+  {
+    name: 'calendar-todo-card-due',
+    view: 'calendar',
+    taskPatch: { s7: (x) => ({ dueDate: x.scheduledDate, dueTime: '18:00', tags: ['体力', '週2'], color: '#F6BF26' }) },
+    click: '[data-block-id="s7"] >> visible=true',
+  },
+  // 習慣の枠のカード（上の並びに ✎・この日は休む・✕、#616・#621）
+  { name: 'calendar-habit-card', view: 'calendar', click: '[data-block-id^="habit-slot::r1::"] >> visible=true >> nth=-1' },
+  // 済んだ枠のカード: ✓ の下にその日の習慣の記録の行（押すと記録のカード・🗑、#661）
+  {
+    name: 'habit-card-records',
+    view: 'planner',
+    mobileClick: 'button:has-text("タイムライン") >> visible=true',
+    click: '[data-block-id^="habit-slot::r1::"] >> visible=true',
+    steps: [
+      { click: '[role="dialog"] button:has-text("予定どおり達成")' },
+      { click: '[data-block-id^="habit-slot::r1::"] >> visible=true' },
+    ],
+  },
+  // ✎ で開いた編集画面の上で、その日の時間を直す（この日だけ / これ以降の◯曜日・期限。#612・#621）
+  {
+    name: 'calendar-habit-time',
+    view: 'calendar',
+    click: '[data-block-id^="habit-slot::r1::"] >> visible=true >> nth=-1',
+    steps: [
+      { click: '[role="dialog"] button[aria-label="詳細を編集"]' },
+      { click: '[role="dialog"] button:has-text("時間を変える")' },
+      { click: '[role="dialog"] [role="radio"]:has-text("これ以降の")' },
+      { click: '[role="dialog"] [role="radio"]:has-text("日付まで")' },
+    ],
+  },
+  // ✎ は画面を移らず、カレンダーの上に習慣の編集を開く（#612）
+  {
+    name: 'calendar-habit-edit',
+    view: 'calendar',
+    click: '[data-block-id^="habit-slot::r1::"] >> visible=true >> nth=-1',
+    steps: [{ click: '[role="dialog"] button[aria-label="詳細を編集"]' }],
+  },
   // 時刻を押したところ（カードのままで分単位に直せる。候補は 15 分刻み）
   {
     name: 'calendar-event-card-time',
     view: 'calendar',
     click: ['[data-block-id="s6"] >> visible=true', '[role="dialog"] input[role="combobox"] >> nth=0'],
   },
+  // 夜おそく（画面の下）の記録のカードで色とラベルを開いても、カードが画面の中に収まる（入らない分はカードの中でスクロール。#650）
+  {
+    name: 'calendar-late-card-palette',
+    view: 'calendar',
+    at: '23:55',
+    taskPatch: { s9: () => ({ startTime: '23:00', endTime: '23:45' }) },
+    steps: [
+      { scrollToEnd: '[data-block-id="s9"] >> visible=true' },
+      { click: '[data-block-id="s9"] >> visible=true' },
+      { click: '[role="dialog"] button[aria-label="色とラベル"]' },
+    ],
+  },
+
   { name: 'todo', view: 'all' },
   // スマホで題名の左の ≡ を押した状態・画面を右へ払った状態（どちらもリストのドロワーが出る）
   { name: 'todo-mobile-open-lists', view: 'all', mobileOnly: true, click: 'button[aria-label="リストを開く"] >> visible=true' },
@@ -525,17 +718,44 @@ const SCREENS = [
     ],
   },
   // 引き落とし・期限の日（#454）: 一覧・今日の計画の行・月と週のカレンダーの印
-  { name: 'addons-dues', view: 'addons', state: DUES_ON, steps: [{ click: '[data-addon="dues"] button:has-text("開く")' }] },
+  { name: 'addons-dues', view: 'addons', state: DUES_ON, steps: [{ click: '[data-addon="dues"] button:has-text("引き落とし・期限")' }] },
   { name: 'planner-dues', view: 'planner', state: DUES_ON },
   { name: 'calendar-month-dues', view: 'calendar', calendarMode: 'month', state: DUES_ON },
   { name: 'calendar-week-dues', view: 'calendar', state: DUES_ON },
-  // 追加機能（#453）: 最初はどれもオフ・時間割をオンにしたところ・設定の「追加機能」
-  { name: 'addons-school', view: 'addons', state: SCHOOL_ON, steps: [{ click: '[data-addon="school"] button:has-text("開く")' }] },
+  // 追加機能（#453・#617）: 最初はどれもオフ・学校をオンにしたところ・学校のページ・説明のポップアップ・設定の「追加機能」
+  {
+    name: 'addons-school',
+    view: 'addons',
+    state: SCHOOL_ON,
+    extraTasks: SCHOOL_LMS,
+    steps: [{ click: '[data-addon="school"] button:has-text("学校")' }, ...SCHOOL_CLASSES()],
+  },
+  {
+    name: 'addons-school-course',
+    view: 'addons',
+    state: SCHOOL_ON,
+    extraTasks: SCHOOL_LMS,
+    steps: [
+      { click: '[data-addon="school"] button:has-text("学校")' },
+      ...SCHOOL_CLASSES(),
+      { click: 'ul[aria-labelledby="school-courses"] button:has-text("統計学") >> nth=0' },
+    ],
+  },
+  {
+    name: 'addons-school-term',
+    view: 'addons',
+    state: SCHOOL_ON,
+    steps: [{ click: '[data-addon="school"] button:has-text("学校")' }, { click: 'button:has-text("学期を追加")' }],
+  },
+  { name: 'addons-info', view: 'addons', steps: [{ click: '[data-addon="school"] button[aria-label="学校の説明"]' }] },
   {
     name: 'addons-school-edit',
     view: 'addons',
     state: SCHOOL_ON,
-    steps: [{ click: '[data-addon="school"] button:has-text("開く")' }, { click: '[role=dialog] button:has-text("統計学")' }],
+    steps: [
+      { click: '[data-addon="school"] button:has-text("学校")' },
+      { click: 'ul[aria-labelledby="school-courses"] button:has-text("体育") >> nth=0' },
+    ],
   },
   {
     name: 'calendar-event-card-absence',
@@ -551,21 +771,21 @@ const SCREENS = [
     name: 'calendar-timetable-absence',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
-    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
+    state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
     steps: SEED_CLASSES,
   },
   {
     name: 'calendar-timetable-limit',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
-    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
+    state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
     steps: [...SEED_CLASSES, { click: '[data-timetable-cell="5:2"]' }],
   },
   {
     name: 'calendar-class-card',
     view: 'calendar',
     click: TIMETABLE_BUTTON,
-    state: { ...TIMETABLE_ON, timetable: ABSENCE_TIMETABLE },
+    state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
     // 日曜は時間割に無いので、日曜に撮るときは次の月曜の回（週表示は次の週・スマホは翌日へ）
     steps: [
       ...addClass(`${TODAY_WEEKDAY === 0 ? 1 : TODAY_WEEKDAY}:3`, '経済学入門'),
@@ -660,6 +880,15 @@ const SCREENS = [
     click: 'div.group.cursor-pointer:has-text("ゼミ"):not(:has-text("研究室"))',
     clickAt: { x: 4, y: 12 },
   },
+  // 詳細の右上（スマホは上の帯）の … で開く、行の右クリックと同じタスクのメニュー（複製・明日へ回す・記録を始める…）
+  {
+    name: 'task-detail-more',
+    view: 'all',
+    click: [
+      'button[data-task-title]:has-text("ES 書く（第一志望）") >> visible=true',
+      '[role=dialog] button[aria-label="タスクのメニュー"] >> visible=true',
+    ],
+  },
   { name: 'habits', view: 'habits' },
   // 習慣の追加欄（色選びはラベル付きの色選び）
   { name: 'habits-add', view: 'habits', click: 'button:has-text("習慣を追加")' },
@@ -667,25 +896,36 @@ const SCREENS = [
   {
     name: 'habits-new-weekly',
     view: 'habits',
-    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("曜日を指定")'],
+    click: ['button:has-text("習慣を追加") >> visible=true', 'button[role=radio]:has-text("曜日を指定")'],
     scrollToBottom: true,
   },
-  // 「曜日を指定」で「曜日ごとに時間を変える」を押した状態（選んだ曜日ごとの時間の行）
+  // 「曜日を指定」で時間を決め、時間の欄の下の「曜日ごとに時間を変える」を押した状態（選んだ曜日ごとの時間の行）
   {
     name: 'habits-new-weekday-times',
     view: 'habits',
-    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("曜日を指定")', 'button:has-text("曜日ごとに時間を変える")'],
-    scrollToBottom: true,
+    click: [
+      'button:has-text("習慣を追加") >> visible=true',
+      'button[role=radio]:has-text("曜日を指定")',
+      'button:has-text("時間を決める")',
+      'button:has-text("曜日ごとに時間を変える")',
+    ],
+    scrollTo: '[role=group][aria-label="月"]',
   },
   // 「回数を指定」（週に◯回）を選んだ状態（回数のピル）
   {
     name: 'habits-new-times',
     view: 'habits',
-    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("回数を指定")'],
+    click: ['button:has-text("習慣を追加") >> visible=true', 'button[role=radio]:has-text("回数を指定")'],
     scrollToBottom: true,
   },
   // 習慣の名前を押した詳細（連続・最長・達成率・月のカレンダー）と、そこから編集
   { name: 'habits-detail', view: 'habits', click: 'li[data-habit-row]:has-text("朝に 10 分ストレッチ") button >> nth=0' },
+  // 詳細の下の「休む」（この日だけ・この日まで休む）
+  {
+    name: 'habits-detail-rest',
+    view: 'habits',
+    click: ['li[data-habit-row]:has-text("朝に 10 分ストレッチ") button >> nth=0', 'div[role="dialog"] button:has-text("休む")'],
+  },
   {
     name: 'habits-detail-edit',
     view: 'habits',
@@ -716,7 +956,7 @@ const SCREENS = [
   {
     name: 'habits-new-routine',
     view: 'habits',
-    click: ['button:has-text("習慣を追加") >> visible=true', 'label:has-text("ルーティン")'],
+    click: ['button:has-text("習慣を追加") >> visible=true', 'button[role=radio]:has-text("ルーティン")'],
   },
   { name: 'habits-routine-detail', view: 'habits', click: 'li[data-habit-row]:has-text("お風呂") button >> nth=0' },
   // 下の「アーカイブ」を開いた状態（戻すボタン）と、その行の右クリック（戻す・削除）
@@ -729,6 +969,17 @@ const SCREENS = [
     rightClick: 'li:has-text("日記を書く")',
   },
   { name: 'stats', view: 'stats' },
+  // 「なんとなく」の記録（#657）: タイムラインは灰の斜線の枠、ふりかえりの棒は一番上に斜線で積む
+  {
+    name: 'planner-vague',
+    view: 'planner',
+    extraTasks: [(state) => ({ ...TODAY_VAGUE, dueDate: state.tasks.find((x) => x.id === 's8').dueDate })],
+  },
+  {
+    name: 'stats-vague',
+    view: 'stats',
+    extraTasks: [(state) => ({ ...TODAY_VAGUE, dueDate: state.tasks.find((x) => x.id === 's8').dueDate })],
+  },
   // ふりかえりを画像にして共有する前の見本（#283。画像は共有先で読みやすいライトで作る）
   { name: 'stats-share', view: 'stats', click: 'button[aria-label="画像にして共有"] >> visible=true' },
   {
@@ -754,26 +1005,119 @@ const SCREENS = [
     state: { logLabelTargets: SEED_TARGETS },
     click: 'button:has-text("ラベルを編集") >> visible=true',
   },
-  // 統計の睡眠: 記録の無い夜（点線の枠）を押して、図の下の入力欄で埋めるところ
+  // 睡眠のページ（#628）: 直近 14 日の図で記録の無い夜（点線の枠）を押して、図の下の入力欄で埋めるところ
   {
-    name: 'stats-sleep-edit',
-    view: 'stats',
-    click: 'button[aria-label$="の睡眠を入れる"] >> nth=-1',
+    name: 'sleep-page-edit',
+    view: 'sleep',
+    click: 'button[aria-label$="の睡眠を入れる"] >> nth=0',
     scrollTo: 'figure:has(button[aria-expanded="true"])',
   },
-  // 統計の睡眠の下の段「日の違い」（#326）: 過去 2 週間の睡眠・記録・気分を足して、睡眠の長さ・寝た時刻・気分で分けた差
-  { name: 'stats-day-insights', view: 'stats', insightHistory: true, scrollTo: 'section[aria-labelledby="day-insights-title"]' },
-  // 統計の睡眠（#577）: 2 週間ぶんの睡眠で、上の小さい時計・平均と夜ごとの横の帯
-  { name: 'stats-sleep', view: 'stats', insightHistory: true, scrollTo: 'section:has(> figure)' },
+  // 睡眠のページの「日の違い」（#326）: 過去 2 週間の睡眠・記録・気分を足して、睡眠の長さ・寝た時刻・気分で分けた差
+  { name: 'sleep-day-insights', view: 'sleep', insightHistory: true, scrollTo: 'section[aria-labelledby="day-insights-title"]' },
+  // 睡眠のページの上（#577・#628）: 2 週間ぶんの睡眠で、小さい時計・平均と夜ごとの横の帯
+  { name: 'sleep-page', view: 'sleep', insightHistory: true },
   {
-    name: 'stats-sleep-narrow',
-    view: 'stats',
+    name: 'sleep-page-narrow',
+    view: 'sleep',
     insightHistory: true,
     mobileOnly: true,
     mobileWidth: 320,
-    scrollTo: 'section:has(> figure)',
   },
-  { name: 'stats-sleep-en', view: 'stats', insightHistory: true, lang: 'en', scrollTo: 'section:has(> figure)' },
+  { name: 'sleep-page-en', view: 'sleep', insightHistory: true, lang: 'en' },
+  // 週・月ごとの平均と平日と土日の差、夜ごとの一覧（目標 7 時間 30 分で届かなかった夜に差）、睡眠の設定
+  {
+    name: 'sleep-page-lists',
+    view: 'sleep',
+    insightHistory: true,
+    state: { sleepPrefs: { usualBed: '23:30', usualWake: '07:00', goalMinutes: 450 } },
+    scrollTo: 'section:has(> table)',
+  },
+  // 夜ごとの一覧の記録のある夜を押して開いた欄（🗑 で消せる）
+  {
+    name: 'sleep-page-night-edit',
+    view: 'sleep',
+    insightHistory: true,
+    click: 'section ul button[aria-expanded="false"]:not([aria-label$="の睡眠を入れる"]) >> nth=0',
+  },
+  // 昼寝のある夜を押して開いた欄（夜の睡眠の欄の下に昼寝の欄と「昼寝を追加」、#645）
+  {
+    name: 'sleep-page-nap-edit',
+    view: 'sleep',
+    insightHistory: true,
+    click: 'section ul button[aria-label*="昼寝"] >> nth=0',
+  },
+  {
+    name: 'sleep-page-prefs',
+    view: 'sleep',
+    insightHistory: true,
+    state: { sleepPrefs: { usualBed: '23:30', usualWake: '07:00', goalMinutes: 450 } },
+    scrollTo: 'section:has(#sleep-goal)',
+  },
+  // 睡眠の予定（#652）: 睡眠のページで曜日ごとの寝る・起きる時刻、今日の計画の予定の列に睡眠の枠（朝の分は ✓ 済み、夜の分はまだ）
+  {
+    name: 'sleep-schedule',
+    view: 'sleep',
+    state: { addons: { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null, sleepSchedule: SLEEP_SCHEDULE } },
+    scrollTo: 'section:has(button[aria-label$="の朝の予定を外す"])',
+  },
+  // 7 日とも同じ時刻は「毎日」の 1 行と「曜日ごとに時間を変える」（#659）
+  {
+    name: 'sleep-schedule-same',
+    view: 'sleep',
+    state: {
+      addons: {
+        enabled: {},
+        dues: [],
+        googleSkip: [],
+        absenceCourses: [],
+        school: null,
+        sleepSchedule: { ...SLEEP_SCHEDULE, 6: SLEEP_SCHEDULE[1], 7: SLEEP_SCHEDULE[1] },
+      },
+    },
+    scrollTo: 'section:has(button[aria-label="睡眠の予定を外す"])',
+  },
+  {
+    name: 'sleep-schedule-timeline',
+    view: 'planner',
+    at: '22:30',
+    mobileClick: 'button:has-text("タイムライン") >> visible=true',
+    state: { addons: { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null, sleepSchedule: SLEEP_SCHEDULE } },
+  },
+  // 睡眠の枠を押したカード（#660）: その朝だけ変えた夜（明日の朝 0:30–8:00）。時刻・🗑・いつもの時間に戻す
+  {
+    name: 'sleep-slot-card',
+    view: 'planner',
+    at: '22:30',
+    mobileClick: 'button:has-text("タイムライン") >> visible=true',
+    state: { addons: { enabled: {}, dues: [], googleSkip: [], absenceCourses: [], school: null, sleepSchedule: SLEEP_SCHEDULE } },
+    steps: [{ wait: 300 }],
+    click: '[data-block-id^="sleep-slot::"] >> visible=true >> nth=-1',
+  },
+  // 習慣「sleep」で寝る時間を置いていた人に、睡眠のページで睡眠に移すかを聞く（#653）
+  {
+    name: 'sleep-habit-move',
+    view: 'sleep',
+    state: {
+      habits: [
+        {
+          id: 'hs',
+          title: 'sleep',
+          color: '#3F51B5',
+          timeMode: 'range',
+          startTime: '00:00',
+          endTime: '08:00',
+          frequency: { type: 'daily' },
+          createdAt: '2026-09-01T00:00:00.000Z',
+          updatedAt: '2026-09-01T00:00:00.000Z',
+          completedDates: [],
+          archivedAt: null,
+        },
+      ],
+    },
+    scrollTo: 'h1',
+  },
+  // 統計の睡眠は要約だけ（押すと睡眠のページ）
+  { name: 'stats-sleep', view: 'stats', insightHistory: true, scrollTo: 'button[aria-label="睡眠のページを開く"]' },
   { name: 'settings', view: 'settings' },
   // 設定の一番下の「お問い合わせ・フィードバック」を開いたところ（ログインしていない人。Supabase の設定（.env）があるビルドでだけ出る）
   { name: 'settings-feedback', view: 'settings', click: 'button:has-text("お問い合わせ・フィードバック") >> visible=true' },
@@ -839,6 +1183,15 @@ const SCREENS = [
   // 行を右クリックしたときのメニュー（PC だけ。いつか・買い物はリストに合わせた短いメニュー）
   { name: 'todo-menu', view: 'all', desktopOnly: true, rightClick: '[data-task-row="s2"]' },
   { name: 'someday-menu', list: 'seed-someday', rightClick: '[data-task-row="s21"]' },
+  // 夢のタイルを押した詳細の … （かなえた・やりたいへ移す・アーカイブ・削除）
+  {
+    name: 'someday-dream-more',
+    list: 'seed-someday',
+    click: [
+      'section[aria-label="人生で"] [data-task-row] button >> nth=0',
+      '[role=dialog] button[aria-label="タスクのメニュー"] >> visible=true',
+    ],
+  },
   { name: 'checklist-menu', list: 'seed-shopping', rightClick: '[data-task-row="s24"]' },
   { name: 'checklist-menu-checked', list: 'seed-shopping', rightClick: '[data-task-row="s25"]' },
   // ゴミ箱・アーカイブの行の右クリック（deleted・archived の ID を撮るときだけ消した・しまった状態にする）
@@ -1238,11 +1591,17 @@ async function main() {
             seed.state.tasks = seed.state.tasks.filter((x) => !roots.has(x.parentId) && !x.dreamId)
             for (const x of seed.state.tasks) delete x.somedayTier
           }
+          // Canvas・Moodle の課題など、種データに足す To-Do（無い項目は種データの最初の To-Do から）
+          // 関数なら種データから作る（今日の日付を使うときなど）
+          for (const extra of screen.extraTasks ?? [])
+            seed.state.tasks.push({ ...seed.state.tasks[0], ...BLANK_TASK, ...(typeof extra === 'function' ? extra(seed.state) : extra) })
           for (const x of seed.state.tasks) {
             if (screen.deleted?.includes(x.id)) x.deletedAt = seedInstant.toISOString()
             if (screen.archived?.includes(x.id)) x.archivedAt = seedInstant.toISOString()
             if (screen.estimates?.[x.id] != null) x.estimateMinutes = screen.estimates[x.id]
-            if (screen.taskPatch?.[x.id]) Object.assign(x, screen.taskPatch[x.id])
+            // 値は関数でもよい（その To-Do から作る。置いた日を締切にするなど）
+            const patch = screen.taskPatch?.[x.id]
+            if (patch) Object.assign(x, typeof patch === 'function' ? patch(x) : patch)
             if (screen.doneNow?.includes(x.id)) {
               x.completed = true
               x.completedAt = seedInstant.toISOString()
@@ -1354,6 +1713,17 @@ async function main() {
                 await page.click(step.rightClick, { button: 'right' })
               } else if (step.click) {
                 await page.click(step.click)
+              } else if (step.hover && !vp.hasTouch) {
+                // マウスを乗せる（ヒントが出るまで待つ。PC 幅だけ）
+                await page.hover(step.hover)
+                await page.waitForTimeout(800)
+              } else if (step.scrollToEnd) {
+                // その要素を、スクロールする枠の下の端まで送る（画面の下で開いた面を撮る）
+                await page
+                  .locator(step.scrollToEnd)
+                  .first()
+                  .evaluate((el) => el.scrollIntoView({ block: 'end' }))
+                await page.waitForTimeout(200)
               } else if (step.wait) {
                 // 待つ（ミリ秒。閉じる動きが終わるまでなど）
                 await page.waitForTimeout(step.wait)
@@ -1411,6 +1781,10 @@ async function main() {
               })
               await page.waitForTimeout(200)
             }
+
+            // 浮かせて出す面が画面からはみ出していないか（スクロールもタップもできない所に出していないか。#650）
+            const offscreen = await findOffscreenFloating(page)
+            if (offscreen.length > 0) failures.push(`${screen.name}/${vp.name}/${theme}: 画面からはみ出した面 ${offscreen.join(' / ')}`)
 
             const file = path.join(outDir, `${screen.name}-${vp.name}-${theme}.png`)
             // アプリは body が overflow:hidden で、スクロールするのは内側のペイン。

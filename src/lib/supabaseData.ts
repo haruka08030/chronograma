@@ -12,6 +12,7 @@ import {
   readHabitGoalMinutes,
   readHabitPastRules,
   readHabitKind,
+  readHabitEndedOn,
   type Habit,
 } from '../types/habit'
 import { INBOX_LIST_ID } from '../store/taskStore'
@@ -27,11 +28,13 @@ import { normalizeExtraTimeZones, type RemoteExtraTimeZones } from './extraTimeZ
 import { normalizeEventTemplates, type RemoteEventTemplates } from './eventTemplates'
 import { normalizeCourseLinks, type RemoteCourseLinks } from './courseLinks'
 import { normalizeSkippedEvents, type RemoteSkipped } from './skippedEvents'
+import { normalizeMyEventTimes, type RemoteMyEventTimes } from './myEventTimes'
 import { normalizeTimetable, type RemoteTimetable } from './timetable'
 import { normalizeAddons, type RemoteAddons } from './addons'
 import { readEventSeries, withSeries } from './eventSeries'
 import { readMovedPlans, withMovedPlans } from './movedPlans'
 import { readDreamId, readSomedayTier, withDreamId, withSomedayTier } from './somedayTier'
+import { isVagueLog, readVague, withVague } from './vagueLog'
 import { DAY_MOOD_NOTE_MAX, isMood, type DayMoodPush, type DayMoodPushResult, type RemoteDayMood } from './dayMood'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
@@ -79,6 +82,8 @@ interface HabitRow {
   past_rules?: unknown
   /** 種類（`048`、`habit` / `routine`）。古い DB には無い。無い・`habit` は習慣 */
   kind?: string | null
+  /** やめた日（`050`、yyyy-MM-dd）。古い DB には無い。無い・null は無し */
+  ended_on?: string | null
 }
 
 interface TaskRow {
@@ -122,6 +127,8 @@ interface TaskRow {
   is_sleep?: boolean | null
   /** 古い DB には無い（`014`） */
   is_event?: boolean | null
+  /** 「なんとなく」の記録（`051`）。古い DB には無い */
+  is_vague?: boolean | null
   /** 古い DB には無い */
   time_zone?: string | null
   time_zone_anchor?: string | null
@@ -212,6 +219,7 @@ function rowToHabit(row: HabitRow): Habit {
     ...withPastRules(row.past_rules),
     ...(readHabitKind(row.kind) ? { kind: 'routine' as const } : {}),
     ...(typeof row.deleted_at === 'string' ? { deletedAt: row.deleted_at } : {}),
+    ...(readHabitEndedOn(row.ended_on) ? { endedOn: readHabitEndedOn(row.ended_on) } : {}),
   }
 }
 
@@ -265,6 +273,7 @@ function habitToRow(userId: string, h: Habit): HabitRow {
     deleted_at: h.deletedAt ?? null,
     past_rules: h.pastRules ?? null,
     kind: h.kind ?? 'habit',
+    ended_on: h.endedOn ?? null,
   }
 }
 
@@ -285,6 +294,7 @@ function rowToTask(row: TaskRow): Task {
   const task = withLogCategory(rowToTaskFields(row))
   // 毎週の印は予定の行だけ、移した予定の控えは To-Do の行だけ。値のある行だけ項目を持つ
   if (task.kind === 'event') return withSeries(task, readEventSeries(row.event_series))
+  if (task.kind === 'log') return withLogCategory(withVague(task, readVague(row.is_vague)))
   return task.kind === 'todo'
     ? withDreamId(
         withSomedayTier(withMovedPlans(task, readMovedPlans(row.moved_plans)), readSomedayTier(row.someday_tier)),
@@ -398,6 +408,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     dream_id: isTodoTask(task) ? (task.dreamId ?? null) : null,
     is_sleep: isSleepTask(task),
     is_event: isEventTask(task),
+    is_vague: isVagueLog(task),
     time_zone: task.timeZone,
     time_zone_anchor: task.timeZoneAnchor,
     reminders: task.reminders,
@@ -586,6 +597,7 @@ export type SettingTable =
   | 'user_addons'
   | 'user_sleep_timer'
   | 'user_skipped_events'
+  | 'user_my_event_times'
 const SETTING_TABLES: readonly SettingTable[] = [
   'user_settings',
   'user_extra_time_zones',
@@ -596,6 +608,7 @@ const SETTING_TABLES: readonly SettingTable[] = [
   'user_addons',
   'user_sleep_timer',
   'user_skipped_events',
+  'user_my_event_times',
 ]
 
 /** `sync_changes_since`（`035`）の 1 回の答え */
@@ -1116,6 +1129,23 @@ export function pushSkippedEvents(
   base: string | null,
 ): Promise<SettingPushResult> {
   return pushSettingRow(supabase, 'user_skipped_events', { user_id: userId, events: value.events, updated_at: value.updatedAt }, base)
+}
+
+/** Google の予定の自分の時間（`user_my_event_times.times`、`049`）。行が無ければ null */
+export async function fetchMyEventTimes(supabase: SupabaseClient, userId: string): Promise<RemoteMyEventTimes | null | { error: string }> {
+  const { data, error } = await supabase.from('user_my_event_times').select('times, updated_at').eq('user_id', userId).maybeSingle()
+  if (error) return { error: error.message }
+  if (!data) return null
+  return { times: normalizeMyEventTimes(data.times), updatedAt: String(data.updated_at) }
+}
+
+export function pushMyEventTimes(
+  supabase: SupabaseClient,
+  userId: string,
+  value: RemoteMyEventTimes,
+  base: string | null,
+): Promise<SettingPushResult> {
+  return pushSettingRow(supabase, 'user_my_event_times', { user_id: userId, times: value.times, updated_at: value.updatedAt }, base)
 }
 
 /** 時間割の設定（`user_timetable.timetable`、`027`）。行が無ければ null */

@@ -7,7 +7,7 @@ import { habitAsOf, habitDayStatus, habitMinutesOn, habitRecordFor, type HabitRe
 import { HABIT_DONE_FILL, HABIT_MISSED, HABIT_OFF_TIME_FILL, HABIT_PENDING } from '../../lib/habitMark'
 import { colorVars } from '../../lib/logCategoryColors'
 import { TODAY_COLUMN, TODAY_TEXT } from '../../lib/dayMarker'
-import { toDateKey } from '../../lib/dateKey'
+import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { tip } from '../../lib/tooltip'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { CheckIcon } from '../icons'
@@ -21,7 +21,7 @@ const TAIL = 'hidden md:block md:w-20 md:shrink-0'
 
 /**
  * 習慣の表: 行＝習慣、列＝見ている週の 7 日。曜日と日付の見出しは上に 1 回だけ。
- * 丸を押すと達成を付ける / 外す。名前を押すと詳細（`onOpen`）、右クリック（タッチは長押し）でメニュー（`menuProps`）
+ * 丸を押すと達成を付ける / 外す。週に◯回の行は 7 日の丸ではなく回数分の丸（`TimesPerWeekSlots`）。名前を押すと詳細（`onOpen`）、右クリック（タッチは長押し）でメニュー（`menuProps`）
  */
 export function HabitWeekTable({
   habits,
@@ -110,19 +110,20 @@ function HabitWeekRow({
   const goalText = useHabitGoalText(h)
   // 右端: 週に◯回は見ている週の回数（休みの日を除いた日数まで。まるごと休みの週は出さない）、
   // ほかは今の連続。途切れたら最長を残す（どちらも 0 なら出さない）
-  const tail =
-    habitAsOfWeek(h, weekDates[0]).frequency.type === 'timesPerWeek'
-      ? (() => {
-          const count = habitWeekRequired(h, weekDates[0])
-          if (count === 0) return null
-          return t('habits.weekCountValue', { done: Math.min(habitWeekDoneCount(h, weekDates[0], habitRecords), count), count })
-        })()
-      : (() => {
-          const streak = habitStreak(h, habitRecords)
-          if (streak.count > 0) return t('habits.streakValueDay', { count: streak.count })
-          const longest = habitLongestStreak(h, habitRecords)
-          return longest.count > 0 ? t('habits.longestValueDay', { count: longest.count }) : null
-        })()
+  const weekStart = weekDates[0] ?? fromDateKey(todayKey)
+  const timesPerWeek = habitAsOfWeek(h, weekStart).frequency.type === 'timesPerWeek'
+  const tail = timesPerWeek
+    ? (() => {
+        const count = habitWeekRequired(h, weekStart)
+        if (count === 0) return null
+        return t('habits.weekCountValue', { done: Math.min(habitWeekDoneCount(h, weekStart, habitRecords), count), count })
+      })()
+    : (() => {
+        const streak = habitStreak(h, habitRecords)
+        if (streak.count > 0) return t('habits.streakValueDay', { count: streak.count })
+        const longest = habitLongestStreak(h, habitRecords)
+        return longest.count > 0 ? t('habits.longestValueDay', { count: longest.count }) : null
+      })()
 
   return (
     <li
@@ -138,74 +139,154 @@ function HabitWeekRow({
         </span>
         {tail && <span className="shrink-0 text-xs tabular-nums text-zinc-500 dark:text-zinc-400 md:hidden">{tail}</span>}
       </button>
-      {/* 今日の列の塗りを行の余白まで伸ばし、PC は上下の行とつなげて 1 本の縦列にする（スマホは名前が上に乗るので丸の段だけ） */}
-      <div className={`${DAYS_GRID} -mb-3 md:-my-2.5 md:self-stretch`}>
-        {weekDates.map((d) => {
-          const key = toDateKey(d)
-          const status = habitDayStatus(h, key, habitRecords)
-          const isDone = status === 'done'
-          const isOffTime = status === 'offTime'
-          const isRest = isHabitRestOn(h, key)
-          // 予定の日（作る前の日・週の回数を満たした週の残りの日は除く）だけ輪を出し、ほかは小さな点
-          const isDue = isHabitDueOnDate(h, d, habitRecords) && isHabitCountedOnDate(h, d, habitRecords)
-          const isFuture = key > todayKey
-          const isPast = key < todayKey
-          const record = isOffTime ? habitRecordFor(habitRecords, h, key) : null
-          // 時間の目標に届いていない日の分（読み上げとツールチップだけ。マスには出さない）
-          const goal = habitAsOf(h, key).goalMinutes
-          const minutes = goal && status === 'missed' ? habitMinutesOn(habitRecords, h, key) : 0
-          const progress = minutes > 0 ? t('habits.goalProgress', { done: minutes, goal }) : null
-          const cellDate = df.monthDayWeekday(d)
-          const cellLabel = record
-            ? t('habits.cellOffTimeAria', { date: cellDate, start: record.startTime, end: record.endTime })
-            : isDone
-              ? t('habits.cellDoneAria', { date: cellDate })
-              : isRest
-                ? t('habits.restDayAria', { date: cellDate })
-                : progress
-                  ? `${cellDate} ${progress}`
-                  : cellDate
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => toggleHabitDate(h.id, key)}
-              data-habit-day={key}
-              aria-label={cellLabel}
-              aria-pressed={isDone || isOffTime}
-              className={`group/cell flex h-[3.25rem] items-center justify-center pb-3 md:h-auto md:min-h-[3.75rem] md:py-2.5 ${key === todayKey ? TODAY_COLUMN : ''}`}
-              {...tip(
-                record
-                  ? t('habits.offTimeTooltip', { date: cellDate, start: record.startTime, end: record.endTime })
+      {timesPerWeek ? (
+        <TimesPerWeekSlots habit={h} weekDates={weekDates} todayKey={todayKey} habitRecords={habitRecords} />
+      ) : (
+        /* 今日の列の塗りを行の余白まで伸ばし、PC は上下の行とつなげて 1 本の縦列にする（スマホは名前が上に乗るので丸の段だけ） */
+        <div className={`${DAYS_GRID} -mb-3 md:-my-2.5 md:self-stretch`}>
+          {weekDates.map((d) => {
+            const key = toDateKey(d)
+            const status = habitDayStatus(h, key, habitRecords)
+            const isDone = status === 'done'
+            const isOffTime = status === 'offTime'
+            const isRest = isHabitRestOn(h, key)
+            // 予定の日（作る前の日・週の回数を満たした週の残りの日は除く）だけ輪を出し、ほかは小さな点
+            const isDue = isHabitDueOnDate(h, d, habitRecords) && isHabitCountedOnDate(h, d, habitRecords)
+            const isFuture = key > todayKey
+            const isPast = key < todayKey
+            const record = isOffTime ? habitRecordFor(habitRecords, h, key) : null
+            // 時間の目標に届いていない日の分（読み上げとツールチップだけ。マスには出さない）
+            const goal = habitAsOf(h, key).goalMinutes
+            const minutes = goal && status === 'missed' ? habitMinutesOn(habitRecords, h, key) : 0
+            const progress = minutes > 0 ? t('habits.goalProgress', { done: minutes, goal }) : null
+            const cellDate = df.monthDayWeekday(d)
+            const cellLabel = record
+              ? t('habits.cellOffTimeAria', { date: cellDate, start: record.startTime, end: record.endTime })
+              : isDone
+                ? t('habits.cellDoneAria', { date: cellDate })
+                : isRest
+                  ? t('habits.restDayAria', { date: cellDate })
                   : progress
                     ? `${cellDate} ${progress}`
-                    : undefined,
-              )}
-            >
-              <span
-                className={`grid h-8 w-8 place-items-center rounded-full transition-colors ${
-                  isDone
-                    ? HABIT_DONE_FILL
-                    : isOffTime
-                      ? HABIT_OFF_TIME_FILL
-                      : isDue
-                        ? // 過ぎた日でやらなかった = 灰の輪、今日 = 習慣の色の輪、これから = 薄い色の輪
-                          `${isPast ? HABIT_MISSED : HABIT_PENDING} group-hover/cell:bg-zinc-100 dark:group-hover/cell:bg-zinc-800 ${isFuture ? 'opacity-40' : ''}`
-                        : 'group-hover/cell:bg-zinc-100 dark:group-hover/cell:bg-zinc-800'
-                }`}
-                style={colorVars(h.color)}
-              >
-                {isDone || isOffTime ? (
-                  <CheckIcon className="h-4 w-4" strokeWidth={2.5} />
-                ) : isDue ? null : (
-                  <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-600" aria-hidden />
+                    : cellDate
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleHabitDate(h.id, key)}
+                data-habit-day={key}
+                aria-label={cellLabel}
+                aria-pressed={isDone || isOffTime}
+                className={`group/cell flex h-[3.25rem] items-center justify-center pb-3 md:h-auto md:min-h-[3.75rem] md:py-2.5 ${key === todayKey ? TODAY_COLUMN : ''}`}
+                {...tip(
+                  record
+                    ? t('habits.offTimeTooltip', { date: cellDate, start: record.startTime, end: record.endTime })
+                    : progress
+                      ? `${cellDate} ${progress}`
+                      : undefined,
                 )}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+              >
+                <span
+                  className={`grid h-8 w-8 place-items-center rounded-full transition-colors ${
+                    isDone
+                      ? HABIT_DONE_FILL
+                      : isOffTime
+                        ? HABIT_OFF_TIME_FILL
+                        : isDue
+                          ? // 過ぎた日でやらなかった = 灰の輪、今日 = 習慣の色の輪、これから = 薄い色の輪
+                            `${isPast ? HABIT_MISSED : HABIT_PENDING} group-hover/cell:bg-zinc-100 dark:group-hover/cell:bg-zinc-800 ${isFuture ? 'opacity-40' : ''}`
+                          : 'group-hover/cell:bg-zinc-100 dark:group-hover/cell:bg-zinc-800'
+                  }`}
+                  style={colorVars(h.color)}
+                >
+                  {isDone || isOffTime ? (
+                    <CheckIcon className="h-4 w-4" strokeWidth={2.5} />
+                  ) : isDue ? null : (
+                    <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-600" aria-hidden />
+                  )}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
       <div className={`${TAIL} text-right text-xs tabular-nums text-zinc-500 dark:text-zinc-400`}>{tail}</div>
     </li>
+  )
+}
+
+/**
+ * 週に◯回の行の丸: 回数分だけ並べる（7 日の丸だとほとんど空いたままになるので）。やった日（達成・時間外）を古い順に塗り、
+ * 残りの回数ぶんを空けておく。塗った丸を押すとその日の達成を外し、空いた丸を押すと今日の達成（今日がこの週にあり、まだやっていないときだけ）。
+ * 日の列とは関係しないので、丸は左から詰めて「好きな日に」を添える（今日の列の塗りは後ろに残す）。別の日に付け直すのは詳細の月のカレンダー
+ */
+function TimesPerWeekSlots({
+  habit: h,
+  weekDates,
+  todayKey,
+  habitRecords,
+}: {
+  habit: Habit
+  weekDates: Date[]
+  todayKey: string
+  habitRecords: HabitRecordIndex
+}) {
+  const { t } = useTranslation()
+  const df = useDateFormat()
+  const toggleHabitDate = useTaskStore((s) => s.toggleHabitDate)
+  const weekStart = weekDates[0] ?? fromDateKey(todayKey)
+  const doneDays = weekDates.flatMap((d) => {
+    const status = habitDayStatus(h, toDateKey(d), habitRecords)
+    return status === 'missed' ? [] : [{ date: d, status }]
+  })
+  const doneCount = doneDays.filter((x) => x.status === 'done').length
+  const open = Math.max(0, habitWeekRequired(h, weekStart) - doneCount)
+  const todayInWeek = weekDates.some((d) => toDateKey(d) === todayKey)
+  const canAddToday = todayInWeek && !doneDays.some((x) => toDateKey(x.date) === todayKey) && !isHabitRestOn(h, todayKey)
+  return (
+    <div className={`${DAYS_GRID} relative -mb-3 md:-my-2.5 md:self-stretch`}>
+      {/* 今日の列の塗り（ほかの行とつなげる） */}
+      {weekDates.map((d) => (
+        <div
+          key={toDateKey(d)}
+          className={`h-[3.25rem] md:h-auto md:min-h-[3.75rem] ${toDateKey(d) === todayKey ? TODAY_COLUMN : ''}`}
+          aria-hidden
+        />
+      ))}
+      <div className="absolute inset-x-1 top-0 bottom-3 flex items-center gap-2 md:inset-y-1.5">
+        <div className="flex flex-1 items-center gap-2 px-1">
+          {doneDays.map(({ date, status }) => {
+            const key = toDateKey(date)
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleHabitDate(h.id, key)}
+                aria-label={t('habits.weekSlotDoneAria', { date: df.monthDayWeekday(date) })}
+                aria-pressed
+                className={`grid h-8 w-8 shrink-0 place-items-center rounded-full transition-colors ${status === 'done' ? HABIT_DONE_FILL : HABIT_OFF_TIME_FILL}`}
+                style={colorVars(h.color)}
+                {...tip(t('habits.weekSlotDoneAria', { date: df.monthDayWeekday(date) }))}
+              >
+                <CheckIcon className="h-4 w-4" strokeWidth={2.5} />
+              </button>
+            )
+          })}
+          {Array.from({ length: open }, (_, i) => (
+            <button
+              key={`open-${i}`}
+              type="button"
+              disabled={!canAddToday}
+              onClick={() => toggleHabitDate(h.id, todayKey)}
+              aria-label={canAddToday ? t('habits.weekSlotTodayAria') : t('habits.weekSlotOpenAria')}
+              className={`grid h-8 w-8 shrink-0 place-items-center rounded-full transition-colors enabled:hover:bg-zinc-100 dark:enabled:hover:bg-zinc-800 ${canAddToday ? HABIT_PENDING : `${HABIT_MISSED} opacity-60`}`}
+              style={colorVars(h.color)}
+            />
+          ))}
+          {/* 日の列とは関係ないことを添える（丸が月・火の下に並んでも、その日の印に見えないように） */}
+          <span className="ml-1 truncate text-xs text-zinc-400 dark:text-zinc-500">{t('habits.weekSlotAnyDay')}</span>
+        </div>
+      </div>
+    </div>
   )
 }

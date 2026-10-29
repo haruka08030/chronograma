@@ -6,7 +6,7 @@
 
 1. CLI のログインを確かめる: `supabase login`（`Unauthorized` が出るときはログインし直す）
 2. migration を流す: `supabase db push --linked --dry-run` で流れるファイルを確かめてから `supabase db push --linked`
-3. Edge Function を出す（migration の後。`daily-reminders` は `reminder_runs` の表が無いと 500 を返して何も送らない）:
+3. Edge Function を出す（migration の後、これから main に入れる dev の版から。`daily-reminders` は `reminder_runs` の表が無いと 500 を返して何も送らない。2 回目からは [`RULES.md`](./RULES.md) の「main に出すとき」で変わった関数だけ出す）:
 
 ```bash
 for f in account canvas daily-reminders google-calendar notion; do supabase functions deploy $f; done

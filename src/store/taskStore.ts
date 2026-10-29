@@ -1,3 +1,5 @@
+import { DEFAULT_SLEEP_PREFS } from '../lib/sleepPrefs'
+import { normalizeSleepDays, normalizeSleepSchedule, sleepPlanOn } from '../lib/sleepSchedule'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { TaskList } from '../types/list'
@@ -9,8 +11,12 @@ import { reanchorTasks } from '../lib/taskTimeZone'
 import { foldTaskFolders, needsFold } from '../lib/foldTaskFolders'
 import type { ExtraTimeZone } from '../lib/extraTimeZones'
 import type { EventTemplate } from '../lib/eventTemplates'
-import { courseKey, withCourseLink, type CourseLink } from '../lib/courseLinks'
+import { withCourseLink, type CourseLink } from '../lib/courseLinks'
 import { withRemoved, withSkipped, withoutRestored, type SkippedEvent } from '../lib/skippedEvents'
+import { fitMyEventTimes, withMyEventTimes, withMyTime, withRemovedTime, type MyEventTime } from '../lib/myEventTimes'
+import { resolveEventColors } from '../lib/googleEventColors'
+import { shortDate } from '../lib/moveToast'
+import { appTimeZone, wallInZone } from '../lib/timeZone'
 import { sameValue } from '../lib/sameValue'
 import { DEFAULT_WEEK_STARTS_ON, setAppWeekStartSetting, type WeekStartDay } from '../lib/weekStart'
 import {
@@ -69,12 +75,12 @@ import { createDataSlice } from './slices/data'
 import { createEventTemplatesSlice } from './slices/eventTemplates'
 import { createDayMoodsSlice } from './slices/dayMoods'
 import type { DayMoods } from '../lib/dayMood'
-import { DEFAULT_TIMETABLE, renameAttendance, withAbsence, withAbsenceLimit, type Timetable } from '../lib/timetable'
+import { DEFAULT_TIMETABLE, type Timetable } from '../lib/timetable'
 import { DEFAULT_ADDONS, withAddonOn, type Addons } from '../lib/addons'
 import type { SleepTimer } from '../lib/sleepTimer'
 import { normalizeDues } from '../lib/dues'
-import { withGoogleSkip } from '../lib/googleSkip'
-import { hasAbsenceCourse, renamedAbsenceCourse, withAbsenceCourse, withoutAbsenceCourse } from '../lib/absenceCourses'
+import { renameCourse, withAbsence, withAbsenceLimit, withAddedCourse, withRemovedCourse } from '../lib/schoolTerms'
+import { schoolOfState } from './schoolOfState'
 import { createEventSeriesSlice } from './slices/eventSeries'
 import { DATA_KEYS, VIEW_KEYS, pickKeys } from './persistKeys'
 import { SETTING_STAMPS, normalizeStoredState } from './storedSettings'
@@ -87,7 +93,7 @@ import { SETTING_STAMPS, normalizeStoredState } from './storedSettings'
 export { MAX_EXTRA_TIME_ZONES, LEGACY_DATA_OWNER, INBOX_LIST_ID } from './storeConstants'
 export type { ActiveTimer, CalendarMode, DailyReminders, SectionGrouping, SettingsScrollTarget, SmartView, SortMode } from './storeTypes'
 export { recurrenceNextId } from './taskRecurrence'
-export { selectLiveHabits } from './liveHabits'
+export { selectHabitsByDay, selectLiveHabits } from './liveHabits'
 import { asIncomingChange, isIncomingChange } from '../lib/changeOrigin'
 import { pendingAddsAfterImport } from '../lib/labelPendingAdds'
 import { clearBaseline } from '../lib/syncMerge'
@@ -155,6 +161,8 @@ export const useTaskStore = create<TaskState>()(
         sectionScrollTarget: null as string | null,
         calendarMode: 'week' as CalendarMode,
         selectedCalendarDateKey: appTodayKey(),
+        plannerDateKey: appTodayKey(),
+        habitsDateKey: appTodayKey(),
         theme: 'system' as 'light' | 'dark' | 'system',
         searchQuery: '',
         sortByKey: {} as Record<string, SortMode>,
@@ -210,6 +218,7 @@ export const useTaskStore = create<TaskState>()(
         installNudgeDismissed: false,
         signInNudgeDismissed: false,
         dailyCapacityMinutes: 480,
+        sleepPrefs: DEFAULT_SLEEP_PREFS,
         defaultBlockMinutes: 60,
         eventReminderMinutes: null as number | null,
         appTimeZone: null as string | null,
@@ -222,6 +231,8 @@ export const useTaskStore = create<TaskState>()(
         courseLinksUpdatedAt: null as string | null,
         skippedEvents: [] as SkippedEvent[],
         skippedEventsUpdatedAt: null as string | null,
+        myEventTimes: [] as MyEventTime[],
+        myEventTimesUpdatedAt: null as string | null,
         dayMoods: {} as DayMoods,
         timetable: DEFAULT_TIMETABLE as Timetable,
         timetableUpdatedAt: null as string | null,
@@ -260,6 +271,52 @@ export const useTaskStore = create<TaskState>()(
           if (next !== get().skippedEvents) set({ skippedEvents: next })
         },
         removeSkippedEvent: (id) => set({ skippedEvents: withRemoved(get().skippedEvents, id) }),
+        setMyEventTime: (event, mine) => {
+          if (event.isAllDay || event.skipped) return
+          const cur = get().myEventTimes
+          const next = withMyTime(cur, event, mine)
+          if (next === cur || sameValue(next, cur)) return
+          const tz = appTimeZone()
+          const start = wallInZone(Date.parse(mine.start), tz)
+          const end = wallInZone(Date.parse(mine.end), tz)
+          undo.pushUndo({
+            key: 'undo.myEventTime',
+            params: { title: event.summary, date: shortDate(start.date), time: `${start.time}–${end.time}` },
+          })
+          set({ myEventTimes: next })
+        },
+        clearMyEventTime: (eventId) => {
+          const cur = get().myEventTimes
+          const next = withRemovedTime(cur, eventId)
+          if (next === cur) return
+          const event = get().calendarEvents.find((e) => e.id === eventId)
+          undo.pushUndo({ key: 'undo.myEventTimeCleared', params: { title: event?.summary ?? '' } })
+          set({ myEventTimes: next })
+        },
+        fitMyEventTimes: (events) => {
+          const cur = get().myEventTimes
+          const next = fitMyEventTimes(cur, events)
+          if (next !== cur) set({ myEventTimes: next })
+        },
+        setSleepSchedule: (schedule) => {
+          const cur = get().addons
+          const sleepSchedule = normalizeSleepSchedule(schedule)
+          if (sameValue(sleepSchedule, cur.sleepSchedule ?? {})) return
+          undo.pushUndo()
+          set({ addons: { ...cur, sleepSchedule } })
+        },
+        setSleepPlanDay: (wakeDateKey, plan, label) => {
+          const cur = get().addons
+          const days = { ...(cur.sleepDays ?? {}) }
+          // 曜日の予定と同じ時刻にしたら、その朝だけの時刻は消す（習慣のその日だけの時間と同じ）
+          const usual = cur.sleepSchedule ? sleepPlanOn(cur.sleepSchedule, wakeDateKey) : null
+          if (plan === undefined || (plan && usual && plan.bed === usual.bed && plan.wake === usual.wake)) delete days[wakeDateKey]
+          else days[wakeDateKey] = plan
+          const sleepDays = normalizeSleepDays(days)
+          if (sameValue(sleepDays, cur.sleepDays ?? {})) return
+          undo.pushUndo(label)
+          set({ addons: { ...cur, sleepDays } })
+        },
         setAddonOn: (id, on) => {
           const next = withAddonOn(get().addons, id, on)
           if (sameValue(next, get().addons)) return
@@ -280,41 +337,24 @@ export const useTaskStore = create<TaskState>()(
           undo.pushUndo({ key: 'undo.dueDeleted', params: { name: due.title } })
           set({ addons: { ...cur, dues: cur.dues.filter((d) => d.id !== id) } })
         },
-        saveAbsenceCourse: (from, title, limit) =>
-          get().asOneUndo(() => {
-            const name = title.trim()
-            if (!name) return
-            const cur = get().addons
-            const absenceCourses =
-              from === null ? withAbsenceCourse(cur.absenceCourses, name) : renamedAbsenceCourse(cur.absenceCourses, from, name)
-            if (!sameValue(absenceCourses, cur.absenceCourses)) {
-              undo.pushUndo()
-              set({ addons: { ...cur, absenceCourses } })
-            }
-            // 休んだ日・休める回数は授業名で持つので、名前を直したら新しい名前に移してから回数を決める
-            const tt =
-              from !== null && courseKey(from) !== courseKey(name) ? renameAttendance(get().timetable, from, name) : get().timetable
-            get().saveTimetable(withAbsenceLimit(tt, name, limit))
-          }),
-        removeAbsenceCourse: (title) =>
-          get().asOneUndo(() => {
-            const cur = get().addons
-            if (!hasAbsenceCourse(cur.absenceCourses, title)) return
-            undo.pushUndo({ key: 'undo.absenceCourseRemoved', params: { name: title } })
-            set({ addons: { ...cur, absenceCourses: withoutAbsenceCourse(cur.absenceCourses, title) } })
-            const absences = { ...get().timetable.absences }
-            delete absences[courseKey(title)]
-            get().saveTimetable(withAbsenceLimit({ ...get().timetable, absences }, title, null))
-          }),
-        setCourseAbsent: (title, date, absent) => {
-          get().saveTimetable(withAbsence(get().timetable, title, date, absent))
-        },
-        setGoogleSkip: (title, skip) => {
+        saveSchool: (school, label) => {
           const cur = get().addons
-          const googleSkip = withGoogleSkip(cur.googleSkip, title, skip)
-          if (sameValue(googleSkip, cur.googleSkip)) return
-          set({ addons: { ...cur, googleSkip } })
+          if (sameValue(school, schoolOfState(get()))) return
+          // 学期・欠席・休める回数・授業も ⌘Z で戻せる（学期の削除などはトーストからも）
+          undo.pushUndo(label)
+          set({ addons: { ...cur, school } })
         },
+        setCourseAbsent: (title, date, absent) => get().saveSchool(withAbsence(schoolOfState(get()), title, date, absent)),
+        setCourseAbsenceLimit: (termId, title, limit) => get().saveSchool(withAbsenceLimit(schoolOfState(get()), termId, title, limit)),
+        addCourse: (termId, title) => get().saveSchool(withAddedCourse(schoolOfState(get()), termId, title.trim())),
+        renameAddedCourse: (from, to) => get().saveSchool(renameCourse(schoolOfState(get()), from, to.trim())),
+        removeCourse: (termId, title, lms) =>
+          get().asOneUndo(() => {
+            const next = withRemovedCourse(schoolOfState(get()), termId, title, lms)
+            if (sameValue(next, schoolOfState(get()))) return
+            undo.pushUndo({ key: 'undo.absenceCourseRemoved', params: { name: title } })
+            set({ addons: { ...get().addons, school: next } })
+          }),
         ...createDayMoodsSlice(ctx),
         ...createEventSeriesSlice(ctx),
         ...undo.actions,
@@ -488,6 +528,18 @@ for (const [stamp, keys] of Object.entries(SETTING_STAMPS)) {
 }
 useTaskStore.subscribe((s, prev) => {
   if (s.appTimeZone !== prev.appTimeZone || s.tasks !== prev.tasks) applyTimeZoneState()
+})
+// Google の予定に付けた色が変わったら（操作・同期・元に戻す・他のタブ）、出ている Google の予定に当て直す（入れるときは `setCalendarEvents`）
+useTaskStore.subscribe((s, prev) => {
+  if (s.googleEventColors === prev.googleEventColors) return
+  const calendarEvents = resolveEventColors(s.calendarEvents, s.googleEventColors)
+  if (calendarEvents !== s.calendarEvents) useTaskStore.setState({ calendarEvents })
+})
+// 自分の時間（#625）が変わったら（操作・同期・元に戻す・他のタブ）、出ている Google の予定に当て直す（入れるときは `setCalendarEvents`）
+useTaskStore.subscribe((s, prev) => {
+  if (s.myEventTimes === prev.myEventTimes) return
+  const calendarEvents = withMyEventTimes(s.calendarEvents, s.myEventTimes)
+  if (calendarEvents !== s.calendarEvents) useTaskStore.setState({ calendarEvents })
 })
 
 /**

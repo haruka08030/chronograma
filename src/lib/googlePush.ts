@@ -7,7 +7,9 @@ import { appTimeZone, instantFromWall } from './timeZone'
 import { googleSkipKey } from './googleSkip'
 
 /**
- * アプリの予定（To-Do でない予定）を Google カレンダーにも入れる（片方向）。
+ * 前にアプリの予定（To-Do でない予定）から Google カレンダーに入れた予定を、アプリに合わせて直し続ける（片方向）。
+ * 送るのは `GOOGLE_PUSH_UNTIL` より前に作った予定だけ。それより後の予定はアプリの中だけに置く
+ * （Google に入れたい予定は作成先で「Google カレンダー」を選んで Google の予定として作る、#626）。
  * Google の予定の ID はアプリの予定の ID から決める（`chronograma` ＋ ID の 16 進）。対応表を持たずに、
  * 何度送っても・どの端末から送っても Google には 1 つしかできない。
  * この ID の Google の予定はアプリの予定と同じものなので、Google の予定としては並べない。
@@ -47,9 +49,18 @@ export function withoutPushedEvents(events: CalendarEvent[]): CalendarEvent[] {
 type SkipKeys = ReadonlySet<string>
 const NO_SKIP: SkipKeys = new Set()
 
-/** Google に置いておく予定か（ゴミ箱・アーカイブ・日の無いもの・送らない名前のものは置かない） */
+/** これより前に作ったアプリの予定だけ Google に送る（送ってある予定の Google の写しを古くしないため） */
+export const GOOGLE_PUSH_UNTIL = '2026-10-27T00:00:00+09:00'
+const PUSH_UNTIL_MS = Date.parse(GOOGLE_PUSH_UNTIL)
+
+/** Google に送ることのある予定か（前に作ったアプリの予定。今の中身は問わない） */
+export function isLegacyPushedTask(t: Pick<Task, 'kind' | 'createdAt'>): boolean {
+  return t.kind === 'event' && Date.parse(t.createdAt) < PUSH_UNTIL_MS
+}
+
+/** Google に置いておく予定か（前に作った予定だけ。ゴミ箱・アーカイブ・日の無いもの・送らない名前のものは置かない） */
 export function shouldBeOnGoogle(t: Task, skip: SkipKeys = NO_SKIP): boolean {
-  return t.kind === 'event' && !t.deletedAt && !t.archivedAt && !!t.scheduledDate && !skip.has(googleSkipKey(t.title))
+  return isLegacyPushedTask(t) && !t.deletedAt && !t.archivedAt && !!t.scheduledDate && !skip.has(googleSkipKey(t.title))
 }
 
 /** アプリの色に一番近い Google の予定の色（1〜11）。色なしは null（カレンダーの色） */
@@ -93,13 +104,18 @@ export function googleSignature(t: Task | undefined, skip: SkipKeys = NO_SKIP): 
 /** 前と今のタスクから、Google に送り直す予定の ID（作る・直す・消す） */
 export function changedForGoogle(prev: readonly Task[], next: readonly Task[], skip: SkipKeys = NO_SKIP): string[] {
   const before = new Map<string, Task>()
-  for (const t of prev) if (t.kind === 'event') before.set(t.id, t)
+  // 予定でなかったもの（前に作った To-Do を予定にしたなど）は、新しく Google に作らない
+  const notEvent = new Set<string>()
+  for (const t of prev) {
+    if (isLegacyPushedTask(t)) before.set(t.id, t)
+    else notEvent.add(t.id)
+  }
   const ids: string[] = []
   const seen = new Set<string>()
   for (const t of next) {
     seen.add(t.id)
     const p = before.get(t.id)
-    if (t.kind !== 'event' && !p) continue
+    if (!p && (!isLegacyPushedTask(t) || notEvent.has(t.id))) continue
     if (t === p) continue
     if (googleSignature(t, skip) !== googleSignature(p, skip)) ids.push(t.id)
   }
@@ -115,7 +131,7 @@ export function changedForGoogle(prev: readonly Task[], next: readonly Task[], s
 export function changedForGoogleSkip(tasks: readonly Task[], prev: SkipKeys, next: SkipKeys, todayKey: string): string[] {
   const ids: string[] = []
   for (const t of tasks) {
-    if (t.kind !== 'event' || t.deletedAt) continue
+    if (!isLegacyPushedTask(t) || t.deletedAt) continue
     const key = googleSkipKey(t.title)
     if (prev.has(key) === next.has(key)) continue
     if (next.has(key) || (t.endDate ?? t.scheduledDate ?? '') >= todayKey) ids.push(t.id)

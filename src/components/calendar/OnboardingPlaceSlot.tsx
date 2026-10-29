@@ -13,6 +13,7 @@ import { isAppToday } from '../../lib/timeZone'
 import { useNowMinutes } from '../../hooks/useAppClock'
 import { toastTitle } from '../../lib/undoWindow'
 import { HOUR_HEIGHT } from '../../lib/timeGrid'
+import { tip } from '../../lib/tooltip'
 
 /**
  * はじめの案内の間（PC の今日の計画のタイムライン）: 時間の決まっていない To-Do しかないとき、今より後の最初の空き時間に
@@ -59,8 +60,7 @@ export function OnboardingPlaceSlot({ dateKey, splitLanes }: { dateKey: string; 
         top: (slot.start / 60) * HOUR_HEIGHT + 1,
         height: ((slot.end - slot.start) / 60) * HOUR_HEIGHT - 2,
       }}
-      aria-label={label}
-      title={label}
+      {...tip(label, { name: true })}
       // 列の「押して作る」を始めない
       onPointerDown={(e) => e.stopPropagation()}
       onClick={() =>

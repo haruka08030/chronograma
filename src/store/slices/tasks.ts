@@ -10,6 +10,7 @@ import {
   makeTask,
   orderForNewSiblingAtFront,
   patchChangesTask,
+  takenTogetherIds,
 } from '../taskHelpers'
 import { toggleTaskCompletion } from '../taskRecurrence'
 import { toggleChecklistTree } from '../../lib/listTree'
@@ -307,12 +308,66 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
     },
     setSomedayTier: (ids, tier) => {
       const want = new Set(ids)
-      const targets = get().tasks.filter((t) => want.has(t.id) && !t.parentId && somedayTierOf(t) !== tier)
+      const s0 = get()
+      const byId = new Map(s0.tasks.map((t) => [t.id, t]))
+      const somedayIds = new Set(s0.lists.filter((l) => l.kind === 'someday').map((l) => l.id))
+      // いつかの小タスクは親から外してルートの行にする（いちばん上の親のすぐ後・同じセクション、#606）。
+      // 親も一緒に選んだ子は親について行く
+      const rootOf = (t: Task): Task => {
+        let cur = t
+        while (cur.parentId && byId.has(cur.parentId)) cur = byId.get(cur.parentId)!
+        return cur
+      }
+      const pickedAbove = (t: Task): boolean => {
+        for (let p = t.parentId ? byId.get(t.parentId) : undefined; p; p = p.parentId ? byId.get(p.parentId) : undefined) {
+          if (want.has(p.id)) return true
+        }
+        return false
+      }
+      const lifted = s0.tasks.filter((t) => want.has(t.id) && t.parentId && somedayIds.has(t.listId) && !pickedAbove(t))
+      const targets = s0.tasks.filter((t) => want.has(t.id) && (t.parentId ? lifted.includes(t) : somedayTierOf(t) !== tier))
       if (targets.length === 0) return
       pushUndo()
       const now = new Date().toISOString()
       const hit = new Set(targets.map((t) => t.id))
-      set((s) => ({ tasks: s.tasks.map((t) => (hit.has(t.id) ? { ...withSomedayTier(t, tier), updatedAt: now } : t)) }))
+      const sectionOf = new Map<string, string | null>()
+      const rootOrder = new Map<string, number>()
+      const groups = new Map<string, string[]>()
+      const keyOf = (listId: string, sectionId: string | null) => `${listId}\u0000${sectionId ?? ''}`
+      for (const child of lifted) {
+        const anchor = rootOf(child)
+        sectionOf.set(child.id, anchor.sectionId)
+        const key = keyOf(anchor.listId, anchor.sectionId)
+        if (!groups.has(key)) {
+          groups.set(
+            key,
+            s0.tasks
+              .filter((t) => !t.parentId && t.listId === anchor.listId && t.sectionId === anchor.sectionId)
+              .sort(compareByOrder)
+              .map((t) => t.id),
+          )
+        }
+        const ids_ = groups.get(key)!
+        const at = ids_.indexOf(anchor.id)
+        ids_.splice(at >= 0 ? at + 1 : ids_.length, 0, child.id)
+      }
+      for (const ids_ of groups.values()) ids_.forEach((id, i) => rootOrder.set(id, i))
+      set((s) => ({
+        tasks: s.tasks.map((t) => {
+          if (hit.has(t.id) && t.parentId) {
+            return {
+              ...withSomedayTier(t, tier),
+              parentId: null,
+              sectionId: sectionOf.get(t.id) ?? null,
+              order: rootOrder.get(t.id) ?? t.order,
+              updatedAt: now,
+            }
+          }
+          if (hit.has(t.id)) return { ...withSomedayTier(t, tier), order: rootOrder.get(t.id) ?? t.order, updatedAt: now }
+          const o = rootOrder.get(t.id)
+          return o === undefined || o === t.order ? t : { ...t, order: o, updatedAt: now }
+        }),
+      }))
     },
     deleteTasks: (ids, label) => {
       if (ids.length === 0) return
@@ -333,7 +388,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
     },
     restoreDeletedTasks: (rootIds) => {
       const s0 = get()
-      const ids = expandDescendantIds(rootIds, s0.tasks)
+      const ids = takenTogetherIds(rootIds, s0.tasks, (t) => t.deletedAt)
       if (![...ids].some((tid) => s0.tasks.find((t) => t.id === tid)?.deletedAt)) return
       pushUndo(rootIds.length > 1 ? { key: 'undo.tasksRestored', params: { count: rootIds.length } } : undefined)
       const nowIso = new Date().toISOString()
@@ -419,7 +474,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
     },
     unarchiveTasks: (rootIds) => {
       const s0 = get()
-      const ids = expandDescendantIds(rootIds, s0.tasks)
+      const ids = takenTogetherIds(rootIds, s0.tasks, (t) => t.archivedAt)
       if (![...ids].some((tid) => s0.tasks.find((t) => t.id === tid)?.archivedAt)) return
       pushUndo(rootIds.length > 1 ? { key: 'undo.tasksRestored', params: { count: rootIds.length } } : undefined)
       const nowIso = new Date().toISOString()

@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, addMonths, format, isSameMonth, startOfMonth, subMonths } from 'date-fns'
+import { addDays, addMonths, addYears, format, isSameMonth, startOfMonth, subMonths, subYears } from 'date-fns'
 import { appToday, appTodayKey } from '../lib/timeZone'
 import { dayMarkerClass } from '../lib/dayMarker'
-import { ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
-import { dayIndexInWeek, monthGridDays, weekdayLabelsFrom } from '../lib/weekStart'
+import { dayIndexInWeek, sixWeekGridDays, weekdayLabelsFrom } from '../lib/weekStart'
 
 /**
- * 月のカレンダー（月の切り替え・日付・今日/明日・なし）。期限のポップオーバー・タスクの右クリックメニュー・
+ * 月のカレンダー（年と月の切り替え・日付・今日/明日・なし）。期限のポップオーバー・タスクの右クリックメニュー・
  * カレンダー画面の見出しの日付ジャンプで共通。
  * 開くたびに作り直す前提で、`month`（なければ選んでいる日、それもなければ今日）の月から始める。
- * キーボード: 日の格子は Tab で 1 回だけ止まり、←→↑↓ で日・週、PageUp/PageDown で月、Home/End で週の頭と終わり、Enter で決める
+ * 日の格子は常に 6 週で、月を送っても高さ（‹ › の位置）が変わらず連打できる。
+ * キーボード: 日の格子は Tab で 1 回だけ止まり、←→↑↓ で日・週、PageUp/PageDown で月、Shift+PageUp/PageDown で年、Home/End で週の頭と終わり、Enter で決める
  */
 export function DatePickerBody({
   value,
@@ -41,7 +42,7 @@ export function DatePickerBody({
   const pick = onPick
   // 週の並びは設定の週の開始日から（カレンダーの月表示と同じ）
   const weekStartsOn = useWeekStartsOn()
-  const days = monthGridDays(viewMonth, weekStartsOn)
+  const days = sixWeekGridDays(viewMonth, weekStartsOn)
   const weekdays = weekdayLabelsFrom(t('calendar.weekdayInitials', { returnObjects: true }) as string[], weekStartsOn)
   const todayKey = appTodayKey()
   const tomorrowKey = toDateKey(addDays(appToday(), 1))
@@ -71,9 +72,13 @@ export function DatePickerBody({
             : e.key === 'ArrowDown'
               ? addDays(from, 7)
               : e.key === 'PageUp'
-                ? subMonths(from, 1)
+                ? e.shiftKey
+                  ? subYears(from, 1)
+                  : subMonths(from, 1)
                 : e.key === 'PageDown'
-                  ? addMonths(from, 1)
+                  ? e.shiftKey
+                    ? addYears(from, 1)
+                    : addMonths(from, 1)
                   : e.key === 'Home'
                     ? addDays(from, -dow)
                     : e.key === 'End'
@@ -89,14 +94,23 @@ export function DatePickerBody({
 
   return (
     <>
-      <div className="mb-1 flex items-center justify-between px-1">
+      {/* 連打しても文字を選択しない・スマホでダブルタップの拡大にしない */}
+      <div className="mb-1 flex select-none items-center justify-between px-1">
         <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{df.yearMonth(viewMonth)}</span>
         <div className="flex items-center gap-0.5">
           <button
             type="button"
+            aria-label={t('dueDatePicker.prevYear')}
+            onClick={() => setViewMonth((m) => subYears(m, 1))}
+            className="touch-manipulation rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
+          >
+            <ChevronDoubleLeftIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
             aria-label={t('dueDatePicker.prevMonth')}
             onClick={() => setViewMonth((m) => subMonths(m, 1))}
-            className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            className="touch-manipulation rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
           >
             <ChevronLeftIcon className="h-4 w-4" />
           </button>
@@ -104,9 +118,17 @@ export function DatePickerBody({
             type="button"
             aria-label={t('dueDatePicker.nextMonth')}
             onClick={() => setViewMonth((m) => addMonths(m, 1))}
-            className="rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            className="touch-manipulation rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
           >
             <ChevronRightIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label={t('dueDatePicker.nextYear')}
+            onClick={() => setViewMonth((m) => addYears(m, 1))}
+            className="touch-manipulation rounded-full p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
+          >
+            <ChevronDoubleRightIcon className="h-4 w-4" />
           </button>
         </div>
       </div>

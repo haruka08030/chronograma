@@ -46,7 +46,8 @@ export const EMPTY_HABIT_FORM: HabitFormState = {
   freq: 'daily',
   weekdays: DEFAULT_WEEKDAYS,
   timesPerWeek: DEFAULT_TIMES_PER_WEEK,
-  timeMode: 'range',
+  // 時間は「時間を決める」を押してから（押すと 09:00〜10:00）
+  timeMode: 'none',
   startTime: '09:00',
   endTime: '10:00',
   perWeekday: false,
@@ -66,7 +67,7 @@ export function habitFormFrom(h: Habit): HabitFormState {
     timeMode: h.timeMode,
     startTime: h.startTime ?? '09:00',
     endTime: h.endTime ?? '10:00',
-    perWeekday: h.frequency.type === 'weekly' && !!h.weekdayTimes,
+    perWeekday: !!h.weekdayTimes,
     weekdayTimes: Object.fromEntries(
       Object.entries(h.weekdayTimes ?? {}).map(([d, v]) => [d, { startTime: v.startTime, endTime: v.endTime ?? h.endTime ?? '10:00' }]),
     ),
@@ -91,14 +92,40 @@ function formGoalMinutes(f: HabitFormState): number | null {
   return Number.isInteger(n) && n >= 1 && n <= HABIT_GOAL_MINUTES_MAX ? n : NaN
 }
 
-/** 曜日ごとの時間の欄を使うか（曜日を指定・時間あり・「曜日ごとに時間を変える」を押した） */
+/** 曜日ごとの時間の欄を使うか（時間あり・「曜日ごとに時間を変える」を押した） */
 export function usesWeekdayTimes(f: HabitFormState): boolean {
-  return f.perWeekday && f.freq === 'weekly' && f.timeMode !== 'none'
+  return f.perWeekday && f.timeMode !== 'none'
+}
+
+const ALL_WEEKDAYS: HabitWeekday[] = [1, 2, 3, 4, 5, 6, 7]
+
+/** 曜日ごとの時間の行を出す曜日（月曜から）。曜日を指定した習慣は選んだ曜日、ほかは 7 日とも */
+export function formTimeDays(f: HabitFormState): HabitWeekday[] {
+  return f.freq === 'weekly' ? [...f.weekdays].sort((a, b) => a - b) : ALL_WEEKDAYS
 }
 
 /** その曜日の欄の時間。まだ入れていない曜日は上の時間 */
 export function formWeekdayTime(f: HabitFormState, d: HabitWeekday): { startTime: string; endTime: string } {
   return f.weekdayTimes[d] ?? { startTime: f.startTime, endTime: f.endTime }
+}
+
+/**
+ * 「どの曜日も同じ時間にする」で戻すときの変更。出している曜日でいちばん多い時間（同じ数なら月曜に近い曜日の時間）を
+ * 1 つの時間にし、曜日ごとの時間は捨てる（睡眠の予定の `commonSleepPlan` と同じ）
+ */
+export function sameTimeFormPatch(f: HabitFormState): Partial<HabitFormState> {
+  const times = formTimeDays(f).map((d) => formWeekdayTime(f, d))
+  const key = (w: { startTime: string; endTime: string }) => (f.timeMode === 'range' ? `${w.startTime}-${w.endTime}` : w.startTime)
+  let best: { startTime: string; endTime: string } = f
+  let bestCount = 0
+  for (const w of times) {
+    const count = times.filter((x) => key(x) === key(w)).length
+    if (count > bestCount) {
+      best = w
+      bestCount = count
+    }
+  }
+  return { perWeekday: false, startTime: best.startTime, endTime: best.endTime, weekdayTimes: {} }
 }
 
 /** 使わない時刻は空にして判定する（時刻なしなら開始・終了とも、決まった時刻なら終了を見ない） */
@@ -119,7 +146,8 @@ export function canSubmitHabitForm(form: HabitFormState): boolean {
   const f = effectiveHabitForm(form)
   if (Number.isNaN(formGoalMinutes(f))) return false
   if (!usesWeekdayTimes(f)) return canSubmitHabitDraft(draftFields(f))
-  return f.weekdays.length > 0 && f.weekdays.every((d) => canSubmitHabitDraft(draftFields(f, formWeekdayTime(f, d))))
+  const days = formTimeDays(f)
+  return days.length > 0 && days.every((d) => canSubmitHabitDraft(draftFields(f, formWeekdayTime(f, d))))
 }
 
 /**
@@ -129,7 +157,7 @@ export function canSubmitHabitForm(form: HabitFormState): boolean {
 export function habitFromForm(form: HabitFormState) {
   const f = effectiveHabitForm(form)
   const perWeekday = usesWeekdayTimes(f)
-  const weekdays = [...f.weekdays].sort((a, b) => a - b)
+  const weekdays = formTimeDays(f)
   const base = perWeekday && weekdays.length > 0 ? formWeekdayTime(f, weekdays[0]) : f
   let weekdayTimes: HabitWeekdayTimes | undefined
   if (perWeekday) {

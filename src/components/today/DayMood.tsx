@@ -15,9 +15,11 @@ export function MoodSymbol({ mood, className = 'h-5 w-5' }: { mood: Mood; classN
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" className={className}>
       <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      {/* eslint-disable no-restricted-syntax -- 気分の量（○ ◔ ◑ ◕ ●）を 16 の枠で描く記号。24 の枠・線 1 本の ICON_PATHS / PathIcon には収まらない */}
       {mood === 2 && <path d="M8 8V1.75A6.25 6.25 0 0 1 14.25 8Z" fill="currentColor" />}
       {mood === 3 && <path d="M8 1.75A6.25 6.25 0 0 1 8 14.25Z" fill="currentColor" />}
       {mood === 4 && <path d="M8 8V1.75A6.25 6.25 0 1 1 1.75 8Z" fill="currentColor" />}
+      {/* eslint-enable no-restricted-syntax */}
       {mood === 5 && <circle cx="8" cy="8" r="6.25" fill="currentColor" />}
     </svg>
   )

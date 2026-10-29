@@ -67,12 +67,14 @@ export function pointHabitsOn(
   habits: Habit[],
   dateKey: string,
   records: HabitRecordIndex,
-): { habit: Habit; slot: PlannedItem; done: boolean }[] {
+): { habit: Habit; slot: PlannedItem; done: boolean; offTime: boolean }[] {
   return habits
     .flatMap((habit) => {
       if (!isPointHabitOn(habit, dateKey)) return []
       const slot = habitToPlannedItem(habit, dateKey, records)
-      return slot ? [{ habit, slot, done: habitDayStatus(habit, dateKey, records) !== 'missed' }] : []
+      const status = habitDayStatus(habit, dateKey, records)
+      // 時間外（決めた時間とは違う時間にやった）も達成に数え、丸は点線の輪で見分ける（`offTime`）
+      return slot ? [{ habit, slot, done: status !== 'missed', offTime: status === 'offTime' }] : []
     })
     .sort((a, b) => a.slot.startTime.localeCompare(b.slot.startTime))
 }
@@ -96,7 +98,7 @@ export function untimedHabitsOn(
   habits: Habit[],
   dateKey: string,
   records: HabitRecordIndex,
-): { habit: Habit; id: string; done: boolean }[] {
+): { habit: Habit; id: string; done: boolean; offTime: boolean }[] {
   return habits.flatMap((habit) => {
     if (
       habitAsOf(habit, dateKey).timeMode !== 'none' ||
@@ -104,7 +106,8 @@ export function untimedHabitsOn(
       !isHabitDueOnDate(habit, fromDateKey(dateKey), records)
     )
       return []
-    return [{ habit, id: habitSlotId(habit.id, dateKey), done: habitDayStatus(habit, dateKey, records) !== 'missed' }]
+    const status = habitDayStatus(habit, dateKey, records)
+    return [{ habit, id: habitSlotId(habit.id, dateKey), done: status !== 'missed', offTime: status === 'offTime' }]
   })
 }
 

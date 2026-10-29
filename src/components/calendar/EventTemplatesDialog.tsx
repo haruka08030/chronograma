@@ -11,7 +11,9 @@ import { usePlanColorText } from '../../hooks/usePlanColorText'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { TimeInput } from '../TimeInput'
 import { ColorLabelSelect } from '../labels/ColorLabelSelect'
-import { PlusIcon, TrashIcon } from '../icons'
+import { ClockIcon, PlusIcon, TrashIcon } from '../icons'
+import { EmptyState } from '../ui/EmptyState'
+import { ExampleChips } from '../ui/ExampleChips'
 import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { iconButtonClass } from '../ui/iconButtonClass'
@@ -113,9 +115,9 @@ export function EventTemplatesDialog({ onClose, onSaved }: { onClose: () => void
 
   const patch = (id: string, p: Partial<EventTemplate>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)))
 
-  const addRow = () => {
+  const addRow = (title = '') => {
     const id = newId()
-    setRows((rs) => [...rs, { id, title: '', startTime: NEW_START, endTime: NEW_END, color: null }])
+    setRows((rs) => [...rs, { id, title, startTime: NEW_START, endTime: NEW_END, color: null }])
     requestAnimationFrame(() => {
       const el = listRef.current?.querySelector<HTMLInputElement>(`[data-template-row="${id}"]`)
       el?.scrollIntoView({ block: 'nearest' })
@@ -145,7 +147,15 @@ export function EventTemplatesDialog({ onClose, onSaved }: { onClose: () => void
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         {rows.length === 0 ? (
-          <p className={HINT_TEXT}>{t('eventTemplates.empty')}</p>
+          // 例を押すとその名前の行ができる（時刻とラベルを決めて保存）
+          <EmptyState size="sm" icon={<ClockIcon strokeWidth={1} />} title={t('eventTemplates.empty')}>
+            <ExampleChips
+              opensAdd
+              examples={t('eventTemplates.examples', { returnObjects: true }) as string[]}
+              onPick={(title) => addRow(title)}
+              className="mt-3 justify-center"
+            />
+          </EmptyState>
         ) : (
           <ul ref={listRef} className="space-y-3">
             {rows.map((r) => (
@@ -163,7 +173,7 @@ export function EventTemplatesDialog({ onClose, onSaved }: { onClose: () => void
       <div className="flex items-center gap-2 border-t border-zinc-200 px-6 py-4 dark:border-zinc-700">
         <button
           type="button"
-          onClick={addRow}
+          onClick={() => addRow()}
           disabled={rows.length >= EVENT_TEMPLATE_MAX}
           {...tip(t('eventTemplates.add'), { name: true })}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-40 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"

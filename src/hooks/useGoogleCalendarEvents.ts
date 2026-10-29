@@ -88,6 +88,8 @@ export function useGoogleCalendarEvents(timeMin: Date, timeMax: Date) {
         const known = new Map(useTaskStore.getState().calendarEvents.map((e) => [e.id, e]))
         // アプリの予定から作った Google の予定は、アプリの予定として出ている
         show(events)
+        // Google で開催時間が変わった予定は、自分の時間のはみ出した側を削る・重ならなければ外す（#625）
+        useTaskStore.getState().fitMyEventTimes(events)
         // 開始を過ぎてから消された予定は、やらなかった予定として残す。題名が来なければ前に取った予定の題名で補う（#528）
         const { addSkippedEvents, dropRestoredSkipped } = useTaskStore.getState()
         // 消して送る前の予定（「元に戻す」を待っている）はまだ Google にあるが、予定に戻ったのではない

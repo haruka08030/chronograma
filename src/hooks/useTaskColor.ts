@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
 import { NEUTRAL_HEX } from '../lib/googleColors'
+import { isVagueLog } from '../lib/vagueLog'
 import { labelForHex, recordHex } from '../lib/logCategoryColors'
 import { colorNameText } from './usePlanColorText'
 
@@ -20,6 +21,7 @@ export function useTaskColor(task: Task, plan = false) {
   // 予定は色だけ持つが、その色にラベル（分類名）が付いていれば色名ではなくラベル名で出す
   const label = isPlan ? labelForHex(current, presets, colors) : task.category
   const defaultLabel = t('labels.none')
+  const vague = !isPlan && isVagueLog(task)
   const choose = (hex: string | null) => {
     if (isPlan) updateTask(task.id, { color: hex })
     else if (hex === null) updateTask(task.id, { category: null, color: null })
@@ -30,9 +32,11 @@ export function useTaskColor(task: Task, plan = false) {
   }
   return {
     current,
-    /** 今の色の呼び名（ラベル名 → 色名 → 既定） */
-    currentText: label ?? colorNameText(t, current, defaultLabel),
+    /** 今の色の呼び名（「なんとなく」→ ラベル名 → 色名 → 既定） */
+    currentText: vague ? t('labels.vague') : (label ?? colorNameText(t, current, defaultLabel)),
     choose,
+    /** 記録（睡眠を除く）だけ: 「なんとなく」（#657）。予定・To-Do・睡眠は null */
+    vague: !isPlan && task.kind === 'log' ? { selected: vague, onChoose: () => updateTask(task.id, { vague: true }) } : null,
     defaultLabel,
     defaultHex: NEUTRAL_HEX,
   }

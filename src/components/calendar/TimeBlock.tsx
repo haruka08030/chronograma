@@ -4,9 +4,9 @@ import { getResizeCursor, type CreatePopup } from '../../lib/useTimelineDrag'
 import { useNowMinutes } from '../../hooks/useAppClock'
 import { colorVars } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { planVisualState } from '../../lib/planVisual'
+import { planTileClass, planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
-import { MoonSolidIcon } from '../icons'
+import { DueIcon, MoonSolidIcon } from '../icons'
 import { tip } from '../../lib/tooltip'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { SKIPPED_EVENT_CLASS } from '../ui/rowStateClass'
@@ -16,7 +16,7 @@ import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 /**
  * タイムライン上の 1 ブロック（Google カレンダー風）。
  * 記録（実績）とこれからの予定（Google の予定も）は薄い塗り＋枠（`gc-plan`）。記録は右、予定は左の列で見分ける。
- * 終わった・完了した予定は灰色（`gc-missed`）。
+ * ラベルなしのこれからの予定は塗らずに灰の縁だけ（`gc-plan-none`）。終わった・完了した予定は灰色（`gc-missed`）。完了は右上の ✓ の塗りだけで見せる（題名に ✓ は付けない、#638）。
  * 背景色の細い縁で、隣り合う・重なるブロックの境目を見せる。
  * 文字はブロックの上端に寄せる（button は既定で縦中央。長いブロックに後の予定が重なっても題名・時刻が隠れないように）。
  */
@@ -28,6 +28,7 @@ export function TimeBlock({
   onTap,
   isLog,
   sleep,
+  vague,
   hStyle,
   colorHex,
   withCheck,
@@ -39,7 +40,7 @@ export function TimeBlock({
   running?: boolean
   /** やらなかった予定（#528）。灰色に重ねて薄く・取り消し線 */
   skipped?: boolean
-  /** 右上に ✓（`SlotCheck`）を重ねる。文字を避け、完了は ✓ の塗りで見せる */
+  /** 右上に ✓（`SlotCheck`）を重ねる。文字を避ける */
   withCheck?: boolean
   /** クリック・タップで開く（ドラッグしない Google の予定用） */
   onTap?: () => void
@@ -50,6 +51,8 @@ export function TimeBlock({
   isLog?: boolean
   /** 睡眠の記録。色の付いた記録と並べても目立たない、落ち着いた帯にする */
   sleep?: boolean
+  /** 「なんとなく」の記録（#657）。灰の斜線の枠（`gc-vague`） */
+  vague?: boolean
   /** 重なり回避の横位置（left/width） */
   hStyle?: React.CSSProperties
   /** 予定はリストの色、記録は分類の色、外部の予定は Google の青 */
@@ -71,10 +74,9 @@ export function TimeBlock({
   // 記録（実績）は分類の色、予定はその色で、どちらも薄い塗り＋枠。予定は終わったら（完了・未完了とも）グレー
   // Google の予定（外部）も予定と同じ見せ方
   const state = !isLog && dayKey ? planVisualState(task, dayKey) : 'upcoming'
-  const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : state === 'upcoming' ? 'gc-plan' : 'gc-missed'
+  const variant = sleep ? 'gc-sleep' : vague ? 'gc-vague' : isLog ? 'gc-plan' : planTileClass(state, colorHex)
   const moon = sleep && <MoonSolidIcon className="mr-1 inline h-3 w-3 -translate-y-px" />
-  const doneMark = state === 'done' && !withCheck ? '✓ ' : ''
-  // 締切がこの日まで（過ぎた・この予定では間に合わなければ赤、当日は黄）の予定は、題名の前に点を付ける（予定を入れても締切を見失わない）
+  // 締切がこの日まで（過ぎた・この予定では間に合わなければ赤、当日は黄）の予定は、題名の前に締切の →| を付ける（先の締切は出さない）（予定を入れても締切を見失わない）
   const dueTone =
     !isLog && !sleep && state === 'upcoming' && dayKey && task.dueDate && task.dueDate <= dayKey
       ? dueToneOf(task.dueDate, task.dueTime ?? null, dayKey, { atTime: task.startTime })
@@ -83,9 +85,7 @@ export function TimeBlock({
     <span aria-hidden className="mr-1 inline-block h-1.5 w-1.5 -translate-y-px animate-breathe rounded-full bg-red-500" />
   )
   const endLabel = running ? t('activityLog.timerRunning') : task.endTime
-  const dueDot = dueTone && (
-    <span aria-hidden className={`mr-1 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-current ${DUE_TONE_CLASS[dueTone]}`} />
-  )
+  const dueDot = dueTone && <DueIcon aria-hidden className={`mr-0.5 inline h-3 w-3 -translate-y-px ${DUE_TONE_CLASS[dueTone]}`} />
   // 30 分未満の短いブロックは Google と同じく「タイトル、9:00」を 1 行に。
   // 20 分未満は余白を詰め、1 行が入らない 13 分未満は文字を出さない（ホバーのヒントで読める）
   const compact = height < 32
@@ -133,7 +133,6 @@ export function TimeBlock({
             {runningDot}
             {dueDot}
             {moon}
-            {doneMark}
             {task.title}
           </span>
           <span className="opacity-80">
@@ -150,7 +149,6 @@ export function TimeBlock({
             {runningDot}
             {dueDot}
             {moon}
-            {doneMark}
             {task.title}
             <span className="hidden @max-[5rem]:inline">{t('common.listSeparator')}</span>
           </span>
@@ -165,7 +163,7 @@ export function TimeBlock({
 }
 
 /**
- * 予定ブロックの右上に重ねる ✓（ToDo の完了、習慣の「予定どおりやった」、Google の予定を記録にする）。
+ * 予定ブロックの右上に重ねる ✓。意味は「終わった」（#638）: To-Do は完了、習慣は予定どおりやった、予定・Google の予定は記録にする。
  * ブロック自体が button なので入れ子にせず、同じ位置に重ねる。
  */
 export function SlotCheck({

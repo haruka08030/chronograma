@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { EstimateBiasHint } from './EstimateBiasHint'
+import { useFitInViewport } from '../hooks/useFitInViewport'
+import { pointRect } from '../lib/viewportFit'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
@@ -24,7 +26,6 @@ import { SheetBackdrop } from './ui/SheetBackdrop'
 const DURATIONS = [30, 60, 120]
 /** 先の日を見ているときは朝から探す */
 const FUTURE_DAY_FROM = 9 * 60
-const EDGE = 8
 const WIDTH = TIME_SLOT_MENU_WIDTH
 /** ↑↓ で動く項目（空きの候補と「その他の時刻…」） */
 const ITEM = '[data-slot-item]'
@@ -70,7 +71,6 @@ export function TimeSlotMenu({
   const [end, setEnd] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
   const panelExit = useExitGhost(panelRef)
-  const [pos, setPos] = useState({ left: x, top: y })
 
   useDismiss({ open: true, onClose, inside: [panelRef], swallow: sheet })
 
@@ -93,14 +93,8 @@ export function TimeSlotMenu({
     return findFreeSlots(busySpans(tasks, events, dateKey, taskId), { from, duration })
   }, [tasks, events, dateKey, taskId, duration, todayKey, nowMinutes])
 
-  // PC: 画面からはみ出さないよう、押した所の下（入らなければ上）に置く
-  useLayoutEffect(() => {
-    if (sheet || !panelRef.current) return
-    const r = panelRef.current.getBoundingClientRect()
-    const left = Math.min(Math.max(EDGE, x), window.innerWidth - r.width - EDGE)
-    const top = y + r.height + EDGE > window.innerHeight ? Math.max(EDGE, y - r.height - 8) : y
-    setPos({ left, top })
-  }, [sheet, x, y, custom])
+  // PC: 押した所の下（入らなければ上・画面の中）に置く。高すぎる分はパネルの中でスクロール
+  useFitInViewport(panelRef, { anchor: pointRect(x, y), placement: 'below', gap: 0, disabled: sheet })
 
   const items = () => Array.from(panelRef.current?.querySelectorAll<HTMLElement>(ITEM) ?? [])
   // PC は開いたら最初の候補（無ければ「その他の時刻…」）にフォーカス。スマホのシートでは動かさない（キーボードが出る・ずれる）
@@ -189,7 +183,7 @@ export function TimeSlotMenu({
         data-popover-keep
         onKeyDown={onKeyDown}
         className={`${anchoredCardClass(sheet)} p-2 ${sheet ? 'inset-x-0 bottom-0' : ''}`}
-        style={sheet ? undefined : { left: pos.left, top: pos.top, width: WIDTH }}
+        style={sheet ? undefined : { width: WIDTH }}
       >
         {sheet && <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-600" aria-hidden />}
         <MenuLabel>{task.title}</MenuLabel>

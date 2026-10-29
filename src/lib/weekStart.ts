@@ -56,6 +56,12 @@ export function monthGridDays(month: Date, weekStartsOn: WeekStartDay = appSetti
   return out
 }
 
+/** 月の格子を常に 6 週（42 日）で返す。月を送っても高さが変わらない（日付ピッカー） */
+export function sixWeekGridDays(month: Date, weekStartsOn: WeekStartDay = appSetting): Date[] {
+  const start = calendarWeekStart(new Date(month.getFullYear(), month.getMonth(), 1), weekStartsOn)
+  return Array.from({ length: 42 }, (_, i) => addDays(start, i))
+}
+
 /** その日が週の何日目か（0 = 週の最初の日） */
 export function dayIndexInWeek(date: Date, weekStartsOn: WeekStartDay = appSetting): number {
   return (date.getDay() - weekStartsOn + 7) % 7

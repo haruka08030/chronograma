@@ -116,6 +116,11 @@ interface TaskBase {
    * サーバーでは `tasks.label_id`（`033`）
    */
   labelId?: string
+  /**
+   * 「なんとなく」の記録（#657。行き来・雑用・スマホ・何をしたか分からない時間）。ラベル・色は持たず、ラベル別の時間・記録した時間に入れない。
+   * 記録だけ。持たない行は項目ごと無い。サーバーでは `tasks.is_vague`（`051`）
+   */
+  vague?: true
   recurrence: Recurrence | null
   /** 習慣から作った記録なら、その習慣の id。時間を決めた習慣はこの記録の時刻で「時間どおりか」を判定する */
   habitId: string | null

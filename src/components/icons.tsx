@@ -38,6 +38,26 @@ function strokeIcon(d: string) {
   }
 }
 
+/** 線のアイコンの中を薄く塗る（☆ に対する ★ のような「済んだ」形） */
+function tintedIcon(d: string) {
+  return function TintedIcon({ className, style, strokeWidth = 2, label }: IconProps) {
+    return (
+      <svg
+        className={className}
+        style={style}
+        fill="currentColor"
+        fillOpacity={0.4}
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        {...a11y(label)}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d={d} />
+      </svg>
+    )
+  }
+}
+
 function filledIcon(d: string) {
   return function FilledIcon({ className, style, label }: IconProps) {
     return (
@@ -58,6 +78,8 @@ export const HabitIcon = strokeIcon(ICON_PATHS.habit)
 export const CalendarArrowIcon = strokeIcon(ICON_PATHS.calendarArrow)
 export const CalendarDoubleArrowIcon = strokeIcon(ICON_PATHS.calendarDoubleArrow)
 export const ChevronLeftIcon = strokeIcon(ICON_PATHS.chevronLeft)
+export const ChevronDoubleLeftIcon = strokeIcon(ICON_PATHS.chevronDoubleLeft)
+export const ChevronDoubleRightIcon = strokeIcon(ICON_PATHS.chevronDoubleRight)
 export const PencilIcon = strokeIcon(ICON_PATHS.pencil)
 export const ClockIcon = strokeIcon(ICON_PATHS.clock)
 export const HourglassIcon = strokeIcon(ICON_PATHS.hourglass)
@@ -67,11 +89,18 @@ export const GlobeIcon = strokeIcon(ICON_PATHS.globe)
 export const RepeatIcon = strokeIcon(ICON_PATHS.repeat)
 export const CaretDownIcon = filledIcon(ICON_PATHS.caretDown)
 export const ArchiveIcon = strokeIcon(ICON_PATHS.archive)
+/** 習慣を休む（休みを外す）。カレンダーは日付の意味なので使わない */
+export const PauseIcon = strokeIcon(ICON_PATHS.pause)
+/** 格子に置いた習慣を習慣の段に戻す。時計は時刻の意味なので使わない */
+export const ArrowUpIcon = strokeIcon(ICON_PATHS.arrowUp)
 export const RestoreIcon = strokeIcon(ICON_PATHS.restore)
 export const FlagIcon = strokeIcon(ICON_PATHS.flag)
 /** 締切。どこでもこの形（旗は優先度） */
 export const DueIcon = strokeIcon(ICON_PATHS.toLine)
 export const ArrowRightIcon = strokeIcon(ICON_PATHS.arrowRight)
+export const PostponeIcon = strokeIcon(ICON_PATHS.postpone)
+export const DreamIcon = strokeIcon(ICON_PATHS.dream)
+export const SunriseIcon = strokeIcon(ICON_PATHS.sunrise)
 export const SearchIcon = strokeIcon(ICON_PATHS.search)
 export const OpenPanelIcon = strokeIcon(ICON_PATHS.openPanel)
 export const SunIcon = strokeIcon(ICON_PATHS.sun)
@@ -87,6 +116,9 @@ export const EllipsisVerticalIcon = strokeIcon(ICON_PATHS.ellipsisVertical)
 export const SortIcon = strokeIcon(ICON_PATHS.sort)
 export const FilterIcon = strokeIcon(ICON_PATHS.filter)
 export const StarIcon = strokeIcon(ICON_PATHS.star)
+
+/** 塗った星 ★（かなえた）。☆ と同じ形・同じ大きさ。塗りはベタにせず薄く、縁はくっきり（gc-dot と同じ考え） */
+export const StarFilledIcon = tintedIcon(ICON_PATHS.star)
 export const CartIcon = strokeIcon(ICON_PATHS.cart)
 export const PencilSquareIcon = strokeIcon(ICON_PATHS.pencilSquare)
 export const ChevronUpIcon = strokeIcon(ICON_PATHS.chevronUp)
@@ -95,3 +127,4 @@ export const SectionIcon = strokeIcon(ICON_PATHS.section)
 export const ShareIcon = strokeIcon(ICON_PATHS.share)
 export const DuplicateIcon = strokeIcon(ICON_PATHS.duplicate)
 export const RefreshIcon = strokeIcon(ICON_PATHS.refresh)
+export const InfoIcon = strokeIcon(ICON_PATHS.informationCircle)

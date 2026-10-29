@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { WeekReviewCard } from './WeekReviewCard'
-import { SleepStatsCard } from './SleepStatsCard'
+import { SleepSummaryCard } from './SleepSummaryCard'
 import { computeTagStats } from '../lib/taskStats'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
@@ -28,7 +28,7 @@ export function StatsView() {
 
       <div className="px-4 pb-8 space-y-8 md:px-6">
         <WeekReviewCard />
-        <SleepStatsCard />
+        <SleepSummaryCard />
 
         {/* タグが 1 つも無ければ「タグ無し 1 行」になるだけなので出さない */}
         {stats.byTag.some((x) => x.tag !== '') && (

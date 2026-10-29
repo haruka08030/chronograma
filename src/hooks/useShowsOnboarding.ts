@@ -19,7 +19,7 @@ export function useShowsOnboarding(viewingToday: boolean): boolean {
 /** はじめの案内のいまのステップ（今日を見ているとき。今日の計画の部品で使う）。案内を出していなければ null */
 export function useOnboardingStep(): 'add' | 'place' | 'record' | null {
   const todayKey = useAppTodayKey()
-  const viewingToday = useTaskStore((s) => s.selectedCalendarDateKey === todayKey)
+  const viewingToday = useTaskStore((s) => s.plannerDateKey === todayKey)
   const shows = useShowsOnboarding(viewingToday)
   // 案内を出していないとき（ほとんどの人）は数えない
   return useTaskStore((s) => {

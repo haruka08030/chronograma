@@ -504,7 +504,7 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
 /**
  * 統計の「日の違い」（#326）を撮るための過去 2 週間（昨日〜14 日前）の睡眠・記録・気分。ほかの画面の構図を変えないよう、
  * その画面（`insightHistory`）でだけ足す。3 日に 1 回は短く遅い夜（記録が少ない・気分 ◔）、
- * 3 日に 1 回はよく寝た早い夜（記録が多い・気分 ◕）、残りは遅いがよく寝た夜
+ * 3 日に 1 回はよく寝た早い夜（記録が多い・気分 ◕）、残りは遅いがよく寝た夜。短い夜のうち 2 日に 1 回は昼寝（15:00–17:30、#645）
  */
 export function addInsightHistory(state, { now, instant }) {
   for (let i = 1; i <= 14; i++) {
@@ -529,6 +529,22 @@ export function addInsightHistory(state, { now, instant }) {
         instant,
       ),
     )
+    if (type === 1 && i % 2 === 1)
+      state.tasks.push(
+        task(
+          {
+            id: `hist-${i}-nap`,
+            title: '睡眠',
+            dueDate: wake,
+            startTime: '15:00',
+            endTime: '17:30',
+            kind: 'sleep',
+            completed: true,
+            tags: ['睡眠'],
+          },
+          instant,
+        ),
+      )
     const logs = [
       ['課題', '10:00', type === 1 ? '11:00' : type === 2 ? '12:30' : '12:00'],
       ['授業', '13:00', '14:30'],
