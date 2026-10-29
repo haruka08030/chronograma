@@ -15,7 +15,7 @@
 | 本ファイル | ファイルの地図と、保存・同期・DB・運用の技術的な事実 |
 
 具体的な作業は GitHub の Issue。挙動は `RULES.md` を正とし、ここには書かない。
-更新の決まりは `.cursor/rules/sync-cursor-context.mdc`。
+更新の決まりはルートの `CLAUDE.md`（「ドキュメントも同じ作業で直す」）。
 
 ## プロダクト概要
 
@@ -133,6 +133,7 @@
 | `e2e/` | Playwright（`*.spec.ts`、文言は `i18n.ts` の `t()`、保存データの用意は `savedData.ts`） |
 | `public/` | `sw.js`・`manifest.webmanifest`・`icons/`・`og.png`・`privacy.html`・`terms.html` |
 | `.github/workflows/` | `ci.yml`（static・test・test-tz・check・functions・database）・`test-tz.yml` |
+| `tsconfig.json` | `tsconfig.app.json`（`src/`）と `tsconfig.node.json`（`vite.config.ts`・`vitest.config.ts`・`playwright.config.ts`・`e2e/`）を束ねる |
 | `.githooks/pre-commit` | ステージしたファイルを Prettier で確かめる（`npm install` の `prepare` が `core.hooksPath` に設定） |
 
 ## 保存（IndexedDB）
@@ -299,7 +300,7 @@ limit 50;
 - `preview` — ビルドのプレビュー
 - `lint` — ESLint（CI で必須）。型を見るルール（`no-floating-promises`・`no-misused-promises`・`await-thenable`）入り: Promise を返す関数を `onClick` などに直接渡さず `() => void fn()` で呼ぶ
 - `lint:unchecked-index` — `noUncheckedIndexedAccess` を入れたときの型エラーをファイルごとに数える（テスト以外）。合計が `scripts/lint/unchecked-index.mjs` の `LIMIT` を超えると落ちる（CI でも）。減ったら `LIMIT` を下げ、0 件になったら `tsconfig.app.json` で有効にする
-- `format` / `format:check` — Prettier（`.prettierrc`、対象外は `.prettierignore`）
+- `format` / `format:check` — Prettier（設定は `package.json` の `prettier`、対象外は `.prettierignore`）
 - `test` — Vitest
 - `test:tz` — タイムゾーンと時刻を替えて Vitest を 4 回（`TZ`・`FAKE_NOW`）
 - `test:e2e` — Playwright（`e2e/`）。`chromium`（PC・英語、全部）と `webkit-ja`（iPhone 14 の WebKit・日本語、`onboarding`・`todo`・`japanese`）
