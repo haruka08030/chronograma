@@ -5,7 +5,8 @@ import { buildHabitRecordIndex } from '../../lib/habitTiming'
 import { closeHabitEdit, useHabitEditTarget } from '../../lib/habitEditRequest'
 import { useAppTodayKey } from '../../hooks/useAppClock'
 import { usePresence } from '../../hooks/usePresence'
-import { HabitDetailSheet } from './HabitDetailSheet'
+import { HabitDetailSheet } from '../lazyOverlays'
+import { OverlaySuspense } from '../ui/OverlaySuspense'
 
 /** タイムラインの習慣のカード・メニューの「編集」と今日の計画の習慣の行を、開いている画面のまま右の詳細で開く（編集は編集から） */
 export function HabitEditHost() {
@@ -19,15 +20,17 @@ export function HabitEditHost() {
   const sheet = usePresence(value)
   if (!sheet.shown) return null
   return (
-    <HabitDetailSheet
-      key={sheet.shown.seq}
-      habit={sheet.shown.habit}
-      habitRecords={habitRecords}
-      todayKey={todayKey}
-      closing={sheet.closing}
-      startEditing={sheet.shown.edit}
-      dateKey={sheet.shown.dateKey}
-      onClose={closeHabitEdit}
-    />
+    <OverlaySuspense onLoadFailed={closeHabitEdit}>
+      <HabitDetailSheet
+        key={sheet.shown.seq}
+        habit={sheet.shown.habit}
+        habitRecords={habitRecords}
+        todayKey={todayKey}
+        closing={sheet.closing}
+        startEditing={sheet.shown.edit}
+        dateKey={sheet.shown.dateKey}
+        onClose={closeHabitEdit}
+      />
+    </OverlaySuspense>
   )
 }

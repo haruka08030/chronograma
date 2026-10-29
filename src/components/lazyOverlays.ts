@@ -14,6 +14,10 @@ export const QuickCreatePopover = lazyNamed(() => import('./timeline/QuickCreate
 export const TimeSlotMenu = lazyNamed(() => import('./TimeSlotMenu'), 'TimeSlotMenu')
 export const DueDateTimeMenu = lazyNamed(() => import('./DueDateTimeMenu'), 'DueDateTimeMenu')
 export const CompleteWithLogModal = lazyNamed(() => import('./CompleteWithLogModal'), 'CompleteWithLogModal')
+export const HabitSlotPopover = lazyNamed(() => import('./timeline/HabitSlotPopover'), 'HabitSlotPopover')
+export const SleepSlotPopover = lazyNamed(() => import('./timeline/SleepSlotPopover'), 'SleepSlotPopover')
+export const HabitDayPopover = lazyNamed(() => import('./calendar/HabitDayPopover'), 'HabitDayPopover')
+export const HabitDetailSheet = lazyNamed(() => import('./habits/HabitDetailSheet'), 'HabitDetailSheet')
 
 export const preloadOverlays = () =>
   preloadWhenIdle(
@@ -26,4 +30,8 @@ export const preloadOverlays = () =>
     CompleteWithLogModal.preload,
     TimeSlotMenu.preload,
     DueDateTimeMenu.preload,
+    HabitSlotPopover.preload,
+    SleepSlotPopover.preload,
+    HabitDayPopover.preload,
+    HabitDetailSheet.preload,
   )

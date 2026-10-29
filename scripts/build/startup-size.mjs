@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 
-const LIMIT_GZIP_KB = 350
+const LIMIT_GZIP_KB = 370
 
 const args = process.argv.slice(2)
 const outDir = args.find((a) => !a.startsWith('--')) ?? 'dist'

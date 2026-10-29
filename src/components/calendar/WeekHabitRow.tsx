@@ -10,7 +10,9 @@ import { appTodayKey } from '../../lib/timeZone'
 import { tip } from '../../lib/tooltip'
 import { CheckIcon, ChevronDownIcon } from '../icons'
 import { DROP_HIGHLIGHT_CLASS, startTaskDrag } from '../../lib/taskDrag'
-import { HabitDayPopover, type HabitDayItem } from './HabitDayPopover'
+import type { HabitDayItem } from './HabitDayPopover'
+import { HabitDayPopover } from '../lazyOverlays'
+import { OverlaySuspense } from '../ui/OverlaySuspense'
 import { HabitDotMark as DotMark, type DotState } from './HabitDotMark'
 import { HABIT_OFF_TIME_TEXT } from '../../lib/habitMark'
 import { habitDotState, habitStarted } from './habitDotState'
@@ -208,28 +210,30 @@ export function WeekHabitRow({
         })}
       </div>
       {popover && popDay && (
-        <HabitDayPopover
-          anchor={popover.anchor}
-          dateKey={popover.key}
-          // 1 日表示は段と同じ並び（まだを時刻順→達成）
-          items={named ? popDay.named : popDay.dots}
-          highlightId={null}
-          logLimitMin={logLimitMin}
-          openHabitCard={openHabitCard}
-          openHabitMenu={openHabitMenu}
-          // 丸のある日だけを ‹ › でたどる（週・3 日）
-          onStep={
-            withDots.length > 1
-              ? (dir) => {
-                  const next = withDots[popIndex + dir]
-                  if (next) setPopover({ key: next.key, anchor: popover.anchor })
-                }
-              : undefined
-          }
-          canPrev={popIndex > 0}
-          canNext={popIndex < withDots.length - 1}
-          onClose={() => setPopover(null)}
-        />
+        <OverlaySuspense onLoadFailed={() => setPopover(null)}>
+          <HabitDayPopover
+            anchor={popover.anchor}
+            dateKey={popover.key}
+            // 1 日表示は段と同じ並び（まだを時刻順→達成）
+            items={named ? popDay.named : popDay.dots}
+            highlightId={null}
+            logLimitMin={logLimitMin}
+            openHabitCard={openHabitCard}
+            openHabitMenu={openHabitMenu}
+            // 丸のある日だけを ‹ › でたどる（週・3 日）
+            onStep={
+              withDots.length > 1
+                ? (dir) => {
+                    const next = withDots[popIndex + dir]
+                    if (next) setPopover({ key: next.key, anchor: popover.anchor })
+                  }
+                : undefined
+            }
+            canPrev={popIndex > 0}
+            canNext={popIndex < withDots.length - 1}
+            onClose={() => setPopover(null)}
+          />
+        </OverlaySuspense>
       )}
     </div>
   )

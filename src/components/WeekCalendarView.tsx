@@ -680,11 +680,13 @@ export function WeekCalendarView({
         </div>
       </div>
 
-      {/* 読めなかったら、遅れて読むカード（予定・Google の予定・作成）を閉じる */}
+      {/* 読めなかったら、遅れて読むカード（予定・Google の予定・習慣の枠・睡眠の予定の枠・作成）を閉じる */}
       <OverlaySuspense
         onLoadFailed={() => {
           cards.closeCard()
           cards.closeGoogleCard()
+          cards.closeHabitCard()
+          cards.closeSleepCard()
           timelineDrag.dismissPopup()
         }}
       >
