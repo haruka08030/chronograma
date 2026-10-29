@@ -54,7 +54,7 @@ describe('追加機能の画面と設定（#453）', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('学校の説明の「使い方」で、アプリの使い方を学校の節から開く（#670・#673）', async () => {
+  it('学校の説明の「使い方」で、使い方を学校の節から開き、記事を開いて戻れ、検索で記事を探せる（#670・#673・#675）', async () => {
     Element.prototype.scrollIntoView = () => {}
     const user = userEvent.setup()
     render(
@@ -66,15 +66,27 @@ describe('追加機能の画面と設定（#453）', () => {
     await user.click(screen.getByRole('button', { name: '学校の説明' }))
     await user.click(screen.getByRole('button', { name: '使い方' }))
     const guide = await screen.findByRole('dialog', { name: '使い方' })
-    // 目次は画面の並び（上から）
-    const toc = within(within(guide).getByRole('navigation', { name: '目次' })).getAllByRole('button')
-    expect(toc.map((b) => b.textContent).slice(0, 5)).toEqual(['基本の操作', '今日の計画', 'To-Do', 'カレンダー', '習慣'])
-    for (const name of ['学校', '学期', '時間割', '授業の一覧', '欠席', '課題', '引き落とし・期限']) {
-      expect(within(guide).getByRole('heading', { name })).toBeTruthy()
-    }
-    expect(guide.textContent).toContain('ラベル名が科目名と同じ')
-    // 学校の節から見せる
     expect(useOverlays.getState().help).toBe('school')
+    // 節は画面の並び（上から）
+    const sections = within(guide)
+      .getAllByRole('heading', { level: 3 })
+      .map((h) => h.textContent)
+    expect(sections.slice(0, 5)).toEqual(['基本の操作', '今日の計画', 'To-Do', 'カレンダー', '習慣'])
+    expect(sections).toContain('学校')
+
+    await user.click(within(guide).getByRole('button', { name: '欠席を記録する' }))
+    const article = within(guide).getByRole('article', { name: '欠席を記録する' })
+    expect(within(article).getAllByRole('listitem').length).toBeGreaterThan(1)
+    expect(article.textContent).toContain('「欠席にする」')
+    await user.click(within(guide).getByRole('button', { name: '使い方' }))
+    expect(within(guide).queryByRole('article')).toBeNull()
+
+    await user.type(within(guide).getByRole('searchbox', { name: '使い方を検索' }), 'ラベル名')
+    expect(within(guide).getByRole('button', { name: /授業の課題を表示する/ })).toBeTruthy()
+    await user.clear(within(guide).getByRole('searchbox', { name: '使い方を検索' }))
+    await user.type(within(guide).getByRole('searchbox', { name: '使い方を検索' }), 'zzzz')
+    expect(within(guide).getByText('「zzzz」に合う記事は見つかりませんでした')).toBeTruthy()
+
     await user.click(within(guide).getByRole('button', { name: '閉じる' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })

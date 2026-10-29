@@ -755,9 +755,14 @@ const SCREENS = [
   },
   { name: 'settings-help', view: 'settings', steps: [{ click: 'button:has-text("使い方")' }] },
   {
-    name: 'settings-help-school',
+    name: 'settings-help-article',
     view: 'settings',
-    steps: [{ click: 'button:has-text("使い方")' }, { click: 'nav[aria-label="目次"] button:has-text("学校")' }],
+    steps: [{ click: 'button:has-text("使い方")' }, { click: '[role=dialog] button:has-text("To-Do をすばやく追加する")' }],
+  },
+  {
+    name: 'settings-help-search',
+    view: 'settings',
+    steps: [{ click: 'button:has-text("使い方")' }, { fill: { selector: '[role=dialog] input[type=search]', text: '欠席' } }],
   },
   // 学期だけあって授業がまだ無い学校のページ（使う前だけ出す 1 行の説明）
   { name: 'addons-school-empty', view: 'addons', state: TIMETABLE_ON, steps: [{ click: '[data-addon="school"] button:has-text("学校")' }] },
