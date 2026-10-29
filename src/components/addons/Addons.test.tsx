@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../../i18n/config'
@@ -7,6 +7,7 @@ import { DEFAULT_ADDONS } from '../../lib/addons'
 import { AddonsView } from './AddonsView'
 import { AddonsSettingsGroup } from './AddonsSettingsGroup'
 import { TimetableButton } from '../calendar/TimetableButton'
+import { OverlayHost } from '../OverlayHost'
 
 beforeEach(async () => {
   await i18n.changeLanguage('ja')
@@ -49,6 +50,23 @@ describe('追加機能の画面と設定（#453）', () => {
     const dialog = screen.getByRole('dialog', { name: '学校' })
     expect(dialog.textContent).toContain('休んだ回数')
     await user.click(screen.getByRole('button', { name: '閉じる' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('学校の説明の「使い方」で、学校の使い方が節ごとに開く（#670）', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <AddonsView />
+        <OverlayHost />
+      </>,
+    )
+    await user.click(screen.getByRole('button', { name: '学校の説明' }))
+    await user.click(screen.getByRole('button', { name: '使い方' }))
+    const guide = await screen.findByRole('dialog', { name: '学校の使い方' })
+    for (const name of ['学期', '時間割', '授業の一覧', '欠席', '課題']) expect(within(guide).getByRole('heading', { name })).toBeTruthy()
+    expect(guide.textContent).toContain('ラベル名が科目名と同じ')
+    await user.click(within(guide).getByRole('button', { name: '閉じる' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 

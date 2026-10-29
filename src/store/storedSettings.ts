@@ -58,6 +58,7 @@ export const STORED_SETTINGS: Record<SettingDataKey, StoredSetting> = {
   onboardingCompleted: {},
   onboardingFinishedOn: {},
   installNudgeDismissed: {},
+  hintsDismissed: { normalize: strings },
   signInNudgeDismissed: {},
   dailyCapacityMinutes: {},
   sleepPrefs: { normalize: normalizeSleepPrefs },

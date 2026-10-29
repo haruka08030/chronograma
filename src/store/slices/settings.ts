@@ -40,6 +40,7 @@ type SettingsActions = Pick<
   | 'finishOnboarding'
   | 'completeOnboarding'
   | 'dismissInstallNudge'
+  | 'dismissHint'
   | 'dismissSignInNudge'
   | 'setDailyCapacityMinutes'
   | 'setSleepPrefs'
@@ -209,6 +210,7 @@ export function createSettingsSlice({ set, get, undo }: SliceContext): SettingsA
     },
     completeOnboarding: () => set({ onboardingDone: true, onboardingCompleted: true, onboardingFinishedOn: appTodayKey() }),
     dismissInstallNudge: () => set({ installNudgeDismissed: true }),
+    dismissHint: (id) => set((s) => (s.hintsDismissed.includes(id) ? {} : { hintsDismissed: [...s.hintsDismissed, id] })),
     dismissSignInNudge: () => set({ signInNudgeDismissed: true }),
     setDailyCapacityMinutes: (minutes) => set({ dailyCapacityMinutes: Math.max(60, Math.round(minutes)) }),
     setSleepPrefs: (patch) => set((s) => ({ sleepPrefs: normalizeSleepPrefs({ ...s.sleepPrefs, ...patch }) })),

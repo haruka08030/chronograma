@@ -44,7 +44,7 @@ function AddonCard({ id, onOpen }: { id: AddonId; onOpen: () => void }) {
   const on = useTaskStore((s) => isAddonOn(s.addons, id, s.tasks))
   const setAddonOn = useTaskStore((s) => s.setAddonOn)
   const [infoOpen, setInfoOpen] = useState(false)
-  const { icon } = ADDON_CATALOG[id]
+  const { icon, openGuide } = ADDON_CATALOG[id]
   const name = t(`addons.${id}.name`)
   const head = (
     <>
@@ -95,7 +95,19 @@ function AddonCard({ id, onOpen }: { id: AddonId; onOpen: () => void }) {
         <Modal onClose={() => setInfoOpen(false)} labelledBy={`addon-info-${id}`} width="sm" className="p-5">
           <ModalTitle id={`addon-info-${id}`}>{name}</ModalTitle>
           <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{t(`addons.${id}.description`)}</p>
-          <div className="mt-5 flex justify-end">
+          <div className="mt-5 flex justify-end gap-2">
+            {openGuide && (
+              <button
+                type="button"
+                onClick={() => {
+                  setInfoOpen(false)
+                  openGuide()
+                }}
+                className={buttonClass({ variant: 'ghost', size: 'md' })}
+              >
+                {t(`addons.${id}.guide`)}
+              </button>
+            )}
             <button type="button" onClick={() => setInfoOpen(false)} className={buttonClass({ variant: 'primary', size: 'md' })}>
               {t('common.close')}
             </button>

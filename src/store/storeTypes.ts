@@ -201,6 +201,8 @@ export interface TaskState {
   onboardingFinishedOn: string | null
   /** iPhone の Safari でのホーム画面への追加の誘いを閉じたか（端末に保存） */
   installNudgeDismissed: boolean
+  /** 使う前だけ出す 1 行の説明（`FirstUseHint`）のうち × で閉じたものの id（端末に保存） */
+  hintsDismissed: string[]
   /** ログインしていない人へのログインの誘い（2 台目・ホーム画面のアプリでは空になる）を閉じたか（端末に保存） */
   signInNudgeDismissed: boolean
   /** 1 日に計画してよい時間（分）。超えたら穏やかに知らせる */
@@ -479,6 +481,7 @@ export interface TaskState {
   /** 3 ステップをやり終えて案内を閉じる（終えたあとの誘いを出せるようにする） */
   completeOnboarding: () => void
   dismissInstallNudge: () => void
+  dismissHint: (id: string) => void
   dismissSignInNudge: () => void
   setDailyCapacityMinutes: (minutes: number) => void
   setSleepPrefs: (patch: Partial<SleepPrefs>) => void

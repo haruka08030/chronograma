@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import type { AddonId } from '../../lib/addons'
 import { ICON_PATHS } from '../../lib/iconPaths'
+import { openSchoolGuide } from '../../lib/overlays'
 import { DuesPage } from './DuesBody'
 import { SchoolPage } from './SchoolBody'
 
@@ -9,9 +10,11 @@ export type AddonEntry = {
   icon: string
   /** オンのカードを押して進むページ（上に「‹ 追加機能」） */
   Page: ComponentType<{ onBack: () => void }>
+  /** 説明のポップアップの「使い方」で開くもの（決まりの多い機能だけ） */
+  openGuide?: () => void
 }
 
 export const ADDON_CATALOG: Record<AddonId, AddonEntry> = {
-  school: { icon: ICON_PATHS.academicCap, Page: SchoolPage },
+  school: { icon: ICON_PATHS.academicCap, Page: SchoolPage, openGuide: () => openSchoolGuide() },
   dues: { icon: ICON_PATHS.flag, Page: DuesPage },
 }

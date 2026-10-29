@@ -2,7 +2,17 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { attendanceText, attendanceTone } from '../../lib/timetable'
-import { courseAttendance, isAbsent, isClassTask, isTermCourse, termOn, type ClassAttendance as Attendance } from '../../lib/schoolTerms'
+import {
+  courseAttendance,
+  hasAnyAbsence,
+  isAbsent,
+  isClassTask,
+  isTermCourse,
+  termOn,
+  type ClassAttendance as Attendance,
+} from '../../lib/schoolTerms'
+import { openSchoolGuide } from '../../lib/overlays'
+import { FirstUseHint } from '../ui/FirstUseHint'
 import { lmsCourses } from '../../lib/courseLinks'
 import { useAppTodayKey } from '../../hooks/useAppClock'
 import { useAddonOn } from '../../hooks/useAddon'
@@ -38,18 +48,23 @@ export function ClassAttendance({ title, date, task }: { title: string; date: st
   const canMark = date <= today
 
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-zinc-100 px-4 py-2.5 dark:border-zinc-700">
-      <p className={`text-sm tabular-nums ${NOTICE_TONE_CLASS[attendanceTone(a)]}`}>{attendanceText(a, t)}</p>
-      {canMark && (
-        <button
-          type="button"
-          aria-pressed={absent}
-          onClick={() => setCourseAbsent(title, date, !absent)}
-          className={buttonClass({ variant: 'ghost', size: 'sm' }, 'shrink-0')}
-        >
-          {absent ? t('timetable.unmarkAbsent') : t('timetable.markAbsent')}
-        </button>
-      )}
+    <div className="border-t border-zinc-100 px-4 py-2.5 dark:border-zinc-700">
+      <div className="flex items-center justify-between gap-2">
+        <p className={`text-sm tabular-nums ${NOTICE_TONE_CLASS[attendanceTone(a)]}`}>{attendanceText(a, t)}</p>
+        {canMark && (
+          <button
+            type="button"
+            aria-pressed={absent}
+            onClick={() => setCourseAbsent(title, date, !absent)}
+            className={buttonClass({ variant: 'ghost', size: 'sm' }, 'shrink-0')}
+          >
+            {absent ? t('timetable.unmarkAbsent') : t('timetable.markAbsent')}
+          </button>
+        )}
+      </div>
+      <FirstUseHint id="card-absence" show={!hasAnyAbsence(school)} onMore={() => openSchoolGuide('absences')} className="-mr-2 mt-1">
+        {t('timetable.hintCardAbsence')}
+      </FirstUseHint>
     </div>
   )
 }

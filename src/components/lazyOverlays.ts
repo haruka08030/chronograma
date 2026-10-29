@@ -18,6 +18,7 @@ export const HabitSlotPopover = lazyNamed(() => import('./timeline/HabitSlotPopo
 export const SleepSlotPopover = lazyNamed(() => import('./timeline/SleepSlotPopover'), 'SleepSlotPopover')
 export const HabitDayPopover = lazyNamed(() => import('./calendar/HabitDayPopover'), 'HabitDayPopover')
 export const HabitDetailSheet = lazyNamed(() => import('./habits/HabitDetailSheet'), 'HabitDetailSheet')
+export const SchoolGuide = lazyNamed(() => import('./addons/SchoolGuide'), 'SchoolGuide')
 
 export const preloadOverlays = () =>
   preloadWhenIdle(

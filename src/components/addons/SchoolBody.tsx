@@ -2,27 +2,29 @@ import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { attendanceText, attendanceTone } from '../../lib/timetable'
-import { defaultTerm, inTermRange, isAbsent, type Term, type TermCourse } from '../../lib/schoolTerms'
+import { defaultTerm, hasAnyAbsence, inTermRange, isAbsent, type Term, type TermCourse } from '../../lib/schoolTerms'
 import { ABSENCE_COURSE_TITLE_MAX } from '../../lib/absenceCourses'
 import { courseKey, lmsCourses } from '../../lib/courseLinks'
 import { isSubmitEnter } from '../../lib/keyboard'
+import { openSchoolGuide } from '../../lib/overlays'
 import { useAppTodayKey } from '../../hooks/useAppClock'
 import { useSchool } from '../../hooks/useSchool'
 import { TimetableBody } from '../calendar/TimetableDialog'
 import { SettingsSubPage } from '../settings/SettingsSubPage'
 import { Modal, ModalTitle } from '../ui/Modal'
-import { ChevronRightIcon, PlusIcon } from '../icons'
+import { ChevronRightIcon, InfoIcon, PlusIcon } from '../icons'
 import { PathIcon } from '../PathIcon'
 import { ICON_PATHS } from '../../lib/iconPaths'
 import { EmptyState } from '../ui/EmptyState'
 import { ExampleChips } from '../ui/ExampleChips'
+import { FirstUseHint } from '../ui/FirstUseHint'
 import { buttonClass } from '../ui/buttonClass'
 import { chipClass } from '../ui/chipClass'
 import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { CARD_TITLE_CLASS } from '../ui/headingClass'
 import { NOTICE_TONE_CLASS } from '../ui/dueTone'
-import { ERROR_TEXT, HINT_TEXT, META_TEXT } from '../ui/textClass'
+import { ERROR_TEXT, META_TEXT } from '../ui/textClass'
 import { SchoolTermBar } from './SchoolTermBar'
 import { useTermCourses } from '../../hooks/useTermCourses'
 import { CoursePage } from './CoursePage'
@@ -53,14 +55,19 @@ export function SchoolPage({ onBack }: { onBack: () => void }) {
             <h2 id="school-timetable" className={CARD_TITLE_CLASS}>
               {t('timetable.title')}
             </h2>
-            <p className={`mt-0.5 ${HINT_TEXT}`}>{t('timetable.intro')}</p>
-            <div className="mt-2">
+            <div className="mt-1">
               <TimetableBody term={term} />
             </div>
           </section>
           <CourseList term={term} onOpen={setCourse} />
         </>
       )}
+      <div>
+        <button type="button" onClick={() => openSchoolGuide()} className={buttonClass({ variant: 'ghost', size: 'sm' }, '-ml-2')}>
+          <InfoIcon className="h-4 w-4" />
+          {t('school.guide')}
+        </button>
+      </div>
     </SettingsSubPage>
   )
 }
@@ -81,6 +88,13 @@ function CourseList({ term, onOpen }: { term: Term; onOpen: (title: string) => v
       <h2 id="school-courses" className={CARD_TITLE_CLASS}>
         {t('school.courses')}
       </h2>
+      <FirstUseHint
+        id="school-absence"
+        show={rows.length > 0 && todayInTerm && !hasAnyAbsence(school)}
+        onMore={() => openSchoolGuide('absences')}
+      >
+        {t('school.hintAbsence')}
+      </FirstUseHint>
       {rows.length === 0 && (
         // 例を押すとその名前で授業を追加するカードが開く
         <EmptyState size="sm" icon={<PathIcon d={ICON_PATHS.academicCap} strokeWidth={1} />} title={t('school.coursesEmpty')}>
@@ -106,6 +120,7 @@ function CourseList({ term, onOpen }: { term: Term; onOpen: (title: string) => v
                   <span className="block truncate text-sm text-zinc-800 dark:text-zinc-100">{row.title}</span>
                   <span className="block text-xs tabular-nums">
                     <span className={NOTICE_TONE_CLASS[attendanceTone(row.attendance)]}>{attendanceText(row.attendance, t)}</span>
+                    {row.fromLms && <span className={META_TEXT}> · {t('school.fromLms')}</span>}
                     {row.assignments.length > 0 && (
                       <span className={META_TEXT}> · {t('school.assignmentsCount', { count: row.assignments.length })}</span>
                     )}
