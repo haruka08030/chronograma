@@ -10,6 +10,7 @@ import {
   habitAsOf,
   habitDayStatus,
   habitPastRuleOn,
+  isHabitExtraOn,
   isoWeekdayOf,
   plannedRecordTimes,
   type HabitRecordIndex,
@@ -228,14 +229,22 @@ export function isHabitScheduledOn(h: SlotHabit, dateKey: string): boolean {
   return habit.frequency.weekdays.includes(isoWeekdayOf(dateKey))
 }
 
+/** 決めた曜日以外の日に置いた「この日もやる」日か（休みの日・やめた日から先は入れない。`isHabitExtraOn`） */
+export function isHabitExtraDayOn(h: SlotHabit, dateKey: string): boolean {
+  return !isHabitEndedOn(h, dateKey) && !h.restDates?.includes(dateKey) && !habitPastRuleOn(h, dateKey)?.off && isHabitExtraOn(h, dateKey)
+}
+
 /**
  * 「予定 N 件」に入れる、その日の習慣の枠（時間を決めた習慣だけ。枠は ✓ で作る記録と同じ時間）。
- * 週に◯回の習慣は、やらなかった日の枠を入れない（やらない日の枠を「できなかった予定」にしない）。
+ * 週に◯回の習慣・この日もやる日（`isHabitExtraDayOn`）は、やらなかった日の枠を入れない（やらない日の枠を「できなかった予定」にしない）。
  * ルーティンの枠は `routine`（突き合わせにだけ使い、数えない）
  */
 export function habitPlanSlot<R extends TimingRecord>(habit: SlotHabit, dateKey: string, records: HabitRecordIndex<R>): PlanSlot | null {
-  if (!isHabitScheduledOn(habit, dateKey)) return null
-  if (habitAsOf(habit, dateKey).frequency.type === 'timesPerWeek' && habitDayStatus(habit, dateKey, records) === 'missed') return null
+  const extra = isHabitExtraDayOn(habit, dateKey)
+  if (!extra && !isHabitScheduledOn(habit, dateKey)) return null
+  // この日もやる日も、やった日だけ入れる
+  if ((extra || habitAsOf(habit, dateKey).frequency.type === 'timesPerWeek') && habitDayStatus(habit, dateKey, records) === 'missed')
+    return null
   const times = plannedRecordTimes(habit, dateKey)
   if (!times) return null
   return {

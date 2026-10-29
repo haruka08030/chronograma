@@ -826,6 +826,15 @@ const SCREENS = [
     estimates: { s4: 45 },
     steps: [{ dragTime: { from: '17:30', to: '18:30' } }],
   },
+  // 作成カードで題名を打つと、名前の合う習慣（ジム）を「習慣「ジム」をこの時間に置く」で出す（#667）
+  {
+    name: 'calendar-quick-create-habit',
+    view: 'calendar',
+    steps: [
+      { dragTime: { from: '07:00', to: '08:00' } },
+      { fill: { selector: '[role=dialog] input[placeholder="タイトルを追加"] >> visible=true', text: 'ジム' } },
+    ],
+  },
   // 祝日の名前（灰色の文字だけ。週・1 日は終日の行、月は日付の横、スケジュールは日の行）。
   // 撮る日（2026/10）の次の週の 10/12 スポーツの日。スマホは月のマスの祝日を押してその日の 1 日表示へ
   { name: 'calendar-holiday', view: 'calendar', desktopOnly: true, click: 'button[aria-label="次の週"] >> visible=true' },

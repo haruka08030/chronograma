@@ -106,7 +106,7 @@
 | 通知 | `notifications.ts`・`localReminders.ts`・`webPush.ts`・`timerEndAlert.ts`・`notificationLaunch.ts`・`notificationCleanup.ts` |
 | タスクと時間 | `taskTimeRange.ts`・`taskLifecycle.ts`・`taskDefaults.ts`・`recurrence.ts`・`eventSeries.ts`・`movedPlans.ts`・`carryDays.ts`・`estimate.ts`・`parseQuickAdd.ts`・`quickAddTask.ts`・`listKind.ts`・`listTree.ts`・`foldTaskFolders.ts`・`somedayTier.ts`・`searchTasks.ts` |
 | 計画と記録 | `dayPlan.ts`・`plannedItemUtils.ts`・`matchEvents.ts`・`weekReview.ts`・`freeSlots.ts`・`slotFitTodo.ts`・`timerLength.ts`・`timerRecord.ts`・`sleep.ts`・`sleepTimer.ts`・`vagueLog.ts`・`logCategory.ts`・`logCategoryColors.ts`・`recordExport.ts`・`reviewImage.ts` |
-| 習慣 | `habitTiming.ts`・`habitSchedule.ts`・`habitStats.ts`・`habitDraft.ts`・`habitPastRules.ts`・`habitSlots.ts`・`routineDrift.ts` |
+| 習慣 | `habitTiming.ts`・`habitSchedule.ts`・`habitStats.ts`・`habitDraft.ts`・`habitPastRules.ts`・`habitSlots.ts`・`habitSuggest.ts`・`routineDrift.ts` |
 | タイムライン・DnD | `overlapLayout.ts`・`planVisual.ts`・`timeGrid.ts`・`useTimelineDrag.ts`・`useTimelineDrop.ts`・`dragEnd.ts`・`dndCollision.ts`・`subtaskDnD.ts`・`listDnD.ts`・`taskDepth.ts`・`taskDragIntent.ts`・`appTouchSensor.ts` |
 | 色・日付・タイムゾーン | `googleColors.ts`・`colorMath.ts`・`dateKey.ts`・`dateFormat.ts`・`timeZone.ts`・`taskTimeZone.ts`・`wallTime.ts`・`appClock.ts`・`weekStart.ts`・`japaneseHolidays.ts` |
 | アプリの周り | `pwa.ts`・`urlHistory.ts`・`viewUrl.ts`・`shortcuts.ts`・`lazyComponent.ts`・`chunkLoad.ts`・`errorReport.ts`・`feedback.ts`・`importTasksCsv.ts`（見本 `fixtures/`）・`textLimits.ts`・`onboarding.ts` |

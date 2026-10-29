@@ -1,6 +1,6 @@
 import { addDays, startOfWeek } from 'date-fns'
 import { isHabitRestOn, type Habit } from '../types/habit'
-import { isHabitEndedOn, isHabitScheduledOn } from '../../supabase/functions/_shared/dayResult.ts'
+import { isHabitEndedOn, isHabitExtraDayOn, isHabitScheduledOn } from '../../supabase/functions/_shared/dayResult.ts'
 import { habitAsOf, habitDayStatus, type HabitRecordIndex } from './habitTiming'
 import { fromDateKey, toDateKey } from './dateKey'
 
@@ -12,6 +12,14 @@ import { fromDateKey, toDateKey } from './dateKey'
 export function isHabitScheduledOnDate(habit: Habit, date: Date): boolean {
   // 通知の数え方（`dayResult.ts`）と同じもの
   return isHabitScheduledOn(habit, toDateKey(date))
+}
+
+/**
+ * 決めた曜日以外の日に置いた「この日もやる」日か（予定の作成カードで習慣を選んだ日）。
+ * 今日の計画・タイムラインには出すが、達成率・連続ではやらなかった日を数えない（予定の日ではない）
+ */
+export function isHabitExtraOnDate(habit: Habit, date: Date): boolean {
+  return isHabitExtraDayOn(habit, toDateKey(date))
 }
 
 /** その日から続く休みの最後の日（「休みを外す」はその日から先の続きをまとめて外す。前の日の休みは残す） */
@@ -72,7 +80,7 @@ export function isHabitWeekGoalMetOnDate(habit: Habit, date: Date, records?: Hab
   return habitWeekDoneCount(habit, date, records) >= habitWeekRequired(habit, date)
 }
 
-/** その日にやることが残っている習慣か（予定の日で、週に◯回ならその週の回数をまだ満たしていない） */
+/** その日にやることが残っている習慣か（予定の日で、週に◯回ならその週の回数をまだ満たしていない。この日もやる日も入る） */
 export function isHabitDueOnDate(habit: Habit, date: Date, records?: HabitRecordIndex): boolean {
-  return isHabitScheduledOnDate(habit, date) && !isHabitWeekGoalMetOnDate(habit, date, records)
+  return (isHabitScheduledOnDate(habit, date) && !isHabitWeekGoalMetOnDate(habit, date, records)) || isHabitExtraOnDate(habit, date)
 }

@@ -15,9 +15,16 @@ import { useDateFormat } from '../../hooks/useDateFormat'
 import { SHORTCUTS } from '../../lib/shortcuts'
 import { META_TEXT, SUBTLE_TEXT } from '../ui/textClass'
 import { colorVars, logLabelFromTask } from '../../lib/logCategoryColors'
-import { buildHabitRecordIndex, habitAsOf, habitDayStatus, habitRecordsFor, plannedRecordTimes } from '../../lib/habitTiming'
+import {
+  buildHabitRecordIndex,
+  habitAsOf,
+  habitDayStatus,
+  habitRecordsFor,
+  isHabitExtraOn,
+  plannedRecordTimes,
+} from '../../lib/habitTiming'
 import { habitSlotId, isPlacedPointHabitOn, isPointHabitOn } from '../../lib/habitSlots'
-import { logLimitAt, placeHabitSlot, unplaceHabitSlot } from '../../lib/timelineBlockEdit'
+import { logLimitAt, placeHabitSlot, removeHabitExtraDay, unplaceHabitSlot } from '../../lib/timelineBlockEdit'
 import { formatDuration, timeToMinutes } from '../../lib/timeGrid'
 import { durationMinutesForTaskSlot } from '../../lib/taskTimeRange'
 import { isLogTask } from '../../types/task'
@@ -29,7 +36,7 @@ const WIDTH = 300
 /**
  * タイムラインの習慣の枠を押したときの小さなカード（予定のカードと同じ形）。
  * 始まった枠は ✓（予定どおり達成・取り消し）、終わる前は ▶ 記録を開始、習慣の段のチップは「時間に置く」、✎ で開いている画面のまま編集（`HabitEditHost`。その日の時間もそこで直す、#621）。
- * 上の並びに、右クリックのメニューと同じ操作（この日は休む・習慣の段に戻す）をアイコンで置く。キー: Esc 閉じる / e 編集
+ * 上の並びに、右クリックのメニューと同じ操作（この日は休む・習慣の段に戻す）をアイコンで置く。この日もやる日は休む・戻すの代わりに 🗑 でその日の予定から外す（やる前だけ）。キー: Esc 閉じる / e 編集
  * 済んだ枠は、その日の習慣の記録（`habitRecordsFor`）を 1 行ずつ並べ、行を押すとその記録のカード（`onOpenRecord`）、🗑 で消す（#661）
  */
 export function HabitSlotPopover({
@@ -76,6 +83,7 @@ export function HabitSlotPopover({
   if (!habit || (!times && !untimed)) return null
   const index = buildHabitRecordIndex(tasks.filter(isLogTask))
   const done = habitDayStatus(habit, dateKey, index) !== 'missed'
+  const extra = isHabitExtraOn(habit, dateKey)
   // その日の習慣の記録（済んだ枠だけ。同じ記録は 1 行）
   const records = done
     ? habitRecordsFor(index, habit, dateKey).filter((r, i, all) => r.startTime && r.endTime && all.findIndex((x) => x.id === r.id) === i)
@@ -106,7 +114,21 @@ export function HabitSlotPopover({
           </button>
         )}
         {/* 右クリックのメニューと同じ操作をアイコンで（その日を休む・習慣の段に戻す、#616） */}
-        {!stopped && !isHabitRestOn(habit, dateKey) && (
+        {extra && !done && (
+          <button
+            type="button"
+            onClick={() => {
+              removeHabitExtraDay(habitSlotId(habit.id, dateKey))
+              onClose()
+            }}
+            className={iconButtonClass()}
+            aria-label={t('habits.removeExtraDay')}
+            {...tip(t('habits.removeExtraDay'))}
+          >
+            <TrashIcon className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        )}
+        {!stopped && !extra && !isHabitRestOn(habit, dateKey) && (
           <button
             type="button"
             onClick={() => {

@@ -363,6 +363,8 @@ export interface TaskState {
    * その日だけ習慣の時間を変える（タイムラインで枠を動かした・習慣の段のチップを格子に置いた）。習慣の時間と同じにしたらその日の分は消す
    */
   setHabitDayTime: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
+  /** 決めた曜日以外の日に、その日だけ習慣を置く（「この日もやる」日。予定の作成カードで習慣を選んだとき） */
+  addHabitExtraDay: (id: string, dateKey: string, startTime: string, endTime: string, label?: ToastText) => void
   /**
    * 習慣の枠のカードで時間を直す。`scope` が `day` ならその日だけ（日ごとの時間）、`weekday` ならその日から先の同じ曜日。
    * 曜日は `until`（yyyy-MM-dd、含む）までならその曜日の日ごとの時間を入れ、null（ずっと）なら曜日ごとの時間を変える

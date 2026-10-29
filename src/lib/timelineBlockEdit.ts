@@ -10,9 +10,10 @@ import { googleEventTiming, movedGoogleEventTiming } from './googleCalendar'
 import { googleEventCrossesDay } from './googleEventSpan'
 import { SNAP_MINUTES, timeToMinutes } from './timeGrid'
 import { endWithinDay, minutesOfDay, minutesToTime } from './clockTime'
-import { toDateKey } from './dateKey'
+import { fromDateKey, toDateKey } from './dateKey'
 import { shortDate } from './moveToast'
 import { zonedNow } from './timeZone'
+import { isHabitDueOnDate, isHabitExtraOnDate } from './habitSchedule'
 import {
   isOvernightTimeLog,
   logPatchForInterval,
@@ -58,6 +59,36 @@ export function setHabitDayTimeFromSlot(slot: { habitId: string; dateKey: string
     key: 'undo.habitDayTime',
     params: { name: habit.title, date: shortDate(slot.dateKey), time: `${startTime}–${endTime}` },
   })
+}
+
+/**
+ * 習慣をその日の `startTime`〜`endTime` に置く（予定の作成カードで習慣の名前を選んだ）。
+ * その日にやる習慣ならその日の枠を動かすのと同じ、決めた曜日以外の日なら「この日もやる」日にする（「元に戻す」付き）
+ */
+export function placeHabitAt(habitId: string, dateKey: string, startTime: string, endTime: string) {
+  const { habits, tasks, addHabitExtraDay } = useTaskStore.getState()
+  const habit = habits.find((h) => h.id === habitId)
+  if (!habit) return
+  const index = buildHabitRecordIndex(tasks.filter(isLogTask))
+  if (isHabitDueOnDate(habit, fromDateKey(dateKey), index)) {
+    setHabitDayTimeFromSlot({ habitId, dateKey }, startTime, endTime)
+    return
+  }
+  addHabitExtraDay(habitId, dateKey, startTime, endTime, {
+    key: 'undo.habitExtraAdded',
+    params: { name: habit.title, date: shortDate(dateKey), time: `${startTime}–${endTime}` },
+  })
+}
+
+/** 「この日もやる」日の習慣をその日の予定から外す（「元に戻す」付き） */
+export function removeHabitExtraDay(slotId: string): boolean {
+  const slot = parseHabitSlotId(slotId)
+  if (!slot) return false
+  const { habits, clearHabitDayTime } = useTaskStore.getState()
+  const habit = habits.find((h) => h.id === slot.habitId)
+  if (!habit || !isHabitExtraOnDate(habit, fromDateKey(slot.dateKey))) return false
+  clearHabitDayTime(habit.id, slot.dateKey, { key: 'undo.habitExtraRemoved', params: { name: habit.title, date: shortDate(slot.dateKey) } })
+  return true
 }
 
 /** その朝の睡眠の予定（その朝だけの時刻があればそれ） */

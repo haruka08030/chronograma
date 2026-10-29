@@ -4,7 +4,7 @@ import { fromDateKey, toDateKey } from '../../lib/dateKey'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Habit } from '../../types/habit'
-import { habitTimesOn, isoWeekdayOf } from '../../lib/habitTiming'
+import { habitTimesOn, isHabitExtraOn, isoWeekdayOf } from '../../lib/habitTiming'
 import { PillToggle } from '../ui/PillToggle'
 import { DateField } from '../DateField'
 import { buttonClass } from '../ui/buttonClass'
@@ -58,8 +58,8 @@ export function HabitTimeEditor({ habit, dateKey, onDone }: { habit: Habit; date
           }}
         />
       </div>
-      {/* 時間を決めていない習慣（その日だけ格子に置いた）は、その日だけ */}
-      {habit.timeMode === 'none' ? null : (
+      {/* 時間を決めていない習慣（その日だけ格子に置いた）・この日もやる日は、その日だけ */}
+      {habit.timeMode === 'none' || isHabitExtraOn(habit, dateKey) ? null : (
         <div>
           <p className={`mb-1.5 ${META_TEXT}`}>{t('weekCalendar.habitTimeScope')}</p>
           <PillToggle

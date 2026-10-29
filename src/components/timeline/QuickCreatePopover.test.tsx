@@ -177,3 +177,48 @@ describe('QuickCreatePopover: 予定の作成先を名前から選ぶ（#626）'
     expect(useTaskStore.getState().tasks.filter((x) => x.title === '移動' && x.kind === 'event')).toHaveLength(2)
   })
 })
+
+describe('QuickCreatePopover: 習慣の名前の候補（#667）', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('題名に名前の合う習慣を出し、押すと予定は作らずその日の習慣の枠をこの時間に置く', () => {
+    const weekday = ((fromDateKey(today()).getDay() + 6) % 7) + 1
+    // 今日を決めた曜日に入れない習慣（今日は「この日もやる」日になる）
+    const other = (weekday % 7) + 1
+    useTaskStore.setState({
+      tasks: [],
+      habits: [
+        {
+          id: 'gym',
+          title: 'Gym',
+          color: '#33B679',
+          timeMode: 'range',
+          startTime: '18:00',
+          endTime: '19:00',
+          frequency: { type: 'weekly', weekdays: [other as 1] },
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          completedDates: [],
+          archivedAt: null,
+        },
+      ],
+    })
+    const onClose = vi.fn()
+    const view = render(
+      <QuickCreatePopover
+        anchor={anchor}
+        dateKey={today()}
+        startTime="07:00"
+        endTime="08:00"
+        onTimesChange={() => {}}
+        onClose={onClose}
+        onCreated={() => {}}
+      />,
+    )
+    fireEvent.change(view.getByPlaceholderText(i18n.t('quickCreate.titlePlaceholder')), { target: { value: 'gym' } })
+    fireEvent.click(view.getByRole('button', { name: /Put habit.*Gym/ }))
+    expect(useTaskStore.getState().habits[0]!.timeOverrides?.[today()]).toEqual({ startTime: '07:00', endTime: '08:00', extra: true })
+    expect(useTaskStore.getState().tasks).toHaveLength(0)
+    expect(onClose).toHaveBeenCalled()
+  })
+})
