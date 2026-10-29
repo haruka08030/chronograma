@@ -5,7 +5,7 @@ import { taskPlacementDate } from '../../lib/taskTimeRange'
 import { addTaskFromQuickText, type QuickAddPicks } from '../../lib/quickAddTask'
 import { useQuickAddTarget } from '../../lib/quickAddFocus'
 import { useIsCoarsePointer, useIsDesktop } from '../../hooks/useMediaQuery'
-import { flyIntoTimeline, nudgeTimelineTab } from '../../lib/onboardingMotion'
+import { flyIntoTimeline } from '../../lib/onboardingMotion'
 import { InlineAddInput } from '../ui/InlineAddInput'
 import { ExampleChips } from '../ui/ExampleChips'
 import { QuickAddDetails } from '../QuickAddDetails'
@@ -20,7 +20,7 @@ export const GUIDE_PLACEHOLDER_MS = 2600
  * 何も無い日は書き方の例を薄く出す。
  * はじめの案内の間でまだ何も無いとき（`guide`）は、ここが入口: PC は開いたときに欄にカーソルを置き（スマホはキーボードが開くので置かない）、
  * 薄い文字の例を入れ替え、欄が空の間は下に例のボタン（押すと欄に入る。足す前に読み取りのチップが見える）。1 件入れたら普段の欄に戻る。
- * 案内の間（`onboarding`）に時刻つきで足すと、PC は枠がタイムラインのその時間へ移る動き、スマホは「タイムライン」のタブが弾む
+ * 案内の間（`onboarding`）に時刻つきで足すと、PC は枠がタイムラインのその時間へ移る動き（スマホは今日やる行に時刻つきで並ぶので動かさない）
  */
 export function PlannerAddInput({
   dateKey,
@@ -59,12 +59,11 @@ export function PlannerAddInput({
       openTaskDetail(id)
       return
     }
-    if (!onboarding || !id) return
+    // 案内の間に時刻つきで足したら、タイムラインへ飛ぶ動き（PC だけ。スマホは今日やる行に時刻つきで並ぶ）
+    if (!onboarding || !id || !isDesktop || !inputRef.current) return
     const added = useTaskStore.getState().tasks.find((t) => t.id === id)
     if (!added?.startTime || !added.endTime || taskPlacementDate(added) !== dateKey) return
-    if (isDesktop) {
-      if (inputRef.current) flyIntoTimeline(inputRef.current, id)
-    } else nudgeTimelineTab()
+    flyIntoTimeline(inputRef.current, id)
   }
 
   // 1 件でもあれば置かない（↓ や 1 文字のショートカットを邪魔しない）

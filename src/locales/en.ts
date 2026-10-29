@@ -263,9 +263,6 @@ export default {
     reminderPromptEnable: 'Turn on',
     reminderPromptLater: 'Dismiss',
     startTimer: 'Start logging this task',
-    paneTabsAria: 'Switch view',
-    paneList: 'To do',
-    paneTimeline: 'Timeline',
   },
   onboarding: {
     heading: 'Getting started',

@@ -251,9 +251,6 @@ export default {
     reminderPromptEnable: 'オンにする',
     reminderPromptLater: '閉じる',
     startTimer: 'このタスクの記録を開始',
-    paneTabsAria: '表示の切り替え',
-    paneList: 'やること',
-    paneTimeline: 'タイムライン',
   },
   onboarding: {
     heading: 'はじめの 3 ステップ',

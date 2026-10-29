@@ -7,13 +7,12 @@ import { isRoutine } from '../types/habit'
 import { getDayLeftBehind, getDayPlan, nowOrNextPlan, showsDayResult } from '../lib/dayPlan'
 import { useNavShortcut } from '../lib/shortcuts'
 import { onWrapUpRequest } from '../lib/notificationLaunch'
-import { choosePlannerPane, openedPlannerPane } from '../lib/plannerPane'
 import { minutesOfClock } from '../../supabase/functions/daily-reminders/schedule.ts'
 import { unplannedListIds } from '../lib/listKind'
 import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
-import { isAppToday, appToday, appTodayKey } from '../lib/timeZone'
+import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CheckIcon, PostponeIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
 import { DayNav } from './ui/DayNav'
@@ -29,7 +28,6 @@ import { useIsCoarsePointer, useIsDesktop } from '../hooks/useMediaQuery'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { useDeferredComplete } from '../hooks/useDeferredComplete'
-import { PlannerMobileBar, type PlannerPane } from './today/PlannerMobileBar'
 import { PlannerHeader } from './today/PlannerHeader'
 import { PlannerDues } from './today/PlannerDues'
 import { PlannerTodoSection } from './today/PlannerTodoSection'
@@ -37,7 +35,6 @@ import { PlannerSuggestions } from './today/PlannerSuggestions'
 import { PlannerHabitRows, PlannerHabits } from './today/PlannerHabits'
 import { splitHabitDayKey } from '../lib/habitDayKey'
 import { usePlannerHabitRows } from '../hooks/usePlannerHabitRows'
-import { useShowsOnboarding } from '../hooks/useShowsOnboarding'
 import { PlannerWrapUp } from './today/PlannerWrapUp'
 import { PlannerTaskRow, type PlannerRowEnv } from './today/PlannerTaskRow'
 import { usePlannerSuggestions, type CandidateGroup } from './today/usePlannerSuggestions'
@@ -57,7 +54,7 @@ const OVERDUE_PHONE_ROWS = 2
 const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
 
 /**
- * 1 日単位の計画画面。左で「今日やること」を決め、右のタイムラインに置いて時間を確保する。
+ * 1 日単位の計画画面。左で「今日やること」を決め、右のタイムラインに置いて時間を確保する（スマホは左の並びだけ。タイムラインはカレンダーで見る）。
  * 情報は必要なときだけ出す: 候補（やり残し・締切間近）は畳んだ 1 行、締めは夕方か全部終わったとき。
  * 左の並び: 見出し（`PlannerHeader`）→ 引き落とし・期限（`PlannerDues`、追加機能）→ To-Do（`PlannerTodoSection`）→ 習慣 → 候補 → 完了 → 締め（`PlannerWrapUp`）
  */
@@ -103,14 +100,11 @@ export function TodayPlannerView() {
   const [showAllOverdue, setShowAllOverdue] = useState(false)
   const listScrollRef = useRef<HTMLElement>(null)
   useRememberScroll(listScrollRef, 'planner')
-  /** 夜のまとめの通知から開いた回数。1 以上なら時刻に関係なく気分の記号を出す（PC はそこまでスクロールする）。スマホはその日のタイムラインの面を出す */
+  /** 夜のまとめの通知から開いた回数。1 以上なら時刻に関係なく気分の記号を出し、そこまでスクロールする */
   const [wrapUpFocus, setWrapUpFocus] = useState(0)
   useEffect(
     () =>
       onWrapUpRequest(() => {
-        // その日の予定と記録のずれを見せる（スマホはタイムラインの面。気分の印は「やること」の一番下のまま）
-        choosePlannerPane('timeline', appTodayKey())
-        setPaneOf((p) => ({ ...p, dateKey: appTodayKey(), pane: 'timeline' }))
         setWrapUpFocus((n) => n + 1)
       }),
     [],
@@ -133,34 +127,11 @@ export function TodayPlannerView() {
     open,
     done,
   } = useMemo(() => getDayPlan(tasks, dateKey, excludedListIds), [tasks, dateKey, excludedListIds])
-  // 過ぎた日と今日の締めの時刻からは振り返り（見出しにラベル別の時間を出し、スマホはタイムラインの面から開く）
+  // 過ぎた日と今日の締めの時刻からは振り返り（見出しにラベル別の時間を出す）
   const wrapUpFrom = minutesOfClock(wrapUpTime) ?? WRAP_UP_FROM_HOUR * 60
   const nowMinutes = minutesOfDay(now)
   const todayKey = toDateKey(appToday())
   const showResult = showsDayResult(dateKey, todayKey, nowMinutes, wrapUpFrom)
-  /**
-   * スマホ幅では左右に並べられないので「やること / タイムライン」を切り替える。
-   * 開いたとき（見る日を変えた・アプリに戻った）の面は、選ぶ前か決めた後かで決める（`openedPlannerPane`）。
-   * 見ている間に締めの時刻を過ぎても勝手に替えない
-   */
-  const [opened, setOpened] = useState(0)
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') setOpened((n) => n + 1)
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [])
-  // はじめの案内は「やること」の面にあるので、出ている間はそちらから開く
-  const onboarding = useShowsOnboarding(viewingToday)
-  const [paneOf, setPaneOf] = useState(() => ({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom, onboarding) }))
-  const paneCurrent = paneOf.dateKey === dateKey && paneOf.opened === opened
-  if (!paneCurrent) setPaneOf({ dateKey, opened, pane: openedPlannerPane(dateKey, wrapUpFrom, onboarding) })
-  const mobilePane = paneCurrent ? paneOf.pane : openedPlannerPane(dateKey, wrapUpFrom, onboarding)
-  const setMobilePane = (pane: PlannerPane) => {
-    choosePlannerPane(pane, todayKey)
-    setPaneOf({ dateKey, opened, pane })
-  }
   /** 見出しの「予定 / 空き」。週の見出しと同じ計算（授業・バイト・Google の予定を引いた空きと、置いた To-Do の時間・見積もり） */
   const dayLoad = useDayLoads([dateKey]).get(dateKey)!
   // 今日やる行を、時間を決めたもの（時刻順）と時間未定に分ける
@@ -341,12 +312,10 @@ export function TodayPlannerView() {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden md:flex-row">
-      <PlannerMobileBar pane={mobilePane} onPaneChange={setMobilePane} />
-
       <section
         ref={listScrollRef}
-        className={`${mobilePane === 'list' ? 'flex' : 'hidden'} timer-safe min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
-                    md:flex md:w-[380px] md:flex-none md:shrink-0 md:border-r`}
+        className="timer-safe flex min-h-0 w-full flex-1 flex-col overflow-y-auto border-zinc-100 dark:border-zinc-800
+                    md:w-[380px] md:flex-none md:shrink-0 md:border-r"
       >
         <PlannerHeader date={date} dateKey={dateKey} viewingToday={viewingToday} dayNav={dayNav} load={dayLoad} reviewing={showResult} />
 
@@ -430,14 +399,12 @@ export function TodayPlannerView() {
         <PlannerWrapUp showMood={showMood} dateKey={dateKey} focusKey={wrapUpFocus} totalCount={totalCount} />
       </section>
 
-      <section className={`${mobilePane === 'timeline' ? 'flex' : 'hidden'} min-h-0 min-w-0 flex-1 flex-col md:flex`}>
-        {/* スマホのタイムラインのタブにも、何日を見ているかと前後の日へ（PC は左の見出しにある） */}
-        <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 md:hidden">
-          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">{df.monthDayWeekdayLong(date)}</p>
-          {dayNav}
-        </div>
-        <WeekCalendarView key={dateKey} anchor={date} selectedDateKey={dateKey} singleDay />
-      </section>
+      {/* タイムラインは PC だけ横に並べる。スマホはカレンダーの 1 日表示で見る（同じものを 2 か所に置かない） */}
+      {isDesktop && (
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <WeekCalendarView key={dateKey} anchor={date} selectedDateKey={dateKey} singleDay />
+        </section>
+      )}
 
       <SelectionBar selectedIds={selected} actions={selectionActions} onClear={clearSelection} />
       <OverlaySuspense>

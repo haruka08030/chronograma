@@ -1,6 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { toDateKey } from '../lib/dateKey'
 import { appToday } from '../lib/timeZone'
@@ -394,7 +394,18 @@ describe('TodayPlannerView: 完了の行もキーで（#377）', () => {
 })
 
 describe('TodayPlannerView: 記録中の枠（#530）', () => {
-  it('記録中は記録の列に始めた時刻からの枠を出し、止めたら記録の枠に置き換わる', () => {
+  it('PC: 記録中は記録の列に始めた時刻からの枠を出し、止めたら記録の枠に置き換わる', () => {
+    // タイムラインは PC 幅だけ横に並ぶ
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('min-width: 768px'),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    })) as unknown as typeof window.matchMedia
+    onTestFinished(() => {
+      window.matchMedia = original
+    })
     // 0 時すぎに流すと 1 時間前が前の日になる。昼に固定する
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(new Date().setHours(13, 0, 0, 0)))
