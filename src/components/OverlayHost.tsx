@@ -2,12 +2,12 @@ import { useEffect } from 'react'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { PartBoundary } from './ui/ErrorBoundary'
 import { useTaskStore } from '../store/taskStore'
-import { closeSchoolGuide, closeTaskDetail, closeTaskMenu, openTaskDetail, useOverlays } from '../lib/overlays'
+import { closeHelp, closeTaskDetail, closeTaskMenu, openTaskDetail, useOverlays } from '../lib/overlays'
 import {
   DueDateTimeMenu,
   GoogleEventMenu,
+  HelpGuide,
   preloadOverlays,
-  SchoolGuide,
   TaskContextMenu,
   TaskDetail,
   TaskEventMenu,
@@ -19,7 +19,7 @@ import { usePresence } from '../hooks/usePresence'
 export function OverlayHost() {
   const detailTaskId = useOverlays((s) => s.detailTaskId)
   const menu = useOverlays((s) => s.menu)
-  const schoolGuide = useOverlays((s) => s.schoolGuide)
+  const help = useOverlays((s) => s.help)
   const detailTask = useTaskStore((s) => (detailTaskId ? (s.tasks.find((t) => t.id === detailTaskId) ?? null) : null))
   // 閉じたあとも、右へ引っ込む動きのあいだは残す
   const detail = usePresence(detailTask)
@@ -70,9 +70,9 @@ export function OverlayHost() {
           )}
         </OverlaySuspense>
       </PartBoundary>
-      <PartBoundary name="schoolGuide" resetKey={String(schoolGuide)} onCrash={closeSchoolGuide}>
-        <OverlaySuspense onLoadFailed={closeSchoolGuide}>
-          {schoolGuide && <SchoolGuide section={schoolGuide === true ? null : schoolGuide} onClose={closeSchoolGuide} />}
+      <PartBoundary name="help" resetKey={String(help)} onCrash={closeHelp}>
+        <OverlaySuspense onLoadFailed={closeHelp}>
+          {help && <HelpGuide anchor={help === true ? null : help} onClose={closeHelp} />}
         </OverlaySuspense>
       </PartBoundary>
     </>

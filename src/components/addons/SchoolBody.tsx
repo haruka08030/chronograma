@@ -6,7 +6,7 @@ import { defaultTerm, hasAnyAbsence, inTermRange, isAbsent, type Term, type Term
 import { ABSENCE_COURSE_TITLE_MAX } from '../../lib/absenceCourses'
 import { courseKey, lmsCourses } from '../../lib/courseLinks'
 import { isSubmitEnter } from '../../lib/keyboard'
-import { openSchoolGuide } from '../../lib/overlays'
+import { openHelp } from '../../lib/overlays'
 import { useAppTodayKey } from '../../hooks/useAppClock'
 import { useSchool } from '../../hooks/useSchool'
 import { TimetableBody } from '../calendar/TimetableDialog'
@@ -63,7 +63,7 @@ export function SchoolPage({ onBack }: { onBack: () => void }) {
         </>
       )}
       <div>
-        <button type="button" onClick={() => openSchoolGuide()} className={buttonClass({ variant: 'ghost', size: 'sm' }, '-ml-2')}>
+        <button type="button" onClick={() => openHelp('school')} className={buttonClass({ variant: 'ghost', size: 'sm' }, '-ml-2')}>
           <InfoIcon className="h-4 w-4" />
           {t('school.guide')}
         </button>
@@ -91,7 +91,7 @@ function CourseList({ term, onOpen }: { term: Term; onOpen: (title: string) => v
       <FirstUseHint
         id="school-absence"
         show={rows.length > 0 && todayInTerm && !hasAnyAbsence(school)}
-        onMore={() => openSchoolGuide('absences')}
+        onMore={() => openHelp('school.absences')}
       >
         {t('school.hintAbsence')}
       </FirstUseHint>

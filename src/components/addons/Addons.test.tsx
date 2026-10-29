@@ -8,6 +8,7 @@ import { AddonsView } from './AddonsView'
 import { AddonsSettingsGroup } from './AddonsSettingsGroup'
 import { TimetableButton } from '../calendar/TimetableButton'
 import { OverlayHost } from '../OverlayHost'
+import { useOverlays } from '../../lib/overlays'
 
 beforeEach(async () => {
   await i18n.changeLanguage('ja')
@@ -53,7 +54,8 @@ describe('追加機能の画面と設定（#453）', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('学校の説明の「使い方」で、学校の使い方が節ごとに開く（#670）', async () => {
+  it('学校の説明の「使い方」で、アプリの使い方を学校の節から開く（#670・#673）', async () => {
+    Element.prototype.scrollIntoView = () => {}
     const user = userEvent.setup()
     render(
       <>
@@ -63,9 +65,16 @@ describe('追加機能の画面と設定（#453）', () => {
     )
     await user.click(screen.getByRole('button', { name: '学校の説明' }))
     await user.click(screen.getByRole('button', { name: '使い方' }))
-    const guide = await screen.findByRole('dialog', { name: '学校の使い方' })
-    for (const name of ['学期', '時間割', '授業の一覧', '欠席', '課題']) expect(within(guide).getByRole('heading', { name })).toBeTruthy()
+    const guide = await screen.findByRole('dialog', { name: '使い方' })
+    // 目次は画面の並び（上から）
+    const toc = within(within(guide).getByRole('navigation', { name: '目次' })).getAllByRole('button')
+    expect(toc.map((b) => b.textContent).slice(0, 5)).toEqual(['基本の操作', '今日の計画', 'To-Do', 'カレンダー', '習慣'])
+    for (const name of ['学校', '学期', '時間割', '授業の一覧', '欠席', '課題', '引き落とし・期限']) {
+      expect(within(guide).getByRole('heading', { name })).toBeTruthy()
+    }
     expect(guide.textContent).toContain('ラベル名が科目名と同じ')
+    // 学校の節から見せる
+    expect(useOverlays.getState().help).toBe('school')
     await user.click(within(guide).getByRole('button', { name: '閉じる' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })

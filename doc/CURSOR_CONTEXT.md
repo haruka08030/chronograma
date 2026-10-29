@@ -75,6 +75,7 @@
 | `CompletedTasksView.tsx`・`TaskBinView.tsx` | 完了済み・アーカイブ済み / ゴミ箱 |
 | `SettingsView.tsx`・`settings/`・`DailyRhythmSettings.tsx`・`InstallAppSection.tsx`・`AccountMenu.tsx` | 設定（`settings/SettingsPrimitives.tsx` の部品、データ・連携・記録の書き出し・自動バックアップ・タイムゾーン・フィードバック） |
 | `addons/` | 追加機能の画面（`AddonsView`）と機能ごとのページ（期限の日・学校の学期と授業） |
+| `help/` | 使い方（`HelpGuide`。`openHelp` で開き、中身は文言の `help.sections`） |
 | `labels/` | ラベル（色に付けた名前）の選び方・パレット・ラベルの画面 |
 | `ui/` | 共有の部品（`Menu`・`Modal`・`SideSheet`・`ConfirmDialog`・`CompletionCircle`・`DueChip`・`DayRow`・`Segmented`・`Tooltip`・`ErrorBoundary`・`OverlaySuspense` と `*Class.ts` の見た目） |
 | `TaskContextMenu.tsx`・`ListContextMenu.tsx`・`TimeSlotMenu.tsx`・`DueDatePopover.tsx`・`DueDateTimeMenu.tsx`・`DateField.tsx`・`DatePickerBody.tsx`・`TimeInput.tsx`・`TimeZonePicker.tsx`・`TaskTimeZoneField.tsx`・`TaskRemindersField.tsx`・`RepeatWeekdays.tsx`・`ListKindPicker.tsx`・`ListSectionHeading.tsx` | メニューと入力の部品 |

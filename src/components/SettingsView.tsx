@@ -23,6 +23,7 @@ import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { useRememberScroll } from '../hooks/useRememberScroll'
 import { AddonsSettingsGroup } from './addons/AddonsSettingsGroup'
 import { FeedbackRow } from './settings/FeedbackDialog'
+import { openHelp } from '../lib/overlays'
 
 /**
  * 設定。上から アカウント → ラベル → 通知・計画 → 時間割 → 日付と時刻 → 外観 → 連携 → データ → アプリ → 規約。
@@ -168,6 +169,7 @@ function MainSettings({ onOpenIntegrations, onOpenData }: { onOpenIntegrations: 
         </SettingsGroup>
 
         <SettingsGroup id="settings-app" title={t('settings.appTitle')}>
+          <SettingsLinkRow label={t('help.title')} onClick={() => openHelp()} />
           <InstallAppSection />
         </SettingsGroup>
 

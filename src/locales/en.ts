@@ -1529,52 +1529,261 @@ export default {
     more: 'More',
     dismiss: 'Close this tip',
   },
-  schoolGuide: {
-    title: 'How School works',
-    terms: {
-      title: 'Terms',
-      items: [
-        'A term holds your classes. Timetable classes, absences and allowed absences are kept per term.',
-        'Terms can’t overlap. The school page and the timetable start with today’s term (or the next one to begin).',
-        'Deleting a term also deletes its absences and allowed absences. Events created from the timetable stay.',
-      ],
-    },
-    timetable: {
-      title: 'Timetable',
-      items: [
-        'Tap a cell and enter a class name to create a weekly event on that weekday from today until the end of the term.',
-        'Pick a Canvas or Moodle course name to see its assignments on the event card.',
-        'Tap a filled cell to edit its name and label, or delete it. Only classes from today on change.',
-        'Under “Periods and holidays”, set period times and count, and whether to skip holidays. Changing periods doesn’t move classes you’ve already added.',
-        'When you make an event repeat, the end date starts at the end of the term.',
-      ],
-    },
-    courses: {
-      title: 'Class list',
-      items: [
-        'The list has timetable classes, classes you added with “Add a class”, and Canvas / Moodle courses with deadlines in the term.',
-        'Classes with the fewest absences left come first.',
-        '“Add a class” suggests weekly Google Calendar events in the term and Canvas / Moodle courses not in the list.',
-        'Remove Canvas / Moodle courses and added classes with “Remove from the list” on the class page. Timetable classes leave the list when you remove them from the timetable.',
-      ],
-    },
-    absences: {
-      title: 'Absences',
-      items: [
-        'When you miss a class, use “Mark absent” on the event card or “Absent today” in the list. For earlier days, use “Add a missed day” on the class page.',
-        'Set allowed absences per class. If unset, timetable classes allow 1/3 of the term’s classes; other classes just show the count.',
-        'Event cards show absences for timetable classes and for events named like a class in the list (Google Calendar events too).',
-        'Only days within the term count. Missed classes aren’t counted as unrecorded time on the timeline.',
-      ],
-    },
-    assignments: {
-      title: 'Assignments',
-      items: [
-        'Connect Canvas or Moodle (Settings → Integrations) to bring assignments in as To-Dos with deadlines, tagged with the course name.',
-        'A class’s event card shows up to 3 open assignments for its course, soonest deadline first.',
-        'An event links to a course when its name or label name matches the course name (ignoring width and case).',
-        'If the wrong course is linked, pick another on the event card or the class page. Your choice applies to every event with that name.',
-      ],
+  help: {
+    title: 'How it works',
+    tocAria: 'Contents',
+    sections: {
+      basics: {
+        title: 'Basics',
+        groups: {
+          main: {
+            items: [
+              'Nothing asks before deleting. Use “Undo” at the bottom, or ⌘Z (Ctrl+Z on Windows). ⌘⇧Z redoes.',
+              'Tap a row to open its details. Everything in the right-click (long-press on phones) menu is also in the … of the details.',
+              'Search To-Dos and events with ⌘K. Open the keyboard shortcut list from “Keyboard shortcuts” in Settings, or with the ? key.',
+              'In any add field, ⌘Enter or “Details” opens the details with what you typed.',
+              'To-Dos and habits in the trash are deleted after 30 days.',
+              'School and Payments & expiry dates appear only after you turn them on in Settings → Add-ons.',
+            ],
+          },
+        },
+      },
+      today: {
+        title: 'Plan today',
+        groups: {
+          add: {
+            title: 'Add field',
+            items: [
+              'Type things like “report tomorrow”, “part-time 5pm-10pm” or “ES 30m” to set a deadline, a time or an estimate. “every fri” repeats, and “#tag” adds a tag.',
+              'With a time it becomes an event; with only a date it sets the do date; add “by” or “due” to make it a deadline.',
+            ],
+          },
+          list: {
+            title: 'Order',
+            items: [
+              'From the top: overdue, left over (not finished on an earlier day), today, and To-Dos due soon (within 3 days).',
+              'To-Dos carried over for 2 or more days in a row show “Day 3” and so on.',
+              'Today’s rows show only past and today’s deadlines (once you’ve decided, later deadlines don’t change anything).',
+            ],
+          },
+          load: {
+            title: 'Free time',
+            items: [
+              '“3h placed / 5h free” next to the heading is your free time (Hours available per day in Settings → Planning, minus time taken by events) and the time of To-Dos you placed that day.',
+              'Placed time counts timed To-Dos by their length and untimed ones by their estimate.',
+            ],
+          },
+          evening: {
+            title: 'Evening',
+            items: ['After your evening summary time (5 pm if unset), the day’s log bar, time by label and the mood symbols appear.'],
+          },
+        },
+      },
+      todo: {
+        title: 'To-Do',
+        groups: {
+          main: {
+            items: [
+              'To-Dos are grouped by labels (names given to colors), not lists. Tap a label on the left to filter by it; tap its dot to edit the name and color.',
+              'Lists are only bucket lists (things you want to do someday) and checklists (shopping and so on). Their rows don’t appear in Plan today or Stats.',
+              'Deadlines (→| due) and do dates (the day you’ll do it) are separate. Past deadlines show “Nd late”.',
+              'Tags are free-form, To-Do-only notes. They have no color and aren’t counted in logs.',
+              'An estimate sets the length when you place a To-Do in time, and is compared with logged time after you finish (weekly review).',
+              'Drag a row right to make it a subtask of the row above, or left to move it up a level.',
+              'Completed To-Dos are gathered in “Completed”.',
+            ],
+          },
+        },
+      },
+      calendar: {
+        title: 'Calendar',
+        groups: {
+          make: {
+            title: 'Creating',
+            items: [
+              'Tap (or drag across) free time to open a card for a new event. In week and day views the left half is plans and the right half is logs; the column you tap decides which you make (future time is plans only).',
+              'Drag a To-Do from “Tasks without a time” onto the time grid to place it.',
+              'Hold ⌥ (Alt on Windows) while dragging to duplicate. On phones, long-press to pick up and move; pinch with two fingers to change the hour height.',
+              'Register events like part-time shifts in “Saved events” (month view) and add them by tapping days.',
+            ],
+          },
+          check: {
+            title: '✓ and logs',
+            items: [
+              '✓ means “done”. It completes a To-Do; for events and Google events it’s available once they start and logs that time.',
+              '“Log it” and “Log and complete” on an event card also turn the event’s time into a log.',
+            ],
+          },
+          repeat: {
+            title: 'Repeating',
+            items: [
+              'Make an event weekly with “Repeat” in its details. No occurrences are made after the end date.',
+              'When changing a weekly event, choose “This event / This and following / All events”. Dragging moves only that occurrence.',
+            ],
+          },
+          google: {
+            title: 'Google Calendar',
+            items: [
+              'Moving a Google event’s time doesn’t change it in Google; the app keeps it as your own time. “Use event time” on the card restores it.',
+              'Title changes, deletions and copies go to Google. Colors you pick on the card stay in the app.',
+            ],
+          },
+        },
+      },
+      habits: {
+        title: 'Habits',
+        groups: {
+          main: {
+            items: [
+              'There are habits (things to keep up) and routines (daily plans like meals or a bath). Routines don’t count toward completion rates or streaks.',
+              'Frequency is every day, specific weekdays, or N times a week. N times a week works on any day and shows “Done this week” once met.',
+              'With a time, a habit shows a block on the timeline; moving the block changes the time for that day only. Habits with only a start time appear as chips in the “Habits” row; drag one onto the grid to make a block for that day.',
+              'With a “Goal per session” of N minutes, the day counts as done once that day’s logs reach it, even without a check.',
+              'Rest for one day or until a date. Rest days don’t break streaks or count toward completion rates.',
+              'Changing a habit doesn’t change results for days before the change. Archiving or deleting removes it only from that day on.',
+              'Typing a title in the new event card suggests habits with matching names; picking one places the habit at that time (on a day outside its weekdays, skipping it doesn’t count as missed).',
+            ],
+          },
+        },
+      },
+      records: {
+        title: 'Logs, timer and sleep',
+        groups: {
+          timer: {
+            title: 'Timer',
+            items: [
+              'Start logging with ▶. There’s one running timer across devices; starting another logs the current one and switches. Less than a minute isn’t logged.',
+              'Logs without a label get one guessed from the original To-Do, earlier logs with the same title, and so on.',
+              '“Set a length” sets an end such as 25, 50 or 90 minutes. You’re notified when it’s up, but the timer doesn’t stop by itself.',
+            ],
+          },
+          vague: {
+            title: 'Adrift and unrecorded time',
+            items: [
+              '“Adrift” is for commuting, chores, phone time and other time you can’t name. It isn’t counted in logged time or time by label.',
+              'Unrecorded time shows as dotted blocks on the timeline; tap one to add a log there. Past events (classes, part-time work) count as attended and fill their time.',
+            ],
+          },
+          sleep: {
+            title: 'Sleep',
+            items: [
+              'Sleep belongs to the day you wake up. Log it with “Go to bed” and “Woke up” in the sleep row of Plan today.',
+              'The earliest sleep that day is the night’s sleep; the rest are naps. Logs titled or labeled “Sleep” also become sleep.',
+              'On the sleep page (the ☾ in the sleep row, or the sleep card in Stats), set a sleep schedule per weekday and a sleep goal.',
+            ],
+          },
+        },
+      },
+      stats: {
+        title: 'Stats and review',
+        groups: {
+          main: {
+            items: [
+              '“Followed the plan” counts timed To-Dos and habit blocks that matched a log or were checked off. Events (classes, part-time work) aren’t counted.',
+              'Time by label also shows the time you planned for that label. Logs that matched no plan appear under “Not in the plan”.',
+              '“Adrift” time is adrift logs plus unrecorded time.',
+              'Switch with “Week / Month” in the heading. “Share as image” makes a single image (you can hide label names; the image is made on your device and isn’t sent anywhere).',
+              'If logs are consistently off from estimates (say, 1.5×), you’ll be told when choosing an estimate.',
+            ],
+          },
+        },
+      },
+      school: {
+        title: 'School',
+        groups: {
+          terms: {
+            title: 'Terms',
+            items: [
+              'A term holds your classes. Timetable classes, absences and allowed absences are kept per term.',
+              'Terms can’t overlap. The school page and the timetable start with today’s term (or the next one to begin).',
+              'Deleting a term also deletes its absences and allowed absences. Events created from the timetable stay.',
+            ],
+          },
+          timetable: {
+            title: 'Timetable',
+            items: [
+              'Tap a cell and enter a class name to create a weekly event on that weekday from today until the end of the term.',
+              'Pick a Canvas or Moodle course name to see its assignments on the event card.',
+              'Tap a filled cell to edit its name and label, or delete it. Only classes from today on change.',
+              'Under “Periods and holidays”, set period times and count, and whether to skip holidays. Changing periods doesn’t move classes you’ve already added.',
+              'When you make an event repeat, the end date starts at the end of the term.',
+            ],
+          },
+          courses: {
+            title: 'Class list',
+            items: [
+              'The list has timetable classes, classes you added with “Add a class”, and Canvas / Moodle courses with deadlines in the term.',
+              'Classes with the fewest absences left come first.',
+              '“Add a class” suggests weekly Google Calendar events in the term and Canvas / Moodle courses not in the list.',
+              'Remove Canvas / Moodle courses and added classes with “Remove from the list” on the class page. Timetable classes leave the list when you remove them from the timetable.',
+            ],
+          },
+          absences: {
+            title: 'Absences',
+            items: [
+              'When you miss a class, use “Mark absent” on the event card or “Absent today” in the list. For earlier days, use “Add a missed day” on the class page.',
+              'Set allowed absences per class. If unset, timetable classes allow 1/3 of the term’s classes; other classes just show the count.',
+              'Event cards show absences for timetable classes and for events named like a class in the list (Google Calendar events too).',
+              'Only days within the term count. Missed classes aren’t counted as unrecorded time on the timeline.',
+            ],
+          },
+          assignments: {
+            title: 'Assignments',
+            items: [
+              'Connect Canvas or Moodle (Settings → Integrations) to bring assignments in as To-Dos with deadlines, tagged with the course name.',
+              'A class’s event card shows up to 3 open assignments for its course, soonest deadline first.',
+              'An event links to a course when its name or label name matches the course name (ignoring width and case).',
+              'If the wrong course is linked, pick another on the event card or the class page. Your choice applies to every event with that name.',
+            ],
+          },
+        },
+      },
+      dues: {
+        title: 'Payments & expiry dates',
+        groups: {
+          main: {
+            items: [
+              'Register rent and subscription payments, free trial ends, passport expirations and so on as monthly, yearly or one-time.',
+              '“Show in the day plan” shows them on the day only, or from N days before. They also appear in the calendar.',
+            ],
+          },
+        },
+      },
+      integrations: {
+        title: 'Integrations',
+        groups: {
+          main: {
+            items: [
+              'Connect Google Calendar to see Google events next to your logs. Choose “Google Calendar” as the destination in the new event card to create it in Google; events with a list chosen stay in the app.',
+              'Connect Canvas or Moodle under “More integrations” in Settings → Integrations. Assignments come in as To-Dos with deadlines.',
+              'With a Canvas access token, graded assignments complete automatically, and completing one in the app sends it back to Canvas. Submitted-only assignments show “Submitted”. Connecting with a calendar URL is read-only.',
+              'Notion brings database rows in as To-Dos with a label named after the database.',
+            ],
+          },
+        },
+      },
+      notifications: {
+        title: 'Notifications',
+        groups: {
+          main: {
+            items: [
+              'You get a morning summary (today’s events and deadlines), reminders before events (with “Start logging”), before deadlines (8 pm the day before, or 3 hours before if timed), after events (“As planned / Log”), and when a timer has run over 3 hours. The evening summary is off at first.',
+              'On iPhone and iPad, add the app to your Home Screen to get notifications.',
+            ],
+          },
+        },
+      },
+      data: {
+        title: 'Sync and backup',
+        groups: {
+          main: {
+            items: [
+              'Signed in, your data syncs between devices. If both change the same item, the newer change wins.',
+              'Export and import JSON from “Data” in Settings. A daily automatic backup is also kept on the device.',
+            ],
+          },
+        },
+      },
     },
   },
   absences: {

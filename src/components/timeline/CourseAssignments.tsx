@@ -8,7 +8,7 @@ import { META_TEXT } from '../ui/textClass'
 import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { dueDateLabel } from '../ui/dueDateLabel'
 import { FirstUseHint } from '../ui/FirstUseHint'
-import { openSchoolGuide } from '../../lib/overlays'
+import { openHelp } from '../../lib/overlays'
 
 /** 「つながない」を選ぶ値（科目のタグは前後の空白を落としてあるので、空白で始まる値と重ならない） */
 const NONE = ' none'
@@ -85,7 +85,7 @@ export function CourseAssignments({
         })}
       </ul>
       {rest > 0 && <p className={`mt-1 ${META_TEXT}`}>{t('courseTasks.more', { count: rest })}</p>}
-      <FirstUseHint id="card-course" show={links.length === 0} onMore={() => openSchoolGuide('assignments')} className="-mr-2 mt-1">
+      <FirstUseHint id="card-course" show={links.length === 0} onMore={() => openHelp('school.assignments')} className="-mr-2 mt-1">
         {t('courseTasks.hint')}
       </FirstUseHint>
     </section>
