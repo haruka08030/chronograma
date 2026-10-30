@@ -2,7 +2,9 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore, type SmartView } from '../store/taskStore'
 import { isTodoNavView } from '../lib/todoSurfaceView'
-import { CalendarIcon, CheckCircleIcon, HabitIcon, SettingsIcon, SunIcon } from './icons'
+import { useAppTodayKey } from '../hooks/useAppClock'
+import { CheckCircleIcon, HabitIcon, SettingsIcon, SunIcon } from './icons'
+import { CalendarDateIcon } from './CalendarDateIcon'
 
 type TabId = 'planner' | 'todo' | 'calendar' | 'habits' | 'settings'
 
@@ -26,6 +28,8 @@ export function MobileBottomNav({
   const selectList = useTaskStore((s) => s.selectList)
   const setSearchQuery = useTaskStore((s) => s.setSearchQuery)
   const selectedListId = useTaskStore((s) => s.selectedListId)
+  // 真ん中のカレンダーは今日の日付を入れて少し大きく（1 日のタイムラインの入口。形は変えず、ほかのタブと同じ画面の切り替え）
+  const todayDay = Number(useAppTodayKey().slice(8, 10))
 
   const active: TabId = (() => {
     if (selectedView === 'calendar') return 'calendar'
@@ -61,7 +65,7 @@ export function MobileBottomNav({
     {
       id: 'calendar',
       label: t('nav.calendar'),
-      icon: <CalendarIcon className="h-5 w-5" strokeWidth={1.75} />,
+      icon: <CalendarDateIcon day={todayDay} />,
     },
     {
       id: 'habits',
