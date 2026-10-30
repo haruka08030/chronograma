@@ -20,6 +20,11 @@ import { DUE_TONE_CLASS, NOTICE_TONE_CLASS } from '../ui/dueTone'
 import { dueDateLabel } from '../ui/dueDateLabel'
 import { ERROR_TEXT, HINT_TEXT, META_TEXT } from '../ui/textClass'
 import { useTermCourses } from '../../hooks/useTermCourses'
+import { courseStudyTime } from '../../lib/courseStudy'
+import { formatDuration } from '../../lib/timeGrid'
+import { colorVars } from '../../lib/logCategoryColors'
+import { NEUTRAL_HEX } from '../../lib/googleColors'
+import { tip } from '../../lib/tooltip'
 
 /** 「つながない」を選ぶ値（科目のタグは前後の空白を落としてあるので、空白で始まる値と重ならない） */
 const NONE = ' none'
@@ -271,6 +276,8 @@ export function CoursePage({
         )}
       </section>
 
+      <CourseStudySection term={term} title={title} lms={row.lms} />
+
       {!row.fromTimetable && (row.added || row.fromLms) ? (
         <div>
           <button
@@ -285,5 +292,63 @@ export function CoursePage({
         <p className={HINT_TEXT}>{t('school.timetableOnlyHint')}</p>
       )}
     </SettingsSubPage>
+  )
+}
+
+/**
+ * 授業の勉強時間（#672）。学期の間の記録から、課題（▶ の元の課題の科目）・授業（授業の予定の記録）・自習（授業名で始まる題名）を数え、
+ * 合計と内訳、週ごとの小さな棒で出す（`courseStudyTime`）。ふりかえりの情報なので授業のページだけに出す
+ */
+function CourseStudySection({ term, title, lms }: { term: Term; title: string; lms: string | null }) {
+  const { t } = useTranslation()
+  const df = useDateFormat()
+  const today = useAppTodayKey()
+  const tasks = useTaskStore((s) => s.tasks)
+  const study = useMemo(() => courseStudyTime(tasks, term, { title, lms }, today), [tasks, term, title, lms, today])
+  const parts = (
+    [
+      ['assignment', 'school.studyAssignment'],
+      ['class', 'school.studyClass'],
+      ['self', 'school.studySelf'],
+    ] as const
+  )
+    .filter(([k]) => study.byKind[k] > 0)
+    .map(([k, key]) => t(key, { time: formatDuration(study.byKind[k]) }))
+  const max = Math.max(...study.weeks.map((w) => w.minutes), 1)
+
+  return (
+    <section aria-labelledby="course-study">
+      <h2 id="course-study" className={CARD_TITLE_CLASS}>
+        {t('school.studyTitle')}
+      </h2>
+      {study.total === 0 ? (
+        <p className={`mt-1 ${HINT_TEXT}`}>{t('school.studyEmpty', { example: t('school.studyExample', { name: title }) })}</p>
+      ) : (
+        <>
+          <p className="mt-1 text-sm tabular-nums text-zinc-800 dark:text-zinc-100">
+            {t('school.studyTerm', { time: formatDuration(study.total) })}
+          </p>
+          <p className={`tabular-nums ${META_TEXT}`}>{parts.join(t('common.listSeparator'))}</p>
+          <ul
+            aria-label={t('school.studyWeeksAria')}
+            className="mt-2 flex h-12 w-max max-w-full items-end gap-1 border-b border-zinc-200 dark:border-zinc-700"
+          >
+            {study.weeks.map((w) => {
+              const label = t('school.studyWeek', { date: df.monthDay(w.start), time: formatDuration(w.minutes) })
+              return (
+                <li key={w.start} aria-label={label} {...tip(label)} className="flex h-full w-2.5 shrink-0 items-end">
+                  {w.minutes > 0 && (
+                    <span
+                      className="gc-dot block w-full rounded-t-sm border-b-0"
+                      style={{ ...colorVars(NEUTRAL_HEX), height: `${Math.max(8, (w.minutes / max) * 100)}%` }}
+                    />
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
+    </section>
   )
 }

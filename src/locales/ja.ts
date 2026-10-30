@@ -1468,6 +1468,15 @@ export default {
     fromLms: 'Canvas・Moodle の科目',
     connectLms: 'Canvas・Moodle をつなぐ',
     guide: '学校の使い方',
+    studyTitle: '勉強時間',
+    studyTerm: 'この学期 {{time}}',
+    studyAssignment: '課題 {{time}}',
+    studyClass: '授業 {{time}}',
+    studySelf: '自習 {{time}}',
+    studyWeek: '{{date}}の週 {{time}}',
+    studyWeeksAria: '週ごとの勉強時間',
+    studyEmpty: 'まだ記録がありません。課題から ▶ で記録を始めるか、題名を「{{example}}」のように授業名から始めると、ここに入ります。',
+    studyExample: '{{name}} 復習',
     hintAbsence: '休んだら、予定のカードの「欠席にする」か、ここの「今日欠席」で付けます。',
   },
   hints: {
@@ -1815,6 +1824,16 @@ export default {
               '休める回数は授業のページで決めます。決めていない場合、時間割の授業は学期の回数の 3 分の 1 になります。',
               '欠席は学期中の日だけ数えます。',
             ],
+          },
+          study: {
+            title: '授業ごとの勉強時間を見る',
+            intro: '授業のページの「勉強時間」に、その授業に使った時間が学期ごとに表示されます。記録に授業を選ぶ必要はありません。',
+            points: [
+              '課題: Canvas・Moodle の課題から ▶ で始めた記録',
+              '授業: 授業の予定の ✓ や「記録にする」で記録した時間',
+              '自習: タイトルが授業名と同じか、「統計学 復習」のように授業名から始まる記録',
+            ],
+            tip: 'ラベルは「勉強」のような大きな分け方のままで大丈夫です。',
           },
           assignments: {
             title: '授業の課題を表示する',

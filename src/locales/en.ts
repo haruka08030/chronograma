@@ -1520,6 +1520,16 @@ export default {
     fromLms: 'Canvas / Moodle course',
     connectLms: 'Connect Canvas or Moodle',
     guide: 'School help',
+    studyTitle: 'Study time',
+    studyTerm: 'This term: {{time}}',
+    studyAssignment: 'Assignments {{time}}',
+    studyClass: 'Class {{time}}',
+    studySelf: 'Self-study {{time}}',
+    studyWeek: 'Week of {{date}}: {{time}}',
+    studyWeeksAria: 'Study time by week',
+    studyEmpty:
+      'Nothing logged yet. Start logging from an assignment with ▶, or start a log title with the class name, like “{{example}}”, and it shows up here.',
+    studyExample: '{{name}} review',
     hintAbsence: 'When you miss a class, mark it with “Mark absent” on the event card, or “Absent today” here.',
   },
   hints: {
@@ -1876,6 +1886,17 @@ export default {
               'Set allowed absences on the class page. If not set, timetable classes allow one-third of the term’s classes.',
               'Only days within the term are counted.',
             ],
+          },
+          study: {
+            title: 'See study time for each class',
+            intro:
+              '“Study time” on a class page shows the time you spent on that class this term. You don’t need to pick a class when logging.',
+            points: [
+              'Assignments: logs started with ▶ from a Canvas or Moodle assignment',
+              'Class: time logged with ✓ or “Log it” on the class’s event',
+              'Self-study: logs titled with the class name, or starting with it, like “Statistics review”',
+            ],
+            tip: 'Your labels can stay broad, like “Study”.',
           },
           assignments: {
             title: 'Show a class’s assignments',

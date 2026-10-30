@@ -124,6 +124,24 @@ const SCHOOL_LMS = [
   lmsTask('2', '中間レポート', 'econ', 3),
   lmsTask('3', '第 6 回 課題', 'econ', 10),
 ]
+/** 授業の勉強時間（#672）の記録: 課題から ▶・授業名で始まる題名 */
+const studyLog = (id, title, days, startTime, endTime, sourceTaskId = null) => ({
+  id: `shot-study-${id}`,
+  title,
+  kind: 'log',
+  dueDate: tzDayKey(days),
+  startTime,
+  endTime,
+  sourceTaskId,
+  tags: [],
+  listId: '__inbox__',
+})
+const SCHOOL_STUDY = [
+  studyLog('1', '小テストの準備', -2, '20:00', '21:30', 'canvas-shot-assignment-1'),
+  studyLog('2', '統計学 復習', -9, '19:00', '20:00'),
+  studyLog('3', '統計学 復習', -16, '19:00', '19:45'),
+  studyLog('4', '統計学 予習', -5, '21:00', '22:00'),
+]
 const SCHOOL_CLASSES = () => [...addClass('2:0', '統計学'), ...addClass('4:1', '英語コミュニケーション')]
 /** 時間割は追加機能の学校（#453・#617）。撮るときはオンにし、今日の学期を入れておく */
 const TIMETABLE_ON = { addons: { enabled: { school: true }, dues: [], school: { terms: [shotTerm()] } } }
@@ -734,7 +752,7 @@ const SCREENS = [
     name: 'addons-school-course',
     view: 'addons',
     state: SCHOOL_ON,
-    extraTasks: SCHOOL_LMS,
+    extraTasks: [...SCHOOL_LMS, ...SCHOOL_STUDY],
     steps: [
       { click: '[data-addon="school"] button:has-text("学校")' },
       ...SCHOOL_CLASSES(),
