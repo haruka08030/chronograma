@@ -136,7 +136,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       set((s) => ({ tasks: [...s.tasks, makeTask({ title, listId: targetList, scheduledDate: dueDate, startTime, endTime }, ord)] }))
     },
 
-    toggleTask: (id) => {
+    toggleTask: (id, at) => {
       const s0 = get()
       const task = s0.tasks.find((t) => t.id === id)
       // 予定には完了が無い（ショートカット・まとめて完了などから来ても何もしない）
@@ -144,7 +144,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       // 完了は行が一覧から消えるので、何を完了したかと「元に戻す」を出す（スマホには ⌘Z が無い）
       pushUndo(task.completed ? undefined : { key: 'undo.taskCompleted', params: { title: task.title } })
       set((s) => {
-        const tasks = toggleByListKind(s, id, new Date().toISOString())
+        const tasks = toggleByListKind(s, id, at ?? new Date().toISOString())
         return tasks ? { tasks } : s
       })
     },

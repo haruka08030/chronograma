@@ -567,7 +567,8 @@ export interface TaskState {
   /** 授業の回（その予定の名前・日付）を欠席にする・取り消す（#452、`lib/timetable.ts` の `withAbsence`） */
   setClassAbsent: (taskId: string, absent: boolean) => void
   /** 完了の切り替え。チェックリストのリストでは子のある行は子ごと、子がそろったら親も（`toggleChecklistTree`） */
-  toggleTask: (id: string) => void
+  /** `at` は完了の時刻（既定は今。「記録して完了」は記録の終わり） */
+  toggleTask: (id: string, at?: string) => void
   updateTask: (
     id: string,
     patch: Partial<
