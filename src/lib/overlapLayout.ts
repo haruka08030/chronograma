@@ -95,14 +95,14 @@ export function overlapSlotStyle(
  * （1 日のどこかにログがあるだけで全体を半分にすると、空いた右半分が無駄になる）。
  * `fixedLanes` なら常に 予定=左半分 / ログ=右半分。ただし `full` に当たる塊は全幅:
  * - `fromTop` より下だけの塊（記録を置けない未来）
- * - 予定が無く、`logIds` の記録（予定どおりで予定を出さない記録）を含む塊
+ * - 記録が無く、`planIds` の予定（予定どおりの記録があり、記録を出さない予定）を含む塊
  */
 export function layoutPlanAndLog(
   plans: readonly OverlapInput[],
   logs: readonly OverlapInput[],
   mode: 'columns' | 'cascade',
   fixedLanes = false,
-  full: { fromTop?: number; logIds?: ReadonlySet<string> } = {},
+  full: { fromTop?: number; planIds?: ReadonlySet<string> } = {},
 ): Map<string, CSSProperties> {
   const all = [...plans.map((p) => ({ ...p, isLog: false })), ...logs.map((l) => ({ ...l, isLog: true }))].sort((a, b) => a.top - b.top)
 
@@ -123,7 +123,7 @@ export function layoutPlanAndLog(
     const l = cluster.filter((x) => x.isLog)
     const fullWidth =
       (full.fromTop !== undefined && cluster.every((x) => x.top >= full.fromTop!)) ||
-      (p.length === 0 && l.some((x) => full.logIds?.has(x.id)))
+      (l.length === 0 && p.some((x) => full.planIds?.has(x.id)))
     const split = fixedLanes ? !fullWidth : p.length > 0 && l.length > 0
     const place = (items: typeof cluster, start: number, width: number) => {
       const slots = layoutOverlaps(items, mode === 'cascade')

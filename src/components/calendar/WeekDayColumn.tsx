@@ -214,19 +214,22 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const fullFromTop = fullFromMin === null ? undefined : (fullFromMin / 60) * HOUR_HEIGHT
   /** この時刻（分）は予定に全幅を使う未来か */
   const isFullAt = (min: number) => fullFromMin !== null && min >= fullFromMin
-  // カレンダーでは予定どおりの記録（ずれ 10 分以内）があれば予定は出さず、記録を全幅で出す（#409）
-  const matchedPlanIds = new Set<string>()
-  const fullLogIds = new Set<string>()
+  // カレンダーでは予定どおりの記録（ずれ 10 分以内）があれば記録は出さず、予定を全幅で出す（✓ で済みと分かる、#678）。
+  // To-Do は完了しているときだけ（完了していなければ予定と記録を左右に並べる）
+  const fullPlanIds = new Set<string>()
+  const hiddenLogIds = new Set<string>()
   if (splitLanes && !singleDay) {
     const planned: PlannedItem[] = [
-      ...dayTimed.map((t) => ({
-        id: t.id,
-        summary: t.title,
-        startTime: t.startTime!,
-        endTime: t.endTime!,
-        source: isEventTask(t) ? ('scheduled-event' as const) : ('scheduled-task' as const),
-        taskId: t.id,
-      })),
+      ...dayTimed
+        .filter((t) => isEventTask(t) || t.completed)
+        .map((t) => ({
+          id: t.id,
+          summary: t.title,
+          startTime: t.startTime!,
+          endTime: t.endTime!,
+          source: isEventTask(t) ? ('scheduled-event' as const) : ('scheduled-task' as const),
+          taskId: t.id,
+        })),
       ...dayHabitSlots.map(({ slot, seg }) => ({ ...slot, ...seg })),
       ...dayTimedEvents.map(({ e, seg }) => ({ id: `event-${e.id}`, summary: e.summary, ...seg, source: 'google' as const })),
     ]
@@ -235,13 +238,11 @@ export const WeekDayColumn = memo(function WeekDayColumn({
       dayLogs.filter((l) => isCountedLog(l)),
     )) {
       if (pair.status !== 'matched') continue
-      matchedPlanIds.add(pair.planned!.id)
-      fullLogIds.add(pair.actual!.id)
+      fullPlanIds.add(pair.planned!.id)
+      hiddenLogIds.add(pair.actual!.id)
     }
   }
-  const shownTimed = dayTimed.filter((t) => !matchedPlanIds.has(t.id))
-  const shownHabitSlots = dayHabitSlots.filter(({ slot }) => !matchedPlanIds.has(slot.id))
-  const shownTimedEvents = dayTimedEvents.filter(({ e }) => !matchedPlanIds.has(`event-${e.id}`))
+  const shownLogs = dayLogs.filter((l) => !hiddenLogIds.has(l.id))
   /** 作る・動かす・落とす枠の横位置。未来の予定は全幅 */
   const previewClass = (lane: CreateIntent | null | undefined, top: number) =>
     lane !== 'log' && fullFromTop !== undefined && top >= fullFromTop ? 'left-0.5 right-0.5' : laneClass(lane)
@@ -251,8 +252,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     return lane === 'log' && isFullAt(timeToMinutes(yToTime(getRelativeY(clientY, key)))) ? 'schedule' : lane
   }
   const planBlocks = [
-    ...shownTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
-    ...shownHabitSlots.map(({ slot, seg }) => ({
+    ...dayTimed.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, false) })),
+    ...dayHabitSlots.map(({ slot, seg }) => ({
       id: slot.id,
       ...blockGeometry({ id: slot.id, title: slot.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
     })),
@@ -264,13 +265,13 @@ export const WeekDayColumn = memo(function WeekDayColumn({
       id: m.id,
       ...blockGeometry({ id: m.id, title: m.task.title, startTime: m.startTime, endTime: m.endTime, completed: false }, key, false),
     })),
-    ...shownTimedEvents.map(({ e, seg }) => ({
+    ...dayTimedEvents.map(({ e, seg }) => ({
       id: `event-${e.id}`,
       ...blockGeometry({ id: e.id, title: e.summary, startTime: seg.startTime, endTime: seg.endTime, completed: false }, key, false),
     })),
   ]
   const logBlocks = [
-    ...dayLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
+    ...shownLogs.map((t) => ({ id: t.id, ...blockGeometry(t as TimeBlockTask, key, true) })),
     ...(runningLog ? [{ id: RUNNING_LOG_ID, ...blockGeometry(runningLog as TimeBlockTask, key, true) }] : []),
   ]
   const blockStyles = layoutPlanAndLog(
@@ -286,16 +287,16 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     ],
     mode,
     fixedLanes,
-    { fromTop: fullFromTop, logIds: fullLogIds },
+    { fromTop: fullFromTop, planIds: fullPlanIds },
   )
   /**
-   * ドラッグで作る枠を止める、押した列のブロックの上下（予定の列は予定・習慣・Google の予定と全幅の記録、記録の列は記録）。
+   * ドラッグで作る枠を止める、押した列のブロックの上下（予定の列は予定・習慣・Google の予定、記録の列は記録と全幅の予定）。
    * 移した予定の跡と記録の無い時間の枠は止めない
    */
   const laneStops = (lane: CreateIntent): BlockStop[] =>
     (lane === 'log'
-      ? logBlocks
-      : [...planBlocks.filter((b) => !b.id.startsWith('moved-')), ...logBlocks.filter((b) => fullLogIds.has(b.id))]
+      ? [...logBlocks, ...planBlocks.filter((b) => fullPlanIds.has(b.id))]
+      : planBlocks.filter((b) => !b.id.startsWith('moved-'))
     ).map((b) => ({ id: b.id, top: b.top, bottom: b.top + b.span }))
   const createStops = (lane: CreateIntent): CreateStop[] => laneStops(lane)
   // 動かす・伸び縮みさせるときも同じブロックで止める（描くたびに知らせ直す）
@@ -429,7 +430,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         )
       })}
 
-      {shownTimed.map((t) => {
+      {dayTimed.map((t) => {
         // ✓ は「終わった」（#638）。To-Do はいつも出して完了。予定（バイト・授業）は始まってから出して記録にする（Google の予定と同じ）
         const event = isEventTask(t)
         const seg = { startTime: t.startTime!, endTime: t.endTime! }
@@ -482,7 +483,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           </div>
         )
       })}
-      {dayLogs.map((t) => (
+      {shownLogs.map((t) => (
         <div key={`${t.id}::${key}`} style={{ opacity: movingTaskId === t.id ? 0.3 : 1 }}>
           <TimeBlock
             task={t as TimeBlockTask}
@@ -564,7 +565,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           </div>
         )
       })}
-      {shownHabitSlots.map(({ habit, slot, slotDate, seg, crossesDay, done }) => {
+      {dayHabitSlots.map(({ habit, slot, slotDate, seg, crossesDay, done }) => {
         // 日をまたぐ枠は列ごとに区間しか描いていないので、済んだ枠と同じくドラッグでは動かさない（押すとカード）
         const fixed = done || crossesDay
         return (
@@ -605,7 +606,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           </div>
         )
       })}
-      {shownTimedEvents.map(({ e, seg }) => {
+      {dayTimedEvents.map(({ e, seg }) => {
         // Google の予定も予定。✓ は始まってから出して記録にし、もう一度押すと記録を外す（#638）。時間が過ぎたらグレー。
         // やらなかった予定（#528）は薄く・取り消し線で、✓ は出さない
         const record = planRecordOn(dayLogs, e.summary, seg)

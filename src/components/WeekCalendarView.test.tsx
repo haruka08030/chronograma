@@ -1,4 +1,4 @@
-import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { fromDateKey } from '../lib/dateKey'
@@ -118,9 +118,10 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     expect(planBlock(container, 'es').style.width).toBe('calc(100% - 18px)')
   })
 
-  it('カレンダーで予定どおりの記録があれば、予定は出さず記録が全幅', () => {
+  it('カレンダーで予定どおりの記録があれば、記録は出さず完了した予定が全幅。完了していない To-Do は左右に並べる', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(instantFromWall('2026-10-08', '12:00', appTimeZone()))
+    // 予定の日のうちに完了する（ほかの日に終えると終日の行に移る）
+    vi.setSystemTime(instantFromWall('2026-10-07', '17:00', appTimeZone()))
     desktop()
     useTaskStore.setState({
       tasks: [
@@ -132,9 +133,15 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     })
     useTaskStore.getState().addTimeLog('ゼミ', '2026-10-07', '15:05', '16:30', [])
     const log = useTaskStore.getState().tasks.find((x) => x.title === 'ゼミ' && x.id !== 'seminar')!
-    const { container } = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />)
-    expect(container.querySelector('[data-datekey="2026-10-07"] [data-block-id="seminar"]')).toBeNull()
-    expect(planBlock(container, log.id).style.width).toBe('calc(100% - 4px)')
+    const view = () => render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />).container
+    const open = view()
+    expect(planBlock(open, 'seminar').style.width).toBe('calc(50% - 4px)')
+    expect(planBlock(open, log.id).style.width).toBe('calc(50% - 4px)')
+    cleanup()
+    useTaskStore.getState().toggleTask('seminar')
+    const done = view()
+    expect(done.querySelector(`[data-datekey="2026-10-07"] [data-block-id="${log.id}"]`)).toBeNull()
+    expect(planBlock(done, 'seminar').style.width).toBe('calc(100% - 4px)')
   })
 
   it('今日の計画（1 日表示）は 予定 / 記録 の 2 列のまま', () => {
