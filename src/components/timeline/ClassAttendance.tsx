@@ -11,7 +11,7 @@ import {
   termOn,
   type ClassAttendance as Attendance,
 } from '../../lib/schoolTerms'
-import { openSchoolGuide } from '../../lib/overlays'
+import { openHelp } from '../../lib/overlays'
 import { FirstUseHint } from '../ui/FirstUseHint'
 import { lmsCourses } from '../../lib/courseLinks'
 import { useAppTodayKey } from '../../hooks/useAppClock'
@@ -62,7 +62,7 @@ export function ClassAttendance({ title, date, task }: { title: string; date: st
           </button>
         )}
       </div>
-      <FirstUseHint id="card-absence" show={!hasAnyAbsence(school)} onMore={() => openSchoolGuide('absences')} className="-mr-2 mt-1">
+      <FirstUseHint id="card-absence" show={!hasAnyAbsence(school)} onMore={() => openHelp('school.absences')} className="-mr-2 mt-1">
         {t('timetable.hintCardAbsence')}
       </FirstUseHint>
     </div>

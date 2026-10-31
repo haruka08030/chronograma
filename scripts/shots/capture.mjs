@@ -753,6 +753,12 @@ const SCREENS = [
     view: 'addons',
     steps: [{ click: '[data-addon="school"] button[aria-label="学校の説明"]' }, { click: 'button:has-text("使い方")' }],
   },
+  { name: 'settings-help', view: 'settings', steps: [{ click: 'button:has-text("使い方")' }] },
+  {
+    name: 'settings-help-school',
+    view: 'settings',
+    steps: [{ click: 'button:has-text("使い方")' }, { click: 'nav[aria-label="目次"] button:has-text("学校")' }],
+  },
   // 学期だけあって授業がまだ無い学校のページ（使う前だけ出す 1 行の説明）
   { name: 'addons-school-empty', view: 'addons', state: TIMETABLE_ON, steps: [{ click: '[data-addon="school"] button:has-text("学校")' }] },
   {

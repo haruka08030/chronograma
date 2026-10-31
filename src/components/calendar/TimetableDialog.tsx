@@ -44,7 +44,7 @@ import { ERROR_TEXT, HINT_TEXT, META_TEXT } from '../ui/textClass'
 import { useDialogDraft } from '../../hooks/useDialogDraft'
 import { Switch } from '../settings/SettingsPrimitives'
 import { FirstUseHint } from '../ui/FirstUseHint'
-import { openSchoolGuide } from '../../lib/overlays'
+import { openHelp } from '../../lib/overlays'
 
 /**
  * 時間割（#279）。週表示の見出しの「時間割」で開くダイアログ。上で学期を選び（最初は今日の学期）、中身は追加機能「学校」のページと同じ
@@ -102,7 +102,7 @@ export function TimetableBody({ term }: { term: Term }) {
 
   return (
     <>
-      <FirstUseHint id="school-timetable" show={classes.size === 0} onMore={() => openSchoolGuide('timetable')}>
+      <FirstUseHint id="school-timetable" show={classes.size === 0} onMore={() => openHelp('school.timetable')}>
         {t('timetable.intro')}
       </FirstUseHint>
       <DisclosureButton open={settingsOpen} onToggle={() => setSettingsOpen((o) => !o)} className="-ml-3">
