@@ -7,7 +7,8 @@ import { newId } from '../lib/id'
 import { asSleepIfNamed } from '../lib/sleep'
 import { inferLogCategory } from '../lib/logCategory'
 import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
-import { appDayKeyOf, appTimeZone } from '../lib/timeZone'
+import { appDayKeyOf, appTimeZone, toAppWall } from '../lib/timeZone'
+import { wallMinutesOf } from '../lib/wallTime'
 import { carriedDaysAfter } from '../lib/carryDays'
 import { movedPlansAfter, withMovedPlans } from '../lib/movedPlans'
 import { INBOX_ID } from './storeConstants'
@@ -137,10 +138,17 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
     const carried = carriedDaysAfter(task, applied, appDayKeyOf(now))
     if (carried !== task.carriedDays) applied.carriedDays = carried
   }
-  // その日が来てから予定を別の日へ移したら、元の予定を控えに残す（過ぎた日に「予定どおりだったか」を見る、`movedPlans.ts`）
+  // 始まった予定を別の日・別の時刻へ動かしたら、元の予定を控えに残す（元の位置に跡を出す、`movedPlans.ts`）
   const moved =
-    patch.scheduledDate !== undefined && patch.scheduledDate !== task.scheduledDate
-      ? withMovedPlans(applied, movedPlansAfter(task, patch.scheduledDate, appDayKeyOf(now)))
+    applied.scheduledDate !== task.scheduledDate || applied.startTime !== task.startTime || applied.endTime !== task.endTime
+      ? withMovedPlans(
+          applied,
+          movedPlansAfter(
+            task,
+            { date: applied.scheduledDate, startTime: applied.startTime, endTime: applied.endTime },
+            wallMinutesOf(toAppWall(now)),
+          ),
+        )
       : applied
   const out = withLogCategory(moved)
   // ラベルは名前・色が正。名前・色・種類が変わったら id を外し、名前・色から付け直す（`labelIds.ts` の `fillLabelIds`）

@@ -86,12 +86,12 @@ const local = (id: string) => useTaskStore.getState().tasks.find((t) => t.id ===
 
 describe('移した予定の控えの同期（#158）', () => {
   it('今日の予定を明日へ移すと控えが送られ、前の版のアプリが題名だけ直しても、もう 1 台で控えと題名の両方が残る', async () => {
-    db.tables.tasks!.push(taskRow('r1', { title: 'レポート', scheduled_date: '2026-10-03', start_time: '13:00', end_time: '14:00' }))
+    db.tables.tasks!.push(taskRow('r1', { title: 'レポート', scheduled_date: '2026-10-03', start_time: '01:00', end_time: '02:00' }))
     signIn('u1')
     await untilSynced()
     act(() => useTaskStore.getState().updateTask('r1', { scheduledDate: '2026-10-04' }))
     await afterDebounce()
-    const moved = [{ date: '2026-10-03', startTime: '13:00', endTime: '14:00', to: '2026-10-04' }]
+    const moved = [{ date: '2026-10-03', startTime: '01:00', endTime: '02:00', to: '2026-10-04' }]
     expect(serverRow('r1')).toMatchObject({ scheduled_date: '2026-10-04', moved_plans: moved })
 
     // 前の版のアプリ: moved_plans を知らないので、その列には触れずに題名だけ書く

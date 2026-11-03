@@ -2127,6 +2127,8 @@ export default {
     allDayCollapse: 'Collapse',
     unrecordedGap: '{{time}} unrecorded',
     movedPlanAria: '{{title}} {{start}}–{{end}} (moved to {{date}})',
+    cancelledPlan: 'Cancelled',
+    cancelledPlanAria: '{{title}} {{start}}–{{end}} (deleted after it started)',
     unrecordedGapAria: 'Unrecorded {{start}}–{{end}} (click to record this time)',
   },
   calendarDayPanel: {

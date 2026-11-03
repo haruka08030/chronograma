@@ -292,8 +292,8 @@ export function parseReminders(raw: unknown): TaskReminder[] | null {
 /** サーバーの行をタスクに（記録の分類は category。前の版の端末が書いた行は tags の先頭から） */
 function rowToTask(row: TaskRow): Task {
   const task = withLogCategory(rowToTaskFields(row))
-  // 毎週の印は予定の行だけ、移した予定の控えは To-Do の行だけ。値のある行だけ項目を持つ
-  if (task.kind === 'event') return withSeries(task, readEventSeries(row.event_series))
+  // 毎週の印は予定の行だけ、動かした予定の控えは To-Do と予定の行だけ。値のある行だけ項目を持つ
+  if (task.kind === 'event') return withMovedPlans(withSeries(task, readEventSeries(row.event_series)), readMovedPlans(row.moved_plans))
   if (task.kind === 'log') return withLogCategory(withVague(task, readVague(row.is_vague)))
   return task.kind === 'todo'
     ? withDreamId(
@@ -403,7 +403,7 @@ function taskToRow(userId: string, task: Task): TaskRow {
     habit_id: task.habitId,
     source_task_id: task.sourceTaskId,
     event_series: isEventTask(task) ? (task.series ?? null) : null,
-    moved_plans: isTodoTask(task) ? (task.movedPlans ?? null) : null,
+    moved_plans: isTodoTask(task) || isEventTask(task) ? (task.movedPlans ?? null) : null,
     someday_tier: isTodoTask(task) ? (task.somedayTier ?? null) : null,
     dream_id: isTodoTask(task) ? (task.dreamId ?? null) : null,
     is_sleep: isSleepTask(task),

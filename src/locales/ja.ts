@@ -2059,6 +2059,8 @@ export default {
     allDayCollapse: 'たたむ',
     unrecordedGap: '記録なし {{time}}',
     movedPlanAria: '{{title}} {{start}}–{{end}}（{{date}} に移した予定）',
+    cancelledPlan: 'やめた',
+    cancelledPlanAria: '{{title}} {{start}}–{{end}}（始まってから消した予定）',
     unrecordedGapAria: '記録なし {{start}}–{{end}}（押すとこの時間の記録を作る）',
   },
   calendarDayPanel: {

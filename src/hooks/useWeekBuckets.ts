@@ -4,6 +4,7 @@ import type { TaskList } from '../types/list'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { logOverlapsDateKey } from '../lib/taskTimeRange'
 import { isActiveTask } from '../lib/taskLifecycle'
+import { planTraces } from '../lib/movedPlans'
 import { unplannedListIds } from '../lib/listKind'
 import { toDateKey } from '../lib/dateKey'
 import { googleEventDateKeys } from '../lib/googleEventSpan'
@@ -41,7 +42,7 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
   const excludedListIds = useMemo(() => unplannedListIds(lists), [lists])
   /** 前に分けた結果と比べて、変わっていない日の配列を使い回す */
   const [stabilize] = useState(createDayArrayCache)
-  // 過ぎた日だけに控えを出すので、開いたまま日をまたいだら分け直す
+  // 今日までの日だけに元の位置の跡を出すので、開いたまま日をまたいだら分け直す
   const todayKey = useAppTodayKey()
 
   const { allDayByDate, timedByDate, timeLogsByDate, dueByDate, movedByDate } = useMemo(() => {
@@ -53,7 +54,15 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
     const timed = new Map<string, typeof tasks>()
     const logs = new Map<string, typeof tasks>()
     for (const t of tasks) {
-      if (t.parentId || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
+      if (t.parentId || excludedListIds.has(t.listId)) continue
+      // 動かした・始まってから消した予定は、元の位置に跡を出す（`planTraces`）
+      for (const plan of planTraces(t)) {
+        if (plan.date > todayKey || !plan.startTime || !plan.endTime) continue
+        const arr = moved.get(plan.date) ?? []
+        if (!arr.includes(t)) arr.push(t)
+        moved.set(plan.date, arr)
+      }
+      if (!isActiveTask(t)) continue
       if (isLogTask(t)) {
         if (!t.dueDate || !t.startTime || !t.endTime) continue
         for (const day of days) {
@@ -64,12 +73,6 @@ export function useWeekBuckets(tasks: Task[], lists: TaskList[], calendarEvents:
           logs.set(dk, arr)
         }
         continue
-      }
-      for (const plan of t.movedPlans ?? []) {
-        if (plan.date >= todayKey || !plan.startTime || !plan.endTime) continue
-        const arr = moved.get(plan.date) ?? []
-        if (!arr.includes(t)) arr.push(t)
-        moved.set(plan.date, arr)
       }
       const dueKey = dueMarkDayKey(t)
       if (dueKey) {

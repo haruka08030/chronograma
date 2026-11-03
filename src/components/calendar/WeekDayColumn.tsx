@@ -19,6 +19,7 @@ import { fromAppWall, isAppToday, isNowOnDay } from '../../lib/timeZone'
 import { SELECTED_COLUMN, TODAY_COLUMN } from '../../lib/dayMarker'
 import { toDateKey } from '../../lib/dateKey'
 import { formatDate } from '../../lib/dateFormat'
+import { planTraces } from '../../lib/movedPlans'
 import { minutesToTime } from '../../lib/clockTime'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
 import { CreateGhost, NowIndicator, SlotCheck, TimeBlock } from './TimeBlock'
@@ -98,7 +99,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   dayTimed: Task[]
   /** この日にかかる記録 */
   dayLogs: Task[]
-  /** 過ぎたこの日から別の日へ移した時刻つきの予定（`movedPlans`） */
+  /** この日（今日まで）に元の位置の跡がある予定（動かした・始まってから消した、`planTraces`） */
   dayMoved: Task[]
   /** この日にかかる時刻つきの Google の予定（日をまたぐものは重なる日すべて） */
   timedEvents: CalendarEvent[]
@@ -193,11 +194,18 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   }))
   // 睡眠の予定（#652）: その日の朝に起きる睡眠（前の晩から）と、その夜に寝る睡眠の枠。その朝の睡眠の記録があれば済み
   const daySleepSlots = sleepSlots.map((s, i) => ({ ...s, recordId: sleepRecordIds[i] || null }))
-  // 移した予定は元の時間に点線の枠で残す（過ぎた日だけ。振り返りで「予定どおりだったか」を見る、#158）
-  const dayMovedPlans = dayMoved.flatMap((t) => {
-    const plan = t.movedPlans?.find((p) => p.date === key && p.startTime && p.endTime)
-    return plan ? [{ task: t, startTime: plan.startTime!, endTime: plan.endTime!, to: plan.to, id: `moved-${t.id}` }] : []
-  })
+  // 始まってから動かした・消した予定は元の時間に点線の枠で残す（「予定どおりだったか」を見る、#158・#682）
+  const dayMovedPlans = dayMoved.flatMap((t) =>
+    planTraces(t)
+      .filter((p) => p.date === key && p.startTime && p.endTime)
+      .map((p, i) => ({
+        task: t,
+        startTime: p.startTime!,
+        endTime: p.endTime!,
+        to: p.to,
+        id: i === 0 ? `moved-${t.id}` : `moved-${t.id}-${i}`,
+      })),
+  )
   const limitMin = logLimitMin(key)
   /** 始まった（記録にできる）時間か */
   const hasStarted = (start: string) => limitMin === null || timeToMinutes(start) < limitMin
@@ -410,22 +418,45 @@ export const WeekDayColumn = memo(function WeekDayColumn({
           key,
           false,
         )
-        const to = formatDate(m.to, 'shortDate')
+        // 行き先: 同じ日の中でずらしたら今の時刻、別の日なら日付、消したら「やめた」
+        const to = m.to === null ? null : m.to === key ? (m.task.startTime ?? '') : formatDate(m.to, 'shortDate')
+        const className = `absolute flex items-start gap-1 overflow-hidden rounded-[5px] border border-dashed border-zinc-300 px-1 pt-0.5
+              text-left text-[10px] leading-tight text-zinc-400 dark:border-zinc-600 dark:text-zinc-500`
+        const style = { left: 2, right: 2, ...planStyle(m.id), top: geo.top + 1, height: Math.max(geo.height - 2, 14) }
+        const body = (
+          <>
+            <span className="min-w-0 truncate">{m.task.title}</span>
+            <span className="shrink-0 tabular-nums">{to === null ? t('weekCalendar.cancelledPlan') : `→${to}`}</span>
+          </>
+        )
+        // 消した予定はカードが無いので、押せない枠（ゴミ箱から戻せば元の予定に戻る）
+        if (to === null) {
+          return (
+            <div
+              key={m.id}
+              data-moved-plan
+              role="note"
+              className={className}
+              style={style}
+              aria-label={t('weekCalendar.cancelledPlanAria', { title: m.task.title, start: m.startTime, end: m.endTime })}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              {body}
+            </div>
+          )
+        }
         return (
           <button
             key={m.id}
             type="button"
             data-moved-plan
-            className="absolute flex items-start gap-1 overflow-hidden rounded-[5px] border border-dashed border-zinc-300 px-1 pt-0.5
-              text-left text-[10px] leading-tight text-zinc-400 hover:border-zinc-400 focus-visible:border-accent-500
-              focus-visible:outline-none dark:border-zinc-600 dark:text-zinc-500 dark:hover:border-zinc-500"
-            style={{ left: 2, right: 2, ...planStyle(m.id), top: geo.top + 1, height: Math.max(geo.height - 2, 14) }}
+            className={`${className} hover:border-zinc-400 focus-visible:border-accent-500 focus-visible:outline-none dark:hover:border-zinc-500`}
+            style={style}
             {...tip(t('weekCalendar.movedPlanAria', { title: m.task.title, start: m.startTime, end: m.endTime, date: to }), { name: true })}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => openCard(m.task.id, e.currentTarget)}
           >
-            <span className="min-w-0 truncate">{m.task.title}</span>
-            <span className="shrink-0 tabular-nums">→{to}</span>
+            {body}
           </button>
         )
       })}

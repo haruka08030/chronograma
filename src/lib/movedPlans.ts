@@ -1,11 +1,14 @@
 /**
- * 予定日を移した To-Do の元の予定（#158）。その日が来てから（今日・過ぎた日の予定を）別の日へ移したときだけ、
- * 元の日・時刻と移した先を `movedPlans` に残す。先の日どうしの付け替えは予定を立て直しただけなので残さない。
- * 過ぎた日のタイムラインに控えを出し、「計画どおり実行」の分母に入れる（`weekReview.ts`）
+ * 動かした予定の元の位置（#158・#682）。始まってから（時刻のある予定は開始を過ぎてから、時刻の無い To-Do はその日が来てから）
+ * 別の日へ移した・同じ日の別の時刻へずらしたときだけ、元の日・時刻と移した先を `movedPlans` に残す。始まる前の組み直しは残さない。
+ * 始まってから消した（ゴミ箱へ）予定は `planTraces` が「やめた」として足す。
+ * タイムラインの元の位置に点線の枠を出し、「計画どおり実行」の分母に入れる（`weekReview.ts`）
  */
-import { isTodoTask, type MovedPlan, type Task } from '../types/task'
+import { isEventTask, isTodoTask, type MovedPlan, type Task } from '../types/task'
 import type { PlannedItem } from '../types/plannedItem'
-import { isActiveTask } from './taskLifecycle'
+import { isActiveTask, isArchivedTask, isDeletedTask } from './taskLifecycle'
+import { wallMinutes, wallMinutesOf } from './wallTime'
+import { toAppWall } from './timeZone'
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/
 const CLOCK = /^\d{2}:\d{2}$/
@@ -35,24 +38,70 @@ export function withMovedPlans<T extends Task>(t: T, plans: readonly MovedPlan[]
   return rest
 }
 
+/** 動かした先（予定日と時刻） */
+export type PlanSlot = { date: string | null; startTime: string | null; endTime: string | null }
+
+/** 跡を残す種類か（予定と、完了していない To-Do。子は除く） */
+function tracksPlan(task: Task): boolean {
+  if (task.parentId) return false
+  return isEventTask(task) || (isTodoTask(task) && !task.completed)
+}
+
+/** その予定が始まったか（時刻の無いものはその日の 0:00） */
+function startedBy(date: string, startTime: string | null, nowWall: number): boolean {
+  return wallMinutes(date, startTime ?? '00:00') <= nowWall
+}
+
 /**
- * 予定日を `nextDate` に変えたあとの控え。今日・過ぎた日の未完了の To-Do を別の日へ移したら元の予定を足す。
- * 控えのある日へ戻したら、その日の控えは消す（予定どおりの日に戻った）
+ * 予定日・時刻を `next` に変えたあとの控え。始まった予定を別の日・同じ日の別の時刻へ動かしたら元の予定を足す
+ * （同じ日から何度動かしても、元の時刻は最初のまま・行き先だけ新しく）。元の日・時刻へ戻したら、その控えは消す。
+ * `nowWall` はアプリのタイムゾーンの壁時計の通しの分（`wallMinutesOf`）
  */
-export function movedPlansAfter(task: Task, nextDate: string | null, todayKey: string): MovedPlan[] | undefined {
+export function movedPlansAfter(task: Task, next: PlanSlot, nowWall: number): MovedPlan[] | undefined {
   const from = task.scheduledDate
   const plans = task.movedPlans ?? []
-  if (!nextDate || from === nextDate) return task.movedPlans
-  const kept = plans.filter((p) => p.date !== nextDate)
-  if (!from || from > todayKey || !isTodoTask(task) || task.completed || task.parentId) {
+  if (!next.date) return task.movedPlans
+  const sameDay = from === next.date
+  const timed = !!(next.startTime && next.endTime)
+  if (sameDay && (task.startTime === next.startTime || !timed || !task.startTime)) return task.movedPlans
+  // 元の日（時刻の無い控えは日だけ）・元の時刻へ戻ったら、その控えは予定どおりに戻った
+  const kept = plans.filter(
+    (p) => !(p.date === next.date && (!p.startTime || (p.startTime === next.startTime && p.endTime === next.endTime))),
+  )
+  if (sameDay && kept.length !== plans.length) return kept
+  const prior = from ? kept.find((p) => p.date === from) : undefined
+  if (!from || !tracksPlan(task) || (!prior && !startedBy(from, task.startTime, nowWall))) {
     return kept.length === plans.length ? task.movedPlans : kept
   }
-  const entry: MovedPlan = { date: from, startTime: task.startTime, endTime: task.endTime, to: nextDate }
-  // 同じ日から何度か移したら、最後の行き先だけ
+  const entry: MovedPlan = prior
+    ? { ...prior, to: next.date }
+    : { date: from, startTime: task.startTime, endTime: task.endTime, to: next.date }
   return [...kept.filter((p) => p.date !== from), entry].slice(-MAX_MOVED_PLANS)
 }
 
-/** その日から移した予定（To-Do と控え）。消した・アーカイブした To-Do・いつか / チェックリストのものは入れない */
+/** 元の位置の跡 1 つ。`to` が null は始まってから消した（やめた）予定 */
+export type PlanTrace = Omit<MovedPlan, 'to'> & { to: string | null }
+
+/** 始まってから消した（ゴミ箱へ入れた）時刻つきの予定か */
+export function cancelledAfterStart(task: Task): boolean {
+  if (!isDeletedTask(task) || isArchivedTask(task) || !tracksPlan(task)) return false
+  if (!task.scheduledDate || !task.startTime || !task.endTime) return false
+  return startedBy(task.scheduledDate, task.startTime, wallMinutesOf(toAppWall(task.deletedAt!)))
+}
+
+/**
+ * 1 つの予定の元の位置の跡（動かした控えと、始まってから消したならその位置）。アーカイブした・始まる前に消したものは無し
+ */
+export function planTraces(task: Task): PlanTrace[] {
+  if (isActiveTask(task)) return task.movedPlans ?? []
+  if (!cancelledAfterStart(task)) return []
+  return [...(task.movedPlans ?? []), { date: task.scheduledDate!, startTime: task.startTime, endTime: task.endTime, to: null }]
+}
+
+/**
+ * その日から動かした予定（To-Do・予定と控え）。消した・アーカイブしたもの・いつか / チェックリストのものは入れない。
+ * 同じ日の中でずらしたものは今の時刻の予定として数えるので入れない
+ */
 export function movedPlansOnDay(
   tasks: readonly Task[],
   key: string,
@@ -61,6 +110,7 @@ export function movedPlansOnDay(
   const out: { task: Task; plan: MovedPlan }[] = []
   for (const task of tasks) {
     if (!task.movedPlans || !isActiveTask(task) || excludedListIds.has(task.listId)) continue
+    if (task.scheduledDate === key) continue
     for (const plan of task.movedPlans) if (plan.date === key) out.push({ task, plan })
   }
   return out
@@ -74,7 +124,7 @@ export function movedPlanToPlannedItem(task: Task, plan: MovedPlan): PlannedItem
     summary: task.title,
     startTime: plan.startTime,
     endTime: plan.endTime,
-    source: 'scheduled-task',
+    source: isEventTask(task) ? 'scheduled-event' : 'scheduled-task',
     taskId: task.id,
     completed: false,
   }

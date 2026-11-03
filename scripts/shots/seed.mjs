@@ -55,7 +55,7 @@ function task(fields, stamp) {
     ...(fields.movedPlans ? { movedPlans: fields.movedPlans } : {}),
     ...(fields.somedayTier ? { somedayTier: fields.somedayTier } : {}),
     archivedAt: null,
-    deletedAt: null,
+    deletedAt: fields.deletedAt ?? null,
   }
 }
 
@@ -312,6 +312,33 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
         endTime: '17:30',
         order: 26,
         movedPlans: [{ date: yesterday, startTime: '16:00', endTime: '17:30', to: dayKey(shift(now, 1)) }],
+      },
+      instant,
+    ),
+    // 今日の 10:00 に始まってから 16:30 へずらした予定と、始まってから消した予定（元の位置に跡が出る、#682）
+    task(
+      {
+        id: 's70',
+        title: '図書館で勉強',
+        kind: 'event',
+        scheduledDate: today,
+        startTime: '16:30',
+        endTime: '18:00',
+        order: 30,
+        movedPlans: [{ date: today, startTime: '10:00', endTime: '11:30', to: today }],
+      },
+      instant,
+    ),
+    task(
+      {
+        id: 's71',
+        title: '面談',
+        kind: 'event',
+        scheduledDate: today,
+        startTime: '11:30',
+        endTime: '12:30',
+        order: 31,
+        deletedAt: instant.toISOString(),
       },
       instant,
     ),

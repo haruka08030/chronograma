@@ -283,12 +283,12 @@ export function normalizeTaskRow(raw: unknown): Task | null {
   const createdAt = readStamp(now, row.createdAt, row.created_at)
   // 毎週の予定の印（#279）は予定の行だけ。印のある行だけ項目を持つ
   const series = kind === 'event' ? readEventSeries(row.series ?? row.event_series) : null
-  // 移した予定の控え（#158）は To-Do の行だけ。控えのある行だけ項目を持つ
+  // 動かした予定の控え（#158・#682）は To-Do と予定の行だけ。控えのある行だけ項目を持つ
   // いつかの段（#221）は To-Do の行だけ。夢の行だけ項目を持つ
   const somedayTier = kind === 'todo' ? readSomedayTier(row.somedayTier ?? row.someday_tier) : null
   // 夢の一歩だった To-Do の元の夢（#430）は To-Do の行だけ
   const dreamId = kind === 'todo' ? readDreamId(row.dreamId ?? row.dream_id) : null
-  const movedPlans = kind === 'todo' ? readMovedPlans(row.movedPlans ?? row.moved_plans) : null
+  const movedPlans = kind === 'todo' || kind === 'event' ? readMovedPlans(row.movedPlans ?? row.moved_plans) : null
   // 「なんとなく」（#657）は記録の行だけ。印のある行だけ項目を持つ
   const vague = kind === 'log' && readVague(row.vague ?? row.is_vague)
   return {
