@@ -99,8 +99,13 @@ describe('openTaskFromNotification', () => {
 })
 
 describe('stopTimerFromNotification', () => {
-  const startedAt = new Date(Date.now() - 4 * 3600_000).toISOString()
-  const running = { taskTitle: '卒論', startedAt, tags: [], taskId: null, color: null }
+  // FAKE_NOW の偽の時計は beforeEach で入るので、始まりもその後の今から決める
+  let startedAt: string
+  let running: { taskTitle: string; startedAt: string; tags: string[]; taskId: null; color: null }
+  beforeEach(() => {
+    startedAt = new Date(Date.now() - 4 * 3600_000).toISOString()
+    running = { taskTitle: '卒論', startedAt, tags: [], taskId: null, color: null }
+  })
 
   it('そのタイマーを止め、できた記録の詳細を開く（終わりの時刻を直せる）', () => {
     useTaskStore.setState({ tasks: [], activeTimer: running })
