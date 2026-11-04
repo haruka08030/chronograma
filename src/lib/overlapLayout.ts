@@ -19,6 +19,12 @@ export interface OverlapSlot {
 }
 
 /**
+ * 接しているだけとみなす上下のずれ（px）。位置は「分 / 60 × 1 時間の高さ」で出すので、
+ * 「始まり＋高さ」と次の始まりが小数の誤差でわずかに食い込む（それで列を分けない）
+ */
+const TOUCH_EPS_PX = 0.01
+
+/**
  * 時間が重なるブロックを横に並べるための列割り当て（Google カレンダー方式）。
  * 縦位置で重なる項目を推移的にまとめた「塊」ごとに、空いている最左列へ貪欲に詰める。
  * 塊の列数はその塊内の最大同時数なので、重ならない項目は常に全幅になる。
@@ -32,7 +38,7 @@ export function layoutOverlaps(items: readonly OverlapInput[], longFirst = false
   const clusters: OverlapInput[][] = []
   let clusterEnd = -Infinity
   for (const item of sorted) {
-    if (item.top >= clusterEnd) {
+    if (item.top >= clusterEnd - TOUCH_EPS_PX) {
       clusters.push([])
       clusterEnd = -Infinity
     }
@@ -46,7 +52,7 @@ export function layoutOverlaps(items: readonly OverlapInput[], longFirst = false
     const placed: { id: string; col: number }[] = []
     for (const item of order) {
       const range = { top: item.top, bottom: item.top + span(item) }
-      let col = columns.findIndex((c) => c.every((r) => r.bottom <= range.top || range.bottom <= r.top))
+      let col = columns.findIndex((c) => c.every((r) => r.bottom <= range.top + TOUCH_EPS_PX || range.bottom <= r.top + TOUCH_EPS_PX))
       if (col < 0) col = columns.push([]) - 1
       columns[col]!.push(range)
       placed.push({ id: item.id, col })
@@ -109,7 +115,7 @@ export function layoutPlanAndLog(
   const clusters: (typeof all)[] = []
   let clusterEnd = -Infinity
   for (const item of all) {
-    if (item.top >= clusterEnd) {
+    if (item.top >= clusterEnd - TOUCH_EPS_PX) {
       clusters.push([])
       clusterEnd = -Infinity
     }

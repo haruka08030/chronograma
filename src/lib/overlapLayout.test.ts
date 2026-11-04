@@ -38,6 +38,27 @@ describe('layoutPlanAndLog', () => {
   })
 })
 
+describe('layoutPlanAndLog: 接しているだけのもの', () => {
+  it('前の枠の終わり（始まり＋高さ）が小数の誤差で食い込んでも、列を分けない', () => {
+    const H = 60
+    const gapTop = (300 / 60) * H
+    const gapHeight = ((980 - 300) / 60) * H
+    const logTop = (980 / 60) * H
+    expect(gapTop + gapHeight).toBeGreaterThan(logTop)
+    const styles = layoutPlanAndLog(
+      [],
+      [
+        { id: 'gap', top: gapTop, height: gapHeight, span: gapHeight },
+        { id: 'log', top: logTop, height: 74, span: 74 },
+      ],
+      'columns',
+      true,
+    )
+    expect(styles.get('log:log')?.left).toBe('calc(50% + 2px)')
+    expect(styles.get('log:log')?.width).toBe('calc(50% - 4px)')
+  })
+})
+
 describe('layoutPlanAndLog: 予定と記録の左右分け', () => {
   // バイト 18:00–21:00 と ES を書く 20:00–21:00（1 時間 = 60px）
   const plans = [
