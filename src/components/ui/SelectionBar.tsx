@@ -42,7 +42,7 @@ export function SelectionBar({
   }, [open])
   if (!open) return null
   const button =
-    'whitespace-nowrap rounded-full px-3 py-1.5 font-medium max-[359px]:px-2 transition-colors touch-manipulation hover:bg-white/15 dark:hover:bg-zinc-900/10'
+    'touch-hit whitespace-nowrap rounded-full px-3 py-1.5 font-medium max-[359px]:px-2 transition-colors touch-manipulation hover:bg-white/15 dark:hover:bg-zinc-900/10'
   return (
     <div
       data-selection-bar

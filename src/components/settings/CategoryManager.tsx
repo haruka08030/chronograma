@@ -92,7 +92,7 @@ export function CategoryManager() {
                   disabled={i === 0}
                   onClick={() => moveLogCategory(name, -1)}
                   aria-label={t('categories.moveUp', { name })}
-                  className="rounded p-1 text-zinc-400 hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800"
+                  className="touch-hit rounded p-1 text-zinc-400 hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800"
                 >
                   <ChevronUpIcon className="h-3.5 w-3.5" />
                 </button>
@@ -101,7 +101,7 @@ export function CategoryManager() {
                   disabled={i === presets.length - 1}
                   onClick={() => moveLogCategory(name, 1)}
                   aria-label={t('categories.moveDown', { name })}
-                  className="rounded p-1 text-zinc-400 hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800"
+                  className="touch-hit rounded p-1 text-zinc-400 hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800"
                 >
                   <ChevronDownIcon className="h-3.5 w-3.5" />
                 </button>

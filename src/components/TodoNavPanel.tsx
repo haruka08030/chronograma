@@ -139,7 +139,7 @@ function SortableListItem({
           e.stopPropagation()
           onColorPick()
         }}
-        className="flex h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 items-center justify-center touch-manipulation md:-mx-px md:h-3.5 md:w-3.5 md:min-h-[14px] md:min-w-[14px]"
+        className="touch-hit flex h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 items-center justify-center touch-manipulation md:-mx-px md:h-3.5 md:w-3.5 md:min-h-[14px] md:min-w-[14px]"
         style={{ color: list.color }}
         aria-label={t('sidebar.changeListColor')}
         tabIndex={-1}
@@ -163,7 +163,7 @@ function SortableListItem({
           {...attributes}
           {...listeners}
           type="button"
-          className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
+          className="touch-hit touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
           tabIndex={-1}
           {...tip(t('sidebar.reorderList'), { name: true })}
           onClick={(e) => e.stopPropagation()}

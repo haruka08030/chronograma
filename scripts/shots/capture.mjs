@@ -305,7 +305,8 @@ function auditPage(page, hasTouch) {
       if (cs.position !== 'fixed' && cs.position !== 'absolute') continue
       const r = el.getBoundingClientRect()
       const outside = r.top < -1 || r.left < -1 || r.bottom > vh + 1 || r.right > vw + 1
-      const clipped = cs.position === 'fixed' && el.scrollHeight > el.clientHeight + 1 && !/(auto|scroll)/.test(cs.overflowY)
+      // 12px までは押せる範囲の広げ（touch-hit）がはみ出した分で、中身は切れていない
+      const clipped = cs.position === 'fixed' && el.scrollHeight > el.clientHeight + 12 && !/(auto|scroll)/.test(cs.overflowY)
       if (outside || clipped) out.offscreen.push(`${nameOf(el)}（${box(r)}${clipped ? '・中が切れている' : ''}）`)
       if (cs.position !== 'fixed') {
         for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
@@ -352,7 +353,12 @@ function auditPage(page, hasTouch) {
         if (!visible(b)) continue
         const q = b.getBoundingClientRect()
         if (q.bottom < 0 || q.top > vh) continue
-        if (Math.min(q.width, q.height) < 32) out.smallTargets.push(`${nameOf(b)}（${Math.round(q.width)}×${Math.round(q.height)}）`)
+        // 擬似要素（touch-hit・after:-inset-2）で広げた範囲も押せる範囲に数える
+        const hit = getComputedStyle(b, '::after')
+        const hitW = hit.position === 'absolute' ? parseFloat(hit.width) || 0 : 0
+        const hitH = hit.position === 'absolute' ? parseFloat(hit.height) || 0 : 0
+        if (Math.min(Math.max(q.width, hitW), Math.max(q.height, hitH)) < 32)
+          out.smallTargets.push(`${nameOf(b)}（${Math.round(q.width)}×${Math.round(q.height)}）`)
       }
     }
     return out

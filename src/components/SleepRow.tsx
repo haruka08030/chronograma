@@ -152,7 +152,7 @@ function SleepPageButton() {
       type="button"
       onClick={() => selectView('sleep')}
       {...tip(t('sleep.openPage'), { name: true })}
-      className="-ml-1.5 inline-flex shrink-0 rounded-full p-1.5 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      className="touch-hit -ml-1.5 inline-flex shrink-0 rounded-full p-1.5 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
     >
       <SleepMoonIcon />
     </button>

@@ -8,7 +8,7 @@ export const FLOAT_BOTTOM_ABOVE_TIMER =
 
 /** トーストの中のボタン（「元に戻す」など）。`muted` は 2 つ目の控えめな選び方 */
 export function toastButtonClass(muted = false): string {
-  return `shrink-0 font-semibold underline-offset-2 touch-manipulation hover:underline ${
+  return `touch-hit shrink-0 font-semibold underline-offset-2 touch-manipulation hover:underline ${
     muted ? 'text-zinc-300 dark:text-zinc-600' : 'text-white dark:text-zinc-900'
   }`
 }

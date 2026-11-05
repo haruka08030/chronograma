@@ -97,7 +97,7 @@ export function CalendarMobileHeader({
             const r = e.currentTarget.getBoundingClientRect()
             setModeMenu({ x: r.left, y: r.bottom + 4 })
           }}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          className="touch-hit inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
         >
           {modeLabel(mode)}
           <CaretDownIcon className="h-2.5 w-2.5 text-zinc-500" />
@@ -107,7 +107,7 @@ export function CalendarMobileHeader({
           type="button"
           onClick={onToggleDock}
           aria-pressed={dockOpen}
-          className={`shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+          className={`touch-hit shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
             dockOpen
               ? 'bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300'
               : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'

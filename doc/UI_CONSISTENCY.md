@@ -71,6 +71,7 @@
 | 行の右端の操作 | `RowActionButton`。アイコンだけで角丸の四角・枠あり（`buttonClass` の secondary xs）、名前はヒント。指で押す画面では一回り大きく。`revealOnHover`（マウスで乗せたときだけ）・`collapse`（乗せていない間は場所も取らず、行の時刻・締切と入れ替わる）・`mouseOnly`（タッチでは出さない）。今日の計画の行の記録を開始・今日やる・時間を決める | `components/ui/RowActionButton.tsx` |
 | 乗せたときだけ出す操作 | 隠すかは画面の幅ではなく「マウスで乗せられるか」（`hover: hover`）で決め、タッチでは常に出す。キーボードで行に入ったときも出す。`REVEAL_ON_HOVER`（`group`）・`REVEAL_ON_ROW_HOVER`（`group/row`）・場所ごと入れ替える `SHOW_ON_ROW_HOVER` / `HIDE_ON_ROW_HOVER` | `components/ui/revealClass.ts` |
 | 選択の四角 | `RowSelectCheckbox`。選んでいる間か選んだ行は出したまま、それ以外は PC で行に乗せたときだけ（スマホは隠す）。押しても行のクリックには渡さない。To-Do の行・アーカイブ・ゴミ箱 | `components/ui/RowSelectCheckbox.tsx` |
+| 小さいボタンの押せる範囲 | `touch-hit`（index.css）。タッチのときだけ、見た目を変えずに押せる範囲を 44px に広げる。`iconButtonClass`・`DayNav`・`toastButtonClass`・`RowSelectCheckbox` は入っている | `src/index.css` |
 | 選択中のバー | `SelectionBar`。行を選んでいる間だけ下に浮かぶ（`INVERSE_SURFACE`、記録中はタイマーの上）。件数・その画面でよく使う操作・「操作」（タスクのメニュー）。操作したら選択を外す。狭い幅は操作の印を消して詰め、入らなければ折り返す。To-Do 一覧・今日の計画・アーカイブ・ゴミ箱 | `components/ui/SelectionBar.tsx` |
 | 行の色の線 | `RowColorLine`。行の左の細い線（ラベル・習慣の色、`gc-line`）。To-Do の一覧・今日の計画の行 | `components/ui/RowColorLine.tsx` |
 | 締切の印 | `DueChip`（→| と「10/16 (金)まで」、締切の色）。To-Do の行・今日の計画の行（`dueDateLabel` に見ている日を渡す）とカレンダーの To-Do のカード。カレンダーの締切の日の印（実行日が別の日）は `calendar/TaskDueMark`（押すとカード。`xs` は終日の行・月のマス、`sm` はスケジュール・日パネル）。子の行が見えない所（今日の計画・カレンダーの横の To-Do）では子の締切を `ChildDueChip`（「ES 10/16 (金)まで」） | `components/ui/DueChip.tsx`・`components/ui/ChildDueChip.tsx` |

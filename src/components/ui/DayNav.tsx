@@ -4,7 +4,7 @@ import { buttonClass } from './buttonClass'
 import { shortcutTip } from '../../lib/tooltip'
 
 const ARROW =
-  'rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'
+  'touch-hit rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'
 
 /**
  * 日付の移動（今日 ＜ ＞）。今日の計画・習慣・カレンダー・週のふりかえりで共通。Google カレンダーと同じく「今日」が左。
@@ -44,7 +44,7 @@ export function DayNav({
         onClick={onToday}
         disabled={atToday}
         {...shortcutTip(t('shortcuts.today'), shortcuts ? 'today' : undefined)}
-        className={buttonClass({ variant: 'secondary', size: 'xs' }, 'mr-1')}
+        className={buttonClass({ variant: 'secondary', size: 'xs' }, 'touch-hit mr-1')}
       >
         {today}
       </button>

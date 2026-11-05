@@ -478,6 +478,22 @@ button:not(:disabled):has(> svg:only-child):active {
   scale: 0.9;
 }
 
+/* タッチのときだけ、見た目を変えずに押せる範囲を 44px に広げる（小さいボタン・行の中のボタン） */
+@media (pointer: coarse) {
+  .touch-hit:not(.absolute, .fixed, .sticky) {
+    position: relative;
+  }
+  .touch-hit::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 2.75rem);
+    height: max(100%, 2.75rem);
+    transform: translate(-50%, -50%);
+  }
+}
+
 /* 記録中は浮くタイマーが画面の下に重なる。スクロールする面の下に余白を足し、一番下の行まで出せるようにする（@layer の外で、各所の pb-* より優先） */
 html[data-timer-open] .timer-safe {
   padding-bottom: calc(var(--floating-timer-h, 4.5rem) + 1.5rem);
