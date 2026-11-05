@@ -24,10 +24,10 @@ test('ドラッグで作る枠は下の予定の始まりでいったん止ま�
   await expect(page.getByRole('button', { name: 'Block 20:00 – 21:00' })).toBeVisible()
 
   const { x, y } = await dragPlan(page, 19 * 60, 20 * 60 + 10, { up: false })
-  await expect(page.getByText('19:00 – 20:00')).toBeVisible()
+  await expect(page.getByText('19:00–20:00')).toBeVisible()
   await page.mouse.move(x, y(20 * 60 + 40), { steps: 4 })
-  await expect(page.getByText('19:00 – 20:45')).toBeVisible()
+  await expect(page.getByText('19:00–20:45')).toBeVisible()
   await page.mouse.move(x, y(20 * 60 + 5), { steps: 4 })
-  await expect(page.getByText('19:00 – 20:00')).toBeVisible()
+  await expect(page.getByText('19:00–20:00')).toBeVisible()
   await page.mouse.up()
 })
