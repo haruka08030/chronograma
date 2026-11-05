@@ -71,7 +71,7 @@
 | 行の右端の操作 | `RowActionButton`。アイコンだけで角丸の四角・枠あり（`buttonClass` の secondary xs）、名前はヒント。指で押す画面では一回り大きく。`revealOnHover`（マウスで乗せたときだけ）・`collapse`（乗せていない間は場所も取らず、行の時刻・締切と入れ替わる）・`mouseOnly`（タッチでは出さない）。今日の計画の行の記録を開始・今日やる・時間を決める | `components/ui/RowActionButton.tsx` |
 | 乗せたときだけ出す操作 | 隠すかは画面の幅ではなく「マウスで乗せられるか」（`hover: hover`）で決め、タッチでは常に出す。キーボードで行に入ったときも出す。`REVEAL_ON_HOVER`（`group`）・`REVEAL_ON_ROW_HOVER`（`group/row`）・場所ごと入れ替える `SHOW_ON_ROW_HOVER` / `HIDE_ON_ROW_HOVER` | `components/ui/revealClass.ts` |
 | 選択の四角 | `RowSelectCheckbox`。選んでいる間か選んだ行は出したまま、それ以外は PC で行に乗せたときだけ（スマホは隠す）。押しても行のクリックには渡さない。To-Do の行・アーカイブ・ゴミ箱 | `components/ui/RowSelectCheckbox.tsx` |
-| 選択中のバー | `SelectionBar`。行を選んでいる間だけ下に浮かぶ（`INVERSE_SURFACE`、記録中はタイマーの上）。件数・その画面でよく使う操作・「操作」（タスクのメニュー）。操作したら選択を外す。To-Do 一覧・今日の計画・アーカイブ・ゴミ箱 | `components/ui/SelectionBar.tsx` |
+| 選択中のバー | `SelectionBar`。行を選んでいる間だけ下に浮かぶ（`INVERSE_SURFACE`、記録中はタイマーの上）。件数・その画面でよく使う操作・「操作」（タスクのメニュー）。操作したら選択を外す。狭い幅は操作の印を消して詰め、入らなければ折り返す。To-Do 一覧・今日の計画・アーカイブ・ゴミ箱 | `components/ui/SelectionBar.tsx` |
 | 行の色の線 | `RowColorLine`。行の左の細い線（ラベル・習慣の色、`gc-line`）。To-Do の一覧・今日の計画の行 | `components/ui/RowColorLine.tsx` |
 | 締切の印 | `DueChip`（→| と「10/16 (金)まで」、締切の色）。To-Do の行・今日の計画の行（`dueDateLabel` に見ている日を渡す）とカレンダーの To-Do のカード。カレンダーの締切の日の印（実行日が別の日）は `calendar/TaskDueMark`（押すとカード。`xs` は終日の行・月のマス、`sm` はスケジュール・日パネル）。子の行が見えない所（今日の計画・カレンダーの横の To-Do）では子の締切を `ChildDueChip`（「ES 10/16 (金)まで」） | `components/ui/DueChip.tsx`・`components/ui/ChildDueChip.tsx` |
 | 1 行の並び | `DayRow`（時刻・色の丸・題名。箱にせず、色は `EventMark` の丸だけ。時間が過ぎた予定は `passed` で題名を灰色、丸は `planDotHex`）。時刻の列の幅・行の高さは To-Do の行（`TaskItem` の `compact`）と同じ（`DAY_ROW_TIME_CLASS`・`DAY_ROW_PAD_CLASS`）。日パネルの Google の予定・記録 | `components/ui/DayRow.tsx` |
@@ -85,7 +85,7 @@
 | 完了の丸 | `CompletionCircle`。20px（サブタスク 16px）・枠 1.5px・優先度の色・押せる範囲 40px（サブタスク 32px）。複数選択中は `inert`（押せない薄い印）。完了の無い予定の印は同じ大きさの色の丸 `EventMark` | `components/ui/CompletionCircle.tsx` |
 | 日付の移動 | `DayNav`（今日 ＜ ＞、「今日」が左）。今日を見ているときは「今日」を押せないだけで消さない。T / K / J のヒント。今日の計画・習慣・習慣の詳細・カレンダー・週のふりかえり | `components/ui/DayNav.tsx` |
 | 濃い色の浮く面 | `INVERSE_SURFACE`（元に戻す・移動・Canvas の提出済みのトースト・選択中のバー・ヒント） | `components/ui/surface.ts` |
-| トースト | 1 枚は `Toast`（濃い面・角・文字・出入りの動き・`role="status"`）、中のボタンは `toastButtonClass`。置き場は App に 1 つの `ToastStack` で、下から積むので重ならない。下からの位置（下のナビの上・記録中はタイマーの上）は `FLOAT_BOTTOM` / `FLOAT_BOTTOM_ABOVE_TIMER`（選択中のバーも同じ） | `components/ui/Toast.tsx` |
+| トースト | 1 枚は `Toast`（濃い面・角・文字・出入りの動き・`role="status"`）、中のボタンは `toastButtonClass`。置き場は App に 1 つの `ToastStack` で、下から積むので重ならない。ダイアログの上に出す。下からの位置（下のナビの上・記録中はタイマーの上）は `FLOAT_BOTTOM` / `FLOAT_BOTTOM_ABOVE_TIMER`（選択中のバーも同じ。タイマーの実際の高さ `--floating-timer-h` だけずらす） | `components/ui/Toast.tsx` |
 | ポップオーバー | 面は `FLOATING_SURFACE`・`POPOVER_PANEL`・`anchoredCardClass`（予定カード: スマホは下からのシートで背は見えている画面の 85% まで、PC は押した所の横で `useAnchoredCard`）。ダークの背景は zinc-800（下の画面より一段明るく） | `components/ui/surface.ts`・`components/timeline/anchoredCard.ts` |
 | 浮かせる面の位置 | 置く所は `useFitInViewport`（`fitRect`）だけで決める。下（入らなければ上）か横（右、入らなければ左）に出し、どちらにも入らなければ画面の中に寄せて面の中でスクロール。実際の大きさを測り、中身が伸びたら・画面やキーボードが変わったら置き直す。見えている範囲は `viewportBox`（visualViewport）。予定のカード・右クリックのメニューと中のメニュー・締切の日付と日時・時間を決める・カレンダーの習慣の一覧・タイムゾーン・時刻の候補・ヒント。`npm run shots` は撮るたびにはみ出した面が無いかを確かめる | `hooks/useFitInViewport.ts`・`lib/viewportFit.ts` |
 | 月のカレンダー（日付を選ぶ） | 年（« »）と月（‹ ›）の切り替え・常に 6 週の日付・今日/明日/なし。`kind` は締切 / 実行日 / 日付。キーは ←→↑↓ で日・週、PageUp/PageDown で月、Home/End で週の頭と終わり、Enter で決める。締切・実行日のポップオーバー・`DateField`・追加欄の詳細・タスクと習慣の右クリックメニュー（`footer={false}`）・締切の日時・カレンダー画面の見出しの日付ジャンプ（`month` で見ている月から始める）で共通 | `components/DatePickerBody.tsx` |

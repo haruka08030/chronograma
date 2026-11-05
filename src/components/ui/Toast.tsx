@@ -5,13 +5,13 @@ import { FLOAT_BOTTOM, FLOAT_BOTTOM_ABOVE_TIMER } from './toastClass'
 
 /**
  * トーストの置き場（App に 1 つ）。元に戻す・移動・Canvas の提出済みのトーストを下から縦に積むので、同時に出ても重ならない。
- * 置き場は押下を通し、トーストの面だけが押せる
+ * 置き場は押下を通し、トーストの面だけが押せる。ダイアログの上に出す（下にあると「元に戻す」を押せない）
  */
 export function ToastStack({ children }: { children: ReactNode }) {
   const timerOpen = useTaskStore((s) => s.activeTimer !== null)
   return (
     <div
-      className={`pointer-events-none fixed inset-x-0 z-50 flex flex-col-reverse items-center gap-2 px-3 ${timerOpen ? FLOAT_BOTTOM_ABOVE_TIMER : FLOAT_BOTTOM}`}
+      className={`pointer-events-none fixed inset-x-0 z-[90] flex flex-col-reverse items-center gap-2 px-3 ${timerOpen ? FLOAT_BOTTOM_ABOVE_TIMER : FLOAT_BOTTOM}`}
     >
       {children}
     </div>
@@ -26,6 +26,7 @@ export function Toast({ closing, children }: { closing: boolean; children: React
   return (
     <div
       role="status"
+      data-toast
       inert={closing}
       className={`pointer-events-auto flex w-max max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE} ${
         closing ? 'animate-toast-out' : 'animate-toast-in'

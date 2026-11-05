@@ -480,7 +480,7 @@ button:not(:disabled):has(> svg:only-child):active {
 
 /* 記録中は浮くタイマーが画面の下に重なる。スクロールする面の下に余白を足し、一番下の行まで出せるようにする（@layer の外で、各所の pb-* より優先） */
 html[data-timer-open] .timer-safe {
-  padding-bottom: 6rem;
+  padding-bottom: calc(var(--floating-timer-h, 4.5rem) + 1.5rem);
 }
 
 /* 行を選んでいる間の下のバー（SelectionBar）も同じ。タイマーと重なると 2 段になる */
@@ -488,5 +488,5 @@ html[data-selection-open] .timer-safe {
   padding-bottom: 6rem;
 }
 html[data-timer-open][data-selection-open] .timer-safe {
-  padding-bottom: 10rem;
+  padding-bottom: calc(var(--floating-timer-h, 4.5rem) + 5.5rem);
 }

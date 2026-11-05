@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import type { Task } from '../types/task'
@@ -23,6 +23,7 @@ import { useLogLabelChoice } from '../hooks/useLogLabelChoice'
 import { ColorPalette } from './labels/ColorPalette'
 import { NEUTRAL_HEX } from '../lib/googleColors'
 import { LogTitleInput } from './LogTitleInput'
+import { FLOAT_BOTTOM } from './ui/toastClass'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -35,8 +36,28 @@ function formatElapsed(ms: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-/** ボトムナビ + safe-area の上に載せる共通オフセット（md 以上は従来どおり） */
-const MOBILE_FLOAT_BOTTOM = 'bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-6'
+/** タイマーの中で開く並び（色・長さ）の高さ。低い画面でも題名と止めるが見えるよう、入らない分は並びの中でスクロールする */
+const TIMER_PANEL_SCROLL =
+  'max-h-[calc(100dvh-3.5rem-0.75rem-env(safe-area-inset-bottom)-6rem)] overflow-y-auto overscroll-contain md:max-h-[calc(100dvh-8rem)]'
+
+/**
+ * タイマーの実際の高さを `--floating-timer-h` で渡す。
+ * トースト・選択中のバー・`timer-safe` がこの分だけ上にずらす（色や長さの並びを開くと伸びる）
+ */
+function useTimerHeightVar() {
+  return useCallback((el: HTMLElement | null) => {
+    if (!el) return
+    const root = document.documentElement
+    const write = () => root.style.setProperty('--floating-timer-h', `${el.offsetHeight}px`)
+    write()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(write)
+    observer?.observe(el)
+    return () => {
+      observer?.disconnect()
+      root.style.removeProperty('--floating-timer-h')
+    }
+  }, [])
+}
 
 /**
  * これを超えたら「止め忘れ」とみなして確認を出す。
@@ -65,6 +86,7 @@ function elapsedForTitle(ms: number): string {
 
 export function FloatingTimer() {
   const { t } = useTranslation()
+  const timerRef = useTimerHeightVar()
   const activeTimer = useTaskStore((s) => s.activeTimer)
   const stopTimer = useTaskStore((s) => s.stopTimer)
   const setTimerEnd = useTaskStore((s) => s.setTimerEnd)
@@ -162,12 +184,13 @@ export function FloatingTimer() {
 
   return (
     <div
+      ref={timerRef}
       data-floating-timer
       className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,22rem)] -translate-x-1/2
                     rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
                     dark:border-zinc-700 dark:bg-zinc-800
                     md:min-w-[280px] md:w-auto md:px-5
-                    ${MOBILE_FLOAT_BOTTOM}`}
+                    ${FLOAT_BOTTOM}`}
     >
       <div className="flex items-center gap-3 md:gap-4">
         <div className="w-3 h-3 rounded-full bg-red-500 animate-breathe flex-shrink-0" />
@@ -269,7 +292,11 @@ export function FloatingTimer() {
         </button>
       </div>
       {lengthMenu && (
-        <div role="group" aria-label={t('floatingTimer.lengthGroup')} className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        <div
+          role="group"
+          aria-label={t('floatingTimer.lengthGroup')}
+          className={`mt-2.5 flex flex-wrap items-center gap-1.5 ${TIMER_PANEL_SCROLL}`}
+        >
           {lengthMenu.planEnd && (
             <button
               type="button"
@@ -309,7 +336,7 @@ export function FloatingTimer() {
         </div>
       )}
       {labelMenu && (
-        <div className="mt-2.5 flex items-start gap-1.5">
+        <div className={`mt-2.5 flex items-start gap-1.5 ${TIMER_PANEL_SCROLL}`}>
           <div className="min-w-0 flex-1">
             <ColorPalette
               selectedHex={labelChoice.current}
@@ -365,7 +392,7 @@ function CompletePrompt() {
       className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,24rem)] -translate-x-1/2
                   rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
                   dark:border-zinc-700 dark:bg-zinc-800 flex items-center gap-3
-                  ${MOBILE_FLOAT_BOTTOM}`}
+                  ${FLOAT_BOTTOM}`}
     >
       <p className="min-w-0 flex-1 text-sm text-zinc-700 dark:text-zinc-200">{t('floatingTimer.completePrompt', { title: task.title })}</p>
       <button type="button" onClick={dismiss} className={buttonClass({ variant: 'ghost', size: 'sm' }, 'shrink-0')}>
@@ -419,7 +446,7 @@ function LabelPrompt() {
       role="status"
       className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,24rem)] -translate-x-1/2
                   rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-2xl
-                  dark:border-zinc-700 dark:bg-zinc-800 ${MOBILE_FLOAT_BOTTOM}`}
+                  dark:border-zinc-700 dark:bg-zinc-800 ${FLOAT_BOTTOM}`}
     >
       <div className="flex items-start gap-2">
         <p className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-200">
@@ -464,6 +491,7 @@ function LabelPrompt() {
  */
 function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTitle: string }) {
   const { t } = useTranslation()
+  const timerRef = useTimerHeightVar()
   const resolveStaleTimer = useTaskStore((s) => s.resolveStaleTimer)
   const discardActiveTimer = useTaskStore((s) => s.discardActiveTimer)
   const stopTimer = useTaskStore((s) => s.stopTimer)
@@ -478,11 +506,13 @@ function StaleTimerPrompt({ startedAt, taskTitle }: { startedAt: string; taskTit
 
   return (
     <div
+      ref={timerRef}
+      data-floating-timer
       role="alertdialog"
       aria-label={t('staleTimer.title')}
       className={`fixed left-1/2 z-50 animate-toast-in w-[min(100vw-1.5rem,26rem)] -translate-x-1/2
                   rounded-2xl border border-amber-300 bg-white p-4 shadow-2xl
-                  dark:border-amber-500/40 dark:bg-zinc-800 ${MOBILE_FLOAT_BOTTOM}`}
+                  dark:border-amber-500/40 dark:bg-zinc-800 ${FLOAT_BOTTOM}`}
     >
       <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{t('staleTimer.title')}</p>
       <p className={`mt-1 ${HINT_TEXT}`}>{t('staleTimer.body', { title: taskTitle, since: df.monthDayTime(started) })}</p>
