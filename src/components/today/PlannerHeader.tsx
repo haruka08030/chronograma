@@ -9,7 +9,7 @@ import { appToday } from '../../lib/timeZone'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { RecordPanel } from '../RecordPanel'
 import { SleepRow } from '../SleepRow'
-import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { NOTICE_TONE_CLASS } from '../ui/dueTone'
 import { PAGE_TITLE_CLASS } from '../ui/headingClass'
 import { SUBTLE_TEXT } from '../ui/textClass'
 import { DayMoodBadge } from './DayMood'
@@ -88,11 +88,11 @@ export function PlannerHeader({
           <span
             {...tip(plannedHint)}
             data-day-free={overCapacity ? 'over' : 'ok'}
-            className={`min-w-0 text-right text-xs tabular-nums ${overCapacity ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
+            className={`min-w-0 text-right text-xs tabular-nums ${overCapacity ? NOTICE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
           >
-            {/* 超えた日は色だけに頼らず「（超過）」の文字も付ける（週の見出しと同じ締切の色） */}
+            {/* 超えた日は濃さと太さに「（超過）」の文字も付ける。締切ではないので赤にしない（週の見出しと同じ） */}
             {t('planner.summaryPlannedFree', { time: plannedTime, free: freeTime })}
-            {overCapacity && ` ${t('planner.overCapacityShort')}`}
+            {overCapacity && t('planner.overCapacityShort')}
             <span className="sr-only"> {plannedHint}</span>
           </span>
         </div>

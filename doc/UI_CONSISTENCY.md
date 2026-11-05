@@ -15,7 +15,7 @@
 | 今日・選んだ日 | 今日＝藍の塗り、選んだ日＝藍の枠、両方＝塗り＋外側の枠。塗れないところ（曜日の見出し、達成色で塗る習慣の丸、睡眠の目盛り）は今日を藍の文字で示す | `lib/dayMarker.ts`（`dayMarkerClass`・`TODAY_TEXT`・`TODAY_COLUMN`・`SELECTED_COLUMN`） |
 | タスク行の「今日」 | 締切の今日はオレンジ（`DUE_TONE_CLASS`）、実行日の今日は藍（`SCHEDULED_TONE_CLASS`）。役割が違うので 2 色のまま。過ぎた実行日は灰色（責める色にしない） | `components/ui/dueTone.ts`・`TaskItem.tsx` |
 | 締切の色 | 締切切れ＝赤、今日まで＝オレンジ、明日まで（と 2〜3 日後の「あと ◯ 日」）＝薄いオレンジ。判断は `dueToneOf`（タイムラインの点・To-Do の行・今日の計画で同じ）、文字は `dueDateLabel`（「10/8 (木)まで・あと 2 日」「1日遅れ」）。締切の →| を実行日の藍で塗らない（行のボタン・詳細の欄は付いていれば濃い灰色） | `components/ui/dueTone.ts` `DUE_TONE_CLASS`・`lib/dueTone.ts` `dueToneOf`・`components/ui/dueDateLabel.ts` |
-| 締切でない「近い・尽きた」 | 期限の日（今日の計画・カレンダーの ◇）と欠席の残り（学校・授業のページ・時間割・予定カード）は締切の色を使わず、濃さと太さだけ（尽きた・今日 > 明日 > それ以外 > 過ぎた） | `components/ui/dueTone.ts` `NOTICE_TONE_CLASS` |
+| 締切でない「近い・尽きた・超えた」 | 期限の日（今日の計画・カレンダーの ◇）と欠席の残り（学校・授業のページ・時間割・予定カード）、計画の超過（今日の計画の見出し・週の見出しの空き）は締切の色を使わず、濃さと太さだけ（尽きた・今日 > 明日 > それ以外 > 過ぎた） | `components/ui/dueTone.ts` `NOTICE_TONE_CLASS` |
 | 落とし先の光り方 | 薄いグレーの塗り＋グレーの内側の枠（`accent`）。月・週の終日行・習慣の段・日パネル | `lib/taskDrag.ts` `DROP_HIGHLIGHT_CLASS` |
 | Google の予定の色 | 予定ごとの色、無ければピーコック（`DEFAULT_GOOGLE_EVENT_HEX`）。カレンダー（月・週・スケジュール）・日パネル・今日の計画・予定カード・右クリックメニューで共通 | `lib/googleColors.ts`（`googleEventHex`・`DEFAULT_GOOGLE_EVENT_HEX`） |
 | 色の付いた面 | 色は style の `--c` で渡す（`colorVars(hex)`）。style に背景色を直に書かない（lint で止める）。ベタ塗りにせず薄い塗り＋縁: 予定・記録・Google の予定の枠は `gc-plan`、色の丸（リスト・ラベル・習慣・色選択・記録の内訳の棒）は `gc-dot`、行の左の線は `gc-line`、量の濃さのマスは `gc-heat`、終わった予定は `gc-missed`（灰色）、ラベルなしのこれからの予定は塗らずに灰の縁だけ（枠 `gc-plan-none`・丸 `gc-dot-none`） | `index.css`（`.gc-*`）・`lib/logCategoryColors.ts` `colorVars` |
