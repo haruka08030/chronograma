@@ -6,6 +6,9 @@
  *   npm run shots -- --dark-only
  *   npm run shots -- --out=/tmp/shots
  *   npm run shots -- --at=19:30         # 時刻を変える（既定 13:00。--at=now で実時刻）
+ *   npm run shots -- --mobile-size=390x420 --desktop-size=1280x560   # 低い画面（スマホのキーボード相当）
+ *   npm run shots -- --mobile-only --mobile-size=320x568
+ *   npm run shots -- --audit=/tmp/audit.jsonl   # 面・タップの範囲の確かめの結果を 1 場面 1 行で書き出す
  *
  * 保存先の既定は `.shots/`（git 管理外）。
  * 毎回この作業ツリーをビルドし、空いているポートで自分のサーバーを起こして最後に止める。
@@ -13,7 +16,7 @@
  */
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
-import { mkdir, rm } from 'node:fs/promises'
+import { appendFile, mkdir, rm } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import path from 'node:path'
 import { addInsightHistory, buildSeedState, PERSIST_KEY } from './seed.mjs'
@@ -154,6 +157,31 @@ const addClass = (cell, title) => [
 ]
 /** 足す To-Do で種データの To-Do から引き継がない値 */
 /** 今日の昼寝（11:00–12:30。種データの今日の睡眠 s10 と同じ日に起きた睡眠） */
+/** 長い名前の To-Do（行・カード・詳細が崩れないか。折り返せない長い英数字も入れる） */
+const LONG_TASK = (state) => ({
+  id: 'long-1',
+  title:
+    '第一志望の企業のエントリーシート（志望動機 400 字・ガクチカ 600 字・自己 PR）を提出前にもう一度読み直して誤字を探す https://example.com/recruit/2027/entry/form-a1b2c3d4e5f6g7h8i9j0',
+  dueDate: state.tasks.find((x) => x.id === 's7').scheduledDate,
+  scheduledDate: state.tasks.find((x) => x.id === 's7').scheduledDate,
+  startTime: '21:30',
+  endTime: '22:30',
+  tags: ['就活', 'とても長いタグの名前をここに入れておく'],
+  order: 1,
+})
+
+/** 今日の予定・To-Do が多い日 */
+const MANY_TODAY = Array.from({ length: 30 }, (_, i) => (state) => ({
+  id: `many-${i}`,
+  title: `課題 ${i + 1}（第 ${i + 1} 回の小テストの準備）`,
+  dueDate: state.tasks.find((x) => x.id === 's7').scheduledDate,
+  scheduledDate: state.tasks.find((x) => x.id === 's7').scheduledDate,
+  ...(i % 3 === 0
+    ? { startTime: `${String(8 + (i % 12)).padStart(2, '0')}:00`, endTime: `${String(9 + (i % 12)).padStart(2, '0')}:00` }
+    : {}),
+  order: 100 + i,
+}))
+
 const TODAY_NAP = (state) => ({
   id: 'nap-today',
   title: '睡眠',
@@ -235,32 +263,100 @@ const HABIT_TOMORROW = 'li[data-habit-row]:has-text("朝に 10 分ストレッ�
 const OPEN_CANDIDATES = 'button[aria-expanded]:has-text("締切が近い") >> visible=true'
 
 /**
- * 画面に固定して出している面（カード・メニュー・シート・候補）のうち、画面の外にはみ出していて、
- * はみ出した分を面の中でスクロールもできないものを返す。閉じる動きの写し（inert）・見えない面は見ない
+ * 開いている面（カード・メニュー・シート・候補・ダイアログ）と画面全体を確かめる。
+ * - offscreen: 面が画面の外にはみ出していて、はみ出した分をスクロールできない・下に浮かぶ面どうしが重なっている（失敗にする。#650）
+ * - clippedByParent: 面が親の枠で切られている。親の中をスクロールすれば見える面もあるので、失敗にはせず一覧に出す
+ * - pageOverflow: 画面が横にはみ出している（はみ出した要素を出す）
+ * - covered: 面の中のボタンが別のものの下にあって押せない
+ * - smallTargets: タッチで 32px 未満のボタン
+ * 閉じる動きの写し（inert）・見えない面は見ない
  */
-function findOffscreenFloating(page) {
-  return page.evaluate(() => {
+function auditPage(page, hasTouch) {
+  return page.evaluate((touch) => {
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const out = []
-    for (const el of document.body.querySelectorAll('*')) {
+    const visible = (el) => {
       const cs = getComputedStyle(el)
-      if (cs.position !== 'fixed' || cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) === 0) continue
-      if (el.closest('[inert]')) continue
       const r = el.getBoundingClientRect()
       // 読み上げ用の見えない欄（sr-only・1px）は見ない
-      if (r.width <= 1 || r.height <= 1) continue
+      return (
+        cs.visibility !== 'hidden' &&
+        cs.display !== 'none' &&
+        Number(cs.opacity) !== 0 &&
+        r.width > 1 &&
+        r.height > 1 &&
+        !el.closest('[inert]')
+      )
+    }
+    const nameOf = (el) =>
+      el.getAttribute('aria-label') ||
+      el.getAttribute('role') ||
+      el.textContent?.trim().slice(0, 24) ||
+      el.className.toString().slice(0, 40)
+    const box = (r) => `${Math.round(r.left)},${Math.round(r.top)}–${Math.round(r.right)},${Math.round(r.bottom)}`
+    const out = { offscreen: [], clippedByParent: [], pageOverflow: false, covered: [], smallTargets: [] }
+    const SURFACE = '[role=dialog],[role=menu],[role=listbox],[data-popover-keep],.animate-pop-in,.animate-sheet-in'
+    const surfaces = new Set(document.body.querySelectorAll(SURFACE))
+    for (const el of document.body.querySelectorAll('*')) if (getComputedStyle(el).position === 'fixed') surfaces.add(el)
+    for (const el of surfaces) {
+      if (!visible(el)) continue
+      const cs = getComputedStyle(el)
+      // 流れの中の一覧（To-Do の listbox など）は画面と一緒にスクロールするので面ではない
+      if (cs.position !== 'fixed' && cs.position !== 'absolute') continue
+      const r = el.getBoundingClientRect()
       const outside = r.top < -1 || r.left < -1 || r.bottom > vh + 1 || r.right > vw + 1
-      const clipped = el.scrollHeight > el.clientHeight + 1 && !/(auto|scroll)/.test(cs.overflowY)
-      if (outside || clipped) {
-        const name = el.getAttribute('aria-label') || el.getAttribute('role') || el.className.toString().slice(0, 40)
-        out.push(
-          `${name}（${Math.round(r.left)},${Math.round(r.top)}–${Math.round(r.right)},${Math.round(r.bottom)}${clipped ? '・中が切れている' : ''}）`,
-        )
+      const clipped = cs.position === 'fixed' && el.scrollHeight > el.clientHeight + 1 && !/(auto|scroll)/.test(cs.overflowY)
+      if (outside || clipped) out.offscreen.push(`${nameOf(el)}（${box(r)}${clipped ? '・中が切れている' : ''}）`)
+      if (cs.position !== 'fixed') {
+        for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+          const ps = getComputedStyle(p)
+          if (ps.position === 'fixed') break
+          if (ps.overflowY === 'visible' && ps.overflowX === 'visible') continue
+          const b = p.getBoundingClientRect()
+          if (r.bottom > b.bottom + 1 || r.top < b.top - 1 || r.right > b.right + 1 || r.left < b.left - 1) {
+            out.clippedByParent.push(`${nameOf(el)}（${box(r)} ⊄ ${box(b)}・親は ${ps.overflowY}）`)
+            break
+          }
+        }
+      }
+      for (const b of el.querySelectorAll('button,a[href],[role=menuitem],[role=option],input')) {
+        if (!visible(b)) continue
+        const q = b.getBoundingClientRect()
+        const cx = q.left + q.width / 2
+        const cy = q.top + q.height / 2
+        if (cx < 0 || cy < 0 || cx > vw || cy > vh) continue
+        const hit = document.elementFromPoint(cx, cy)
+        if (hit && !b.contains(hit) && !hit.contains(b) && !hit.closest(SURFACE)?.contains(b))
+          out.covered.push(`${nameOf(b)} ← ${nameOf(hit)}`)
+      }
+    }
+    if (document.documentElement.scrollWidth > vw + 1) {
+      out.pageOverflow = [...document.body.querySelectorAll('*')]
+        .filter((el) => visible(el) && el.getBoundingClientRect().right > vw + 1)
+        .slice(0, 5)
+        .map((el) => `${nameOf(el)}（${box(el.getBoundingClientRect())}）`)
+    }
+    // 下に浮かぶ面（タイマー・選択中のバー・トースト）どうしが重なっていないか
+    const floats = [...document.body.querySelectorAll('[data-floating-timer],[data-selection-bar],[data-toast]')].filter(visible)
+    floats.forEach((a, i) => {
+      for (const b of floats.slice(i + 1)) {
+        const p = a.getBoundingClientRect()
+        const q = b.getBoundingClientRect()
+        if (p.left < q.right && q.left < p.right && p.top < q.bottom && q.top < p.bottom) {
+          out.offscreen.push(`${nameOf(a)} と ${nameOf(b)} が重なっている（${box(p)} / ${box(q)}）`)
+        }
+      }
+    })
+    if (touch) {
+      for (const b of document.body.querySelectorAll('button,a[href],[role=button],[role=menuitem],[role=tab]')) {
+        if (!visible(b)) continue
+        const q = b.getBoundingClientRect()
+        if (q.bottom < 0 || q.top > vh) continue
+        if (Math.min(q.width, q.height) < 32) out.smallTargets.push(`${nameOf(b)}（${Math.round(q.width)}×${Math.round(q.height)}）`)
       }
     }
     return out
-  })
+  }, hasTouch)
 }
 
 /** 撮る画面。`view` は store の selectedView、`click` は撮る前に押すもの（配列なら順に。`mobileClick` はスマホ幅だけその前に押す）、`hover` は撮る前にマウスを乗せるもの（PC 幅だけ）、`swipeRight` は画面の中ほどを右へ払う（スマホ幅だけ）、`mobileOnly` / `desktopOnly` はその幅だけ撮る、`at` は時刻を固定する（'HH:MM'、TIMEZONE の今日）、`iosSafari` は iPhone の Safari（ホーム画面に未追加・通知なし）として開く、`doneNow` はその ID の To-Do を撮る瞬間に完了にする、`state` は種データに上書きする store の値、`timer` は動いているタイマー（題名・ラベル・何分前に始めたか・何分後に終わるか）、`steps` は最後に順に行う操作（PC の click / rightClick と、スマホで代わりにする longPress / mobileClick。キーを押す press、欄に書く fill、今日の列の空きを時刻でドラッグする dragTime、要素を枠の下の端まで送る scrollToEnd、待つ wait）、`estimates` はその ID の To-Do の見積もり（分）、`query` は開く URL に付ける（通知から開いたときの `?record=<id>` など）、`taskPatch` はその ID の To-Do に上書きする値、`extraTasks` は種データに足す To-Do（種データから作る関数でもよい）、`habitsDeleted` はその ID の習慣を消した状態にする、`seedVersion` は保存データの版を変える、`rawSeed` は保存データの文字列そのもの、`blockRequests` は失敗させる読み込み（URL のパターン）、`ignoreErrors` はわざと起こしたエラー（正規表現）、`notificationsGranted` は通知を許可した状態にする、`lang` は表示の言語（既定は 'ja'）、`mobileWidth` はスマホ幅の横幅（既定 390）。手の `select` は <select> の選択肢を選ぶ */
@@ -586,6 +682,65 @@ const SCREENS = [
     view: 'calendar',
     click: ['[data-block-id="s6"] >> visible=true', '[role="dialog"] input[role="combobox"] >> nth=0'],
   },
+  // 端の場面（ux-screen の A・H）。開いた面が画面の下・長い名前・多い件数でも見えて押せるか
+  { name: 'edge-create-late', view: 'calendar', desktopOnly: true, steps: [{ dragTime: { from: '23:00', to: '23:45' } }] },
+  {
+    name: 'edge-card-late-time',
+    view: 'calendar',
+    taskPatch: { s7: () => ({ startTime: '23:00', endTime: '23:45' }) },
+    steps: [
+      { scrollToEnd: '[data-block-id="s7"] >> visible=true' },
+      { click: '[data-block-id="s7"] >> visible=true' },
+      { click: '[role="dialog"] input[role="combobox"] >> nth=1' },
+    ],
+  },
+  {
+    name: 'edge-row-menu-bottom',
+    view: 'all',
+    desktopOnly: true,
+    steps: [{ scrollToEnd: '[data-task-row] >> nth=-1' }, { rightClick: '[data-task-row] >> nth=-1' }],
+  },
+  {
+    name: 'edge-row-menu-label-bottom',
+    view: 'all',
+    desktopOnly: true,
+    steps: [
+      { scrollToEnd: '[data-task-row] >> nth=-1' },
+      { rightClick: '[data-task-row] >> nth=-1' },
+      { click: '[role="menu"] [data-sub]:has-text("ラベル")' },
+      { wait: 400 },
+    ],
+  },
+  // ナビのリストの色（押した行の下に出る）
+  { name: 'edge-nav-list-color', view: 'all', desktopOnly: true, steps: [{ click: 'button[aria-label="色を変更"] >> nth=0' }] },
+  {
+    name: 'edge-nav-list-color-mobile',
+    view: 'all',
+    mobileOnly: true,
+    click: OPEN_LISTS,
+    steps: [{ click: 'button[aria-label="色を変更"] >> visible=true >> nth=0' }],
+  },
+  // 長い名前（行・カード・タイムライン）
+  { name: 'edge-long-todo', view: 'all', extraTasks: [LONG_TASK] },
+  { name: 'edge-long-planner', view: 'planner', extraTasks: [LONG_TASK] },
+  { name: 'edge-long-card', view: 'calendar', extraTasks: [LONG_TASK], click: '[data-block-id="long-1"] >> visible=true' },
+  { name: 'edge-long-detail', view: 'all', extraTasks: [LONG_TASK], click: '[data-task-row="long-1"] >> visible=true' },
+  // 多い件数
+  { name: 'edge-many-planner', view: 'planner', extraTasks: MANY_TODAY },
+  { name: 'edge-many-calendar', view: 'calendar', extraTasks: MANY_TODAY },
+  // 0 時またぎ・夜おそく
+  { name: 'edge-late-planner', view: 'planner', at: '23:50' },
+  { name: 'edge-late-calendar', view: 'calendar', at: '23:50' },
+  { name: 'edge-timer-overnight', view: 'planner', at: '00:20', timer: { title: 'レポート', tags: ['課題'], startedAgo: 45 } },
+  // タイマー＋選択中のバー＋トーストが重ならないか
+  {
+    name: 'edge-timer-selection',
+    view: 'all',
+    timer: { title: 'レポート', tags: ['課題'], startedAgo: 12 },
+    steps: [{ longPress: '[data-task-row] >> nth=0', click: '[data-task-row] >> nth=0' }],
+  },
+  // 英語（文字が長い）
+  ...['planner', 'all', 'calendar', 'habits', 'stats', 'settings'].map((view) => ({ name: `edge-en-${view}`, view, lang: 'en' })),
   // 夜おそく（画面の下）の記録のカードで色とラベルを開いても、カードが画面の中に収まる（入らない分はカードの中でスクロール。#650）
   {
     name: 'calendar-late-card-palette',
@@ -1368,6 +1523,10 @@ function parseArgs(argv) {
     else if (a === '--dark-only') out.themes = ['dark']
     else if (a === '--light-only') out.themes = ['light']
     else if (a.startsWith('--out=')) out.outDir = a.slice(6)
+    else if (a.startsWith('--audit=')) out.audit = a.slice(8)
+    else if (a.startsWith('--mobile-size=')) out.mobileSize = a.slice(14).split('x').map(Number)
+    else if (a.startsWith('--desktop-size=')) out.desktopSize = a.slice(15).split('x').map(Number)
+    else if (a === '--mobile-only') out.widths = 'mobile'
     else if (a.startsWith('--at=')) out.at = a.slice(5) === 'now' ? null : a.slice(5)
   }
   return out
@@ -1455,12 +1614,17 @@ async function main() {
     for (const theme of args.themes) {
       for (const vp of VIEWPORTS) {
         for (const screen of screens) {
+          if (args.widths === 'mobile' && !vp.hasTouch) continue
           if (screen.mobileOnly && !vp.hasTouch) continue
           if (screen.desktopOnly && vp.hasTouch) continue
           // 画面ごとに context を作り直す。addInitScript は context に積み上がるので、
           // 使い回すと前の画面の種データが後から上書きしてしまう
           const context = await browser.newContext({
-            viewport: { width: (vp.hasTouch ? screen.mobileWidth : screen.desktopWidth) || vp.width, height: vp.height },
+            viewport: {
+              width:
+                (vp.hasTouch ? (args.mobileSize?.[0] ?? screen.mobileWidth) : (args.desktopSize?.[0] ?? screen.desktopWidth)) || vp.width,
+              height: (vp.hasTouch ? args.mobileSize?.[1] : args.desktopSize?.[1]) || vp.height,
+            },
             isMobile: vp.isMobile ?? false,
             hasTouch: vp.hasTouch ?? false,
             // 2x は文字が読みやすい反面、固定サイドバーの左端に描画の切れ端が
@@ -1804,8 +1968,10 @@ async function main() {
             }
 
             // 浮かせて出す面が画面からはみ出していないか（スクロールもタップもできない所に出していないか。#650）
-            const offscreen = await findOffscreenFloating(page)
-            if (offscreen.length > 0) failures.push(`${screen.name}/${vp.name}/${theme}: 画面からはみ出した面 ${offscreen.join(' / ')}`)
+            const audit = await auditPage(page, vp.hasTouch ?? false)
+            if (audit.offscreen.length > 0)
+              failures.push(`${screen.name}/${vp.name}/${theme}: 画面からはみ出した面 ${audit.offscreen.join(' / ')}`)
+            if (args.audit) await appendFile(args.audit, `${JSON.stringify({ screen: screen.name, vp: vp.name, theme, ...audit })}\n`)
 
             const file = path.join(outDir, `${screen.name}-${vp.name}-${theme}.png`)
             // アプリは body が overflow:hidden で、スクロールするのは内側のペイン。
