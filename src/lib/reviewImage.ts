@@ -353,7 +353,7 @@ export function layoutReviewImage(model: ReviewImageModel, measure: MeasureText)
   const barTop = y + L.chartTop
   const baseY = y + L.chartHeight
   const barArea = baseY - barTop
-  // 棒の高さは記録の無い時間の段も積んだ高さ（棒の上の合計の文字は記録だけ、`totalText`）
+  // 棒の高さは記録の無い時間の段も積んだ高さ（合計の文字は記録だけ、`totalText`）
   const dayTotals = model.days.map((d) => d.segments.reduce((a, x) => a + x.minutes, 0))
   const max = Math.max(60, ...dayTotals)
   model.days.forEach((day, i) => {
@@ -384,7 +384,17 @@ export function layoutReviewImage(model: ReviewImageModel, measure: MeasureText)
         })
         segBottom = segTop
       })
-      if (day.totalText) text(x + colW / 2, baseY - h - L.smallSize - 4, day.totalText, L.smallSize - 1, C.meta, 400, 'center')
+      // 合計は記録の無い時間を数えないので、色の部分のすぐ上に置く（斜線に重なるので下地を敷く）
+      if (day.totalText) {
+        const recorded = day.segments.reduce((a, s) => (s.unrecorded ? a : a + s.minutes), 0)
+        const size = L.smallSize - 1
+        const ty = baseY - (recorded / total) * h - L.smallSize - 4
+        if (recorded < total) {
+          const tw = measure(day.totalText, size, 400) + 4
+          ops.push({ kind: 'rect', x: x + colW / 2 - tw / 2, y: ty - 1, w: tw, h: size + 2, r: 2, fill: C.surface })
+        }
+        text(x + colW / 2, ty, day.totalText, size, C.meta, 400, 'center')
+      }
     }
     if (day.label) text(x + colW / 2, baseY + 7, day.label, L.smallSize, C.faint, 400, 'center')
   })

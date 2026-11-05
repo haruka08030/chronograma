@@ -384,12 +384,6 @@ export function WeekReviewCard() {
                           aria-hidden
                         />
                       )}
-                      {/* その日の記録の合計。スマホでも読めるよう常に出す（狭いので月のマスと同じ短い書き方） */}
-                      {dayBar > 0 && (
-                        <span className="relative mb-0.5 shrink-0 whitespace-nowrap text-[10px] leading-none tabular-nums text-zinc-500 dark:text-zinc-400">
-                          {formatDurationShort(dayBar)}
-                        </span>
-                      )}
                       {/* 記録は分類の色で見せる: 多い分類を下に積む（右の「ラベル別の時間」と同じ色。今日の計画の記録の棒と同じ `gc-dot` で、隙間なく積む。分類の境目は線 1 本）。
                       予定の枠が左右に見えるよう、棒は少し細くする */}
                       <div
@@ -408,6 +402,16 @@ export function WeekReviewCard() {
                           <div className="gc-unrecorded w-full basis-0 not-last:border-t-0" style={{ flexGrow: dayUnrecorded }} />
                         )}
                       </div>
+                      {/* その日の記録の合計。スマホでも読めるよう常に出す（狭いので月のマスと同じ短い書き方）。
+                      記録の無い時間は数えないので、色の部分のすぐ上に置く（斜線に重なるので下地を敷く） */}
+                      {dayBar > 0 && (
+                        <span
+                          className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-[2px] bg-[var(--gc-surface)] px-0.5 text-[10px] leading-none tabular-nums text-zinc-500 dark:text-zinc-400"
+                          style={{ bottom: `calc((100% - 1rem) * ${dayBar / maxMinutes} + 2px)` }}
+                        >
+                          {formatDurationShort(dayBar)}
+                        </span>
+                      )}
                     </button>
                   )
                 })}
