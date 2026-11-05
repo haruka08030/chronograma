@@ -13,7 +13,7 @@ import { NEUTRAL_HEX } from '../lib/googleColors'
 import { DatePickerBody } from './DatePickerBody'
 import { TimeInput } from './TimeInput'
 import { ColorPalette } from './labels/ColorPalette'
-import { ArrowRightIcon, CalendarIcon, ClockIcon, DreamIcon, DueIcon, FlagIcon, HourglassIcon } from './icons'
+import { ArrowRightIcon, CalendarIcon, ClockIcon, DreamIcon, DueIcon, FlagIcon, HourglassIcon, TagIcon } from './icons'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
 import type { Priority } from '../types/task'
 import { chipClass } from './ui/chipClass'
@@ -40,6 +40,9 @@ export function QuickAddDetails({
   defaultDate,
   defaultListId,
   color,
+  tags,
+  priority,
+  estimateMinutes,
   somedayTier,
   picks,
   onPicksChange,
@@ -52,7 +55,7 @@ export function QuickAddDetails({
   /** 選び終えたとき（入力欄にフォーカスを戻して、Enter で足せるように） */
   onPicked: () => void
   className?: string
-} & Pick<QuickAddOptions, 'defaultDate' | 'defaultListId' | 'color' | 'somedayTier'>) {
+} & Pick<QuickAddOptions, 'defaultDate' | 'defaultListId' | 'color' | 'tags' | 'priority' | 'estimateMinutes' | 'somedayTier'>) {
   const { t } = useTranslation()
   const df = useDateFormat()
   const lists = useTaskStore((s) => s.lists)
@@ -64,7 +67,7 @@ export function QuickAddDetails({
   const [panel, setPanel] = useState<Panel | null>(null)
 
   if (!text.trim()) return null
-  const draft = quickAddDraft(text, { defaultDate, defaultListId, color, picks, somedayTier })
+  const draft = quickAddDraft(text, { defaultDate, defaultListId, color, tags, priority, estimateMinutes, picks, somedayTier })
 
   const pick = (patch: QuickAddPicks, close = true) => {
     onPicksChange({ ...picks, ...patch })
@@ -137,6 +140,16 @@ export function QuickAddDetails({
       t('quickAdd.chip.label'),
     ),
   )
+
+  // タグは見るだけ（書いた #タグ と、タグで絞っているときのタグ。外すのは文か見出しの絞り込みのほう）
+  for (const tag of draft.tags) {
+    chips.push(
+      <span key={`tag-${tag}`} className={chipClass({ variant: 'fill', size: 'sm' })}>
+        <TagIcon className={ICON} />
+        <span className="max-w-[10rem] truncate">{tag}</span>
+      </span>,
+    )
+  }
 
   if (draft.dream !== null) {
     const on = draft.dream

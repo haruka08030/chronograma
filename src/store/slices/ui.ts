@@ -114,7 +114,8 @@ export function createUiSlice({ set, get, undo }: SliceContext): UiActions {
     setCompletedFilter: (patch) => set((s) => ({ completedFilter: { ...s.completedFilter, ...patch } })),
     setFilterTag: (tag) => {
       pushUndo()
-      set({ filterTag: tag })
+      // タグで絞るのは一覧なので、検索結果から押したら検索を抜ける
+      set(tag ? { filterTag: tag, searchQuery: '' } : { filterTag: null })
     },
     requestQuickAdd: (prefill) => {
       const s = get()

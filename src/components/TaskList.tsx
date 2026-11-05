@@ -10,6 +10,7 @@ import { TASK_PREFIX } from './SortableTaskItem'
 import { subtaskDragId } from '../lib/subtaskDnD'
 import { useSectionScrollTarget } from '../hooks/useSectionScrollTarget'
 import { QuickAdd } from './QuickAdd'
+import { viewQuickAddDefaults } from '../lib/quickAddTask'
 import { isLogTask, type Task } from '../types/task'
 import { useBulkTaskActions } from '../hooks/useBulkTaskActions'
 import { useTodayToggle } from '../hooks/useTodayToggle'
@@ -194,7 +195,22 @@ export function TaskList({
 
   const handleEnterCreateSibling = useCallback(
     (task: Task) => {
-      const newTaskId = addTaskAfter(task.id, '')
+      // 絞り込みの条件はルートの行にだけ効くので、ルートの行には追加欄と同じ既定値を付ける（付けないと書く前に行が消える）
+      const { asOneUndo, updateTask } = useTaskStore.getState()
+      let newTaskId: string | undefined
+      asOneUndo(() => {
+        newTaskId = addTaskAfter(task.id, '')
+        if (!newTaskId || task.parentId) return
+        const { defaultDate, color, tags, priority, estimateMinutes } = viewQuickAddDefaults()
+        const patch = {
+          ...(defaultDate && { scheduledDate: defaultDate }),
+          ...(color && { color }),
+          ...(tags && { tags }),
+          ...(priority && { priority }),
+          ...(estimateMinutes && { estimateMinutes }),
+        }
+        if (Object.keys(patch).length > 0) updateTask(newTaskId, patch)
+      })
       if (!newTaskId) return
       setPendingAutoEditTaskId(newTaskId)
       queueMicrotask(() => {

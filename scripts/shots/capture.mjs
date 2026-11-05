@@ -1370,6 +1370,15 @@ const SCREENS = [
   { name: 'someday-hover', list: 'seed-someday', hover: '[data-task-row="s21"]' },
   // 行を右クリックしたときのメニュー（PC だけ。いつか・買い物はリストに合わせた短いメニュー）
   { name: 'todo-menu', view: 'all', desktopOnly: true, rightClick: '[data-task-row="s2"]' },
+  // 絞り込みの条件を持って足す（#693）: タグと優先度で絞って書いている所。チップにタグ・優先度が出る
+  {
+    name: 'todo-add-keeps-filter',
+    view: 'all',
+    query: '?view=all&tag=%E6%95%B0%E5%AD%A6',
+    state: { todoFilter: { priority: 'high', estimate: null } },
+    taskPatch: { s1: { tags: ['数学'], priority: 'high' } },
+    typeInto: { selector: '[data-quickadd]', text: '線形代数の問題集' },
+  },
   // まとめてタグ（#692）: 選んだ行のメニューの「タグ ›」。今あるタグと新しいタグの欄
   {
     name: 'todo-menu-tag',

@@ -11,6 +11,8 @@ import { formatDate } from './dateFormat'
 import { isoWeekday } from './recurrence'
 import { shortUrlLabel } from './linkify'
 import { splitUrls } from './shareTarget'
+import { NO_LABEL } from './todoColorLabels'
+import { todoFilterFor } from './taskFilter'
 
 export interface QuickAddOptions {
   /** リストを書かなかったときに入れるリスト。省略すると選んでいるリスト（無ければ未分類） */
@@ -34,6 +36,12 @@ export interface QuickAddOptions {
   parentId?: string
   /** 色（ラベル）を開いて追加したとき、その色を付ける（そのラベルの一覧に残るように） */
   color?: string
+  /** 書いた `#タグ` に足すタグ（タグで絞った一覧に残るように） */
+  tags?: string[]
+  /** 選ばなかったときの優先度（優先度で絞った一覧に残るように） */
+  priority?: Priority
+  /** 長さを書かなかったときの見積もり（見積もりで絞った一覧に残るように） */
+  estimateMinutes?: number
   /** いつかの夢ボードを開いて追加したとき、夢にする（#439） */
   somedayTier?: 'dream'
   /** 予定（完了の丸の無いもの）として作る（予定作成カードで「予定」を選んだとき）。締切・繰り返しは付けない */
@@ -47,6 +55,25 @@ export interface QuickAddOptions {
    * 入った日の行とリストの行のどれよりも後ろの order にする
    */
   last?: boolean
+}
+
+/** 開いている絞り込みから決まる、足すものの既定値 */
+export type ViewQuickAddDefaults = Pick<QuickAddOptions, 'defaultDate' | 'color' | 'tags' | 'priority' | 'estimateMinutes'>
+
+/**
+ * To-Do 一覧で開いている絞り込みの条件を、足すものの既定値にする（足した行が一覧から消えないように）。
+ * 優先度の「中以上」は中、見積もりの「◯分以内」は◯分。値を決められない条件（見積もりあり・ラベルなし・近日中・締切切れ）は付けない
+ */
+export function viewQuickAddDefaults(): ViewQuickAddDefaults {
+  const { selectedView, selectedListId, lists, filterColor, filterTag, todoFilter } = useTaskStore.getState()
+  const filter = todoFilterFor(lists, selectedListId, todoFilter)
+  return {
+    defaultDate: selectedView === 'today' ? appTodayKey() : undefined,
+    color: selectedView === 'all' && filterColor && filterColor !== NO_LABEL ? filterColor : undefined,
+    tags: filterTag ? [filterTag] : undefined,
+    priority: filter?.priority ?? undefined,
+    estimateMinutes: typeof filter?.estimate === 'number' ? filter.estimate : undefined,
+  }
 }
 
 /**
@@ -267,6 +294,7 @@ export type QuickAddDraft = {
   estimateMinutes: number | null
   color: string | null
   priority: Priority
+  tags: string[]
   /** やりたいことのリストに入るなら、夢にするか。ほかのリストなら null */
   dream: boolean | null
 }
@@ -274,7 +302,10 @@ export type QuickAddDraft = {
 /** 入力中の 1 行とチップから、足したら付く値を出す（`addTaskFromQuickText` と同じ決め方） */
 export function quickAddDraft(
   raw: string,
-  opts: Pick<QuickAddOptions, 'defaultDate' | 'defaultListId' | 'color' | 'picks' | 'somedayTier'> = {},
+  opts: Pick<
+    QuickAddOptions,
+    'defaultDate' | 'defaultListId' | 'color' | 'tags' | 'priority' | 'estimateMinutes' | 'picks' | 'somedayTier'
+  > = {},
 ): QuickAddDraft {
   const state = useTaskStore.getState()
   const parsed = parseQuickAddTitle(quickAddParts(raw).text, Boolean(i18n.resolvedLanguage?.startsWith('ja')), undefined, {
@@ -289,7 +320,8 @@ export function quickAddDraft(
   if (dated) {
     const today = appTodayKey()
     Object.assign(patch, quickAddSchedule(parsed, opts, today))
-    if (parsed.estimateMinutes != null) patch.estimateMinutes = parsed.estimateMinutes
+    const estimate = parsed.estimateMinutes ?? opts.estimateMinutes
+    if (estimate != null) patch.estimateMinutes = estimate
     applyQuickAddPicks(patch, picks, opts, today)
   }
   return {
@@ -302,9 +334,15 @@ export function quickAddDraft(
     dueTime: patch.dueTime ?? null,
     estimateMinutes: patch.estimateMinutes ?? null,
     color: picks.color !== undefined ? picks.color : (opts.color ?? null),
-    priority: picks.priority ?? 'none',
+    priority: dated ? (picks.priority ?? opts.priority ?? 'none') : 'none',
+    tags: mergeTags(parsed.tags, opts.tags),
     dream: kind === 'someday' ? (picks.dream ?? opts.somedayTier === 'dream') : null,
   }
+}
+
+/** 書いた `#タグ` と欄の既定のタグ（同じものは 1 つ） */
+function mergeTags(typed: readonly string[], extra: readonly string[] = []): string[] {
+  return [...new Set([...typed, ...extra])]
 }
 
 /** 続けて足したときに、前に足した行のすぐ下へ入れるための記録（足した順に並ぶ。先頭に積むと逆順になる） */
@@ -388,7 +426,8 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
     const addedListId = after.tasks.find((t) => t.id === id)?.listId
     const kind = after.lists.find((l) => l.id === addedListId)?.kind ?? 'tasks'
     const patch: SchedulePatch & Partial<Pick<Task, 'tags' | 'color' | 'kind' | 'estimateMinutes' | 'description' | 'priority'>> = {}
-    if (parsed.tags.length) patch.tags = parsed.tags
+    const tags = mergeTags(parsed.tags, opts.tags)
+    if (tags.length) patch.tags = tags
     // メモが URL 1 つだけなら、行にリンクのアイコンが出る（`sourceLinkOf`）
     if (description) patch.description = description
     if (opts.color) patch.color = opts.color
@@ -398,9 +437,11 @@ export function addTaskFromQuickText(raw: string, opts: QuickAddOptions = {}): s
       const today = appTodayKey()
       Object.assign(patch, quickAddSchedule(parsed, opts, today))
       // 時刻なしで書いた長さは見積もり（置くときの長さ）
-      if (parsed.estimateMinutes != null) patch.estimateMinutes = parsed.estimateMinutes
+      const estimate = parsed.estimateMinutes ?? opts.estimateMinutes
+      if (estimate != null) patch.estimateMinutes = estimate
       applyQuickAddPicks(patch, picks, opts, today)
-      if (picks.priority && picks.priority !== 'none') patch.priority = picks.priority
+      const priority = picks.priority ?? opts.priority
+      if (priority && priority !== 'none') patch.priority = priority
     }
     // 予定にすると「まで」で読んだ締切・繰り返しは外れる（`applyTaskPatch`）。やる日・時間帯はそのまま
     if (opts.kind === 'event' && kind === 'tasks' && !isSubtask) patch.kind = 'event'
