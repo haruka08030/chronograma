@@ -382,6 +382,12 @@ const SCREENS = [
   { name: 'first-run-stats', fresh: true, view: 'stats' },
   { name: 'first-run-settings', fresh: true, view: 'settings' },
   // ログインの欄（一文・説明・ボタン）。Supabase の設定（.env）があるビルドでだけ出る
+  {
+    name: 'edge-calendar-picker',
+    view: 'calendar',
+    desktopOnly: true,
+    click: 'button[aria-haspopup="dialog"][aria-expanded] >> visible=true',
+  },
   { name: 'first-run-signin', fresh: true, view: 'settings', click: 'button:has-text("ログイン") >> visible=true' },
   { name: 'planner', view: 'planner' },
   // 睡眠のタイマー（#519）: 夜は睡眠の行に寝る（▶）、押すと ☾ 23:40 ▬╌ と起きた（☀）

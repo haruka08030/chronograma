@@ -33,8 +33,8 @@ export function useFitInViewport(ref: RefObject<HTMLElement | null>, options: Us
       const { anchor, disabled: _d, watch: _w, ...rest } = opts.current
       const rect = typeof anchor === 'function' ? anchor() : anchor
       if (!rect) return
-      // scrollHeight は上限（maxHeight）で止まっていても中身の高さを返す
-      const fit = fitRect({ width: el.offsetWidth, height: el.scrollHeight }, { ...rest, anchor: rect })
+      // scrollHeight は上限（maxHeight）で止まっていても中身の高さを返す。枠線の分は含まないので足す
+      const fit = fitRect({ width: el.offsetWidth, height: el.scrollHeight + el.offsetHeight - el.clientHeight }, { ...rest, anchor: rect })
       el.style.left = `${fit.left}px`
       el.style.top = `${fit.top}px`
       el.style.bottom = ''
