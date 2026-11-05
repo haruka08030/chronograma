@@ -20,6 +20,7 @@ import { chipClass } from './ui/chipClass'
 import { fieldClass } from './ui/fieldClass'
 import { buttonClass } from './ui/buttonClass'
 import { compareByOrder } from '../lib/orderCompare'
+import { timeRange } from '../lib/timeRange'
 
 type Panel = 'date' | 'time' | 'estimate' | 'due' | 'priority' | 'list' | 'label'
 
@@ -75,7 +76,7 @@ export function QuickAddDetails({
   const toggle = (p: Panel) => setPanel((cur) => (cur === p ? null : p))
 
   const list = lists.find((l) => l.id === draft.listId)
-  const timeText = draft.startTime ? (draft.endTime ? `${draft.startTime}–${draft.endTime}` : draft.startTime) : null
+  const timeText = draft.startTime ? (draft.endTime ? timeRange(draft.startTime, draft.endTime) : draft.startTime) : null
   const dueText = draft.dueDate ? `${df.shortDateWeekday(draft.dueDate)}${draft.dueTime ? ` ${draft.dueTime}` : ''}` : null
 
   const chip = (id: Panel, icon: ReactNode, value: string | null, empty: string, extraLabel?: string) => (

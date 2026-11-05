@@ -54,7 +54,7 @@ describe('useTimelineDrag（#265）', () => {
     // 15 分ずれたら変わる
     act(() => result.current.handlePointerMove(pointer(y0 + HOUR_HEIGHT / 4)))
     expect(result.current.drag).not.toBe(started)
-    expect(result.current.dragPreview?.label).toBe('10:15 – 11:15')
+    expect(result.current.dragPreview?.label).toBe('10:15–11:15')
     act(() => result.current.handlePointerUp())
     expect(onMoveDone).toHaveBeenCalledWith('p', '2026-10-07', '10:15', '11:15')
   })

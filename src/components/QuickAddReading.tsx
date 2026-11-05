@@ -5,6 +5,7 @@ import { recurrenceLabel } from '../lib/recurrenceLabel'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { HINT_TEXT } from './ui/textClass'
 import { formatDuration } from '../lib/timeGrid'
+import { timeRange } from '../lib/timeRange'
 
 /**
  * 追加欄の下の「こう読みました」の 1 行（「締切 10/10 (土) 23:59 ・ @就活」「10/8 (木) 14:00–15:00」）。
@@ -28,7 +29,7 @@ export function QuickAddReading({
     if (!r) return null
     const parts: string[] = []
     if (r.plan) {
-      const time = r.plan.endTime ? `${r.plan.startTime}–${r.plan.endTime}` : r.plan.startTime
+      const time = r.plan.endTime ? timeRange(r.plan.startTime, r.plan.endTime) : r.plan.startTime
       parts.push(`${df.shortDateWeekdayAnyYear(r.plan.date)} ${time}`)
     } else if (r.doDate) parts.push(t('quickAdd.reading.doDate', { date: df.shortDateWeekdayAnyYear(r.doDate) }))
     if (r.due) {

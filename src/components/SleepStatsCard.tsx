@@ -13,6 +13,7 @@ import { useAppTodayKey } from '../hooks/useAppClock'
 import { NapPlus, SleepDayEditor, SleepMoonIcon, SleepWakeIcon } from './SleepTimesField'
 import { DayInsightsSection } from './DayInsights'
 import { useDayInsights } from '../hooks/useDayInsights'
+import { timeRange } from '../lib/timeRange'
 
 const DAYS = 14
 /** 「正午からの分」（SleepNight の bedOffset / wakeOffset）を hh:00 の目盛りの文字に */
@@ -127,7 +128,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
           <span className="sr-only">{t('sleepStats.chartTitle')}</span>
           <span className="ml-auto tabular-nums text-zinc-500 dark:text-zinc-400" aria-live="polite">
             {focused
-              ? `${dayLabel(focused.dateKey)} ${focused.bed}–${focused.wake} · ${formatDuration(focused.minutes)}${
+              ? `${dayLabel(focused.dateKey)} ${timeRange(focused.bed, focused.wake)} · ${formatDuration(focused.minutes)}${
                   focused.napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(focused.napMinutes) })}` : ''
                 }`
               : `${dayLabel(focusedKey)} ${t('sleepStats.noRecord')}`}
@@ -173,7 +174,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
                   type="button"
                   aria-label={
                     n
-                      ? `${dayLabel(key)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}${n.napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}` : ''}`
+                      ? `${dayLabel(key)} ${timeRange(n.bed, n.wake)} ${formatDuration(n.minutes)}${n.napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}` : ''}`
                       : t('sleepStats.fillAria', { day: dayLabel(key) })
                   }
                   aria-expanded={editKey === key}

@@ -35,6 +35,7 @@ import { useTouchContextMenu } from '../hooks/useTouchContextMenu'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { compareByOrder } from '../lib/orderCompare'
 import { ShowMoreButton } from './ui/ShowMoreButton'
+import { timeRange } from '../lib/timeRange'
 
 /** 最初に並べる日数と「さらに表示」で足す日数 */
 const SCHEDULE_PAGE_DAYS = 30
@@ -164,7 +165,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
                         >
                           <div className="truncate text-sm font-medium">{event.summary}</div>
                           <div className="mt-0.5 text-xs opacity-70">
-                            {event.startTime && event.endTime ? `${event.startTime} – ${event.endTime}` : t('weekCalendar.allDay')}
+                            {event.startTime && event.endTime ? timeRange(event.startTime, event.endTime) : t('weekCalendar.allDay')}
                           </div>
                         </button>
                       )
@@ -186,7 +187,7 @@ export function CalendarScheduleView({ startDateKey, onOpenDay }: { startDateKey
                         >
                           <div className="truncate text-sm font-medium">{task.title}</div>
                           <div className="mt-0.5 text-xs opacity-70">
-                            {task.startTime && task.endTime ? `${task.startTime} – ${task.endTime}` : t('weekCalendar.allDay')}
+                            {task.startTime && task.endTime ? timeRange(task.startTime, task.endTime) : t('weekCalendar.allDay')}
                           </div>
                         </button>
                       ) : (

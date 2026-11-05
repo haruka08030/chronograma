@@ -12,6 +12,7 @@ import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { SKIPPED_EVENT_CLASS } from '../ui/rowStateClass'
 import { dueToneOf } from '../../lib/dueTone'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
+import { timeRange } from '../../lib/timeRange'
 
 /**
  * タイムライン上の 1 ブロック（Google カレンダー風）。
@@ -88,7 +89,7 @@ export function TimeBlock({
   const compact = height < 32
   const tight = height < 20
   const bare = height < 13
-  const timeLabel = `${task.title}  ${task.startTime} – ${endLabel}`
+  const timeLabel = `${task.title}  ${timeRange(task.startTime, endLabel)}`
 
   return (
     <button
@@ -216,9 +217,7 @@ export function CreateGhost({
       style={{ top, height, ...colorVars(NEUTRAL_HEX) }}
     >
       <span className="block font-medium">{t('quickCreate.untitled')}</span>
-      <span className="block text-[10px] opacity-80">
-        {popup.startTime} – {popup.endTime}
-      </span>
+      <span className="block text-[10px] opacity-80">{timeRange(popup.startTime, popup.endTime)}</span>
     </div>
   )
 }

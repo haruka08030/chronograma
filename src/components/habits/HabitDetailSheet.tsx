@@ -34,6 +34,7 @@ import { useHabitGoalText } from './useHabitGoalText'
 import { useWeekStartsOn } from '../../hooks/useWeekStartsOn'
 import { monthGridDays, weekdayLabelsFrom } from '../../lib/weekStart'
 import { ROUTINE_DRIFT_DAYS, averageRoutineDrift, routineDriftDays } from '../../lib/routineDrift'
+import { timeRange } from '../../lib/timeRange'
 
 /**
  * 習慣の詳細（右から出るシート）: 連続・最長・直近 4 週の達成率、月のカレンダー（押すと達成を付ける / 外す）、編集・アーカイブ・削除。
@@ -376,7 +377,7 @@ function HabitDayTime({ habit, dateKey }: { habit: Habit; dateKey: string }) {
       ) : (
         <div className="mt-1 flex items-center gap-3">
           <span className="text-sm tabular-nums text-zinc-600 dark:text-zinc-300">
-            {times.endTime ? `${times.startTime} – ${times.endTime}` : times.startTime}
+            {times.endTime ? timeRange(times.startTime, times.endTime) : times.startTime}
           </span>
           <button type="button" onClick={() => setOpen(true)} className={buttonClass({ variant: 'link', size: 'xs' })}>
             {t('weekCalendar.habitChangeTime')}

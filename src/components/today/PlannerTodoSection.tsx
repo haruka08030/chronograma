@@ -18,6 +18,7 @@ import { PlannerLeftBehind } from './PlannerLeftBehind'
 import { planHex } from '../../lib/planVisual'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { PlannerPlanRow } from './PlannerPlanRow'
+import { timeRange } from '../../lib/timeRange'
 
 /**
  * 今日の計画の To-Do: 期限切れ → やり残し → 今日やる（時間未定 → 時間を決めた）→ 追加欄 → 一言。
@@ -184,8 +185,8 @@ export function PlannerTodoSection({
                   title={nowNext.source === 'google' ? nowNext.event.summary : nowNext.task.title}
                   time={
                     nowNext.source === 'google'
-                      ? `${nowNext.event.startTime}–${nowNext.event.endTime}`
-                      : `${nowNext.task.startTime}–${nowNext.task.endTime}`
+                      ? timeRange(nowNext.event.startTime, nowNext.event.endTime)
+                      : timeRange(nowNext.task.startTime, nowNext.task.endTime)
                   }
                   colorHex={nowNext.source === 'google' ? (nowNext.event.color ?? DEFAULT_GOOGLE_EVENT_HEX) : planHex(nowNext.task)}
                   lead={t(nowNext.kind === 'now' ? 'planner.nowRow' : 'planner.nextRow')}

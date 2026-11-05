@@ -5,6 +5,7 @@ import { acceptTaskDrag, carriedTaskIds, GOOGLE_EVENT_DND_TYPE, TASK_DND_TYPE, T
 import { minutesToTime } from './clockTime'
 import { useTaskStore } from '../store/taskStore'
 import { parseHabitSlotId } from './habitSlots'
+import { timeRange } from './timeRange'
 
 export { TASK_DND_TYPE, GOOGLE_EVENT_DND_TYPE, TASK_MULTI_DND_TYPE }
 
@@ -109,7 +110,7 @@ export function useTimelineDrop(options: UseTimelineDropOptions) {
       const endMin = Math.min(startMin + duration, 24 * 60)
       const actualDuration = endMin - startMin
       const height = (actualDuration / 60) * HOUR_HEIGHT
-      setDropPreview({ dateKey, top: y, height, label: `${startTime} – ${minutesToTime(endMin)}` })
+      setDropPreview({ dateKey, top: y, height, label: timeRange(startTime, minutesToTime(endMin)) })
     },
     [getRelativeY, defaultBlockMinutes, lengthOf],
   )

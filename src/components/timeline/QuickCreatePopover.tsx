@@ -40,6 +40,7 @@ import { habitsMatchingTitle } from '../../lib/habitSuggest'
 import { buildHabitRecordIndex } from '../../lib/habitTiming'
 import { isLogTask } from '../../types/task'
 import { placeHabitAt } from '../../lib/timelineBlockEdit'
+import { timeRange } from '../../lib/timeRange'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -216,7 +217,7 @@ export function QuickCreatePopover({
     updateTask(
       fit.id,
       { scheduledDate: dateKey, startTime, endTime: end },
-      t('undo.timeSet', { title: toastTitle(fit.title), time: `${startTime}–${end}` }),
+      t('undo.timeSet', { title: toastTitle(fit.title), time: timeRange(startTime, end) }),
     )
     onClose()
   }
@@ -383,7 +384,7 @@ export function QuickCreatePopover({
             onClick={() => setEditingTime(true)}
             className="-mx-1.5 min-w-0 rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
           >
-            {df.monthDayWeekdayLong(dateKey)} · {startTime} – {endTime}
+            {df.monthDayWeekdayLong(dateKey)} · {timeRange(startTime, endTime)}
           </button>
         )}
         {!asLog && (

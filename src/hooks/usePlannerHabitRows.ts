@@ -4,6 +4,7 @@ import type { Habit } from '../types/habit'
 import { buildHabitRecordIndex, habitDayStatus, habitTimesOn } from '../lib/habitTiming'
 import { isHabitWeekGoalMetOnDate } from '../lib/habitSchedule'
 import { fromDateKey } from '../lib/dateKey'
+import { timeRange } from '../lib/timeRange'
 
 export type HabitDayRow = {
   h: Habit
@@ -30,7 +31,7 @@ export function usePlannerHabitRows(dayHabits: Habit[], dateKey: string) {
         h,
         status: habitDayStatus(h, dateKey, habitRecords),
         weekMet: isHabitWeekGoalMetOnDate(h, date, habitRecords),
-        time: times ? (times.endTime ? `${times.startTime}–${times.endTime}` : times.startTime) : null,
+        time: times ? (times.endTime ? timeRange(times.startTime, times.endTime) : times.startTime) : null,
       }
     })
     const timed = rows.filter((r) => r.time !== null).sort((a, b) => a.time!.localeCompare(b.time!))

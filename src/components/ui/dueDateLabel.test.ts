@@ -29,12 +29,12 @@ describe('dueDateLabel（見ている日と比べる）', () => {
   })
 
   it('過ぎた締切は「◯日遅れ」（見ている日から数える）', () => {
-    expect(dueDateLabel('2026-10-02', null, t, 'ja', base)).toEqual({ text: '10/2 (金)まで・3日遅れ', tone: 'overdue' })
+    expect(dueDateLabel('2026-10-02', null, t, 'ja', base)).toEqual({ text: '10/2 (金)まで・3 日遅れ', tone: 'overdue' })
   })
 
   it('別の日を見ているときは、その日が「今日」の代わり', () => {
     const later = { dayKey: '2026-10-08', now: base.now }
     expect(dueDateLabel('2026-10-09', null, t, 'ja', later).text).toBe('明日まで')
-    expect(dueDateLabel('2026-10-07', null, t, 'ja', later)).toEqual({ text: '10/7 (水)まで・1日遅れ', tone: 'overdue' })
+    expect(dueDateLabel('2026-10-07', null, t, 'ja', later)).toEqual({ text: '10/7 (水)まで・1 日遅れ', tone: 'overdue' })
   })
 })

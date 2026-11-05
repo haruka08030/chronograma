@@ -35,6 +35,7 @@ import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
 import { deleteTaskAsking } from '../../lib/seriesScope'
 import { SeriesScopeField, SeriesSummary } from '../detail/SeriesScopeField'
 import { useExitGhost } from '../../hooks/useExitGhost'
+import { timeRange } from '../../lib/timeRange'
 
 const WIDTH = 320
 
@@ -203,7 +204,7 @@ function EventPopoverBody({
           ) : (
             <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
               {dateText}
-              {tv.startTime && tv.endTime && ` · ${tv.startTime} – ${tv.endTime}`}
+              {tv.startTime && tv.endTime && ` · ${timeRange(tv.startTime, tv.endTime)}`}
             </p>
           )}
           {/* To-Do は一覧の行と同じ締切・ラベル・タグ（記録・予定には無い） */}
