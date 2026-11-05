@@ -227,30 +227,33 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
             />
           </div>
         )}
-        <table className="sr-only">
-          <caption>{t('sleepStats.chartTitle')}</caption>
-          <thead>
-            <tr>
-              <th>{t('sleepStats.colDate')}</th>
-              <th>{t('sleepStats.colBed')}</th>
-              <th>{t('sleepStats.colWake')}</th>
-              <th>{t('sleepStats.colSleep')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {nights.map((n) => (
-              <tr key={n.dateKey}>
-                <td>{dayLabel(n.dateKey)}</td>
-                <td>{n.bed}</td>
-                <td>{n.wake}</td>
-                <td>
-                  {formatDuration(n.minutes)}
-                  {n.napMinutes > 0 && ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}`}
-                </td>
+        {/* 表は 1px に縮まないので、sr-only は外の枠に付ける */}
+        <div className="sr-only">
+          <table>
+            <caption>{t('sleepStats.chartTitle')}</caption>
+            <thead>
+              <tr>
+                <th>{t('sleepStats.colDate')}</th>
+                <th>{t('sleepStats.colBed')}</th>
+                <th>{t('sleepStats.colWake')}</th>
+                <th>{t('sleepStats.colSleep')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {nights.map((n) => (
+                <tr key={n.dateKey}>
+                  <td>{dayLabel(n.dateKey)}</td>
+                  <td>{n.bed}</td>
+                  <td>{n.wake}</td>
+                  <td>
+                    {formatDuration(n.minutes)}
+                    {n.napMinutes > 0 && ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </figure>
       <DayInsightsSection rows={insights} />
     </section>
