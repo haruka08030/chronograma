@@ -201,7 +201,7 @@ export default {
     hours: '{{h}}h',
     hoursMinutes: '{{h}}h {{m}}m',
     overCapacity: 'To-Dos planned ({{planned}}) are more than the free time ({{free}}). Moving a few to tomorrow frees up time.',
-    overCapacityShort: '(over)',
+    overCapacityShort: ' (over)',
     dueFitOver: "won't fit",
     dueFitHint:
       'Estimated {{estimate}} by this due date / {{free}} free (today to the day before, after classes, shifts and Google events)',
