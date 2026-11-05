@@ -1370,6 +1370,17 @@ const SCREENS = [
   { name: 'someday-hover', list: 'seed-someday', hover: '[data-task-row="s21"]' },
   // 行を右クリックしたときのメニュー（PC だけ。いつか・買い物はリストに合わせた短いメニュー）
   { name: 'todo-menu', view: 'all', desktopOnly: true, rightClick: '[data-task-row="s2"]' },
+  // まとめてタグ（#692）: 選んだ行のメニューの「タグ ›」。今あるタグと新しいタグの欄
+  {
+    name: 'todo-menu-tag',
+    view: 'all',
+    taskPatch: { s1: { tags: ['数学', '提出'] }, s2: { tags: ['数学'] }, s3: { tags: ['ゼミ'] } },
+    steps: [
+      { rightClick: '[data-task-row="s2"]', longPress: '[data-task-row="s2"]' },
+      { mobileClick: 'button:has-text("操作") >> visible=true' },
+      { click: '[role=menu] [role=menuitem]:has-text("タグ") >> visible=true' },
+    ],
+  },
   { name: 'someday-menu', list: 'seed-someday', rightClick: '[data-task-row="s21"]' },
   // 夢のタイルを押した詳細の … （かなえた・やりたいへ移す・アーカイブ・削除）
   {

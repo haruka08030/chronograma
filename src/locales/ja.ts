@@ -1059,6 +1059,7 @@ export default {
     moveTo: 'リストへ移動',
     moveToSection: 'セクションへ移動',
     label: 'ラベル',
+    tag: 'タグ',
     open: '編集',
     duplicate: '複製',
     doToday: '今日やる',
@@ -1273,6 +1274,10 @@ export default {
     labelSet: '{{count}} 件のラベルを「{{name}}」にしました',
     labelClearedOne: '「{{title}}」のラベルを外しました',
     labelCleared: '{{count}} 件のラベルを外しました',
+    tagAddedOne: '「{{title}}」にタグ「{{name}}」を付けました',
+    tagAdded: '{{count}} 件にタグ「{{name}}」を付けました',
+    tagRemovedOne: '「{{title}}」からタグ「{{name}}」を外しました',
+    tagRemoved: '{{count}} 件からタグ「{{name}}」を外しました',
     button: '元に戻す',
   },
   storageFull: {

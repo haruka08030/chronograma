@@ -49,7 +49,7 @@
 | 毎週の予定の範囲 | 消すときに「この予定のみ / これ以降のすべての予定 / すべての予定」を聞く（既定は「この予定のみ」、見た目は確認のダイアログと同じ）。`askSeriesScope(title)`、予定・To-Do をゴミ箱へは `deleteTaskAsking(taskId)` | `lib/seriesScope.tsx`・`components/ui/SeriesScopeDialog.tsx` |
 | メニュー | `MenuItem`（アイコン・名前の下の説明 `detail`・右端の補足/キー/チェック・赤 `danger`・中のメニューの ›）・`MenuDivider`・`MenuLabel` | `components/ui/Menu.tsx` |
 | 右クリックのメニュー | `ActionMenu`（項目・中のメニュー・検索・↑↓→←Enter Esc・はみ出さない位置、`above` で上に出す）。スマホ（タッチの狭い画面）は下から出すシート: 行は 44px 以上、中のメニューは同じシートの中で切り替え（‹ で戻る）、危ない項目は区切って離す、検索欄は出さない。どの右クリックもこれの上に作る。色を選ぶ中のメニューは `ColorPalette`（`bare`）か `ColorSwatches` を入れる | `components/ui/ActionMenu.tsx` |
-| タスクのメニュー | 右クリック・スマホの行の …・⌘/（ContextMenu キー・Shift+F10 も）で開く。時間を決める（時間未定のとき）・今日やる / 明日へ回す（Shift+T）・記録を開始・実行日・締切（カレンダー付き、日時を指定…）・優先度・リスト/セクションへ移動・ラベル・完了・編集・複製・アーカイブ・削除。選択中の行なら選択中のすべてに効く。いつかの行は予定する・夢/やりたいことへ移す・かなえた・アーカイブ・削除、チェックリストの行はチェック（全部済みならチェックを外す）・アーカイブ・削除だけ（行のアーカイブのアイコンと同じ）。今日の計画の行を指で押すと短いシート（時間を決める・今日やる / 明日へ回す・記録を開始・完了・実行日・締切・編集、メモがあれば題名の下に）。`TaskItem` のある所・今日の計画・カレンダーの横の To-Do・完了済み・検索結果・週のふりかえり・週の終日行・夢ボード・選択中のバーの「操作」・タスクの詳細の右上の …（「編集」は出さない）で出る | `components/TaskContextMenu.tsx` |
+| タスクのメニュー | 右クリック・スマホの行の …・⌘/（ContextMenu キー・Shift+F10 も）で開く。時間を決める（時間未定のとき）・今日やる / 明日へ回す（Shift+T）・記録を開始・実行日・締切（カレンダー付き、日時を指定…）・優先度・リスト/セクションへ移動・ラベル・タグ（今あるタグの付け外しと新しいタグの欄）・完了・編集・複製・アーカイブ・削除。選択中の行なら選択中のすべてに効く。いつかの行は予定する・夢/やりたいことへ移す・かなえた・アーカイブ・削除、チェックリストの行はチェック（全部済みならチェックを外す）・アーカイブ・削除だけ（行のアーカイブのアイコンと同じ）。今日の計画の行を指で押すと短いシート（時間を決める・今日やる / 明日へ回す・記録を開始・完了・実行日・締切・編集、メモがあれば題名の下に）。`TaskItem` のある所・今日の計画・カレンダーの横の To-Do・完了済み・検索結果・週のふりかえり・週の終日行・夢ボード・選択中のバーの「操作」・タスクの詳細の右上の …（「編集」は出さない）で出る | `components/TaskContextMenu.tsx` |
 | ゴミ箱・アーカイブの行のメニュー | 右クリックで行のボタンと同じ操作。ゴミ箱: 復元・完全に削除（確認あり）。アーカイブ: 戻す・削除（ゴミ箱へ）。選択中なら選択中のすべて | `components/TaskBinView.tsx` |
 | 予定・記録・Google の予定のメニュー | 月・終日の行・スケジュール・日パネルで右クリック（タッチは長押し）。予定と記録は `openCalendarItemMenu`（To-Do はタスクのメニュー）、記録は日パネルの記録の行から。予定: 色・実行日・予定どおり記録（To-Do は記録して完了）・完了/未完了・記録を開始・編集・複製・（Google に送っているとき）この名前は Google に送らない・削除。記録: 色（＝ラベル）・編集・削除。Google: 複製・Google カレンダーで開く・削除（色はカードの色の四角で変える。書き込めない予定は開くだけ、やらなかった予定は削除だけ）。タイムラインの右クリック・長押しは `brief`（予定は完了/未完了・複製、Google は複製だけ。ほかはカード） | `components/timeline/EventContextMenu.tsx` |
 | 習慣のメニュー | 習慣のカード・カレンダーの習慣の段・タイムラインの習慣の枠で右クリック（タッチは長押し）。編集・今日の記録・休む（その日だけ・カレンダーで選んだ日まで。休みの日なら休みを外す）・習慣の段に戻す（タイムラインに置いた枠）・アーカイブ・削除（タイムラインでは出さない）。アーカイブした習慣は戻す・削除だけ。休むは習慣の詳細の下のボタンからも同じ（`useHabitRestEntry`） | `components/HabitContextMenu.tsx` |
@@ -72,7 +72,7 @@
 | 乗せたときだけ出す操作 | 隠すかは画面の幅ではなく「マウスで乗せられるか」（`hover: hover`）で決め、タッチでは常に出す。キーボードで行に入ったときも出す。`REVEAL_ON_HOVER`（`group`）・`REVEAL_ON_ROW_HOVER`（`group/row`）・場所ごと入れ替える `SHOW_ON_ROW_HOVER` / `HIDE_ON_ROW_HOVER` | `components/ui/revealClass.ts` |
 | 選択の四角 | `RowSelectCheckbox`。選んでいる間か選んだ行は出したまま、それ以外は PC で行に乗せたときだけ（スマホは隠す）。押しても行のクリックには渡さない。To-Do の行・アーカイブ・ゴミ箱 | `components/ui/RowSelectCheckbox.tsx` |
 | 小さいボタンの押せる範囲 | `touch-hit`（index.css）。タッチのときだけ、見た目を変えずに押せる範囲を 44px に広げる。`iconButtonClass`・`DayNav`・`toastButtonClass`・`RowSelectCheckbox` は入っている | `src/index.css` |
-| 選択中のバー | `SelectionBar`。行を選んでいる間だけ下に浮かぶ（`INVERSE_SURFACE`、記録中はタイマーの上）。件数・その画面でよく使う操作・「操作」（タスクのメニュー）。操作したら選択を外す。狭い幅は操作の印を消して詰め、入らなければ折り返す。To-Do 一覧・今日の計画・アーカイブ・ゴミ箱 | `components/ui/SelectionBar.tsx` |
+| 選択中のバー | `SelectionBar`。行を選んでいる間だけ下に浮かぶ（`INVERSE_SURFACE`、記録中はタイマーの上）。件数・その画面でよく使う操作・「操作」（タスクのメニュー）。操作したら選択を外す。狭い幅は操作の印を消して詰め、入らなければ折り返す。To-Do 一覧・検索結果・今日の計画・アーカイブ・ゴミ箱 | `components/ui/SelectionBar.tsx` |
 | 行の色の線 | `RowColorLine`。行の左の細い線（ラベル・習慣の色、`gc-line`）。To-Do の一覧・今日の計画の行 | `components/ui/RowColorLine.tsx` |
 | 締切の印 | `DueChip`（→| と「10/16 (金)まで」、締切の色）。To-Do の行・今日の計画の行（`dueDateLabel` に見ている日を渡す）とカレンダーの To-Do のカード。カレンダーの締切の日の印（実行日が別の日）は `calendar/TaskDueMark`（押すとカード。`xs` は終日の行・月のマス、`sm` はスケジュール・日パネル）。子の行が見えない所（今日の計画・カレンダーの横の To-Do）では子の締切を `ChildDueChip`（「ES 10/16 (金)まで」） | `components/ui/DueChip.tsx`・`components/ui/ChildDueChip.tsx` |
 | 1 行の並び | `DayRow`（時刻・色の丸・題名。箱にせず、色は `EventMark` の丸だけ。時間が過ぎた予定は `passed` で題名を灰色、丸は `planDotHex`）。時刻の列の幅・行の高さは To-Do の行（`TaskItem` の `compact`）と同じ（`DAY_ROW_TIME_CLASS`・`DAY_ROW_PAD_CLASS`）。日パネルの Google の予定・記録 | `components/ui/DayRow.tsx` |
@@ -92,7 +92,7 @@
 | 月のカレンダー（日付を選ぶ） | 年（« »）と月（‹ ›）の切り替え・常に 6 週の日付・今日/明日/なし。`kind` は締切 / 実行日 / 日付。キーは ←→↑↓ で日・週、PageUp/PageDown で月、Home/End で週の頭と終わり、Enter で決める。締切・実行日のポップオーバー・`DateField`・追加欄の詳細・タスクと習慣の右クリックメニュー（`footer={false}`）・締切の日時・カレンダー画面の見出しの日付ジャンプ（`month` で見ている月から始める）で共通 | `components/DatePickerBody.tsx` |
 | 締切の日時・時間を決める | 締切の日付と時刻を一度に決める「日時を指定…」は `DueDateTimeMenu`。時間未定のタスクの「時間を決める」は `TimeSlotMenu`（その日の空きから近い順に 3 つと長さ、「その他の時刻…」）。どちらも PC は押した所に小さく、スマホは下からのシート（`SheetBackdrop`） | `components/DueDateTimeMenu.tsx`・`components/TimeSlotMenu.tsx` |
 | マウスを乗せたときのヒント | アイコンだけのボタンは `aria-label` を、`tip(説明, キー)` を付けたものはその説明＋キーを、0.5 秒後に出す（マウスのある端末だけ）。アイコンだけのボタンの名前とヒントは `tip(説明, { name: true })` で 1 回だけ書く（`aria-label` も付く。キーも添えるなら `{ key, name: true }`）。ショートカットのあるボタンは `shortcutTip(説明, id)`（キーは `SHORTCUTS` から）。ボタンに `title` は使わない（lint で止める） | `lib/tooltip.ts`・`components/ui/Tooltip.tsx` |
-| タスクのまとめて操作 | 完了・未完了・削除・アーカイブ・締切・実行日・優先度・ラベル・リスト/セクションへ移動。何件に何をしたかを「元に戻す」トーストで出す（1 件の締切・優先度は出さない）。今と同じ値のタスクは対象から外す | `hooks/useBulkTaskActions.ts` |
+| タスクのまとめて操作 | 完了・未完了・削除・アーカイブ・締切・実行日・優先度・ラベル・タグ・リスト/セクションへ移動。何件に何をしたかを「元に戻す」トーストで出す（1 件の締切・優先度は出さない）。今と同じ値のタスクは対象から外す | `hooks/useBulkTaskActions.ts` |
 
 ### 日付・時刻
 

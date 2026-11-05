@@ -124,6 +124,8 @@ export const PencilSquareIcon = strokeIcon(ICON_PATHS.pencilSquare)
 export const ChevronUpIcon = strokeIcon(ICON_PATHS.chevronUp)
 export const ChevronDownIcon = strokeIcon(ICON_PATHS.chevronDown)
 export const SectionIcon = strokeIcon(ICON_PATHS.section)
+/** タグ（To-Do の自由な札）。ラベルは色の丸 */
+export const TagIcon = strokeIcon(ICON_PATHS.tag)
 export const ShareIcon = strokeIcon(ICON_PATHS.share)
 export const DuplicateIcon = strokeIcon(ICON_PATHS.duplicate)
 export const RefreshIcon = strokeIcon(ICON_PATHS.refresh)

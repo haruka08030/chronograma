@@ -24,6 +24,20 @@ describe('useBulkTaskActions', () => {
     expect(after.moveBannerText).toBeNull()
   })
 
+  it('タグを足しても消してもほかのタグはそのままで、記録には付けない', () => {
+    const { a, b, bulk } = setup()
+    useTaskStore.getState().updateTask(a, { tags: ['ES'] })
+    const log = useTaskStore.getState().addTask('記録')!
+    useTaskStore.setState((s) => ({ tasks: s.tasks.map((t) => (t.id === log ? { ...t, kind: 'log' as const } : t)) }))
+    bulk.setTag([a, b, log], '数学', true)
+    expect(task(a).tags).toEqual(['ES', '数学'])
+    expect(task(b).tags).toEqual(['数学'])
+    expect(task(log).tags).toEqual([])
+    bulk.setTag([a, b], '数学', false)
+    expect(task(a).tags).toEqual(['ES'])
+    expect(task(b).tags).toEqual([])
+  })
+
   it('同じ優先度を選び直しても、何も変えない', () => {
     const { a, bulk } = setup()
     const before = useTaskStore.getState().tasks
