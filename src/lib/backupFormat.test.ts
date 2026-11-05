@@ -229,6 +229,16 @@ describe('isImportFileTooLarge', () => {
 describe('task kind', () => {
   const inbox = [{ id: '__inbox__', name: '未分類' }]
 
+  it('reads an "adrift" log of an older backup as trashed', () => {
+    const parsed = parseBackupJson(
+      file({
+        lists: inbox,
+        tasks: [{ id: 'v', title: 'v', listId: '__inbox__', isTimeLog: true, vague: true, createdAt: '2026-10-01T00:00:00.000Z' }],
+      }),
+    )!
+    expect(parsed.tasks[0]!.deletedAt).toBe('2026-10-01T00:00:00.000Z')
+  })
+
   it('reads the two flags of an older backup (or a server row) as the kind, and drops the flags', () => {
     const parsed = parseBackupJson(
       file({
@@ -327,7 +337,7 @@ describe('task kind', () => {
     expect(parseBackupJson(JSON.stringify({ ...payload, lists: inbox }))!.tasks[0]!.somedayTier).toBe('dream')
   })
 
-  it('keeps the moved-plan notes of a to-do through the file, and drops them on other kinds or when unreadable (#158)', () => {
+  it('keeps the moved-plan notes of a to-do and an event through the file, and drops them on other kinds or when unreadable (#158, #682)', () => {
     const movedPlans = [{ date: '2026-10-02', startTime: '13:00', endTime: '14:00', to: '2026-10-05' }]
     const tasks = parseBackupJson(
       file({
@@ -337,11 +347,12 @@ describe('task kind', () => {
           { id: 'r', title: '発表', list_id: '__inbox__', moved_plans: movedPlans },
           { id: 'e', title: '授業', listId: '__inbox__', kind: 'event', movedPlans },
           { id: 'b', title: 'ゼミ', listId: '__inbox__', kind: 'todo', movedPlans: [{ date: 'x' }] },
+          { id: 'l', title: '勉強', listId: '__inbox__', kind: 'log', dueDate: '2026-10-02', movedPlans },
         ],
       }),
     )!.tasks
-    expect(tasks.map((t) => t.movedPlans ?? null)).toEqual([movedPlans, movedPlans, null, null])
-    expect(tasks.map((t) => 'movedPlans' in t)).toEqual([true, true, false, false])
+    expect(tasks.map((t) => t.movedPlans ?? null)).toEqual([movedPlans, movedPlans, movedPlans, null, null])
+    expect(tasks.map((t) => 'movedPlans' in t)).toEqual([true, true, true, false, false])
     const payload = buildBackupPayload({ tasks, lists: [], habits: [], sections: [], timeLogTagPresets: [], logCategoryColors: {} })
     expect(parseBackupJson(JSON.stringify({ ...payload, lists: inbox }))!.tasks[0]!.movedPlans).toEqual(movedPlans)
   })

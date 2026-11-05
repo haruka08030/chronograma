@@ -58,7 +58,7 @@ describe('useWeekBuckets: 開いたまま 0 時をまたぐ', () => {
     refreshAppClock()
   })
 
-  it('移した予定の控えは、昨日になった日にタスクが変わらなくても出る', () => {
+  it('始まってから移した予定の跡は今日の列にも出て、日をまたいでも残る', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 9, 6, 23, 58))
     refreshAppClock()
@@ -68,11 +68,25 @@ describe('useWeekBuckets: 開いたまま 0 時をまたぐ', () => {
     useTaskStore.getState().updateTask(id, { scheduledDate: '2026-10-07', startTime: '10:00', endTime: '11:00' })
     const tasks = useTaskStore.getState().tasks
     const { result } = renderHook(() => useWeekBuckets(tasks, [], [], days))
-    // 10/6 はまだ今日なので控えは出さない
-    expect(result.current.movedByDate.get('2026-10-06')).toBeUndefined()
+    expect(result.current.movedByDate.get('2026-10-06')?.map((t) => t.id)).toEqual([id])
 
     vi.setSystemTime(new Date(2026, 9, 7, 0, 2))
     act(() => refreshAppClock())
     expect(result.current.movedByDate.get('2026-10-06')?.map((t) => t.id)).toEqual([id])
+  })
+
+  it('始まってから消した予定は元の位置に跡が出て、始まる前に消したものは出ない', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 6, 12, 0))
+    refreshAppClock()
+    const done = useTaskStore.getState().addTask('Shift')!
+    useTaskStore.getState().updateTask(done, { kind: 'event', scheduledDate: '2026-10-06', startTime: '11:00', endTime: '13:00' })
+    const later = useTaskStore.getState().addTask('Club')!
+    useTaskStore.getState().updateTask(later, { kind: 'event', scheduledDate: '2026-10-06', startTime: '18:00', endTime: '19:00' })
+    useTaskStore.getState().deleteTask(done)
+    useTaskStore.getState().deleteTask(later)
+    const { result } = renderHook(() => useWeekBuckets(useTaskStore.getState().tasks, [], [], days))
+    expect(result.current.movedByDate.get('2026-10-06')?.map((t) => t.id)).toEqual([done])
+    expect(result.current.timedByDate.get('2026-10-06') ?? []).toEqual([])
   })
 })

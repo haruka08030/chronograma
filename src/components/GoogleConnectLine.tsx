@@ -85,7 +85,7 @@ export function GoogleConnectLine({
         type="button"
         onClick={() => (user ? void connect() : openSettingsWithScroll('account'))}
         disabled={loading}
-        className="shrink-0 rounded-md px-1.5 py-0.5 font-medium text-accent-600 transition-colors hover:bg-accent-50 disabled:opacity-50 dark:text-accent-400 dark:hover:bg-accent-500/10"
+        className="touch-hit shrink-0 rounded-md px-1.5 py-0.5 font-medium text-accent-600 transition-colors hover:bg-accent-50 disabled:opacity-50 dark:text-accent-400 dark:hover:bg-accent-500/10"
       >
         {loading ? t('planVsActual.connecting') : user ? t('planVsActual.googleConnectShort') : t('planVsActual.googleLoginFirst')}
       </button>

@@ -159,6 +159,28 @@ describe('予定の繰り返しの欄', () => {
     await user.click(within(screen.getByRole('group', { name: '繰り返す曜日' })).getByRole('button', { name: '木' }))
     expect(live().map((t) => t.scheduledDate)).toEqual(['2026-10-13', '2026-10-15', '2026-10-20', '2026-10-22', '2026-10-27', '2026-10-29'])
   })
+
+  it('時間割で「祝日は授業を入れない」にしていても、予定の繰り返しは祝日も入れて始める（スイッチで選ぶ。#671）', async () => {
+    const user = userEvent.setup({ advanceTimers: () => {} })
+    useTaskStore.setState({
+      timetable: { ...DEFAULT_TIMETABLE, skipHolidays: true },
+      tasks: [
+        {
+          // 毎週火曜。11/3（火）は文化の日
+          ...makeTask(
+            { title: 'バイト', listId: INBOX_LIST_ID, scheduledDate: '2026-10-27', startTime: '17:00', endTime: '22:00', kind: 'event' },
+            0,
+          ),
+          id: 'shift',
+        },
+      ],
+    })
+    const view = render(<EventRepeatField task={S().tasks[0]!} date="2026-10-27" />)
+    await user.selectOptions(screen.getByLabelText('繰り返し'), 'weekly')
+    expect(live().map((t) => t.scheduledDate)).toContain('2026-11-03')
+    view.rerender(<EventRepeatField task={S().tasks.find((t) => t.id === 'shift')!} date="2026-10-27" />)
+    expect(screen.getByRole('switch', { name: '祝日は入れない' }).getAttribute('aria-checked')).toBe('false')
+  })
 })
 
 describe('授業の欠席（#452）', () => {

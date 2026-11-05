@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from '../types/task'
 import { TASK_DEFAULTS } from './taskDefaults'
-import { MAX_MOVED_PLANS, movedPlansAfter, movedPlansOnDay, readMovedPlans, withMovedPlans } from './movedPlans'
+import {
+  cancelledAfterStart,
+  MAX_MOVED_PLANS,
+  movedPlansAfter,
+  movedPlansOnDay,
+  planTraces,
+  readMovedPlans,
+  withMovedPlans,
+} from './movedPlans'
+import { wallMinutes } from './wallTime'
+import { fromAppWall } from './timeZone'
 
 const task = (id: string, over: Partial<Task> = {}): Task => ({
   ...TASK_DEFAULTS,
@@ -26,34 +36,60 @@ const task = (id: string, over: Partial<Task> = {}): Task => ({
 })
 
 const TODAY = '2026-10-03'
+/** 今（TODAY の 12:00） */
+const NOW = wallMinutes(TODAY, '12:00')
+const to = (date: string | null, startTime: string | null = null, endTime: string | null = null) => ({ date, startTime, endTime })
 
 describe('movedPlansAfter', () => {
-  it('今日・過ぎた日の予定を別の日へ移すと、元の日と時刻と移した先を残す', () => {
+  it('始まった予定を別の日へ移すと、元の日と時刻と移した先を残す（時刻の無い To-Do はその日が来ていれば）', () => {
     const t = task('a', { scheduledDate: '2026-10-02', startTime: '13:00', endTime: '14:00' })
-    expect(movedPlansAfter(t, '2026-10-05', TODAY)).toEqual([
+    expect(movedPlansAfter(t, to('2026-10-05'), NOW)).toEqual([
       { date: '2026-10-02', startTime: '13:00', endTime: '14:00', to: '2026-10-05' },
     ])
-    expect(movedPlansAfter(task('b', { scheduledDate: TODAY }), '2026-10-04', TODAY)).toEqual([
+    expect(movedPlansAfter(task('b', { scheduledDate: TODAY }), to('2026-10-04'), NOW)).toEqual([
       { date: TODAY, startTime: null, endTime: null, to: '2026-10-04' },
     ])
+    // 予定（To-Do でない予定）も
+    expect(movedPlansAfter({ ...t, kind: 'event' }, to('2026-10-05'), NOW)).toHaveLength(1)
   })
 
-  it('先の日どうしの付け替え・予定日を外す・完了した To-Do・予定・子は残さない', () => {
-    expect(movedPlansAfter(task('a', { scheduledDate: '2026-10-04' }), '2026-10-06', TODAY)).toBeUndefined()
-    expect(movedPlansAfter(task('a', { scheduledDate: '2026-10-02' }), null, TODAY)).toBeUndefined()
-    expect(movedPlansAfter(task('a', { scheduledDate: '2026-10-02', completed: true }), '2026-10-05', TODAY)).toBeUndefined()
-    expect(movedPlansAfter(task('a', { scheduledDate: '2026-10-02', kind: 'event' }), '2026-10-05', TODAY)).toBeUndefined()
-    expect(movedPlansAfter(task('a', { scheduledDate: '2026-10-02', parentId: 'p' }), '2026-10-05', TODAY)).toBeUndefined()
+  it('始まった予定を同じ日の別の時刻へずらすと残し、何度ずらしても元の時刻は最初のまま。元の時刻へ戻すと消す', () => {
+    const t = task('a', { kind: 'event', scheduledDate: TODAY, startTime: '10:00', endTime: '11:00' })
+    const once = movedPlansAfter(t, to(TODAY, '14:00', '15:00'), NOW)
+    expect(once).toEqual([{ date: TODAY, startTime: '10:00', endTime: '11:00', to: TODAY }])
+    // 14:00 はまだ始まっていなくても、元の 10:00 の控えは残したまま
+    const moved = { ...t, startTime: '14:00', endTime: '15:00', movedPlans: once }
+    expect(movedPlansAfter(moved, to(TODAY, '16:00', '17:00'), NOW)).toEqual(once)
+    expect(movedPlansAfter(moved, to('2026-10-04', '16:00', '17:00'), NOW)).toEqual([
+      { date: TODAY, startTime: '10:00', endTime: '11:00', to: '2026-10-04' },
+    ])
+    expect(movedPlansAfter(moved, to(TODAY, '10:00', '11:00'), NOW)).toEqual([])
+    // 長さだけ変えた・時刻を外したのは残さない
+    expect(movedPlansAfter(t, to(TODAY, '10:00', '12:00'), NOW)).toBeUndefined()
+    expect(movedPlansAfter(t, to(TODAY), NOW)).toBeUndefined()
+  })
+
+  it('始まる前の付け替え・予定日を外す・完了した To-Do・子は残さない', () => {
+    expect(movedPlansAfter(task('a', { scheduledDate: '2026-10-04' }), to('2026-10-06'), NOW)).toBeUndefined()
+    expect(
+      movedPlansAfter(task('a', { scheduledDate: TODAY, startTime: '18:00', endTime: '19:00' }), to('2026-10-04'), NOW),
+    ).toBeUndefined()
+    expect(
+      movedPlansAfter(task('a', { scheduledDate: TODAY, startTime: '18:00', endTime: '19:00' }), to(TODAY, '20:00', '21:00'), NOW),
+    ).toBeUndefined()
+    expect(movedPlansAfter(task('a', { scheduledDate: '2026-10-02' }), to(null), NOW)).toBeUndefined()
+    expect(movedPlansAfter(task('a', { scheduledDate: '2026-10-02', completed: true }), to('2026-10-05'), NOW)).toBeUndefined()
+    expect(movedPlansAfter(task('a', { scheduledDate: '2026-10-02', parentId: 'p' }), to('2026-10-05'), NOW)).toBeUndefined()
   })
 
   it('同じ日から移し直したら行き先だけ新しくし、控えのある日へ戻したらその日の控えを消す', () => {
     const once = task('a', {
       scheduledDate: '2026-10-05',
-      movedPlans: movedPlansAfter(task('a', { scheduledDate: '2026-10-02' }), '2026-10-05', TODAY),
+      movedPlans: movedPlansAfter(task('a', { scheduledDate: '2026-10-02' }), to('2026-10-05'), NOW),
     })
     // 10/5 はまだ先の日なので、10/5 → 10/7 は控えを足さない
-    expect(movedPlansAfter(once, '2026-10-07', TODAY)).toEqual([{ date: '2026-10-02', startTime: null, endTime: null, to: '2026-10-05' }])
-    expect(movedPlansAfter(once, '2026-10-02', TODAY)).toEqual([])
+    expect(movedPlansAfter(once, to('2026-10-07'), NOW)).toEqual([{ date: '2026-10-02', startTime: null, endTime: null, to: '2026-10-05' }])
+    expect(movedPlansAfter(once, to('2026-10-02'), NOW)).toEqual([])
   })
 
   it(`控えは ${MAX_MOVED_PLANS} 件まで（古いものから捨てる）`, () => {
@@ -62,10 +98,38 @@ describe('movedPlansAfter', () => {
       const from = `2026-0${d <= 31 ? 1 : 2}-${String(((d - 1) % 31) + 1).padStart(2, '0')}`
       const next = `2026-0${d + 1 <= 31 ? 1 : 2}-${String((d % 31) + 1).padStart(2, '0')}`
       t = { ...t, scheduledDate: from }
-      t = { ...t, movedPlans: movedPlansAfter(t, next, TODAY), scheduledDate: next }
+      t = { ...t, movedPlans: movedPlansAfter(t, to(next), NOW), scheduledDate: next }
     }
     expect(t.movedPlans).toHaveLength(MAX_MOVED_PLANS)
     expect(t.movedPlans!.at(-1)!.date).toBe('2026-02-04')
+  })
+})
+
+describe('planTraces', () => {
+  const ev = task('a', { kind: 'event', scheduledDate: TODAY, startTime: '10:00', endTime: '11:00' })
+  const at = (hm: string) => fromAppWall(new Date(`${TODAY}T${hm}:00`)).toISOString()
+
+  it('始まってから消した予定は、その位置を「やめた」（to: null）として足す', () => {
+    expect(planTraces({ ...ev, deletedAt: at('10:30') })).toEqual([{ date: TODAY, startTime: '10:00', endTime: '11:00', to: null }])
+    expect(cancelledAfterStart({ ...ev, deletedAt: at('09:30') })).toBe(false)
+    expect(planTraces({ ...ev, deletedAt: at('09:30') })).toEqual([])
+  })
+
+  it('アーカイブしたもの・完了した To-Do・時刻の無いものは消しても跡にしない', () => {
+    expect(planTraces({ ...ev, deletedAt: at('10:30'), archivedAt: at('10:30') })).toEqual([])
+    expect(planTraces({ ...ev, kind: 'todo', completed: true, deletedAt: at('10:30') })).toEqual([])
+    expect(planTraces({ ...ev, startTime: null, endTime: null, deletedAt: at('10:30') })).toEqual([])
+  })
+})
+
+describe('movedPlansOnDay: 同じ日の中でずらしたもの', () => {
+  it('同じ日の中でずらしたものは今の時刻の予定で数えるので入れない', () => {
+    const plan = { date: TODAY, startTime: '10:00', endTime: '11:00', to: TODAY }
+    expect(movedPlansOnDay([task('a', { scheduledDate: TODAY, startTime: '14:00', endTime: '15:00', movedPlans: [plan] })], TODAY)).toEqual(
+      [],
+    )
+    const away = task('b', { scheduledDate: '2026-10-04', movedPlans: [{ ...plan, to: '2026-10-04' }] })
+    expect(movedPlansOnDay([away], TODAY)).toHaveLength(1)
   })
 })
 

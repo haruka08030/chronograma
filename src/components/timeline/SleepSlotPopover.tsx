@@ -21,6 +21,7 @@ import { TimeInput } from '../TimeInput'
 import { fieldClass } from '../ui/fieldClass'
 import { SleepBar, SleepMoonIcon } from '../SleepTimesField'
 import { CardActions } from './CardActions'
+import { timeRange } from '../../lib/timeRange'
 
 const WIDTH = 300
 
@@ -54,7 +55,7 @@ export function SleepSlotPopover({ wakeDate, anchor, onClose }: { wakeDate: stri
   const date = shortDate(wakeDate)
   const setTimes = (bed: string, wake: string) => {
     if (bed === wake) return
-    setSleepPlanDay(wakeDate, { bed, wake }, { key: 'undo.sleepDayTime', params: { date, time: `${bed}–${wake}` } })
+    setSleepPlanDay(wakeDate, { bed, wake }, { key: 'undo.sleepDayTime', params: { date, time: timeRange(bed, wake) } })
   }
   // タイムラインの ✓ と同じ: 起きる時刻を過ぎてから（寝ている間に先の時刻まで睡眠にしない）
   const limit = logLimitAt(now)(wakeDate)
@@ -113,7 +114,7 @@ export function SleepSlotPopover({ wakeDate, anchor, onClose }: { wakeDate: stri
               onClick={() => setSleepPlanDay(wakeDate, undefined, { key: 'undo.sleepDayUsual', params: { date } })}
               className={buttonClass({ variant: 'link', size: 'xs' }, '-ml-2.5 mt-1')}
             >
-              {t('sleepSlot.backToUsual', { time: `${usual.bed}–${usual.wake}` })}
+              {t('sleepSlot.backToUsual', { time: timeRange(usual.bed, usual.wake) })}
             </button>
           )}
           <CardActions

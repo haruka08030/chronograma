@@ -11,7 +11,8 @@
 | [`UI_CONSISTENCY.md`](./UI_CONSISTENCY.md) | 同じ役割の色・見た目・挙動を共有している部品 |
 | [`IDEAS.md`](./IDEAS.md) | まだ作業に分けていないアイデアと方向性 |
 | [`PUBLISHING.md`](./PUBLISHING.md) | 公開の手順・秘密と環境変数の一覧 |
-| ルート `README.md` | プロジェクト概要・起動手順・Supabase と通知の手順 |
+| [`SETUP.md`](./SETUP.md) | Supabase・バックアップ・通知・Google・Notion の設定の手順 |
+| ルート `README.md` | プロジェクト概要・設計の全体像・起動手順 |
 | 本ファイル | ファイルの地図と、保存・同期・DB・運用の技術的な事実 |
 
 具体的な作業は GitHub の Issue。挙動は `RULES.md` を正とし、ここには書かない。
@@ -75,7 +76,7 @@
 | `CompletedTasksView.tsx`・`TaskBinView.tsx` | 完了済み・アーカイブ済み / ゴミ箱 |
 | `SettingsView.tsx`・`settings/`・`DailyRhythmSettings.tsx`・`InstallAppSection.tsx`・`AccountMenu.tsx` | 設定（`settings/SettingsPrimitives.tsx` の部品、データ・連携・記録の書き出し・自動バックアップ・タイムゾーン・フィードバック） |
 | `addons/` | 追加機能の画面（`AddonsView`）と機能ごとのページ（期限の日・学校の学期と授業） |
-| `help/` | 使い方（`HelpGuide`。`openHelp` で開き、中身は文言の `help.sections`） |
+| `help/` | 使い方（`HelpGuide`。検索・記事の一覧・記事。`openHelp` で開き、中身は文言の `help.sections`） |
 | `labels/` | ラベル（色に付けた名前）の選び方・パレット・ラベルの画面 |
 | `ui/` | 共有の部品（`Menu`・`Modal`・`SideSheet`・`ConfirmDialog`・`CompletionCircle`・`DueChip`・`DayRow`・`Segmented`・`Tooltip`・`ErrorBoundary`・`OverlaySuspense` と `*Class.ts` の見た目） |
 | `TaskContextMenu.tsx`・`ListContextMenu.tsx`・`TimeSlotMenu.tsx`・`DueDatePopover.tsx`・`DueDateTimeMenu.tsx`・`DateField.tsx`・`DatePickerBody.tsx`・`TimeInput.tsx`・`TimeZonePicker.tsx`・`TaskTimeZoneField.tsx`・`TaskRemindersField.tsx`・`RepeatWeekdays.tsx`・`ListKindPicker.tsx`・`ListSectionHeading.tsx` | メニューと入力の部品 |
@@ -106,7 +107,7 @@
 | 連携 | Google（`googleCalendar.ts`・`googlePush.ts`・`googlePushQueue.ts`・`googleEvent*.ts`・`googleDeleted.ts`）、Notion（`notion.ts`）、Canvas・Moodle（`canvas.ts`・`canvasIds.ts`・`canvasSubmitted.ts`）、送り待ち（`integrationWrites.ts`・`writeBackQueue.ts`）、つなぎ直し（`integrationReconnect.ts`） |
 | 通知 | `notifications.ts`・`localReminders.ts`・`webPush.ts`・`timerEndAlert.ts`・`notificationLaunch.ts`・`notificationCleanup.ts` |
 | タスクと時間 | `taskTimeRange.ts`・`taskLifecycle.ts`・`taskDefaults.ts`・`recurrence.ts`・`eventSeries.ts`・`movedPlans.ts`・`carryDays.ts`・`estimate.ts`・`parseQuickAdd.ts`・`quickAddTask.ts`・`listKind.ts`・`listTree.ts`・`foldTaskFolders.ts`・`somedayTier.ts`・`searchTasks.ts` |
-| 計画と記録 | `dayPlan.ts`・`plannedItemUtils.ts`・`matchEvents.ts`・`weekReview.ts`・`freeSlots.ts`・`slotFitTodo.ts`・`timerLength.ts`・`timerRecord.ts`・`sleep.ts`・`sleepTimer.ts`・`vagueLog.ts`・`logCategory.ts`・`logCategoryColors.ts`・`recordExport.ts`・`reviewImage.ts` |
+| 計画と記録 | `dayPlan.ts`・`plannedItemUtils.ts`・`matchEvents.ts`・`weekReview.ts`・`freeSlots.ts`・`slotFitTodo.ts`・`timerLength.ts`・`timerRecord.ts`・`sleep.ts`・`sleepTimer.ts`・`logCategory.ts`・`logCategoryColors.ts`・`recordExport.ts`・`reviewImage.ts` |
 | 習慣 | `habitTiming.ts`・`habitSchedule.ts`・`habitStats.ts`・`habitDraft.ts`・`habitPastRules.ts`・`habitSlots.ts`・`habitSuggest.ts`・`routineDrift.ts` |
 | タイムライン・DnD | `overlapLayout.ts`・`planVisual.ts`・`timeGrid.ts`・`useTimelineDrag.ts`・`useTimelineDrop.ts`・`dragEnd.ts`・`dndCollision.ts`・`subtaskDnD.ts`・`listDnD.ts`・`taskDepth.ts`・`taskDragIntent.ts`・`appTouchSensor.ts` |
 | 色・日付・タイムゾーン | `googleColors.ts`・`colorMath.ts`・`dateKey.ts`・`dateFormat.ts`・`timeZone.ts`・`taskTimeZone.ts`・`wallTime.ts`・`appClock.ts`・`weekStart.ts`・`japaneseHolidays.ts` |
@@ -186,7 +187,7 @@
 
 - 正本は `001_chronograma_schema.sql`（`lists` / `list_sections` / `tasks` / `habits` / `user_settings` / `user_extra_time_zones` / `push_subscriptions` / `google_oauth` / `notion_connection` / `canvas_connection` / `edge_rate_limits`、索引・トリガー・関数・RLS）と番号順のファイル。一覧と短い説明は `supabase/migrations/README.md`
 - どれも何度流しても同じ形。変更は新しい番号のファイルで足し、コミット済みのファイルは書き換えない。本番は `supabase db push --linked`（先に `--dry-run`）
-- ルート `README.md` の Supabase 節は本節と `migrations/README.md` に合わせる
+- `SETUP.md` の Supabase 節は本節と `migrations/README.md` に合わせる
 
 ### 書き込みの確かめ
 
@@ -204,7 +205,7 @@
 
 - 種類: 端末は `Task.kind`（`'todo'` / `'event'` / `'log'` / `'sleep'`、`src/types/task.ts`）。サーバーと前の版のバックアップは印 `is_time_log`・`is_sleep`・`is_event`（`014`）で持ち、`supabaseData.ts`・`backupFormat.ts` で相互に直す（書き出しは `kind` と印の両方）
 - ラベル: `tasks.category`（記録のラベル名。前の版の端末のため記録の `tags` にも同じ名前を 1 つ写す、`lib/taskDefaults.ts` の `withLogCategory`）・`tasks.color`・`tasks.label_id`（`033`、端末は `Task.labelId`）。この版は `label_id_sent` を付けて送り、付けない書き込みが `category` / `color` を変えるとトリガー `tasks_label_id_guard` が `label_id` を外す
-- そのほか: `estimate_minutes`（`015`）・`source_task_id`（`016`、▶ で始めた記録の元）・`event_series`（`027`、毎週の予定の印 `{ id, weekdays, until, skipHolidays }`。端末は `series`）・`moved_plans`（`032`、`[{ date, startTime, endTime, to }]`、`lib/movedPlans.ts`）・`someday_tier`（`034`、`'dream'` か null、`lib/somedayTier.ts`）・`carried_days`（`037`、`lib/carryDays.ts`）・`dream_id`（`040`、夢の一歩から作った To-Do の元の夢）・`is_vague`（`051`、「なんとなく」の記録。端末は `vague`、`lib/vagueLog.ts`）
+- そのほか: `estimate_minutes`（`015`）・`source_task_id`（`016`、▶ で始めた記録の元）・`event_series`（`027`、毎週の予定の印 `{ id, weekdays, until, skipHolidays }`。端末は `series`）・`moved_plans`（`032`、`[{ date, startTime, endTime, to }]`、`lib/movedPlans.ts`）・`someday_tier`（`034`、`'dream'` か null、`lib/somedayTier.ts`）・`carried_days`（`037`、`lib/carryDays.ts`）・`dream_id`（`040`、夢の一歩から作った To-Do の元の夢）
 - 項目ごとの合わせ方で、前回同期のときにどの行も持っていなかった `series` / `movedPlans` などは「無い」値として比べる（`syncMerge.ts` の `ABSENT_WHEN_EMPTY`）
 
 ### `habits` の列
@@ -222,7 +223,7 @@
 | `user_course_links.links` | 授業の予定の名前と LMS の科目のつながり（`024`、`lib/courseLinks.ts` の `planCourseLinkSync`） |
 | `user_timetable.timetable` | 時間割（`027`。時限・学期・祝日を除くか・前の版の欠席 `absences` / `absenceLimits`。`lib/timetable.ts` の `planTimetableSync`。一度も変えていない既定の値は送らない） |
 | `user_addons.addons` | 追加機能（`041`）: `{ enabled, dues, googleSkip, absenceCourses, school, googleEventColors }`。`googleEventColors` は Google の予定にアプリで付けた色 `{ "e:<予定 ID>" / "s:<繰り返し ID>": { hex, title } }`（`lib/googleEventColors.ts`。手元はストアの `googleEventColors` で、送る・届くときに `addonsWithEventColors`・`splitEventColors`）。`dues` は `[{ id, title, date, repeat: none / monthly / yearly, notifyDays }]`（`lib/dues.ts`）、`school` は学期と授業 `{ terms: [{ id, name, termStart, termEnd, absences, absenceLimits, courses, hidden }] }`（`lib/schoolTerms.ts`。null なら時間割と前の版の `absenceCourses` から 1 つめの学期 `LEGACY_TERM_ID` を作って見せる `schoolOf`、欠席の数は `courseAttendance`）。判定は `lib/addons.ts` の `isAddonOn`・画面は `useAddonOn`、同期は `planAddonsSync`（知らない項目は残して送る） |
-| `user_active_timer` | 動いているタイマー（`019`、`started_at` が null なら止まっている。`ends_at` は「あと何分」の終わり `028`、前の版のアプリが替えたらトリガー `user_active_timer_clear_ends_at` が null に。`vague_for` は「なんとなく」にしたタイマーの始めた時刻 `051`、`started_at` と同じときだけ「なんとなく」）。同期は `lib/timerSync.ts` の `planActiveTimerSync`、手元の時刻は `activeTimerUpdatedAt` |
+| `user_active_timer` | 動いているタイマー（`019`、`started_at` が null なら止まっている。`ends_at` は「あと何分」の終わり `028`、前の版のアプリが替えたらトリガー `user_active_timer_clear_ends_at` が null に）。同期は `lib/timerSync.ts` の `planActiveTimerSync`、手元の時刻は `activeTimerUpdatedAt` |
 | `user_sleep_timer` | 睡眠のタイマー（`043`、`started_at` が null なら寝ていない。`lib/sleepTimerSync.ts`） |
 | `user_skipped_events.events` | やらなかった予定（`045`、`lib/skippedEvents.ts` の `mergeSkipped`） |
 | `day_moods` | 1 日の気分とひとこと（`025`、主キー `(user_id, day)`、`mood` は 1〜5 か null、行は消さない。トリガー `day_mood_write_guard`。同期は `lib/dayMood.ts` の `runDayMoodSync`、手元は `dayMoods[日付]` の `updatedAt` / `syncedAt`） |
@@ -231,7 +232,7 @@
 
 - `google_oauth` / `notion_connection` / `canvas_connection` はクライアント向けポリシーなし（Edge Function が service_role で読み書き）。`google_oauth.access_token` / `access_token_expires_at`（`039`）はアクセストークンの使い回し
 - トークンの列（`google_oauth.refresh_token` / `access_token`・`notion_connection.token`・`canvas_connection.token` / `feed_url`）は `enc:v2:<鍵の名前>:` で始まる AES-GCM の暗号文（`_shared/secretBox.ts`。今の鍵 `TOKEN_ENCRYPTION_KEY`、前の鍵 `TOKEN_ENCRYPTION_PREVIOUS_KEYS` は開くときだけ、鍵の名前は鍵から決まる 8 桁の 16 進、追加データは表・列・利用者。`enc:v1:` は今の鍵・前の鍵の順に試す）。今の鍵の `enc:v2:` でない値は読んだときに閉じ直し、読まれない行は `daily-reminders` が回の終わりに表ごと 100 行まで閉じ直す（`_shared/tokenSweep.ts`）。平文は閉じ直す処理のほかでは開かない（`PlaintextSecretError`）
-- Web Push: pg_cron が 5 分ごとに Edge Function `daily-reminders` を `x-cron-secret` 付きで呼ぶ（`net.http_post` の `timeout_milliseconds := 60000`、秘密は Vault。手順はルート `README.md` の「通知」）。何をいつ出すかは `daily-reminders/schedule.ts`（純粋関数、サーバーとブラウザで共有）
+- Web Push: pg_cron が 5 分ごとに Edge Function `daily-reminders` を `x-cron-secret` 付きで呼ぶ（`net.http_post` の `timeout_milliseconds := 60000`、秘密は Vault。手順は `SETUP.md` の「通知」）。何をいつ出すかは `daily-reminders/schedule.ts`（純粋関数、サーバーとブラウザで共有）
   - 送る時間は前の成功の回から今まで（上限 60 分。`reminder_runs`（`012`、1 行、service_role だけ）の `last_ok_at`、失敗が 1 つでもあった回は進めない）。送った通知は購読ごとの `reminder_sent`。前の回が走っている間（`running_since`、10 分より古ければ取り直す）は何もしない。幅と記録は `daily-reminders/batch.ts` の `runWindowStart` / `runFinishPatch`
   - 回の終わりに時刻・数・最後の失敗を残す（`021`、`runStatsPatch`）。プッシュサービスが 403 を返して消した購読は `last_key_mismatch`（`046`、`runKeyMismatchPatch`）。端末は購読の `applicationServerKey` が今の `VITE_VAPID_PUBLIC_KEY` と違えば購読し直す（`webPush.ts` の `subscribedWithKey`）
   - 購読・タスクは 1000 行ずつキーの順に読む（`batch.ts` の `fetchAllAfter`、offset は使わない）。未完了のタスクは部分索引 `tasks_reminder_open_idx`（`026`）と同じ条件。購読の `endpoint` はプッシュサービスの URL だけ（`_shared/pushEndpoint.ts`）

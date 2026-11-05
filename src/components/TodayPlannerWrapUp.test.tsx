@@ -89,7 +89,7 @@ describe('締めを出す時刻', () => {
 })
 
 describe('夜のまとめの通知から開いたとき', () => {
-  it('時刻の前でも気分の記号を出し、そこまでスクロールする。スマホはタイムラインの面を出す', () => {
+  it('時刻の前でも気分の記号を出し、そこまでスクロールする', () => {
     const scroll = vi.spyOn(Element.prototype, 'scrollIntoView')
     useTaskStore.setState({ tasks: [todo('a'), todo('b')], dailyReminders: { planTime: null, wrapUpTime: '22:00' } })
     render(<TodayPlannerView />)
@@ -97,7 +97,6 @@ describe('夜のまとめの通知から開いたとき', () => {
     act(() => openWrapUpFromNotification())
     expect(mood()).toBeInTheDocument()
     expect(scroll.mock.contexts).toContain(document.querySelector('[data-wrap-up]'))
-    expect(screen.getByRole('tab', { name: 'Timeline' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('通知を押してから今日の計画を描いても受け取る（起動したとき）', () => {

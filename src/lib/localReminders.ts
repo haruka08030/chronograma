@@ -30,6 +30,7 @@ import { fromDateKey, toDateKey } from './dateKey'
 import { formatDate } from './dateFormat'
 import { addDays } from 'date-fns'
 import { minutesOfDay } from './clockTime'
+import { timeRange } from './timeRange'
 
 const STATE_KEY = 'chronograma-local-reminders'
 /** 閉じていた間の通知はまとめて出さない（開いた瞬間に昔の通知が並ばないように） */
@@ -140,7 +141,7 @@ async function show(n: Shown, onClick: () => void) {
 }
 
 function range(start: string | null, end: string | null): string {
-  return end ? `${start} – ${end}` : (start ?? '')
+  return end ? timeRange(start, end) : (start ?? '')
 }
 
 function dayLabel(date: string, today: string): string {

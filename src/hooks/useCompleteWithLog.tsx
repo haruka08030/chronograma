@@ -12,6 +12,7 @@ import { closeTaskNotifications } from '../lib/notificationCleanup'
 import type { CalendarEvent } from '../types/calendarEvent'
 import { googleEventTiming } from '../lib/googleCalendar'
 import { htmlToPlainText } from '../lib/linkify'
+import { appTimeZone, instantFromWall } from '../lib/timeZone'
 
 /** `openRecordPrompt` に Google の予定を渡すときの id（タイムラインのブロックと同じ `event-` 付き） */
 export const googleRecordPromptId = (eventId: string) => `event-${eventId}`
@@ -69,19 +70,12 @@ export function useCompleteWithLog() {
     const endDateArg = draft.endDate !== draft.date ? draft.endDate : null
     // 記録を足して完了にする 1 つの操作なので、元に戻すも 1 回で両方戻す。予定は記録を足すだけ（完了が無い）
     useTaskStore.getState().asOneUndo(() => {
-      addTimeLog(
-        title,
-        draft.date,
-        draft.startTime,
-        draft.endTime,
-        draft.tags,
-        memo || undefined,
-        endDateArg,
-        draft.color,
-        null,
-        draft.vague,
-      )
-      if (!draft.fromEvent) toggleTask(draft.taskId)
+      addTimeLog(title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
+      // 完了の時刻は記録の終わり（今より先なら今）。押した今にすると、過ぎた日の予定は今日へ移って予定の日から消える
+      if (!draft.fromEvent) {
+        const end = Math.min(instantFromWall(draft.endDate, draft.endTime, appTimeZone()), Date.now())
+        toggleTask(draft.taskId, new Date(end).toISOString())
+      }
     })
     // 記録した件の通知（記録の確認・開始前）を通知センターから閉じる。予定は完了にならないのでここで閉じる
     void closeTaskNotifications(draft.taskId)

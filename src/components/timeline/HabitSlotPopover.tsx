@@ -30,6 +30,7 @@ import { durationMinutesForTaskSlot } from '../../lib/taskTimeRange'
 import { isLogTask } from '../../types/task'
 import { requestHabitEdit } from '../../lib/habitEditRequest'
 import { CardActions } from './CardActions'
+import { timeRange } from '../../lib/timeRange'
 
 const WIDTH = 300
 
@@ -172,7 +173,7 @@ export function HabitSlotPopover({
           <p className="break-words text-lg leading-snug text-zinc-900 dark:text-zinc-100">{habit.title}</p>
           <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
             {df.monthDayWeekdayLong(dateKey)}
-            {times && ` · ${isPointHabitOn(habit, dateKey) ? times.startTime : `${times.startTime} – ${times.endTime}`}`}
+            {times && ` · ${isPointHabitOn(habit, dateKey) ? times.startTime : timeRange(times.startTime, times.endTime)}`}
           </p>
           <CardActions
             complete={
@@ -207,7 +208,7 @@ export function HabitSlotPopover({
           {records.length > 0 && (
             <ul className="mt-2 space-y-0.5">
               {records.map((r) => {
-                const time = `${r.startTime}–${r.endTime}`
+                const time = timeRange(r.startTime, r.endTime)
                 const minutes = durationMinutesForTaskSlot(r)
                 return (
                   <li key={r.id} className="-ml-2 flex items-center gap-1">

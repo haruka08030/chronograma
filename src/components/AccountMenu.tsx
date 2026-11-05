@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useDismiss } from '../hooks/useDismiss'
+import { useFitInViewport } from '../hooks/useFitInViewport'
 import { POPOVER_PANEL } from './ui/surface'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
@@ -87,7 +88,8 @@ export function AccountMenu() {
     return () => window.removeEventListener('pageshow', onPageShow)
   }, [])
   const wrapRef = useRef<HTMLDivElement>(null)
-  const panelExit = useExitGhost()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const panelExit = useExitGhost(panelRef)
   // 欄を自分で閉じた・設定から離れたら、開き直してもコードの欄へ連れ戻さない（コードは開けば打てる）
   const closeSignIn = () => {
     dismissPendingEmailCode('signIn')
@@ -95,6 +97,13 @@ export function AccountMenu() {
   }
   // コードを待つ間は、外を押しても Esc でも閉じない（打つ前に閉じて最初から、にしない）。閉じるのは「ログイン」をもう一度押したとき
   useDismiss({ open: open && !codeSentTo, onClose: closeSignIn, inside: [wrapRef] })
+  // 親の枠で切れないよう fixed で画面の中に置く（低い画面では面の中でスクロール）
+  useFitInViewport(panelRef, {
+    anchor: () => wrapRef.current?.getBoundingClientRect() ?? null,
+    placement: 'below',
+    gap: 8,
+    disabled: !open,
+  })
   const openRef = useRef(open)
   const reauthRef = useRef(reauth)
   useEffect(() => {
@@ -366,7 +375,7 @@ export function AccountMenu() {
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない） */}
           <div
             ref={panelExit}
-            className={`absolute top-full left-0 z-50 mt-2 w-[min(100vw-2rem,20rem)] origin-top-left p-3 ${POPOVER_PANEL}`}
+            className={`fixed left-0 top-0 z-50 w-[min(100vw-2rem,20rem)] p-3 ${POPOVER_PANEL}`}
             onClick={(e) => e.stopPropagation()}
           >
             <p className={`mb-1 text-sm font-medium ${PHRASE_WRAP}`}>{t('account.tagline')}</p>

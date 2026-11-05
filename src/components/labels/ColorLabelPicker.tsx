@@ -32,7 +32,6 @@ export function ColorLabelPicker({
       defaultHex={color.defaultHex}
       compact={compact}
       label={rowLabel}
-      vague={color.vague ?? undefined}
     />
   )
 }

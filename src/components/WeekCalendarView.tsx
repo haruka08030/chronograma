@@ -63,6 +63,7 @@ import { useWeekStartsOn } from '../hooks/useWeekStartsOn'
 import { calendarWeekDays } from '../lib/weekStart'
 import { useDayLoads } from '../hooks/useDayLoads'
 import { canEditGoogleEvent } from '../lib/googleEventEdit'
+import { timeRange } from '../lib/timeRange'
 
 const NO_TASKS: Task[] = []
 const NO_EVENTS: CalendarEvent[] = []
@@ -469,7 +470,7 @@ export function WeekCalendarView({
       updateTask(
         taskId,
         { scheduledDate: dateKey, startTime, endTime, kind: planKindOf(task) },
-        { key: 'undo.blockPlaced', params: { title: task.title, date: shortDate(dateKey), time: `${startTime}–${endTime}` } },
+        { key: 'undo.blockPlaced', params: { title: task.title, date: shortDate(dateKey), time: timeRange(startTime, endTime) } },
       )
     },
     [addTimeLog, updateTask],

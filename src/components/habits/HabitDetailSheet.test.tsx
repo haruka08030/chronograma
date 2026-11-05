@@ -39,7 +39,7 @@ describe('タイムラインから開いた習慣の編集（#621）', () => {
   it('上にその日の時間と「時間を変える」を出し、押すとその場で直す欄を開く', async () => {
     open('2026-10-30')
     expect(screen.getByText(/^Time on /)).toBeInTheDocument()
-    expect(screen.getByText('12:10 – 13:00')).toBeInTheDocument()
+    expect(screen.getByText('12:10–13:00')).toBeInTheDocument()
     await userEvent.setup().click(screen.getByRole('button', { name: 'Change time' }))
     // 直す欄と編集のフォームで、保存・キャンセルが 2 組になる
     expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(2)

@@ -406,16 +406,15 @@ body {
 }
 
 /*
- * 「なんとなく」の時間（#657。なんとなくの記録と、ふりかえりの棒の記録なしの時間）: 灰の斜線＋灰の縁。
- * ドロップダウンの丸・タイムラインの枠・ふりかえりの棒で同じ印にし、ほかの意味には使わない
+ * ふりかえりの棒の記録の無い時間: 灰の斜線＋灰の縁。ほかの意味には使わない
  */
-.gc-vague {
+.gc-unrecorded {
   background-color: var(--gc-surface);
   background-image: repeating-linear-gradient(135deg, color-mix(in srgb, #9e9e9e 55%, transparent) 0 1.5px, transparent 1.5px 5px);
   border: 1px solid color-mix(in srgb, #9e9e9e 85%, var(--gc-surface));
   color: color-mix(in srgb, #9e9e9e 25%, var(--gc-ink));
 }
-.dark .gc-vague {
+.dark .gc-unrecorded {
   background-image: repeating-linear-gradient(135deg, color-mix(in srgb, #a1a1aa 45%, transparent) 0 1.5px, transparent 1.5px 5px);
   border-color: #71717a;
   color: #e4e4e7;
@@ -479,9 +478,25 @@ button:not(:disabled):has(> svg:only-child):active {
   scale: 0.9;
 }
 
+/* タッチのときだけ、見た目を変えずに押せる範囲を 44px に広げる（小さいボタン・行の中のボタン） */
+@media (pointer: coarse) {
+  .touch-hit:not(.absolute, .fixed, .sticky) {
+    position: relative;
+  }
+  .touch-hit::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 2.75rem);
+    height: max(100%, 2.75rem);
+    transform: translate(-50%, -50%);
+  }
+}
+
 /* 記録中は浮くタイマーが画面の下に重なる。スクロールする面の下に余白を足し、一番下の行まで出せるようにする（@layer の外で、各所の pb-* より優先） */
 html[data-timer-open] .timer-safe {
-  padding-bottom: 6rem;
+  padding-bottom: calc(var(--floating-timer-h, 4.5rem) + 1.5rem);
 }
 
 /* 行を選んでいる間の下のバー（SelectionBar）も同じ。タイマーと重なると 2 段になる */
@@ -489,5 +504,5 @@ html[data-selection-open] .timer-safe {
   padding-bottom: 6rem;
 }
 html[data-timer-open][data-selection-open] .timer-safe {
-  padding-bottom: 10rem;
+  padding-bottom: calc(var(--floating-timer-h, 4.5rem) + 5.5rem);
 }

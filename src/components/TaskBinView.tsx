@@ -240,7 +240,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                 <button
                   type="button"
                   onClick={() => restoreDeletedHabits([h.id])}
-                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  className="touch-hit inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
                   {...tip(restoreLabel, { name: true })}
                 >
                   <PathIcon d={RESTORE_ICON} className="h-4 w-4" />
@@ -328,7 +328,7 @@ export function TaskBinView({ mode }: { mode: BinMode }) {
                       e.stopPropagation()
                       restore([task.id])
                     }}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    className="touch-hit inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
                     {...tip(restoreLabel, { name: true })}
                   >
                     <PathIcon d={RESTORE_ICON} className="h-4 w-4" />

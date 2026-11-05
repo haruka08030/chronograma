@@ -14,6 +14,7 @@ import { useNowMinutes } from '../../hooks/useAppClock'
 import { toastTitle } from '../../lib/undoWindow'
 import { HOUR_HEIGHT } from '../../lib/timeGrid'
 import { tip } from '../../lib/tooltip'
+import { timeRange } from '../../lib/timeRange'
 
 /**
  * はじめの案内の間（PC の今日の計画のタイムライン）: 時間の決まっていない To-Do しかないとき、今より後の最初の空き時間に
@@ -67,16 +68,13 @@ export function OnboardingPlaceSlot({ dateKey, splitLanes }: { dateKey: string; 
         updateTask(
           slot.task.id,
           { scheduledDate: dateKey, startTime, endTime },
-          t('undo.timeSet', { title: toastTitle(slot.task.title), time: `${startTime}–${endTime}` }),
+          t('undo.timeSet', { title: toastTitle(slot.task.title), time: timeRange(startTime, endTime) }),
         )
       }
     >
       <span className="min-w-0 truncate">
         <span className="font-medium">{t('onboarding.placeHereShort')}</span>
-        <span className="tabular-nums">
-          {' '}
-          {startTime}–{endTime}
-        </span>
+        <span className="tabular-nums"> {timeRange(startTime, endTime)}</span>
       </span>
     </button>
   )

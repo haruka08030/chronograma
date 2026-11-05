@@ -102,8 +102,6 @@ export function labelForHex(
 export interface LogLabel {
   tags: string[]
   color: string | null
-  /** 「なんとなく」（#657）。true のときラベル・色は空 */
-  vague?: boolean
 }
 
 /**

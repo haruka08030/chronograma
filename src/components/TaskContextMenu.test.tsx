@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
@@ -69,6 +69,42 @@ describe('TaskContextMenu のラベル', () => {
     await user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Work' }))
     expect(task(a).color).toBe('#D50000')
     expect(task(b).color).toBe('#D50000')
+  })
+})
+
+describe('TaskContextMenu のタグ', () => {
+  it('今あるタグを選ぶと、付いていない行に足す。全部に付いていれば全部から外す', async () => {
+    const user = userEvent.setup()
+    const { a, b } = seed()
+    useTaskStore.getState().updateTask(a, { tags: ['数学', 'ES'] })
+    const { unmount } = renderMenu([a, b])
+    await user.click(screen.getByRole('menuitem', { name: 'Tag' }))
+    await user.click(screen.getByText('数学'))
+    expect(task(a).tags).toEqual(['数学', 'ES'])
+    expect(task(b).tags).toEqual(['数学'])
+    unmount()
+
+    renderMenu([a, b])
+    await user.click(screen.getByRole('menuitem', { name: 'Tag' }))
+    await user.click(screen.getByText('数学'))
+    expect(task(a).tags).toEqual(['ES'])
+    expect(task(b).tags).toEqual([])
+  })
+
+  it('欄に新しいタグを書いて Enter で全部に足す（先頭の # は要らない）。取り消しは 1 回', async () => {
+    const user = userEvent.setup()
+    const { a, b } = seed()
+    renderMenu([a, b])
+    await user.click(screen.getByRole('menuitem', { name: 'Tag' }))
+    await user.type(screen.getByRole('textbox', { name: 'Add tag' }), '#ゼミ{Enter}')
+    expect(task(a).tags).toEqual(['ゼミ'])
+    expect(task(b).tags).toEqual(['ゼミ'])
+    await act(async () => {
+      await Promise.resolve()
+    })
+    useTaskStore.getState().undoLastOperation()
+    expect(task(a).tags).toEqual([])
+    expect(task(b).tags).toEqual([])
   })
 })
 

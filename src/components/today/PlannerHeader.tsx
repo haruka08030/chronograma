@@ -9,11 +9,12 @@ import { appToday } from '../../lib/timeZone'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { RecordPanel } from '../RecordPanel'
 import { SleepRow } from '../SleepRow'
-import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { NOTICE_TONE_CLASS } from '../ui/dueTone'
 import { PAGE_TITLE_CLASS } from '../ui/headingClass'
 import { SUBTLE_TEXT } from '../ui/textClass'
 import { DayMoodBadge } from './DayMood'
 import { useOnboardingFinishedToday } from '../../hooks/useShowsOnboarding'
+import { StatsIcon } from '../icons'
 
 /** 今日の計画の上: 題名と日付・日の移動・睡眠・置いた / 空き・記録のパネル */
 export function PlannerHeader({
@@ -35,6 +36,7 @@ export function PlannerHeader({
 }) {
   const { t } = useTranslation()
   const df = useDateFormat()
+  const selectView = useTaskStore((s) => s.selectView)
   // 案内を終えた日の間も出さない（最初の成功の場面に新しいものを重ねない）
   const onboardingDone = useTaskStore((s) => s.onboardingDone)
   const finishedToday = useOnboardingFinishedToday()
@@ -51,13 +53,24 @@ export function PlannerHeader({
   const showSummary = showFree && !reviewing && plannedMinutes > 0
   // スマホは To-Do を最初の画面に出したいので、上の部分を詰める（日付は題名の横、間隔は狭く）
   return (
-    <header className="px-6 pb-3 pt-4 md:pb-5 md:pt-8">
+    <header className="px-6 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] md:pb-5 md:pt-8">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-baseline gap-2">
           <h1 className={PAGE_TITLE_CLASS}>{viewingToday ? t('planner.todayTitle') : df.monthDayWeekdayLong(date)}</h1>
           {viewingToday && <span className={`truncate md:hidden ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</span>}
         </div>
-        {dayNav}
+        <div className="flex shrink-0 items-center gap-1">
+          {dayNav}
+          {/* スマホだけ統計の入口（記録の延長。PC 幅は左のサイドバーにある） */}
+          <button
+            type="button"
+            onClick={() => selectView('stats')}
+            aria-label={t('sidebar.views.stats')}
+            className="shrink-0 rounded-full p-2 text-zinc-500 touch-manipulation active:bg-zinc-100 md:hidden dark:text-zinc-400 dark:active:bg-zinc-800"
+          >
+            <StatsIcon className="h-5 w-5" strokeWidth={1.75} />
+          </button>
+        </div>
       </div>
       {viewingToday && <p className={`mt-1 hidden md:block ${SUBTLE_TEXT}`}>{df.monthDayWeekdayLong(date)}</p>}
       {/* 朝に入れる睡眠（寝た・起きた時刻）。記録の時間には数えない。
@@ -75,11 +88,11 @@ export function PlannerHeader({
           <span
             {...tip(plannedHint)}
             data-day-free={overCapacity ? 'over' : 'ok'}
-            className={`min-w-0 text-right text-xs tabular-nums ${overCapacity ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
+            className={`min-w-0 text-right text-xs tabular-nums ${overCapacity ? NOTICE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
           >
-            {/* 超えた日は色だけに頼らず「（超過）」の文字も付ける（週の見出しと同じ締切の色） */}
+            {/* 超えた日は濃さと太さに「（超過）」の文字も付ける。締切ではないので赤にしない（週の見出しと同じ） */}
             {t('planner.summaryPlannedFree', { time: plannedTime, free: freeTime })}
-            {overCapacity && ` ${t('planner.overCapacityShort')}`}
+            {overCapacity && t('planner.overCapacityShort')}
             <span className="sr-only"> {plannedHint}</span>
           </span>
         </div>

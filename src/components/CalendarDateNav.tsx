@@ -2,6 +2,7 @@ import { useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { startOfMonth } from 'date-fns'
 import { useDismiss } from '../hooks/useDismiss'
+import { useFitInViewport } from '../hooks/useFitInViewport'
 import { POPOVER_PANEL } from './ui/surface'
 import { GoogleStatusDot } from './GoogleStatusDot'
 import { DayNav } from './ui/DayNav'
@@ -45,6 +46,7 @@ export function CalendarDateNav({
   const listId = useId()
 
   useDismiss({ open, onClose: () => setOpen(false), inside: [panelRef, triggerRef] })
+  useFitInViewport(panelRef, { anchor: () => triggerRef.current?.getBoundingClientRect() ?? null, placement: 'below', disabled: !open })
 
   const periodLabel =
     mode === 'month' ? df.yearMonth(monthCursor) : mode === 'schedule' ? df.monthDayWeekday(selectedDateKey) : df.weekRange(weekAnchor)
@@ -94,8 +96,7 @@ export function CalendarDateNav({
             id={listId}
             role="dialog"
             aria-label={t('calendarHub.miniPickerTitle')}
-            // スマホでは期間の文字が右に寄るので、バーの左端にそろえて画面からはみ出さないようにする
-            className={`absolute left-3 top-full z-50 mt-1 origin-top-left w-[min(100vw-1.5rem,272px)] p-3 sm:left-0 ${POPOVER_PANEL}`}
+            className={`fixed left-0 top-0 z-50 w-[min(100vw-1.5rem,272px)] p-3 ${POPOVER_PANEL}`}
           >
             <DatePickerBody
               value={selectedDateKey}

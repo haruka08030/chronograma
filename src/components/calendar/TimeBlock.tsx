@@ -12,6 +12,7 @@ import { DUE_TONE_CLASS } from '../ui/dueTone'
 import { SKIPPED_EVENT_CLASS } from '../ui/rowStateClass'
 import { dueToneOf } from '../../lib/dueTone'
 import { blockGeometry, type TimeBlockTask } from './timeBlockGeometry'
+import { timeRange } from '../../lib/timeRange'
 
 /**
  * タイムライン上の 1 ブロック（Google カレンダー風）。
@@ -28,7 +29,6 @@ export function TimeBlock({
   onTap,
   isLog,
   sleep,
-  vague,
   hStyle,
   colorHex,
   withCheck,
@@ -51,8 +51,6 @@ export function TimeBlock({
   isLog?: boolean
   /** 睡眠の記録。色の付いた記録と並べても目立たない、落ち着いた帯にする */
   sleep?: boolean
-  /** 「なんとなく」の記録（#657）。灰の斜線の枠（`gc-vague`） */
-  vague?: boolean
   /** 重なり回避の横位置（left/width） */
   hStyle?: React.CSSProperties
   /** 予定はリストの色、記録は分類の色、外部の予定は Google の青 */
@@ -74,7 +72,7 @@ export function TimeBlock({
   // 記録（実績）は分類の色、予定はその色で、どちらも薄い塗り＋枠。予定は終わったら（完了・未完了とも）グレー
   // Google の予定（外部）も予定と同じ見せ方
   const state = !isLog && dayKey ? planVisualState(task, dayKey) : 'upcoming'
-  const variant = sleep ? 'gc-sleep' : vague ? 'gc-vague' : isLog ? 'gc-plan' : planTileClass(state, colorHex)
+  const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : planTileClass(state, colorHex)
   const moon = sleep && <MoonSolidIcon className="mr-1 inline h-3 w-3 -translate-y-px" />
   // 締切がこの日まで（過ぎた・この予定では間に合わなければ赤、当日は黄）の予定は、題名の前に締切の →| を付ける（先の締切は出さない）（予定を入れても締切を見失わない）
   const dueTone =
@@ -91,7 +89,7 @@ export function TimeBlock({
   const compact = height < 32
   const tight = height < 20
   const bare = height < 13
-  const timeLabel = `${task.title}  ${task.startTime} – ${endLabel}`
+  const timeLabel = `${task.title}  ${timeRange(task.startTime, endLabel)}`
 
   return (
     <button
@@ -219,9 +217,7 @@ export function CreateGhost({
       style={{ top, height, ...colorVars(NEUTRAL_HEX) }}
     >
       <span className="block font-medium">{t('quickCreate.untitled')}</span>
-      <span className="block text-[10px] opacity-80">
-        {popup.startTime} – {popup.endTime}
-      </span>
+      <span className="block text-[10px] opacity-80">{timeRange(popup.startTime, popup.endTime)}</span>
     </div>
   )
 }

@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useFitInViewport } from '../hooks/useFitInViewport'
 import { useDismiss } from '../hooks/useDismiss'
 import { useDragEdgeScroll } from '../hooks/useDragEdgeScroll'
 import { POPOVER_PANEL } from './ui/surface'
@@ -137,7 +139,7 @@ function SortableListItem({
           e.stopPropagation()
           onColorPick()
         }}
-        className="flex h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 items-center justify-center touch-manipulation md:-mx-px md:h-3.5 md:w-3.5 md:min-h-[14px] md:min-w-[14px]"
+        className="touch-hit flex h-5 w-5 min-h-[20px] min-w-[20px] shrink-0 items-center justify-center touch-manipulation md:-mx-px md:h-3.5 md:w-3.5 md:min-h-[14px] md:min-w-[14px]"
         style={{ color: list.color }}
         aria-label={t('sidebar.changeListColor')}
         tabIndex={-1}
@@ -161,7 +163,7 @@ function SortableListItem({
           {...attributes}
           {...listeners}
           type="button"
-          className="touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
+          className="touch-hit touch-none shrink-0 cursor-grab rounded p-1.5 active:cursor-grabbing md:p-0.5"
           tabIndex={-1}
           {...tip(t('sidebar.reorderList'), { name: true })}
           onClick={(e) => e.stopPropagation()}
@@ -335,30 +337,39 @@ function SubNavRow({ label, selected, onClick }: { label: string; selected: bool
 function ColorPicker({ current, onChange, onClose }: { current: string; onChange: (c: string) => void; onClose: () => void }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
+  const anchorRef = useRef<HTMLSpanElement>(null)
   const exitRef = useExitGhost(ref)
   const swatches = useLabeledSwatches()
   useDismiss({ open: true, onClose, inside: [ref] })
+  // 開いた所はリストの行の下の端。ナビの枠で切れないよう面は body に置く
+  useFitInViewport(ref, { anchor: () => anchorRef.current?.getBoundingClientRect() ?? null, placement: 'below', gap: 6 })
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
-    <div
-      ref={exitRef}
-      className={`absolute left-0 top-full z-[100] mt-1.5 origin-top-left w-max max-w-[calc(100vw-2rem)] p-2 ${POPOVER_PANEL}`}
-      onClick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-label={t('sidebar.listColorDialog')}
-    >
-      {/* 記録のラベルと同じ Google カレンダーの 24 色（色選びはどこでも同じ部品） */}
-      <ColorSwatches
-        ariaLabel={t('sidebar.listColorDialog')}
-        columns={6}
-        selectedHex={current}
-        swatches={swatches}
-        onChoose={(hex) => {
-          onChange(hex)
-          onClose()
-        }}
-      />
-    </div>
+    <>
+      <span ref={anchorRef} aria-hidden className="absolute left-0 top-full h-0 w-0" />
+      {createPortal(
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 外へクリックを伝えないだけ（押して何かする部品ではない）
+        <div
+          ref={exitRef}
+          className={`fixed left-0 top-0 z-[100] w-max max-w-[calc(100vw-2rem)] p-2 ${POPOVER_PANEL}`}
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-label={t('sidebar.listColorDialog')}
+        >
+          {/* 記録のラベルと同じ Google カレンダーの 24 色（色選びはどこでも同じ部品） */}
+          <ColorSwatches
+            ariaLabel={t('sidebar.listColorDialog')}
+            columns={6}
+            selectedHex={current}
+            swatches={swatches}
+            onChoose={(hex) => {
+              onChange(hex)
+              onClose()
+            }}
+          />
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 

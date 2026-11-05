@@ -31,7 +31,7 @@ export function RowSelectCheckbox({
         e.stopPropagation()
         onToggle(e)
       }}
-      className={`flex-shrink-0 rounded border flex items-center justify-center transition-[opacity,background-color,border-color] touch-manipulation
+      className={`touch-hit flex-shrink-0 rounded border flex items-center justify-center transition-[opacity,background-color,border-color] touch-manipulation
             ${small ? 'h-5 w-5 md:h-3.5 md:w-3.5' : 'h-6 w-6 md:h-4 md:w-4'}
             ${reveal || selected ? 'opacity-100' : 'hidden md:flex md:opacity-0 md:group-hover:opacity-100'}
             ${

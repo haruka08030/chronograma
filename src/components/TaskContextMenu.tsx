@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addDays, nextMonday } from 'date-fns'
 import { useTaskStore } from '../store/taskStore'
@@ -23,6 +24,7 @@ import {
   PlayIcon,
   SectionIcon,
   StarFilledIcon,
+  TagIcon,
   TrashIcon,
 } from './icons'
 import { DayMoveIcon } from './ui/DayMoveIcon'
@@ -44,9 +46,43 @@ import { NEUTRAL_HEX } from '../lib/googleColors'
 import { ColorDot } from './ui/FilterChips'
 import { ColorPalette } from './labels/ColorPalette'
 import { compareByOrder } from '../lib/orderCompare'
+import { isActiveTask } from '../lib/taskLifecycle'
+import { isCancelEscape } from '../lib/keyboard'
+import { useTextEntry } from '../hooks/useTextEntry'
+import { fieldClass } from './ui/fieldClass'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low', 'none']
 const ICON = 'h-4 w-4 flex-shrink-0'
+
+/** 「タグ ›」の新しいタグの欄。Enter で足す（メニューの ↑↓・Enter には渡さない）。先頭の # は書かなくても同じ */
+function NewTagInput({ onAdd }: { onAdd: (tag: string) => void }) {
+  const { t } = useTranslation()
+  const [value, setValue] = useState('')
+  const entry = useTextEntry({
+    onSubmit: () => {
+      const tag = value.trim().replace(/^#+/, '').trim()
+      if (tag) onAdd(tag)
+    },
+    onCancel: () => setValue(''),
+    commitOnBlur: false,
+  })
+  return (
+    <input
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      {...entry}
+      onKeyDown={(e) => {
+        // 書いていないときの Esc はメニューのほうで閉じる
+        if (isCancelEscape(e) && !value) return
+        e.stopPropagation()
+        entry.onKeyDown(e)
+      }}
+      placeholder={t('taskDetail.tagPlaceholder')}
+      aria-label={t('taskDetail.tagPlaceholder')}
+      className={fieldClass({ size: 'sm' }, 'mb-1 w-full')}
+    />
+  )
+}
 
 /**
  * タスク行の右クリックメニュー（To-Do 一覧・カレンダーの置き場・今日の計画・検索結果で共通。`ActionMenu` の上に作る）。
@@ -89,6 +125,7 @@ export function TaskContextMenu({
   const uncheckTasks = useTaskStore((s) => s.uncheckTasks)
   const setSomedayTier = useTaskStore((s) => s.setSomedayTier)
   const duplicateTasks = useTaskStore((s) => s.duplicateTasks)
+  const tasks = useTaskStore((s) => s.tasks)
 
   const targets = useTaskStore(useShallow((s) => s.tasks.filter((x) => taskIds.includes(x.id))))
   /** 全部が同じ値ならその値（チェックを付ける） */
@@ -245,6 +282,35 @@ export function TaskContextMenu({
         },
       ]
     : []
+
+  // タグ: 今あるタグ（選んだ行のものも）を付け外しし、下の欄で新しく足す。全部に付いているものを選ぶと全部から外す。記録には出さない
+  const tagTargets = targets.filter((x) => !isLogTask(x))
+  const tagNames = [...new Set([...tasks.filter((x) => isActiveTask(x) && !isLogTask(x)), ...tagTargets].flatMap((x) => x.tags))].sort(
+    (a, b) => a.localeCompare(b, 'ja'),
+  )
+  const tagEntry: ActionEntry[] =
+    tagTargets.length > 0
+      ? [
+          {
+            kind: 'sub',
+            id: 'tag',
+            label: t('taskMenu.tag'),
+            icon: <TagIcon className={ICON} />,
+            leaves: tagNames.map((tag): ActionLeaf => {
+              const onAll = tagTargets.every((x) => x.tags.includes(tag))
+              return { id: `tag-${tag}`, label: tag, checked: onAll, run: done(() => bulk.setTag(taskIds, tag, !onAll)) }
+            }),
+            extra: (close) => (
+              <NewTagInput
+                onAdd={(tag) => {
+                  done(() => bulk.setTag(taskIds, tag, true))()
+                  close()
+                }}
+              />
+            ),
+          },
+        ]
+      : []
 
   const scheduleEntry = useScheduleEntry(taskIds, done, ICON)
   // いちばん使う日の付け替えは、サブメニューを開かずに先頭で押せるようにする（今日の行なら明日へ、それ以外は今日へ）
@@ -450,6 +516,7 @@ export function TaskContextMenu({
               ]
             : []),
           ...labelEntry,
+          ...tagEntry,
           ...(allEvents ? [] : [{ ...completeEntry, divider: true }]),
           ...(taskIds.length === 1
             ? [

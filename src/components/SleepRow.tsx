@@ -13,6 +13,7 @@ import { CloseIcon, PencilIcon, PlayIcon, SunriseIcon } from './icons'
 import type { Task } from '../types/task'
 import { NapPlus, SLEEP_ICON_BUTTON, SleepBar, SleepDayEditor, SleepMoonIcon, SleepTimesField } from './SleepTimesField'
 import { minutesOfDay } from '../lib/clockTime'
+import { timeRange } from '../lib/timeRange'
 
 /** 今日の睡眠を聞き始める時刻。夜更かし中に「起きた時刻」を聞かない */
 const PROMPT_FROM_MIN = 5 * 60
@@ -128,7 +129,7 @@ function RecordedSleep({ record, napMinutes, onEdit }: { record: Task; napMinute
         type="button"
         onClick={onEdit}
         {...tip(t('sleep.edit'))}
-        aria-label={`${t('sleep.edit')} ${record.startTime}–${record.endTime} ${duration}${nap}`}
+        aria-label={`${t('sleep.edit')} ${timeRange(record.startTime, record.endTime)} ${duration}${nap}`}
         className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-xs tabular-nums text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
       >
         <span>{record.startTime}</span>
@@ -151,7 +152,7 @@ function SleepPageButton() {
       type="button"
       onClick={() => selectView('sleep')}
       {...tip(t('sleep.openPage'), { name: true })}
-      className="-ml-1.5 inline-flex shrink-0 rounded-full p-1.5 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      className="touch-hit -ml-1.5 inline-flex shrink-0 rounded-full p-1.5 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
     >
       <SleepMoonIcon />
     </button>

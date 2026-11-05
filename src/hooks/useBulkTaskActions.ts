@@ -81,6 +81,29 @@ export function useBulkTaskActions() {
             : t('undo.labelCleared', { count: ids.length })
         bulkUpdateTasks(ids, { color: h }, label)
       },
+      /**
+       * タグを付ける・外す（ほかのタグはそのまま）。記録は対象外（タグに分類を写している）。
+       * タグで絞った一覧では行が消えるので 1 件でも出す
+       */
+      setTag: (all: string[], tag: string, on: boolean) => {
+        const ids = changing(all, (x) => !isLogTask(x) && x.tags.includes(tag) !== on)
+        if (ids.length === 0) return
+        const { tasks, updateTask, asOneUndo } = useTaskStore.getState()
+        const title = toastTitle(tasks.find((x) => x.id === ids[0])?.title ?? '')
+        const label = on
+          ? ids.length === 1
+            ? t('undo.tagAddedOne', { title, name: tag })
+            : t('undo.tagAdded', { count: ids.length, name: tag })
+          : ids.length === 1
+            ? t('undo.tagRemovedOne', { title, name: tag })
+            : t('undo.tagRemoved', { count: ids.length, name: tag })
+        asOneUndo(() => {
+          for (const id of ids) {
+            const tags = useTaskStore.getState().tasks.find((x) => x.id === id)?.tags ?? []
+            updateTask(id, { tags: on ? [...tags, tag] : tags.filter((x) => x !== tag) }, label)
+          }
+        })
+      },
       moveToSection: (all: string[], sectionId: string | null, name: string) => {
         const ids = changing(all, (x) => (x.sectionId ?? null) !== sectionId)
         bulkUpdateTasks(ids, { sectionId }, many(ids, t('undo.tasksMovedToSection', { count: ids.length, name })))

@@ -55,6 +55,7 @@
 | [`049_user_my_event_times.sql`](049_user_my_event_times.sql) | Google の予定の自分の時間 `user_my_event_times`（利用者ごとに 1 行。`times` は予定の ID ごとの自分の時間と開催時間の控えの並び。開催時間に戻したものは `removed` の印だけ残す、512KB まで `user_my_event_times_size_check`、`settings_write_guard`）。`sync_changes_since` の `settings` と Realtime の publication に足す |
 | [`050_habit_ended_on.sql`](050_habit_ended_on.sql) | 習慣をやめた日 `habits.ended_on`（date。アーカイブ・ゴミ箱へ入れた日で、この日から先は予定の日にしない。どちらでもなければ null）。前からアーカイブ・ゴミ箱にある行は、入れた時刻を通知の端末のタイムゾーン（無ければ UTC）の日付にして入れる |
 | [`051_vague_logs.sql`](051_vague_logs.sql) | 「なんとなく」の記録 `tasks.is_vague`（not null、既定 false。記録で睡眠でない行だけ true `tasks_is_vague_check`）と、「なんとなく」にしたタイマーの始めた時刻 `user_active_timer.vague_for`（`started_at` と同じときだけ「なんとなく」。列を知らない前の版のアプリが別のタイマーを始めると合わなくなる） |
+| [`052_drop_vague_logs.sql`](052_drop_vague_logs.sql) | 「なんとなく」をやめる: `is_vague` の記録をゴミ箱に入れて印を下ろし、`vague_for` を空にする。前の版のアプリが送るので列は残す（今のアプリは `is_vague` に false だけを書き、true の行が届いたらゴミ箱に入れて読む） |
 
 テーブル（最新の形）:
 
@@ -62,11 +63,11 @@
 |----------|------|
 | `lists` | リスト。`kind`（`tasks` / `someday` / `checklist`）で、いつか・チェックリストを予定・統計・通知から外す |
 | `list_sections` | リスト内のセクション |
-| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、指しているラベルの id `label_id`（`033`。名前・色は前の版のアプリが読む写しで、古いことがある）、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id`、毎週の予定の印 `event_series`、続けて持ち越した日数 `carried_days`、いつかの段 `someday_tier`、夢の一歩の元の夢 `dream_id`、「なんとなく」の記録 `is_vague` を含む |
+| `tasks` | タスク・予定・記録。記録の色 `color`、記録の分類 `category`、指しているラベルの id `label_id`（`033`。名前・色は前の版のアプリが読む写しで、古いことがある）、元の習慣 `habit_id`、睡眠 `is_sleep`、予定（完了の丸なし）`is_event`、タイムゾーン `time_zone` / `time_zone_anchor`、タスクごとの通知 `reminders`、見積もり `estimate_minutes`、記録の元の To-Do `source_task_id`、毎週の予定の印 `event_series`、続けて持ち越した日数 `carried_days`、いつかの段 `someday_tier`、夢の一歩の元の夢 `dream_id`、前の版の「なんとなく」の印 `is_vague`（今のアプリは false だけを書く）を含む |
 | `habits` | 習慣。`time_mode`（`none` / `fixed` / `range`）、アーカイブ `archived_at`（null は使用中）、日ごとの時間 `time_overrides`（null は無し） |
 | `user_settings` | 利用者ごとの設定（1 行）。`log_labels` は記録のラベル（id・分類名・色・週の目安）の並び。どの端末でも同じラベル表になる |
 | `user_extra_time_zones` | 時間バーに並べる他のタイムゾーン（利用者ごとに 1 行）。`zones` は `{ tz, label }` の並び（`label` は利用者が付けた名前、空でもよい）。どの端末でも同じ並び・名前になる |
-| `user_active_timer` | 動いているタイマー（利用者ごとに 1 行）。どの端末でも同じタイマーが出て、どの端末からでも止められる。`started_at` が null なら止まっている。`ends_at` は「あと何分」の終わり（null は終わりなし）。`vague_for` は「なんとなく」にしたタイマーの始めた時刻（`started_at` と同じときだけ「なんとなく」） |
+| `user_active_timer` | 動いているタイマー（利用者ごとに 1 行）。どの端末でも同じタイマーが出て、どの端末からでも止められる。`started_at` が null なら止まっている。`ends_at` は「あと何分」の終わり（null は終わりなし）。`vague_for` は前の版のアプリだけが使う |
 | `user_event_templates` | よく入れる予定（利用者ごとに 1 行）。`templates` は `{ id, title, startTime, endTime, color }` の並び（バイトのシフトなど）。月表示で日を押して入れた予定は `tasks`（`is_event`）に入る。どの端末でも同じ並びになる |
 | `user_course_links` | 授業の予定の名前と LMS（Canvas・Moodle）の科目のつながり（利用者ごとに 1 行）。`links` は `{ title, course }` の並び（`title` は予定の名前、`course` は取り込んだ課題の科目のタグ、空なら「つながない」）。予定のカードに、その科目の未完了の課題を締切順に出す。どの端末でも同じつながりになる |
 | `user_timetable` | 時間割の設定（利用者ごとに 1 行）。`timetable` は時限 `periods`（`{ start, end }` の並び）・学期 `termStart` / `termEnd`・祝日に授業を入れないか `skipHolidays`。マスの中身（授業）は `tasks` の毎週の予定（`event_series`）から出す。どの端末でも同じ時間割になる |
@@ -81,8 +82,8 @@
 | `canvas_connection` | Canvas LMS のアクセストークン・フィードの URL（どちらも暗号化して保存）と学校の URL（学校ごとに 1 行、主キー `(user_id, id)`、`id` はホスト名）。クライアント向けポリシーなし（Edge Function `canvas` が service_role で読み書き） |
 | `sync_tombstones` | 消えた行の印（`lists` / `list_sections` / `tasks` / `habits`）。印があれば、その行はいまサーバーに無い。書くのはトリガーだけ、端末は読むだけ。1 人 50,000 件まで（超えたら古い印から消す）、30 日より古い印は毎日消す（`010`）。アカウントの削除では Edge Function `account` が先に消す |
 | `sync_tombstone_purges` | 上限で消した印の一番新しい `deleted_at`（利用者ごとに 1 行、`last_deleted_at`）。書くのはトリガーだけ、端末は本人の行を読むだけ。差分の目印がこれより前なら端末は全部を取り直す |
-| `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗・端末の保存・連携・通知の購読の失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（[`../metrics/health.sql`](../metrics/health.sql)・`doc/CURSOR_CONTEXT.md` の「端末のエラー」） |
-| `feedback` | 設定の「お問い合わせ・フィードバック」から送られた文面（`src/lib/feedback.ts`）。送れるのはログイン中の人。端末からは insert だけ。見るのは SQL Editor から（`doc/CURSOR_CONTEXT.md` の「お問い合わせ・フィードバック」） |
+| `client_errors` | 端末で起きたエラー（画面の描画・拾われなかったエラー・同期の失敗・部品の読み込みの失敗・端末の保存・連携・通知の購読の失敗）。送るのはログイン中の端末（`src/lib/errorReport.ts`）。端末からは insert だけ。見るのは SQL Editor から（[`../metrics/health.sql`](../metrics/health.sql)・`doc/ARCHITECTURE.md` の「端末のエラー」） |
+| `feedback` | 設定の「お問い合わせ・フィードバック」から送られた文面（`src/lib/feedback.ts`）。送れるのはログイン中の人。端末からは insert だけ。見るのは SQL Editor から（`doc/ARCHITECTURE.md` の「お問い合わせ・フィードバック」） |
 | `reminder_runs` | 通知の送信の実行の記録（1 行）。最後に全部うまくいった回の時刻 `last_ok_at` と、走っている回の目印 `running_since`、最後の回の時刻・数と最後の失敗の時刻（`021`）・鍵が合わずに消した購読の数（`046`）。読み書きは Edge Function `daily-reminders`（service_role）だけ |
 | `app_versions_seen` | どの版のアプリがまだ同期しているか（1 人 × アプリの版 × 同期の取り決めの版で 1 行、`last_seen`）。端末は同期の最初に 1 日 1 回 `note_app_version` を呼ぶ（`src/lib/versionSeen.ts`）。表は端末から読めず書けない。版の下限（`app_config.min_sync_version`）を上げる前に [`../metrics/versions.sql`](../metrics/versions.sql) で版ごとの直近 7 日の人数を見る |
 
@@ -97,4 +98,4 @@
 
 - 動きは pgTAP の [`../tests/`](../tests/) で確かめる（手元は `supabase start` → `supabase test db`、CI でも流す）。
 
-ルートの [`README.md`](../../README.md) の Supabase 節と、`doc/CURSOR_CONTEXT.md` の DB 節は本ファイルと同期させる。
+[`doc/SETUP.md`](../../doc/SETUP.md) の Supabase 節と、`doc/ARCHITECTURE.md` の DB 節は本ファイルと同期させる。

@@ -31,10 +31,10 @@ beforeEach(() => {
 
 describe('予定日を移したときの控え（#158）', () => {
   it('今日の予定を明日へ（時間ブロックのまま・日だけ移す）と元の予定が残り、⌘Z で消える', () => {
-    st().addTaskWithTime('レポート', '2026-10-03', '13:00', '14:00')
+    st().addTaskWithTime('レポート', '2026-10-03', '10:00', '11:00')
     const id = idOf('レポート')
     st().updateTask(id, { scheduledDate: '2026-10-04' })
-    expect(get(id).movedPlans).toEqual([{ date: '2026-10-03', startTime: '13:00', endTime: '14:00', to: '2026-10-04' }])
+    expect(get(id).movedPlans).toEqual([{ date: '2026-10-03', startTime: '10:00', endTime: '11:00', to: '2026-10-04' }])
     st().undoLastOperation()
     expect(get(id).scheduledDate).toBe('2026-10-03')
     expect('movedPlans' in get(id)).toBe(false)

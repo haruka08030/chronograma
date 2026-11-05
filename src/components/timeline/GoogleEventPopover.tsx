@@ -40,6 +40,7 @@ import { ClassAttendance } from './ClassAttendance'
 import { useExitGhost } from '../../hooks/useExitGhost'
 import { skippedEventById } from '../../hooks/useShownCalendarEvents'
 import { SKIPPED_EVENT_CLASS } from '../ui/rowStateClass'
+import { timeRange } from '../../lib/timeRange'
 
 const WIDTH = 320
 
@@ -288,7 +289,7 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
           ) : (
             <p className={`mt-0.5 ${SUBTLE_TEXT}`}>
               {dateText}
-              {event.startTime && event.endTime && ` · ${event.startTime} – ${event.endTime}`}
+              {event.startTime && event.endTime && ` · ${timeRange(event.startTime, event.endTime)}`}
             </p>
           )}
           {/* 自分の時間にしているときだけ、Google にある開催時間と、開催時間に戻すボタン */}
@@ -361,6 +362,6 @@ function heldText(held: { start: string; end: string }, myDate: string, shortDat
   const tz = appTimeZone()
   const start = wallInZone(Date.parse(held.start), tz)
   const end = wallInZone(Date.parse(held.end), tz)
-  const range = `${start.time}–${end.time}`
+  const range = timeRange(start.time, end.time)
   return start.date === myDate ? range : `${shortDate(start.date)} ${range}`
 }

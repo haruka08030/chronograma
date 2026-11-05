@@ -6,6 +6,7 @@ import { fromDateKey, toDateKey } from './dateKey'
 import { minutesToTime } from './clockTime'
 import type { TaskKind } from '../types/task'
 import { suppressNextClick, TOUCH_LONG_PRESS_MS } from '../hooks/useTouchContextMenu'
+import { timeRange } from './timeRange'
 
 const RESIZE_EDGE_PX = 8
 const MIN_BLOCK_MINUTES = SNAP_MINUTES
@@ -674,7 +675,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         dateKey: drag.dateKey,
         top,
         height: (endMin / 60) * HOUR_HEIGHT - top,
-        label: `${minutesToTime(startMin)} – ${minutesToTime(endMin)}`,
+        label: timeRange(minutesToTime(startMin), minutesToTime(endMin)),
       }
     } else if (drag.kind === 'move') {
       // タッチで持ち上げたら、動かす前から持ち上げた位置に出す
@@ -696,7 +697,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         taskId: drag.taskId,
         top: newTop,
         height,
-        label: `${newStart} – ${minutesToTime(endWallMin)}`,
+        label: timeRange(newStart, minutesToTime(endWallMin)),
       }
     } else {
       // eslint-disable-next-line react-hooks/refs -- preview must match pointer session gate
@@ -718,7 +719,7 @@ export function useTimelineDrag(options: UseTimelineDragOptions) {
         startLabel = drag.origStartTime
         endLabel = minutesToTime(clampedEnd)
       }
-      return { kind: 'resize', dateKey: drag.dateKey, taskId: drag.taskId, top, height, label: `${startLabel} – ${endLabel}` }
+      return { kind: 'resize', dateKey: drag.dateKey, taskId: drag.taskId, top, height, label: timeRange(startLabel, endLabel) }
     }
   }, [drag])
 

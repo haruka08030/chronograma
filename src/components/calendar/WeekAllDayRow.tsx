@@ -103,7 +103,7 @@ export function WeekAllDayRow({
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
             {...tip(expanded ? t('weekCalendar.allDayCollapse') : t('weekCalendar.allDayExpand'), { name: true })}
-            className="rounded p-0.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="touch-hit rounded p-0.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           >
             {expanded ? <ChevronUpIcon className="h-3.5 w-3.5" /> : <ChevronDownIcon className="h-3.5 w-3.5" />}
           </button>

@@ -34,7 +34,6 @@ import { normalizeAddons, type RemoteAddons } from './addons'
 import { readEventSeries, withSeries } from './eventSeries'
 import { readMovedPlans, withMovedPlans } from './movedPlans'
 import { readDreamId, readSomedayTier, withDreamId, withSomedayTier } from './somedayTier'
-import { isVagueLog, readVague, withVague } from './vagueLog'
 import { DAY_MOOD_NOTE_MAX, isMood, type DayMoodPush, type DayMoodPushResult, type RemoteDayMood } from './dayMood'
 import { buildRecurrence } from './recurrence'
 import { readEstimateMinutes } from './estimate'
@@ -127,8 +126,6 @@ interface TaskRow {
   is_sleep?: boolean | null
   /** 古い DB には無い（`014`） */
   is_event?: boolean | null
-  /** 「なんとなく」の記録（`051`）。古い DB には無い */
-  is_vague?: boolean | null
   /** 古い DB には無い */
   time_zone?: string | null
   time_zone_anchor?: string | null
@@ -149,6 +146,8 @@ interface TaskRow {
   completed_at?: string | null
   archived_at?: string | null
   deleted_at?: string | null
+  /** 前の版の「なんとなく」の印（`051`）。今の版は false だけを書き、true の行はゴミ箱に入れて読む */
+  is_vague?: boolean
 }
 
 interface SectionRow {
@@ -292,9 +291,10 @@ export function parseReminders(raw: unknown): TaskReminder[] | null {
 /** サーバーの行をタスクに（記録の分類は category。前の版の端末が書いた行は tags の先頭から） */
 function rowToTask(row: TaskRow): Task {
   const task = withLogCategory(rowToTaskFields(row))
-  // 毎週の印は予定の行だけ、移した予定の控えは To-Do の行だけ。値のある行だけ項目を持つ
-  if (task.kind === 'event') return withSeries(task, readEventSeries(row.event_series))
-  if (task.kind === 'log') return withLogCategory(withVague(task, readVague(row.is_vague)))
+  // 前の版の端末が作った「なんとなく」の記録はゴミ箱に入れて読む（記録の無い時間に戻す）
+  if (task.kind === 'log' && row.is_vague === true) task.deletedAt ??= row.updated_at
+  // 毎週の印は予定の行だけ、動かした予定の控えは To-Do と予定の行だけ。値のある行だけ項目を持つ
+  if (task.kind === 'event') return withMovedPlans(withSeries(task, readEventSeries(row.event_series)), readMovedPlans(row.moved_plans))
   return task.kind === 'todo'
     ? withDreamId(
         withSomedayTier(withMovedPlans(task, readMovedPlans(row.moved_plans)), readSomedayTier(row.someday_tier)),
@@ -403,17 +403,18 @@ function taskToRow(userId: string, task: Task): TaskRow {
     habit_id: task.habitId,
     source_task_id: task.sourceTaskId,
     event_series: isEventTask(task) ? (task.series ?? null) : null,
-    moved_plans: isTodoTask(task) ? (task.movedPlans ?? null) : null,
+    moved_plans: isTodoTask(task) || isEventTask(task) ? (task.movedPlans ?? null) : null,
     someday_tier: isTodoTask(task) ? (task.somedayTier ?? null) : null,
     dream_id: isTodoTask(task) ? (task.dreamId ?? null) : null,
     is_sleep: isSleepTask(task),
     is_event: isEventTask(task),
-    is_vague: isVagueLog(task),
     time_zone: task.timeZone,
     time_zone_anchor: task.timeZoneAnchor,
     reminders: task.reminders,
     archived_at: task.archivedAt,
     deleted_at: task.deletedAt,
+    // ゴミ箱から戻した行がまたゴミ箱に入らないように下ろす
+    is_vague: false,
   }
 }
 

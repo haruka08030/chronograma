@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
 import { INBOX_ID } from '../store/storeConstants'
 import { taskWallInterval } from '../lib/taskTimeRange'
+import { appTodayKey } from '../lib/timeZone'
 import { QuickAdd } from './QuickAdd'
 import { closeTaskDetail, useOverlays } from '../lib/overlays'
 
@@ -170,5 +171,57 @@ describe('QuickAdd', () => {
     await user.paste('Info session https://example.com/2026/10/15/')
     await user.type(input, '{Enter}')
     expect(tasks()[0]).toMatchObject({ title: 'Info session', description: 'https://example.com/2026/10/15/', scheduledDate: null })
+  })
+})
+
+describe('QuickAdd は絞り込みの条件を持って足す', () => {
+  const added = () => tasks().at(-1)!
+
+  it('タグ・優先度・見積もりで絞っていれば、足す行に付き、入力中のチップにも出る', async () => {
+    const user = userEvent.setup()
+    useTaskStore.setState({ selectedView: 'all', filterTag: '数学', todoFilter: { priority: 'medium', estimate: 30 } })
+    render(<QuickAdd />)
+    const input = screen.getByPlaceholderText('Add a to-do')
+    await user.type(input, 'Problems #宿題')
+    expect(screen.getByText('数学')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Priority: / })).toHaveTextContent('Medium')
+    await user.keyboard('{Enter}')
+    expect(added()).toMatchObject({ title: 'Problems', tags: ['宿題', '数学'], priority: 'medium', estimateMinutes: 30 })
+  })
+
+  it('書いた長さ・選んだ優先度のほうが勝つ', async () => {
+    const user = userEvent.setup()
+    useTaskStore.setState({ selectedView: 'all', todoFilter: { priority: 'high', estimate: 30 } })
+    render(<QuickAdd />)
+    await user.type(screen.getByPlaceholderText('Add a to-do'), 'Problems 45m')
+    await user.click(screen.getByRole('button', { name: /^Priority: / }))
+    await user.click(screen.getByRole('button', { name: 'None' }))
+    await user.keyboard('{Enter}')
+    expect(added()).toMatchObject({ estimateMinutes: 45, priority: 'none' })
+  })
+
+  it('ビューの「今日」は実行日を今日にする。「ラベルなし」・「見積もりあり」は値を付けない', async () => {
+    const user = userEvent.setup()
+    useTaskStore.setState({ selectedView: 'today', todoFilter: { priority: null, estimate: 'set' } })
+    render(<QuickAdd />)
+    await user.type(screen.getByPlaceholderText('Add a to-do'), 'Today thing{Enter}')
+    expect(added().scheduledDate).toBe(appTodayKey())
+    expect(added().estimateMinutes).toBeNull()
+  })
+
+  it('いつか・チェックリストには優先度を付けない', async () => {
+    const user = userEvent.setup()
+    useTaskStore.getState().addList('Wish', 'someday')
+    const listId = useTaskStore.getState().lists.find((l) => l.name === 'Wish')!.id
+    useTaskStore.setState({ selectedView: null, selectedListId: listId, filterTag: '旅行', todoFilter: { priority: 'high', estimate: 30 } })
+    render(<QuickAdd />)
+    await user.type(screen.getByPlaceholderText(/./), 'Iceland{Enter}')
+    expect(added()).toMatchObject({ tags: ['旅行'], priority: 'none', estimateMinutes: null })
+  })
+
+  it('行のタグを押して絞ると検索を抜ける', () => {
+    useTaskStore.setState({ searchQuery: 'math' })
+    useTaskStore.getState().setFilterTag('数学')
+    expect(useTaskStore.getState()).toMatchObject({ filterTag: '数学', searchQuery: '' })
   })
 })

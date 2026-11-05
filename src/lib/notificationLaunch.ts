@@ -3,7 +3,7 @@
  * - 開始前・締切 1 件: その To-Do・予定の詳細と、その日の今日の計画を開く
  * - 止め忘れの「止める」: そのタイマーを止め、できた記録の詳細を開く（終わりの時刻を直せる）
  * - 開始の通知の「記録を始める」: その予定のタイマーを ▶ と同じく始める（#419）
- * - 夜のまとめ: 今日の計画を開き、スマホはタイムラインの面と気分の記号を見せる
+ * - 夜のまとめ: 今日の計画を開き、気分の記号を見せる
  */
 import { useTaskStore } from '../store/taskStore'
 import { isLogTask, type Task } from '../types/task'
@@ -198,7 +198,7 @@ let wrapUpPending = false
 const wrapUpListeners = new Set<() => void>()
 
 /**
- * 夜のまとめの通知（#299）を押したとき: 今日の計画（今日）を開き、その日のずれ（スマホはタイムラインの面）と気分の記号を見せる。
+ * 夜のまとめの通知（#299）を押したとき: 今日の計画（今日）を開き、その日のずれ（記録の帯）と気分の記号を見せる。
  * 今日の計画が描かれていれば `onWrapUpRequest` の関数をすぐ呼び、まだなら描いたときに呼ぶ
  */
 export function openWrapUpFromNotification() {

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import type { DayLoad } from '../../lib/dayLoad'
 import { formatDuration, formatDurationShort } from '../../lib/timeGrid'
 import { tip } from '../../lib/tooltip'
-import { DUE_TONE_CLASS } from '../ui/dueTone'
+import { NOTICE_TONE_CLASS } from '../ui/dueTone'
 
 /**
  * 週の見出しの日付の下の 1 行: その日の空き（「空き 3h」）。置いた To-Do が空きを超える日は
@@ -21,7 +21,7 @@ export function DayFreeTime({ load }: { load: DayLoad }) {
       {...tip(hint)}
       data-day-free={load.over ? 'over' : 'ok'}
       className={`mt-0.5 truncate text-[10px] font-normal leading-tight tabular-nums
-        ${load.over ? DUE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
+        ${load.over ? NOTICE_TONE_CLASS.overdue : 'text-zinc-400 dark:text-zinc-500'}`}
     >
       {load.over ? (
         <>

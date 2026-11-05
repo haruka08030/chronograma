@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../store/taskStore'
 import { searchRecords, searchTasks } from '../lib/searchTasks'
 import { TaskItem } from './TaskItem'
-import { SearchIcon } from './icons'
+import { CheckIcon, SearchIcon } from './icons'
 import { EmptyState } from './ui/EmptyState'
 import { SectionLabel } from './ui/SectionLabel'
+import { SelectionBar } from './ui/SelectionBar'
 import { ShowMoreButton } from './ui/ShowMoreButton'
 import { openTaskDetail, openTaskMenu } from '../lib/overlays'
 import { useTaskListSelection } from '../hooks/useTaskListSelection'
@@ -40,7 +41,7 @@ export function SearchResults() {
 
   // 選択とキー操作は To-Do 一覧と同じ（検索欄の ↓ で最初の結果に枠が移る）。⌘A・削除は描いている行だけ
   const clearSelectedRef = useRef<() => void>(() => {})
-  const { clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
+  const { selected, clearSelection, makeRowClick, makeSelection, listboxProps } = useTaskListSelection({
     rowIds: shownIds,
     openDetail: openTaskDetail,
     toggleRow: toggleTask,
@@ -53,6 +54,10 @@ export function SearchResults() {
   useEffect(() => {
     clearSelectedRef.current = clearSelection
   }, [clearSelection])
+  // 選んだものが全部済みなら「完了」は何もしないので出さない（To-Do 一覧と同じ）
+  const selectionAllDone = useTaskStore(
+    (s) => selected.size > 0 && [...selected].every((id) => s.tasks.find((x) => x.id === id)?.completed),
+  )
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
@@ -80,6 +85,21 @@ export function SearchResults() {
           {records.length > 0 && <RecordMatches key={query} records={records} />}
         </div>
       </div>
+      <SelectionBar
+        selectedIds={selected}
+        actions={
+          selectionAllDone
+            ? []
+            : [
+                {
+                  label: t('taskList.selectionComplete'),
+                  icon: <CheckIcon className="h-3.5 w-3.5" strokeWidth={2.5} />,
+                  onClick: () => bulk.complete([...selected]),
+                },
+              ]
+        }
+        onClear={clearSelection}
+      />
     </div>
   )
 }

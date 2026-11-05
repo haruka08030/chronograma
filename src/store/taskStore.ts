@@ -103,6 +103,7 @@ import { NO_COMPLETED_FILTER, NO_TODO_FILTER } from '../lib/taskFilter'
 import { reportFailure } from '../lib/errorReport'
 import { releaseOldestBackup } from '../lib/autoBackup'
 import { flushPendingEdits } from '../lib/pendingEdits'
+import { timeRange } from '../lib/timeRange'
 
 /** Renamed app: copy persisted state once from the old localStorage key（IndexedDB に移すときは `dataStore.ts` が移す） */
 function migrateLegacyPersistKey(): void {
@@ -282,7 +283,7 @@ export const useTaskStore = create<TaskState>()(
           const end = wallInZone(Date.parse(mine.end), tz)
           undo.pushUndo({
             key: 'undo.myEventTime',
-            params: { title: event.summary, date: shortDate(start.date), time: `${start.time}–${end.time}` },
+            params: { title: event.summary, date: shortDate(start.date), time: timeRange(start.time, end.time) },
           })
           set({ myEventTimes: next })
         },

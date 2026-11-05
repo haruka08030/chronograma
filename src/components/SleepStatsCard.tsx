@@ -13,6 +13,7 @@ import { useAppTodayKey } from '../hooks/useAppClock'
 import { NapPlus, SleepDayEditor, SleepMoonIcon, SleepWakeIcon } from './SleepTimesField'
 import { DayInsightsSection } from './DayInsights'
 import { useDayInsights } from '../hooks/useDayInsights'
+import { timeRange } from '../lib/timeRange'
 
 const DAYS = 14
 /** 「正午からの分」（SleepNight の bedOffset / wakeOffset）を hh:00 の目盛りの文字に */
@@ -127,7 +128,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
           <span className="sr-only">{t('sleepStats.chartTitle')}</span>
           <span className="ml-auto tabular-nums text-zinc-500 dark:text-zinc-400" aria-live="polite">
             {focused
-              ? `${dayLabel(focused.dateKey)} ${focused.bed}–${focused.wake} · ${formatDuration(focused.minutes)}${
+              ? `${dayLabel(focused.dateKey)} ${timeRange(focused.bed, focused.wake)} · ${formatDuration(focused.minutes)}${
                   focused.napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(focused.napMinutes) })}` : ''
                 }`
               : `${dayLabel(focusedKey)} ${t('sleepStats.noRecord')}`}
@@ -173,7 +174,7 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
                   type="button"
                   aria-label={
                     n
-                      ? `${dayLabel(key)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}${n.napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}` : ''}`
+                      ? `${dayLabel(key)} ${timeRange(n.bed, n.wake)} ${formatDuration(n.minutes)}${n.napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}` : ''}`
                       : t('sleepStats.fillAria', { day: dayLabel(key) })
                   }
                   aria-expanded={editKey === key}
@@ -227,30 +228,33 @@ export function SleepStatsCard({ showTitle = true }: { showTitle?: boolean }) {
             />
           </div>
         )}
-        <table className="sr-only">
-          <caption>{t('sleepStats.chartTitle')}</caption>
-          <thead>
-            <tr>
-              <th>{t('sleepStats.colDate')}</th>
-              <th>{t('sleepStats.colBed')}</th>
-              <th>{t('sleepStats.colWake')}</th>
-              <th>{t('sleepStats.colSleep')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {nights.map((n) => (
-              <tr key={n.dateKey}>
-                <td>{dayLabel(n.dateKey)}</td>
-                <td>{n.bed}</td>
-                <td>{n.wake}</td>
-                <td>
-                  {formatDuration(n.minutes)}
-                  {n.napMinutes > 0 && ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}`}
-                </td>
+        {/* 表は 1px に縮まないので、sr-only は外の枠に付ける */}
+        <div className="sr-only">
+          <table>
+            <caption>{t('sleepStats.chartTitle')}</caption>
+            <thead>
+              <tr>
+                <th>{t('sleepStats.colDate')}</th>
+                <th>{t('sleepStats.colBed')}</th>
+                <th>{t('sleepStats.colWake')}</th>
+                <th>{t('sleepStats.colSleep')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {nights.map((n) => (
+                <tr key={n.dateKey}>
+                  <td>{dayLabel(n.dateKey)}</td>
+                  <td>{n.bed}</td>
+                  <td>{n.wake}</td>
+                  <td>
+                    {formatDuration(n.minutes)}
+                    {n.napMinutes > 0 && ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </figure>
       <DayInsightsSection rows={insights} />
     </section>

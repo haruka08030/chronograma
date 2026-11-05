@@ -7,7 +7,8 @@ import { newId } from '../lib/id'
 import { asSleepIfNamed } from '../lib/sleep'
 import { inferLogCategory } from '../lib/logCategory'
 import { categoryHex, type LogLabel } from '../lib/logCategoryColors'
-import { appDayKeyOf, appTimeZone } from '../lib/timeZone'
+import { appDayKeyOf, appTimeZone, toAppWall } from '../lib/timeZone'
+import { wallMinutesOf } from '../lib/wallTime'
 import { carriedDaysAfter } from '../lib/carryDays'
 import { movedPlansAfter, withMovedPlans } from '../lib/movedPlans'
 import { INBOX_ID } from './storeConstants'
@@ -102,14 +103,6 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
   }
   // 毎週の印は予定だけ。To-Do にしたらその回は繰り返しから外れる
   if (patch.kind !== undefined && patch.kind !== 'event' && 'series' in applied) delete applied.series
-  // ラベル・色を選び直したら「なんとなく」を外す（「なんとなく」を選んだときは withLogCategory がラベル・色を外す）
-  if (
-    patch.vague !== true &&
-    (patch.category !== undefined || patch.tags !== undefined || patch.color !== undefined) &&
-    'vague' in applied
-  ) {
-    delete applied.vague
-  }
   // 記録の分類は category が正。前の書き方（tags の先頭）で来た分類も category にする
   if (isLogTask(task) && patch.tags !== undefined && patch.category === undefined) applied.category = patch.tags[0] ?? null
   // 色＝分類: 記録の分類を選び直したら、Google から写した色より分類の色を優先する
@@ -137,10 +130,17 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: string = new D
     const carried = carriedDaysAfter(task, applied, appDayKeyOf(now))
     if (carried !== task.carriedDays) applied.carriedDays = carried
   }
-  // その日が来てから予定を別の日へ移したら、元の予定を控えに残す（過ぎた日に「予定どおりだったか」を見る、`movedPlans.ts`）
+  // 始まった予定を別の日・別の時刻へ動かしたら、元の予定を控えに残す（元の位置に跡を出す、`movedPlans.ts`）
   const moved =
-    patch.scheduledDate !== undefined && patch.scheduledDate !== task.scheduledDate
-      ? withMovedPlans(applied, movedPlansAfter(task, patch.scheduledDate, appDayKeyOf(now)))
+    applied.scheduledDate !== task.scheduledDate || applied.startTime !== task.startTime || applied.endTime !== task.endTime
+      ? withMovedPlans(
+          applied,
+          movedPlansAfter(
+            task,
+            { date: applied.scheduledDate, startTime: applied.startTime, endTime: applied.endTime },
+            wallMinutesOf(toAppWall(now)),
+          ),
+        )
       : applied
   const out = withLogCategory(moved)
   // ラベルは名前・色が正。名前・色・種類が変わったら id を外し、名前・色から付け直す（`labelIds.ts` の `fillLabelIds`）

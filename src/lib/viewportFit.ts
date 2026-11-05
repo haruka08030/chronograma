@@ -82,7 +82,8 @@ export function fitRect(size: { width: number; height: number }, opts: FitOption
     align === 'end' ? anchor.right - size.width : align === 'center' ? (anchor.left + anchor.right - size.width) / 2 : anchor.left
   const left = clamp(rawLeft, minLeft, maxLeftFor(size.width))
   const belowTop = anchor.bottom + gap
-  const aboveBottom = anchor.top - gap
+  // 開いた所が画面の下の端より下（一番下のボタンの少し下を指す）でも、面の下は画面の中に
+  const aboveBottom = Math.min(anchor.top - gap, maxBottom)
   const fitsBelow = belowTop + size.height <= maxBottom
   const fitsAbove = aboveBottom - size.height >= minTop
   const down = prefer === 'below' ? fitsBelow || !fitsAbove : !fitsAbove && fitsBelow

@@ -25,7 +25,6 @@ const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 7]
 export function EventRepeatField({ task, date }: { task: Task; date: string }) {
   const { t } = useTranslation()
   const setEventRepeat = useTaskStore((s) => s.setEventRepeat)
-  const timetable = useTaskStore((s) => s.timetable)
   const school = useSchool()
   const labels = t('habits.weekdays', { returnObjects: true }) as string[]
   const series = isSeriesEvent(task) ? task.series : null
@@ -62,7 +61,8 @@ export function EventRepeatField({ task, date }: { task: Task; date: string }) {
               setEventRepeat(task.id, {
                 weekdays: [isoWeekday(fromDateKey(date))],
                 until: defaultSeriesUntil(date, termOn(school, date)?.termEnd ?? null),
-                skipHolidays: timetable.skipHolidays,
+                // 時間割の「祝日は授業を入れない」は時間割の授業だけ。ほかの繰り返し（バイトなど）は祝日も入れ、欄のスイッチで選ぶ（#671）
+                skipHolidays: false,
               })
           }}
           className={fieldClass({ size: 'sm' })}

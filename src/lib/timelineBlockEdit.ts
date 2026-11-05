@@ -26,6 +26,7 @@ import { wallMinutes, wallMinutesOf, wallParts } from './wallTime'
 import { parseSleepSlotId, sleepPlanOn, sleepPlanSpan, sleepSlotsOnDay } from './sleepSchedule'
 import { announce } from './announce'
 import { TASK_DEFAULTS } from './taskDefaults'
+import { timeRange } from './timeRange'
 
 /**
  * タイムラインのブロック（予定・記録・習慣の枠・Google の予定）の時刻を変える処理。
@@ -57,7 +58,7 @@ export function setHabitDayTimeFromSlot(slot: { habitId: string; dateKey: string
   if (!habit) return
   setHabitDayTime(habit.id, slot.dateKey, startTime, endTime, {
     key: 'undo.habitDayTime',
-    params: { name: habit.title, date: shortDate(slot.dateKey), time: `${startTime}–${endTime}` },
+    params: { name: habit.title, date: shortDate(slot.dateKey), time: timeRange(startTime, endTime) },
   })
 }
 
@@ -76,7 +77,7 @@ export function placeHabitAt(habitId: string, dateKey: string, startTime: string
   }
   addHabitExtraDay(habitId, dateKey, startTime, endTime, {
     key: 'undo.habitExtraAdded',
-    params: { name: habit.title, date: shortDate(dateKey), time: `${startTime}–${endTime}` },
+    params: { name: habit.title, date: shortDate(dateKey), time: timeRange(startTime, endTime) },
   })
 }
 
@@ -112,7 +113,7 @@ function setSleepSlotSpan(wakeDate: string, start: number, end: number): boolean
     .setSleepPlanDay(
       wakeDate,
       { bed: s.time, wake: e.time },
-      { key: 'undo.sleepDayTime', params: { date: shortDate(wakeDate), time: `${s.time}–${e.time}` } },
+      { key: 'undo.sleepDayTime', params: { date: shortDate(wakeDate), time: timeRange(s.time, e.time) } },
     )
   return true
 }
@@ -183,7 +184,7 @@ export function applyBlockMove(taskId: string, dateKey: string, startTime: strin
   }
   updateTask(taskId, patch, {
     key: 'undo.blockMoved',
-    params: { title: prev.title, date: shortDate(dateKey), time: `${startTime}–${endTime}` },
+    params: { title: prev.title, date: shortDate(dateKey), time: timeRange(startTime, endTime) },
   })
   return true
 }
@@ -228,7 +229,7 @@ export function applyBlockResize(taskId: string, startTime: string, endTime: str
     if (!next || next.end > wallMinutesOf(zonedNow())) return false
     updateTask(taskId, patch, {
       key: 'undo.blockResized',
-      params: { title: prev.title, time: `${patch.startTime}–${patch.endTime}` },
+      params: { title: prev.title, time: timeRange(patch.startTime, patch.endTime) },
     })
     return true
   }
@@ -239,7 +240,11 @@ export function applyBlockResize(taskId: string, startTime: string, endTime: str
       endTime = minutesToTime(limit)
     }
   }
-  updateTask(taskId, { startTime, endTime }, { key: 'undo.blockResized', params: { title: prev.title, time: `${startTime}–${endTime}` } })
+  updateTask(
+    taskId,
+    { startTime, endTime },
+    { key: 'undo.blockResized', params: { title: prev.title, time: timeRange(startTime, endTime) } },
+  )
   return true
 }
 
@@ -347,7 +352,7 @@ export function nudgeTimelineBlock(id: string, mode: NudgeMode, dir: -1 | 1, now
     if (mode === 'resize' && end - start < NUDGE_MINUTES && dir < 0) return null
     if (end <= start) return null
     const patch = logPatchForInterval(start, end)
-    const time = `${patch.startTime}–${patch.endTime}`
+    const time = timeRange(patch.startTime, patch.endTime)
     state.updateTask(
       id,
       patch,

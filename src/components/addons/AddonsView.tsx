@@ -105,7 +105,7 @@ function AddonCard({ id, onOpen }: { id: AddonId; onOpen: () => void }) {
                 }}
                 className={buttonClass({ variant: 'ghost', size: 'md' })}
               >
-                {t(`addons.${id}.guide`)}
+                {t('addons.guide')}
               </button>
             )}
             <button type="button" onClick={() => setInfoOpen(false)} className={buttonClass({ variant: 'primary', size: 'md' })}>

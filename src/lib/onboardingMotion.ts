@@ -58,34 +58,3 @@ export function flyIntoTimeline(from: Element, taskId: string) {
     }),
   )
 }
-
-type Listener = () => void
-const tabListeners = new Set<Listener>()
-
-/** スマホ: 「タイムライン」のタブを少しだけ弾ませる（タイムラインに入ったことを知らせる） */
-export function nudgeTimelineTab() {
-  if (prefersReducedMotion()) return
-  for (const listener of tabListeners) listener()
-}
-
-/** タブの側で弾ませ方を登録する。戻り値で外す */
-export function onTimelineTabNudge(listener: Listener): () => void {
-  tabListeners.add(listener)
-  return () => tabListeners.delete(listener)
-}
-
-/** 弾ませる動き（少し大きくなって上へ跳ね、もう一度小さく跳ねて戻る） */
-export function bounce(el: HTMLElement) {
-  if (typeof el.animate !== 'function') return
-  // 緩急は区間ごと（全体にかけると跳ねる頂点が一瞬で過ぎる）
-  el.animate(
-    [
-      { transform: 'none', easing: 'ease-out' },
-      { transform: 'translateY(-5px) scale(1.08)', offset: 0.25, easing: 'ease-in' },
-      { transform: 'none', offset: 0.5, easing: 'ease-out' },
-      { transform: 'translateY(-2px) scale(1.03)', offset: 0.7, easing: 'ease-in' },
-      { transform: 'none' },
-    ],
-    { duration: 800 },
-  )
-}

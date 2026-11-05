@@ -9,6 +9,19 @@ const inside = (f: { left: number; top: number; maxHeight: number }, w: number) 
   expect(f.top + f.maxHeight).toBeLessThanOrEqual(800 - 8)
 }
 
+describe('開いた所が画面の下より下', () => {
+  it('上に出しても面の下は画面の中に収まる', () => {
+    const vp = { top: 0, left: 0, right: 1280, bottom: 560 }
+    const fit = fitRect(
+      { width: 256, height: 97 },
+      { anchor: { top: 559, bottom: 559, left: 900, right: 900 }, placement: 'below', gap: 0 },
+      vp,
+    )
+    expect(fit.top + 97).toBeLessThanOrEqual(560)
+    expect(fit.top).toBeGreaterThanOrEqual(0)
+  })
+})
+
 describe('fitRect', () => {
   it('below: 入れば下に出す', () => {
     const f = fitRect({ width: 200, height: 300 }, { anchor: { top: 100, bottom: 120, left: 50, right: 150 }, placement: 'below' }, VP)

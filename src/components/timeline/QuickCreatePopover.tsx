@@ -40,6 +40,7 @@ import { habitsMatchingTitle } from '../../lib/habitSuggest'
 import { buildHabitRecordIndex } from '../../lib/habitTiming'
 import { isLogTask } from '../../types/task'
 import { placeHabitAt } from '../../lib/timelineBlockEdit'
+import { timeRange } from '../../lib/timeRange'
 
 const WIDTH = 340
 let lastListId: string = INBOX_LIST_ID
@@ -109,7 +110,7 @@ export function QuickCreatePopover({
   const updateTask = useTaskStore((s) => s.updateTask)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   // 記録の列では、名前を打つと推定したラベルを先に選び、過去の記録を候補に出す
-  const { title, category, taskId, color, vague, setTitle, setLabel, pick } = useLogDraft({ infer: asLog })
+  const { title, category, taskId, color, setTitle, setLabel, pick } = useLogDraft({ infer: asLog })
   const googleWritable = useTaskStore((s) => s.googleConnected && s.googleCanWrite)
   const [choice, setChoice] = useState<QuickCreateChoice>(readChoice)
   const asEvent = !asLog && choice.kind === 'event'
@@ -161,7 +162,7 @@ export function QuickCreatePopover({
   const save = (openDetail: boolean) => {
     if (asLog) {
       // 空欄なら分類名で記録（記録の入力はどこでも同じ規則）
-      const name = title.trim() || category.trim() || (vague ? t('labels.vague') : t('quickCreate.untitled'))
+      const name = title.trim() || category.trim() || t('quickCreate.untitled')
       const id = addTimeLog(
         name,
         dateKey,
@@ -172,7 +173,6 @@ export function QuickCreatePopover({
         undefined,
         color,
         taskId,
-        vague,
       )
       onCreated(id, openDetail)
       return
@@ -217,7 +217,7 @@ export function QuickCreatePopover({
     updateTask(
       fit.id,
       { scheduledDate: dateKey, startTime, endTime: end },
-      t('undo.timeSet', { title: toastTitle(fit.title), time: `${startTime}–${end}` }),
+      t('undo.timeSet', { title: toastTitle(fit.title), time: timeRange(startTime, end) }),
     )
     onClose()
   }
@@ -384,7 +384,7 @@ export function QuickCreatePopover({
             onClick={() => setEditingTime(true)}
             className="-mx-1.5 min-w-0 rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
           >
-            {df.monthDayWeekdayLong(dateKey)} · {startTime} – {endTime}
+            {df.monthDayWeekdayLong(dateKey)} · {timeRange(startTime, endTime)}
           </button>
         )}
         {!asLog && (
@@ -413,7 +413,7 @@ export function QuickCreatePopover({
       </div>
       {asLog ? (
         <div className="mt-3">
-          <TimeLogTagField value={category} color={color} vague={vague} onChange={setLabel} compact />
+          <TimeLogTagField value={category} color={color} onChange={setLabel} compact />
         </div>
       ) : (
         <label className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">

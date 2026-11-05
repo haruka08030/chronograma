@@ -39,17 +39,17 @@ const C = {
   rule: '#e4e4e7', // zinc-200
   insightBg: '#f5f6f7', // accent-50 の 70%（白の上）
   insightInk: '#202124', // accent-800
-  /** 「なんとなく」の斜線と縁（画面の `gc-vague` と同じ灰） */
-  vagueLine: '#c4c4c4',
-  vagueEdge: '#a6a6a6',
+  /** 記録の無い時間の斜線と縁（画面の `gc-unrecorded` と同じ灰） */
+  unrecordedLine: '#c4c4c4',
+  unrecordedEdge: '#a6a6a6',
 }
 
 /** 1 本の棒の 1 段（ラベルの色と分） */
 export interface ImageSegment {
   hex: string
   minutes: number
-  /** 「なんとなく」の時間（#657。なんとなくの記録＋記録の無い時間）。灰の斜線で一番上に積み、棒の上の合計には入れない */
-  vague?: boolean
+  /** 記録の無い時間。灰の斜線で一番上に積み、棒の上の合計には入れない */
+  unrecorded?: boolean
 }
 
 export interface ImageDay {
@@ -142,9 +142,9 @@ export function buildReviewImageModel(
       .filter((x) => x.minutes > 0)
       .map((x) => ({ hex: opts.labelHex(x.tag), minutes: x.minutes }))
     const total = segments.reduce((a, x) => a + x.minutes, 0)
-    // 「なんとなく」の時間は一番上に斜線で（画面の棒と同じ）
-    const vague = day ? day.vagueMinutes + day.unrecordedMinutes : 0
-    if (vague > 0) segments.push({ hex: C.vagueEdge, minutes: vague, vague: true })
+    // 記録の無い時間は一番上に斜線で（画面の棒と同じ）
+    const unrecorded = day?.unrecordedMinutes ?? 0
+    if (unrecorded > 0) segments.push({ hex: C.unrecordedEdge, minutes: unrecorded, unrecorded: true })
     return {
       label: opts.dayLabel(key, i),
       segments,
@@ -223,7 +223,7 @@ export type DrawOp =
       r?: number | [number, number, number, number]
       fill?: string
       stroke?: string
-      /** 中に引く斜線の色（「なんとなく」の段） */
+      /** 中に引く斜線の色（記録の無い時間の段） */
       hatch?: string
     }
   | {
@@ -353,7 +353,7 @@ export function layoutReviewImage(model: ReviewImageModel, measure: MeasureText)
   const barTop = y + L.chartTop
   const baseY = y + L.chartHeight
   const barArea = baseY - barTop
-  // 棒の高さは「なんとなく」の段も積んだ高さ（棒の上の合計の文字は記録だけ、`totalText`）
+  // 棒の高さは記録の無い時間の段も積んだ高さ（合計の文字は記録だけ、`totalText`）
   const dayTotals = model.days.map((d) => d.segments.reduce((a, x) => a + x.minutes, 0))
   const max = Math.max(60, ...dayTotals)
   model.days.forEach((day, i) => {
@@ -378,13 +378,23 @@ export function layoutReviewImage(model: ReviewImageModel, measure: MeasureText)
           w: bw,
           h: Math.max(1, segBottom - segTop + (j > 0 ? 1 : 0)),
           r: isTop ? [3, 3, 0, 0] : 0,
-          fill: seg.vague ? C.surface : dotFill(seg.hex),
+          fill: seg.unrecorded ? C.surface : dotFill(seg.hex),
           stroke: seg.hex,
-          ...(seg.vague ? { hatch: C.vagueLine } : {}),
+          ...(seg.unrecorded ? { hatch: C.unrecordedLine } : {}),
         })
         segBottom = segTop
       })
-      if (day.totalText) text(x + colW / 2, baseY - h - L.smallSize - 4, day.totalText, L.smallSize - 1, C.meta, 400, 'center')
+      // 合計は記録の無い時間を数えないので、色の部分のすぐ上に置く（斜線に重なるので下地を敷く）
+      if (day.totalText) {
+        const recorded = day.segments.reduce((a, s) => (s.unrecorded ? a : a + s.minutes), 0)
+        const size = L.smallSize - 1
+        const ty = baseY - (recorded / total) * h - L.smallSize - 4
+        if (recorded < total) {
+          const tw = measure(day.totalText, size, 400) + 4
+          ops.push({ kind: 'rect', x: x + colW / 2 - tw / 2, y: ty - 1, w: tw, h: size + 2, r: 2, fill: C.surface })
+        }
+        text(x + colW / 2, ty, day.totalText, size, C.meta, 400, 'center')
+      }
     }
     if (day.label) text(x + colW / 2, baseY + 7, day.label, L.smallSize, C.faint, 400, 'center')
   })

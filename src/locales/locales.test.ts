@@ -98,6 +98,29 @@ describe('locales', () => {
     expect(missing).toEqual([])
   })
 
+  it('英語の「{{count}} 複数形の名詞」には単数形（_one）がある（2 件以上でしか出ない Many と、選択肢が決まっている数は除く）', () => {
+    const NOT_ONE = /Many|ThisDay$|^filter\.periodDays$|^sleepStats\.|^sync\./
+    const entries = (obj: object, prefix = ''): [string, string][] =>
+      Object.entries(obj).flatMap(([k, v]) =>
+        v && typeof v === 'object' ? entries(v as object, `${prefix}${k}.`) : [[`${prefix}${k}`, String(v)] as [string, string]],
+      )
+    const all = entries(en)
+    const keys = new Set(all.map(([k]) => k))
+    const missing = all
+      .filter(([k, v]) => /\{\{count\}\} (?:[a-z-]+ )?[a-z-]+s\b/.test(v) && !/_one$|_other$/.test(k) && !NOT_ONE.test(k))
+      .filter(([k]) => !keys.has(`${k}_one`))
+      .map(([k]) => k)
+    expect(missing).toEqual([])
+  })
+
+  it('時刻の範囲はソースで組み立てず timeRange を使う', () => {
+    const written = Object.entries(sources)
+      .filter(([file]) => !file.endsWith('dateFormat.ts') && !file.endsWith('timeRange.ts'))
+      .filter(([, text]) => /\}\s?–\s?\$\{/.test(text as string))
+      .map(([file]) => file)
+    expect(written).toEqual([])
+  })
+
   it('部品のソースの文字列に日本語・全角の記号を書かない（文言の鍵に置く。括弧つきは common.withNote、区切りは common.listSeparator）', () => {
     expect(jaTextInComponents()).toEqual([])
   })

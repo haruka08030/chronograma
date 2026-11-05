@@ -13,9 +13,9 @@ export interface SelectionAction {
 }
 
 /**
- * 行を選んでいる間だけ下に浮かぶバー（To-Do 一覧・今日の計画・アーカイブ・ゴミ箱で共通）。
+ * 行を選んでいる間だけ下に浮かぶバー（To-Do 一覧・検索結果・今日の計画・アーカイブ・ゴミ箱で共通）。
  * 何件選んでいるかと、その画面でよく使う操作を並べ、残りは「操作」でタスクのメニューを開く。
- * 操作したら選択を外す
+ * 操作したら選択を外す。狭い幅は操作の印を消して詰め、入らなければ折り返す
  */
 export function SelectionBar({
   selectedIds,
@@ -42,15 +42,20 @@ export function SelectionBar({
   }, [open])
   if (!open) return null
   const button =
-    'whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition-colors touch-manipulation hover:bg-white/15 dark:hover:bg-zinc-900/10'
+    'touch-hit whitespace-nowrap rounded-full px-3 py-1.5 font-medium max-[359px]:px-2 transition-colors touch-manipulation hover:bg-white/15 dark:hover:bg-zinc-900/10'
   return (
-    <div className={`fixed left-1/2 z-40 -translate-x-1/2 animate-toast-in ${timerOpen ? FLOAT_BOTTOM_ABOVE_TIMER : FLOAT_BOTTOM}`}>
+    <div
+      data-selection-bar
+      className={`fixed left-1/2 z-40 w-max max-w-[calc(100vw-1rem)] -translate-x-1/2 animate-toast-in ${timerOpen ? FLOAT_BOTTOM_ABOVE_TIMER : FLOAT_BOTTOM}`}
+    >
       <div
         role="toolbar"
         aria-label={t('taskList.selectedCount', { count: selectedIds.size })}
-        className={`flex items-center gap-0.5 rounded-full py-1 pl-4 pr-1 text-sm ${INVERSE_SURFACE}`}
+        className={`flex flex-wrap items-center justify-center gap-0.5 rounded-3xl py-1 pl-4 pr-1 text-sm max-[359px]:pl-3 ${INVERSE_SURFACE}`}
       >
-        <span className="mr-2 whitespace-nowrap tabular-nums">{t('taskList.selectedCount', { count: selectedIds.size })}</span>
+        <span className="mr-2 whitespace-nowrap tabular-nums max-[359px]:mr-0.5">
+          {t('taskList.selectedCount', { count: selectedIds.size })}
+        </span>
         {actions.map((a) => (
           <button
             key={a.label}
@@ -61,7 +66,7 @@ export function SelectionBar({
               onClear()
             }}
           >
-            {a.icon}
+            {a.icon && <span className="max-[359px]:hidden">{a.icon}</span>}
             {a.label}
           </button>
         ))}

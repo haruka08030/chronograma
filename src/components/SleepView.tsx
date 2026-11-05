@@ -34,6 +34,7 @@ import { PerWeekdayToggle } from './ui/PerWeekdayToggle'
 import { CARD_TITLE_CLASS, PAGE_TITLE_CLASS } from './ui/headingClass'
 import { PAGE_SCROLL_CLASS } from './ui/layoutClass'
 import { HINT_TEXT, META_TEXT } from './ui/textClass'
+import { timeRange } from '../lib/timeRange'
 
 /** 睡眠の予定がまだ無いとき（毎回作り直すと購読が止まらない） */
 const NO_SCHEDULE: SleepSchedule = {}
@@ -195,7 +196,7 @@ function SleepNightsCard() {
                 aria-expanded={editing}
                 aria-label={
                   n
-                    ? `${df.shortDateWeekday(dateKey)} ${n.bed}–${n.wake} ${formatDuration(n.minutes)}${
+                    ? `${df.shortDateWeekday(dateKey)} ${timeRange(n.bed, n.wake)} ${formatDuration(n.minutes)}${
                         n.napMinutes > 0 ? ` ${t('sleep.napPlus', { time: formatDuration(n.napMinutes) })}` : ''
                       }`
                     : t('sleepStats.fillAria', { day: df.shortDateWeekday(dateKey) })

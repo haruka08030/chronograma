@@ -21,6 +21,7 @@ import { isImeKeyEvent, isTypingTarget } from '../lib/keyboard'
 import { TIME_SLOT_MENU_WIDTH } from '../lib/timeSlotTarget'
 import { useExitGhost } from '../hooks/useExitGhost'
 import { SheetBackdrop } from './ui/SheetBackdrop'
+import { timeRange } from '../lib/timeRange'
 
 /** 長さの選択肢。見積もり・設定の既定の長さが無ければ足す */
 const DURATIONS = [30, 60, 120]
@@ -162,7 +163,7 @@ export function TimeSlotMenu({
     updateTask(
       taskId,
       { scheduledDate: dateKey, startTime, endTime },
-      t('undo.timeSet', { title: toastTitle(task.title), time: `${startTime}–${endTime}` }),
+      t('undo.timeSet', { title: toastTitle(task.title), time: timeRange(startTime, endTime) }),
     )
     onClose()
   }

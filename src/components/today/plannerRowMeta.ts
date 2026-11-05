@@ -3,6 +3,7 @@ import type { Task } from '../../types/task'
 import { planTiming } from '../../lib/planTiming'
 import { DUE_TONE_CLASS, SCHEDULED_TONE_CLASS, type DateTone } from '../ui/dueTone'
 import { dueDateLabel } from '../ui/dueDateLabel'
+import { timeRange } from '../../lib/timeRange'
 
 export const META_TONE_CLASS = {
   muted: DUE_TONE_CLASS.past,
@@ -59,7 +60,7 @@ export function rowMeta(task: Task, mode: DueMode, day: PlannerDay): { time: str
           : dueAll
   if (!timed) return { time: null, timeOver: false, due }
   return {
-    time: `${task.startTime}–${task.endTime}`,
+    time: timeRange(task.startTime, task.endTime),
     timeOver: planTiming(task, day.now).ended,
     due,
   }
