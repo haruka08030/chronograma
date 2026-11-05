@@ -82,11 +82,7 @@ function TaskEventMenuBody({
       kind: 'sub',
       id: 'color',
       label: t('labels.pickerAria'),
-      icon: color.vague?.selected ? (
-        <span className="gc-vague mx-px h-3.5 w-3.5 flex-shrink-0 rounded-full" aria-hidden />
-      ) : (
-        <Dot hex={hex} />
-      ),
+      icon: <Dot hex={hex} />,
       leaves: [],
       width: 'lg',
       extra: (close) => (
@@ -104,17 +100,6 @@ function TaskEventMenuBody({
           }}
           defaultLabel={color.defaultLabel}
           defaultHex={color.defaultHex}
-          vague={
-            color.vague
-              ? {
-                  selected: color.vague.selected,
-                  onChoose: () => {
-                    color.vague?.onChoose()
-                    close()
-                  },
-                }
-              : undefined
-          }
         />
       ),
     },

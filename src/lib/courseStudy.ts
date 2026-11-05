@@ -13,7 +13,7 @@ import type { Term } from './schoolTerms'
  * - 課題: ▶ で始めた元の To-Do（`sourceTaskId`）の最初のタグが、授業につながる科目（Canvas・Moodle の科目名）
  * - 授業: 題名が授業名と同じで、元が授業の予定か、その日に同じ名前の予定と時間が重なる（予定のカードの ✓・「記録にする」）
  * - 自習: 題名が授業名と同じか、授業名＋空白で始まる（「統計学 復習」）。部分一致はしない（「統計学演習」は入れない）
- * 睡眠・削除・「なんとなく」・子の記録は入れない
+ * 睡眠・削除・子の記録は入れない
  */
 
 export type StudyKind = 'assignment' | 'class' | 'self'
@@ -26,7 +26,7 @@ export interface CourseStudy {
 }
 
 function isStudyLog(t: Task): boolean {
-  return isLogTask(t) && !isSleepTask(t) && !isDeletedTask(t) && !t.parentId && !t.vague && !!t.dueDate && !!t.startTime && !!t.endTime
+  return isLogTask(t) && !isSleepTask(t) && !isDeletedTask(t) && !t.parentId && !!t.dueDate && !!t.startTime && !!t.endTime
 }
 
 /** 題名が授業名と同じか、授業名＋空白で始まる */

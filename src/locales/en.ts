@@ -396,11 +396,9 @@ export default {
     insightOpenOnly: '{{count}} to-dos, none done and no time logged yet.',
     insightNothing: 'Nothing logged or planned this week yet.',
     insightNothingMonth: 'Nothing logged or planned this month yet.',
-    vague: '{{time}} adrift',
-    vagueBreakdown: 'Adrift {{time}} ({{parts}})',
-    vagueUnrecorded: 'unrecorded {{time}}',
-    vagueLogged: 'logged as adrift {{time}}',
-    vagueSeparator: ', ',
+    unrecorded: '{{time}} unrecorded',
+    unrecordedLegend: 'Unrecorded',
+    unrecordedHint: 'Total of gaps of 30 minutes or more with no record while awake',
     shareImage: 'Share as image',
     shareImageEmpty: 'Nothing logged in this period yet, so there is no image to make',
   },
@@ -611,8 +609,6 @@ export default {
   },
   labels: {
     title: 'Labels',
-    vague: 'Adrift',
-    vagueHint: 'Switching back and forth, chores, phone, or time you can’t account for',
     placeholder: 'Add a label',
     add: 'Add a label',
     remove: 'Delete label',
@@ -1782,11 +1778,6 @@ export default {
             intro: 'Use “Set a length” on the timer to set an end, such as 25, 50 or 90 minutes.',
             points: ['You’ll get a notification when the time is up.', 'The timer doesn’t stop by itself.'],
           },
-          vague: {
-            title: 'Use “Adrift”',
-            intro: 'Log time you can’t name, such as commuting, chores or phone time, as “Adrift”.',
-            points: ['It’s above “No label” in the label list.', '“Adrift” logs aren’t included in logged time or time by label.'],
-          },
           gaps: {
             title: 'Fill in unrecorded time',
             intro: 'Time without a log appears as dotted blocks on the timeline.',
@@ -1826,7 +1817,7 @@ export default {
             intro: 'The review compares logged and planned time for each label.',
             points: [
               'Logs that matched no plan appear under “Not in the plan”.',
-              '“Adrift” time is your “Adrift” logs plus unrecorded time.',
+              'Unrecorded time is stacked in stripes on top of each day’s bar.',
             ],
           },
           share: {

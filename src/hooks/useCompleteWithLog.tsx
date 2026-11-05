@@ -70,18 +70,7 @@ export function useCompleteWithLog() {
     const endDateArg = draft.endDate !== draft.date ? draft.endDate : null
     // 記録を足して完了にする 1 つの操作なので、元に戻すも 1 回で両方戻す。予定は記録を足すだけ（完了が無い）
     useTaskStore.getState().asOneUndo(() => {
-      addTimeLog(
-        title,
-        draft.date,
-        draft.startTime,
-        draft.endTime,
-        draft.tags,
-        memo || undefined,
-        endDateArg,
-        draft.color,
-        null,
-        draft.vague,
-      )
+      addTimeLog(title, draft.date, draft.startTime, draft.endTime, draft.tags, memo || undefined, endDateArg, draft.color)
       // 完了の時刻は記録の終わり（今より先なら今）。押した今にすると、過ぎた日の予定は今日へ移って予定の日から消える
       if (!draft.fromEvent) {
         const end = Math.min(instantFromWall(draft.endDate, draft.endTime, appTimeZone()), Date.now())

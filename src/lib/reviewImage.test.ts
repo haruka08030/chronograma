@@ -107,13 +107,13 @@ describe('buildReviewImageModel', () => {
     const m = model()
     expect(m.days).toHaveLength(7)
     expect(m.days.map((d) => d.label).join('')).toBe('月火水木金土日')
-    // 火曜: 就活 90 分・ゼミ 60 分（多い順）、一番上に記録の無い 11:30–13:00 の「なんとなく」（#657）
+    // 火曜: 就活 90 分・ゼミ 60 分（多い順）、一番上に記録の無い 11:30–13:00 の記録なし
     expect(m.days[1]!.segments).toEqual([
       { hex: '#F6BF26', minutes: 90 },
       { hex: '#7986CB', minutes: 60 },
-      { hex: '#a6a6a6', minutes: 90, vague: true },
+      { hex: '#a6a6a6', minutes: 90, unrecorded: true },
     ])
-    // 棒の上の合計は記録の 150 分だけ（「なんとなく」の 90 分を足すと 4h）
+    // 棒の上の合計は記録の 150 分だけ（記録なしの 90 分を足すと 4h）
     expect(m.days[1]!.totalText).toBe('2h')
     // 未来の日（日曜）は空
     expect(m.days[6]!.segments).toEqual([])
@@ -247,7 +247,7 @@ describe('layoutReviewImage', () => {
     const bars = layout.ops.filter((op) => op.kind === 'rect' && op.stroke === '#F6BF26' && op.w > 20)
     expect(bars.length).toBeGreaterThan(0)
     expect(bars[0]).toMatchObject({ fill: dotFill('#F6BF26') })
-    // 火曜の 3 段: 上の段の下端が下の段の上端に 1px 重なる。一番上は「なんとなく」の斜線
+    // 火曜の 3 段: 上の段の下端が下の段の上端に 1px 重なる。一番上は記録なしの斜線
     const tue = layout.ops.filter(
       (op): op is Extract<typeof op, { kind: 'rect' }> => op.kind === 'rect' && !!op.stroke && op.w > 20 && op.x > 90 && op.x < 160,
     )

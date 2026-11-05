@@ -303,6 +303,16 @@ describe('task kind (is_time_log / is_sleep columns)', () => {
     expect(Object.fromEntries(res.tasks.map((t) => [t.id, t.kind]))).toEqual({ todo: 'todo', log: 'log', sleep: 'sleep', odd: 'todo' })
   })
 
+  it('reads an "adrift" log from an older app as trashed, and always writes the mark as false', async () => {
+    const rows = [{ ...task('v'), is_time_log: true, is_vague: true }]
+    const { client, upserts } = fakeSupabase({ lists: [], list_sections: [], tasks: rows, habits: [] })
+    const res = await fetchListsTasksHabits(client, 'u1')
+    if ('error' in res) throw new Error(res.error)
+    expect(res.tasks[0]!.deletedAt).toEqual(expect.any(String))
+    await pushListsTasksHabits(client, 'u1', [], [{ ...res.tasks[0]!, deletedAt: null }], [], [], noDeletes)
+    expect(upserts.find((u) => u.table === 'tasks')!.rows[0]!.is_vague).toBe(false)
+  })
+
   it('writes the kind as the two columns older apps read', async () => {
     const { client, upserts } = fakeSupabase({})
     const [todo, log, sleep] = fetchedTasks(['todo', 'log', 'sleep'])

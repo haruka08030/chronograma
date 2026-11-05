@@ -406,16 +406,15 @@ body {
 }
 
 /*
- * 「なんとなく」の時間（#657。なんとなくの記録と、ふりかえりの棒の記録なしの時間）: 灰の斜線＋灰の縁。
- * ドロップダウンの丸・タイムラインの枠・ふりかえりの棒で同じ印にし、ほかの意味には使わない
+ * ふりかえりの棒の記録の無い時間: 灰の斜線＋灰の縁。ほかの意味には使わない
  */
-.gc-vague {
+.gc-unrecorded {
   background-color: var(--gc-surface);
   background-image: repeating-linear-gradient(135deg, color-mix(in srgb, #9e9e9e 55%, transparent) 0 1.5px, transparent 1.5px 5px);
   border: 1px solid color-mix(in srgb, #9e9e9e 85%, var(--gc-surface));
   color: color-mix(in srgb, #9e9e9e 25%, var(--gc-ink));
 }
-.dark .gc-vague {
+.dark .gc-unrecorded {
   background-image: repeating-linear-gradient(135deg, color-mix(in srgb, #a1a1aa 45%, transparent) 0 1.5px, transparent 1.5px 5px);
   border-color: #71717a;
   color: #e4e4e7;

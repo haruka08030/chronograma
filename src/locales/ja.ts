@@ -382,11 +382,9 @@ export default {
     insightOpenOnly: 'To-Do は {{count}} 件あり、完了と時間の記録はまだありません。',
     insightNothing: 'この週はまだ記録も予定もありません。',
     insightNothingMonth: 'この月はまだ記録も予定もありません。',
-    vague: 'なんとなく {{time}}',
-    vagueBreakdown: 'なんとなく {{time}}（{{parts}}）',
-    vagueUnrecorded: '記録なし {{time}}',
-    vagueLogged: 'なんとなくで記録 {{time}}',
-    vagueSeparator: '・',
+    unrecorded: '記録なし {{time}}',
+    unrecordedLegend: '記録なし',
+    unrecordedHint: '起きている間で、30 分以上記録のない時間の合計',
     shareImage: '画像にして共有',
     shareImageEmpty: 'この期間はまだ記録がないので、画像にできません',
   },
@@ -596,8 +594,6 @@ export default {
   },
   labels: {
     title: 'ラベル',
-    vague: 'なんとなく',
-    vagueHint: '行き来・雑用・スマホ・何をしたか分からない時間',
     placeholder: 'ラベルを追加',
     add: 'ラベルを追加',
     remove: 'ラベルを削除',
@@ -1717,14 +1713,6 @@ export default {
             intro: 'タイマーの「あと何分」で、25・50・90 分などの終わりの時間を決められます。',
             points: ['時間になると通知でお知らせします。', 'タイマーは自動では止まりません。'],
           },
-          vague: {
-            title: '「なんとなく」を使う',
-            intro: '移動・家事・スマホなど、何をしていたか分からない時間は「なんとなく」で記録できます。',
-            points: [
-              'ラベルを選ぶ一覧の「ラベルなし」の上にあります。',
-              '「なんとなく」の記録は、記録した時間とラベル別の時間には入りません。',
-            ],
-          },
           gaps: {
             title: '記録のない時間を埋める',
             intro: '記録のない時間は、タイムラインに点線の枠で表示されます。',
@@ -1764,7 +1752,7 @@ export default {
             intro: 'ふりかえりでは、ラベルごとに記録した時間と予定した時間を比べられます。',
             points: [
               'どの予定とも合わなかった記録は「予定に無かった記録」に表示されます。',
-              '「なんとなく」の時間は、「なんとなく」の記録と記録のない時間の合計です。',
+              '記録のない時間は、日別の棒の一番上に斜線で積まれます。',
             ],
           },
           share: {

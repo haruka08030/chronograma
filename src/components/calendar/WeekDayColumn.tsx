@@ -7,7 +7,6 @@ import type { DropPreview, useTimelineDrop } from '../../lib/useTimelineDrop'
 import { canSetMyEventTime } from '../../lib/googleEventEdit'
 import type { CalendarEvent } from '../../types/calendarEvent'
 import { isEventTask, isSleepTask, type Task } from '../../types/task'
-import { isCountedLog, isVagueLog } from '../../lib/vagueLog'
 import { layoutPlanAndLog } from '../../lib/overlapLayout'
 import { logLabelFromTask, recordHex } from '../../lib/logCategoryColors'
 import { checkRecordTimes, planRecordOn } from '../../lib/planCheck'
@@ -243,7 +242,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     ]
     for (const pair of matchPlanAndActualForDate(
       planned,
-      dayLogs.filter((l) => isCountedLog(l)),
+      dayLogs.filter((l) => !isSleepTask(l)),
     )) {
       if (pair.status !== 'matched') continue
       fullPlanIds.add(pair.planned!.id)
@@ -521,7 +520,6 @@ export const WeekDayColumn = memo(function WeekDayColumn({
             dayKey={key}
             isLog
             sleep={isSleepTask(t)}
-            vague={isVagueLog(t)}
             hStyle={logStyle(t.id)}
             colorHex={recordHex(t, logCategoryColors)}
             onPointerDown={(e) => {

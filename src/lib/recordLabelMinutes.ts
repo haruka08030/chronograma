@@ -1,11 +1,10 @@
-import type { Task } from '../types/task'
-import { isCountedLog } from './vagueLog'
+import { isSleepTask, type Task } from '../types/task'
 import { logSegmentClockOnDay } from './taskTimeRange'
 import { timeToMinutes } from './clockTime'
 
 /**
  * その日の記録をラベルごとに分ける。重なった時間は 2 回数えず、あとから始まった記録に入れる
- * （セミナーの途中の「移動」など、細かく付けたほうを残す）。睡眠は入れない（上の「睡眠」の行で見る）。「なんとなく」も入れない（#657）
+ * （セミナーの途中の「移動」など、細かく付けたほうを残す）。睡眠は入れない（上の「睡眠」の行で見る）
  */
 export function minutesByRecordLabel(
   logs: readonly Task[],
@@ -13,7 +12,7 @@ export function minutesByRecordLabel(
   labelOf: (log: Task) => string,
 ): { totalMinutes: number; byCategory: [string, number][] } {
   const spans = logs
-    .filter((log) => isCountedLog(log))
+    .filter((log) => !isSleepTask(log))
     .flatMap((log) => {
       const seg = logSegmentClockOnDay(log, dateKey)
       return seg ? [{ start: timeToMinutes(seg.startTime), end: timeToMinutes(seg.endTime), label: labelOf(log) }] : []

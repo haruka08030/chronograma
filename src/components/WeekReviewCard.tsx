@@ -7,8 +7,6 @@ import { useTaskStore, selectHabitsByDay } from '../store/taskStore'
 import {
   compareReviews,
   dayTooltipText,
-  vagueBreakdown,
-  type WeekReviewDay,
   foldLabelMinutes,
   getPrevReview,
   getReview,
@@ -157,11 +155,8 @@ export function WeekReviewCard() {
   const pct = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`)
   // 棒は分類ごとの記録を積んだ高さ（棒の上の数字も同じ。ツールチップの合計は記録時間そのもの）
   const barMinutes = (d: { tagMinutes: { minutes: number }[] }) => d.tagMinutes.reduce((a, x) => a + x.minutes, 0)
-  // 「なんとなく」の時間（#657）= なんとなくの記録＋記録の無い時間。棒の上に斜線で積む（棒の上の数字には入れない）
-  const vagueOf = (d: WeekReviewDay) => d.vagueMinutes + d.unrecordedMinutes
-  const vagueTotal = review.vagueMinutes + review.unrecordedMinutes
-  // 予定の枠も同じ目盛りで重ねるので、高さは記録（なんとなくの時間も積む）と予定の大きいほうに合わせる
-  const maxMinutes = Math.max(60, ...review.days.map((d) => Math.max(barMinutes(d) + vagueOf(d), d.plannedMinutes)))
+  // 予定の枠も同じ目盛りで重ねるので、高さは記録（記録の無い時間も斜線で積む。棒の上の数字には入れない）と予定の大きいほうに合わせる
+  const maxMinutes = Math.max(60, ...review.days.map((d) => Math.max(barMinutes(d) + d.unrecordedMinutes, d.plannedMinutes)))
   const hasPlanned = review.plannedMinutes > 0
   // ラベル別の行に週の目安（#291）と予定した時間（#275）を添える。目安・予定のあるラベルは記録が 0 でも並べる
   // （予定はあるのに記録が無い週こそ、記録の抜けに気づける）。目安のある行は「その他」にまとめない。
@@ -221,9 +216,9 @@ export function WeekReviewCard() {
       value: formatDuration(review.loggedMinutes),
       // 前の週との差は事実だけ（減っても色を付けない）。前の週に記録が無ければ出さない
       sub: loggedDiff == null ? null : loggedDiffText(loggedDiff, period, atCurrent, t),
-      // 「なんとなく」の時間（なんとなくの記録＋起きている間の 30 分以上の記録の無い時間）も同じ枠に小さく
-      note: vagueTotal > 0 ? t('weekReview.vague', { time: formatDuration(vagueTotal) }) : null,
-      noteTitle: vagueBreakdown(t, review.vagueMinutes, review.unrecordedMinutes),
+      // 起きている間の 30 分以上の記録の無い時間も同じ枠に小さく
+      note: review.unrecordedMinutes > 0 ? t('weekReview.unrecorded', { time: formatDuration(review.unrecordedMinutes) }) : null,
+      noteTitle: t('weekReview.unrecordedHint'),
     },
     review.habitRate != null && { label: t(atCurrent ? keys.habitsCurrent : keys.habits), value: pct(review.habitRate), sub: null },
   ].filter((tile) => tile !== false)
@@ -330,12 +325,12 @@ export function WeekReviewCard() {
           <figcaption className="mb-2 flex items-center justify-between gap-2">
             <SectionLabel as="span">{t('weekReview.loggedPerDay')}</SectionLabel>
             {/* 後ろの薄い枠が何かを 1 語で（予定のある週だけ。月は濃さで見せるので枠が無い） */}
-            {period === 'week' && (hasPlanned || vagueTotal > 0) && (
+            {period === 'week' && (hasPlanned || review.unrecordedMinutes > 0) && (
               <span className="inline-flex items-center gap-2.5 text-[10px] text-zinc-400 dark:text-zinc-500">
-                {vagueTotal > 0 && (
-                  <span className="inline-flex items-center gap-1" {...tip(t('labels.vagueHint'))}>
-                    <span className="gc-vague h-2.5 w-2.5 rounded-[2px]" aria-hidden />
-                    {t('labels.vague')}
+                {review.unrecordedMinutes > 0 && (
+                  <span className="inline-flex items-center gap-1" {...tip(t('weekReview.unrecordedHint'))}>
+                    <span className="gc-unrecorded h-2.5 w-2.5 rounded-[2px]" aria-hidden />
+                    {t('weekReview.unrecordedLegend')}
                   </span>
                 )}
                 {hasPlanned && (
@@ -358,15 +353,15 @@ export function WeekReviewCard() {
                   date.setDate(date.getDate() + i)
                   const label = format(date, 'E', { locale: dateLocale })
                   const dayBar = day ? barMinutes(day) : 0
-                  const dayVague = day ? vagueOf(day) : 0
-                  const h = Math.round(((dayBar + dayVague) / maxMinutes) * 100)
+                  const dayUnrecorded = day?.unrecordedMinutes ?? 0
+                  const h = Math.round(((dayBar + dayUnrecorded) / maxMinutes) * 100)
                   const plannedH = day ? Math.round((day.plannedMinutes / maxMinutes) * 100) : 0
                   const dayTip = day
                     ? dayTooltipText(t, label, day) +
                       (hasPlanned && day.unplannedMinutes > 0
                         ? t('weekReview.dayTooltipUnplanned', { time: formatDuration(day.unplannedMinutes) })
                         : '') +
-                      (dayVague > 0 ? ` / ${vagueBreakdown(t, day.vagueMinutes, day.unrecordedMinutes)}` : '')
+                      (dayUnrecorded > 0 ? ` / ${t('weekReview.unrecorded', { time: formatDuration(dayUnrecorded) })}` : '')
                     : label
                   return (
                     // 押すとその日の今日の計画を開く（記録の中身を見に行ける）
@@ -399,7 +394,7 @@ export function WeekReviewCard() {
                       予定の枠が左右に見えるよう、棒は少し細くする */}
                       <div
                         className="relative flex w-[calc(100%-6px)] shrink-0 flex-col-reverse overflow-hidden rounded-t-[3px] transition-opacity group-hover:opacity-85"
-                        style={{ height: `${h}%`, minHeight: dayBar + dayVague > 0 ? 2 : 0 }}
+                        style={{ height: `${h}%`, minHeight: dayBar + dayUnrecorded > 0 ? 2 : 0 }}
                       >
                         {day?.tagMinutes.map((x) => (
                           <div
@@ -408,8 +403,10 @@ export function WeekReviewCard() {
                             style={{ ...colorVars(recordLabelKeyHex(x.tag, logCategoryColors)), flexGrow: x.minutes }}
                           />
                         ))}
-                        {/* 「なんとなく」の時間は一番上に斜線で（ラベルの色と隙間なく、境目は線 1 本） */}
-                        {dayVague > 0 && <div className="gc-vague w-full basis-0 not-last:border-t-0" style={{ flexGrow: dayVague }} />}
+                        {/* 記録の無い時間は一番上に斜線で（ラベルの色と隙間なく、境目は線 1 本） */}
+                        {dayUnrecorded > 0 && (
+                          <div className="gc-unrecorded w-full basis-0 not-last:border-t-0" style={{ flexGrow: dayUnrecorded }} />
+                        )}
                       </div>
                     </button>
                   )

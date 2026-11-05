@@ -229,6 +229,16 @@ describe('isImportFileTooLarge', () => {
 describe('task kind', () => {
   const inbox = [{ id: '__inbox__', name: '未分類' }]
 
+  it('reads an "adrift" log of an older backup as trashed', () => {
+    const parsed = parseBackupJson(
+      file({
+        lists: inbox,
+        tasks: [{ id: 'v', title: 'v', listId: '__inbox__', isTimeLog: true, vague: true, createdAt: '2026-10-01T00:00:00.000Z' }],
+      }),
+    )!
+    expect(parsed.tasks[0]!.deletedAt).toBe('2026-10-01T00:00:00.000Z')
+  })
+
   it('reads the two flags of an older backup (or a server row) as the kind, and drops the flags', () => {
     const parsed = parseBackupJson(
       file({
