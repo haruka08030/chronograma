@@ -153,7 +153,7 @@ describe('習慣の画面: 曜日ごとの時間', () => {
       ],
     })
     render(<HabitsView />)
-    expect(screen.getByText(/^Mon, Wed 18:00 – 19:00; Sat 10:00 – 11:00$/)).toBeInTheDocument()
+    expect(screen.getByText(/^Mon, Wed 18:00–19:00; Sat 10:00–11:00$/)).toBeInTheDocument()
   })
 })
 

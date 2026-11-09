@@ -824,7 +824,7 @@ export default {
     goalProgress: '{{done}}/{{goal}} min',
     time: 'Time',
     timeAtValue: '{{time}}',
-    timeRange: '{{start}} – {{end}}',
+    timeRange: '{{start}}–{{end}}',
     onTimeHint: 'Within ±{{min}} min counts as done',
     offTimeTooltip: '{{date}} {{start}}–{{end}} (off time)',
     cellDoneAria: '{{date}} done',

@@ -213,7 +213,7 @@ export function TimeSlotMenu({
             {slots.map((s) => (
               <li key={s}>
                 <button type="button" data-slot-item className={row} onClick={() => place(s, s + duration)}>
-                  {minutesToTime(s)} – {minutesToTime(Math.min(s + duration, 24 * 60))}
+                  {timeRange(minutesToTime(s), minutesToTime(Math.min(s + duration, 24 * 60)))}
                 </button>
               </li>
             ))}

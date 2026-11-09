@@ -116,9 +116,10 @@ describe('locales', () => {
   it('時刻の範囲はソースで組み立てず timeRange を使う', () => {
     const written = Object.entries(sources)
       .filter(([file]) => !file.endsWith('dateFormat.ts') && !file.endsWith('timeRange.ts'))
-      .filter(([, text]) => /\}\s?–\s?\$\{/.test(text as string))
+      .filter(([, text]) => /[}>]\s?–\s?\$?\{/.test(text as string))
       .map(([file]) => file)
     expect(written).toEqual([])
+    expect(en.habits.timeRange).toBe(ja.habits.timeRange)
   })
 
   it('部品のソースの文字列に日本語・全角の記号を書かない（文言の鍵に置く。括弧つきは common.withNote、区切りは common.listSeparator）', () => {

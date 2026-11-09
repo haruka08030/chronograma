@@ -50,7 +50,7 @@ describe('WeekCalendarView: 日をまたぐ Google の予定', () => {
     expect(next.style.top).toBe('0px')
     expect(next.style.height).toBe(`${2 * HOUR_HEIGHT}px`)
     // 表示する時刻は予定全体
-    expect(next.textContent).toContain('22:00 – 02:00')
+    expect(next.textContent).toContain('22:00–02:00')
     expect(blockIn(container, '2026-10-08')).toBeNull()
   })
 
@@ -163,7 +163,7 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     expect(title!.textContent).toBe('ES を書く, ')
     expect(title!.lastElementChild!.className).toContain('hidden @max-[5rem]:inline')
     expect(time!.className).toContain('truncate')
-    expect(time!.textContent).toBe('20:00 – 21:00')
+    expect(time!.textContent).toBe('20:00–21:00')
     expect(time!.lastElementChild!.className).toContain('@max-[5rem]:hidden')
   })
 })
