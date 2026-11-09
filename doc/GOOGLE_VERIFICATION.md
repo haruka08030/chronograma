@@ -13,7 +13,7 @@
 
 **Why the app needs it**
 
-Chronograma is a planner that puts the user's plans and what they actually did on one timeline. It reads the events on the user's primary Google Calendar and shows them on the Calendar and Today timelines next to their tasks and time records, so the user can compare what was planned with what happened. The user can also create an event by clicking an empty time slot and choosing "Google Calendar", move an event by dragging it, rename it, or delete it. Each of these writes only the event the user acted on, in their primary calendar.
+Chronograma is a planner that puts the user's plans and what they actually did on one timeline. It reads the events on the user's primary Google Calendar and shows them on the Calendar and Today timelines next to their tasks and time records, so the user can compare what was planned with what happened. The user can also create an event by clicking an empty time slot and choosing "Google Calendar", move an event by dragging it, rename it, or delete it. Events the user creates in Chronograma and sets to go to Google Calendar are written to the primary calendar and kept up to date when the user changes them in Chronograma. Each of these writes only the event the user acted on, in their primary calendar.
 
 **Where it is used**
 

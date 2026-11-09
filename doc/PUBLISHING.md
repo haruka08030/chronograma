@@ -40,8 +40,9 @@ for f in account canvas daily-reminders google-calendar notion; do supabase func
 
 ログインとカレンダー連携は同じ Google Cloud のプロジェクト（同じ同意画面）を使う。
 
-- **公開ステータスが「テスト」のあいだ**: 同意画面に登録したテストユーザーだけが、ログインもカレンダー連携もできる。友達のうちは Google アカウントをテストユーザーに足す（OAuth 同意画面 → Audience → Test users）。テストの間に発行されたカレンダーの許可は、一定期間で切れてつなぎ直しになることがある（Google の画面で条件を確かめる）
-- **「本番」に切り替えたあと**: ログインだけ（メール・プロフィール）は審査なしで誰でも使える。カレンダーの権限（`calendar.events.owned`・`calendar.calendarlist.readonly`）は審査が通るまで「Google はこのアプリを確認していません」の警告が出て、使える人数にも上限がある
+- **公開ステータスが「テスト」のあいだ**: 同意画面に登録したテストユーザーだけが、ログインもカレンダー連携もできる。友達のうちは Google アカウントをテストユーザーに足す（OAuth 同意画面 → Audience → Test users）。テストの間に発行されたカレンダーの許可は 7 日で切れ、つなぎ直しになる
+- **「本番」に切り替えたあと**: ログインだけ（メール・プロフィール）は審査なしで誰でも使える。カレンダーの権限（`calendar.events.owned`・`calendar.calendarlist.readonly`）は審査が通るまで「Google はこのアプリを確認していません」の警告が出て、使える人数にも上限がある。テストの間につないだ人は、切り替えたあと 1 回つなぎ直す
+- **切り替える前に**: `public/privacy.html`・`public/terms.html` の【】を埋めて本番に出す。同意画面（Branding）のアプリのホームページは `/about.html`、プライバシーポリシーは `/privacy.html`、利用規約は `/terms.html` にする。切り替えは Audience の「Publish app」。独自ドメインが要るのは審査に出すときで、切り替えだけなら要らない
 - **審査に出すもの**（#23〜25）:
   1. プライバシーポリシーと利用規約を独自ドメインで公開する（`public/privacy.html`・`public/terms.html`）。同意画面のアプリのホームページ・ポリシーの URL もそのドメインにする
   2. 権限ごとの理由: [`GOOGLE_VERIFICATION.md`](./GOOGLE_VERIFICATION.md) の英文をそのまま貼る
