@@ -21,7 +21,7 @@ test('ドラッグで作る枠は下の予定の始まりでいったん止ま�
   const title = page.locator('input:focus')
   await title.fill('Block')
   await title.press('Enter')
-  await expect(page.getByRole('button', { name: 'Block 20:00 – 21:00' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Block 20:00–21:00' })).toBeVisible()
 
   const { x, y } = await dragPlan(page, 19 * 60, 20 * 60 + 10, { up: false })
   await expect(page.getByText('19:00–20:00')).toBeVisible()

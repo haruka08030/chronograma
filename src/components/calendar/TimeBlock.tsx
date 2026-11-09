@@ -152,7 +152,10 @@ export function TimeBlock({
           </span>
           <span className="block truncate text-[10px] opacity-80 @max-[5rem]:text-[11px]">
             {task.startTime}
-            <span className="@max-[5rem]:hidden"> – {endLabel}</span>
+            <span className="@max-[5rem]:hidden">
+              {t('common.timeRangeSeparator')}
+              {endLabel}
+            </span>
           </span>
         </span>
       )}
