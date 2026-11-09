@@ -39,7 +39,7 @@ vi.mock('../lib/supabase', async (importOriginal) => ({
 }))
 vi.mock('../lib/googleCalendar', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/googleCalendar')>()),
-  isGoogleCalendarConnected: async () => false,
+  googleConnectionState: async () => 'none',
   hasGoogleOAuthCallbackInUrl: () => false,
 }))
 

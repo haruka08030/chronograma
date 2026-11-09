@@ -543,13 +543,11 @@ Deno.serve(
             // canWrite: 予定を書き換える許可があるか（カレンダーを開かなくても、アプリの予定を Google に送れるか分かる）
             return jsonResponse({ connected: true, canWrite: hasWriteScope(row.scope) })
           } catch (e) {
-            // 取り消された・期限切れのときだけ連携を外す。通信の失敗や Google の一時的なエラー、
-            // サーバーの設定ミスで全員の連携を外さない
+            // 取り消された・期限切れのときだけ「切れた」と返す。通信の失敗や Google の一時的なエラー、
+            // サーバーの設定ミスでは切れた扱いにしない。行は消さない（消すと、ほかの端末で切れたことが分からず未接続に見える）。
+            // つなぎ直しで上書きされ、接続を解除で消える
             const message = e instanceof Error ? e.message : String(e)
-            if (classifyGoogleError(e) === 'auth_expired') {
-              await admin.from('google_oauth').delete().eq('user_id', user.id)
-              return jsonResponse({ connected: false, stale: true })
-            }
+            if (classifyGoogleError(e) === 'auth_expired') return jsonResponse({ connected: false, stale: true })
             console.error('[google] status refresh failed', message)
             return jsonResponse({ connected: true, error: 'Google is temporarily unavailable' })
           }

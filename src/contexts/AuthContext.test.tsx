@@ -29,7 +29,7 @@ vi.mock('../lib/supabase', async (importOriginal) => ({
 // Google の連携の確かめ・通知の購読・自動バックアップ（IndexedDB）はここでは見ない
 vi.mock('../lib/googleCalendar', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/googleCalendar')>()),
-  isGoogleCalendarConnected: async () => false,
+  googleConnectionState: async () => 'none',
   hasGoogleOAuthCallbackInUrl: () => false,
 }))
 vi.mock('../lib/webPush', async (importOriginal) => ({

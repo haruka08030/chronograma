@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 const sb = vi.hoisted(() => ({
   listener: null as null | ((event: string, session: unknown) => void),
-  status: vi.fn(async () => true),
+  status: vi.fn(async (): Promise<string> => 'connected'),
 }))
 const session = { user: { id: 'u1' }, access_token: 'token-u1' }
 
@@ -26,7 +26,7 @@ vi.mock('../lib/supabase', async (importOriginal) => ({
 }))
 vi.mock('../lib/googleCalendar', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/googleCalendar')>()),
-  isGoogleCalendarConnected: sb.status,
+  googleConnectionState: sb.status,
   hasGoogleOAuthCallbackInUrl: () => false,
 }))
 
@@ -70,18 +70,29 @@ describe('Google の連携の確かめ', () => {
 
   it('別の人がつながっていた端末では確かめる', async () => {
     localStorage.setItem('chronograma.googleConnected', 'someone-else')
-    sb.status.mockResolvedValueOnce(false)
+    sb.status.mockResolvedValueOnce('none')
     await startApp()
     expect(sb.status).toHaveBeenCalledTimes(1)
     expect(await connected()).toBe(false)
+    const { useTaskStore } = await import('../store/taskStore')
+    expect(useTaskStore.getState().googleReconnectNeeded).toBe(false)
   })
 
   it('前に切れたままなら、確かめてつながらなければ「もう一度接続する」を出す（#449）', async () => {
     localStorage.setItem('chronograma.googleConnected', 'u1:lost')
-    sb.status.mockResolvedValueOnce(false)
+    sb.status.mockResolvedValueOnce('none')
     await startApp()
     expect(sb.status).toHaveBeenCalledTimes(1)
     const { useTaskStore } = await import('../store/taskStore')
     expect(useTaskStore.getState().googleReconnectNeeded).toBe(true)
+  })
+
+  it('この端末に切れた印が無くても、確かめて切れていたら「もう一度接続する」を出して覚える', async () => {
+    sb.status.mockResolvedValueOnce('lost')
+    await startApp()
+    expect(await connected()).toBe(false)
+    const { useTaskStore } = await import('../store/taskStore')
+    expect(useTaskStore.getState().googleReconnectNeeded).toBe(true)
+    expect(localStorage.getItem('chronograma.googleConnected')).toBe('u1:lost')
   })
 })

@@ -146,8 +146,7 @@ export async function signIn(): Promise<string> {
   if (!sb) throw new Error('Supabase is not configured')
   if (!getClientId()) throw new Error('VITE_GOOGLE_CLIENT_ID is not configured')
 
-  const connected = await isGoogleCalendarConnected()
-  if (connected) return ''
+  if ((await googleConnectionState()) === 'connected') return ''
 
   startDirectGoogleOAuth()
   return ''
@@ -236,17 +235,21 @@ export async function googleCalendarStatus(): Promise<{ connected: boolean; canW
   return { connected: payload.connected === true, canWrite: typeof payload.canWrite === 'boolean' ? payload.canWrite : null }
 }
 
-export async function isGoogleCalendarConnected(): Promise<boolean> {
+/** `connected`: つながっている / `lost`: つながっていたのに Google に断られた（つなぎ直しが要る） / `none`: つないでいない・聞けなかった */
+export type GoogleConnectionState = 'connected' | 'lost' | 'none'
+
+export async function googleConnectionState(): Promise<GoogleConnectionState> {
   const sb = getSupabase()
-  if (!sb) return false
+  if (!sb) return 'none'
 
   try {
-    const payload = await invokeGoogleCalendar<{ connected?: boolean }>({
+    const payload = await invokeGoogleCalendar<{ connected?: boolean; stale?: boolean }>({
       action: 'status',
     })
-    return payload.connected === true
+    if (payload.connected === true) return 'connected'
+    return payload.stale === true ? 'lost' : 'none'
   } catch {
-    return false
+    return 'none'
   }
 }
 

@@ -1,11 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { AuthChangeEvent, Session, SupabaseClient, User } from '@supabase/supabase-js'
-import {
-  handleGoogleOAuthCallback,
-  hasGoogleOAuthCallbackInUrl,
-  isGoogleCalendarConnected,
-  localizeGoogleError,
-} from '../lib/googleCalendar'
+import { googleConnectionState, handleGoogleOAuthCallback, hasGoogleOAuthCallbackInUrl, localizeGoogleError } from '../lib/googleCalendar'
 import i18n from '../i18n/config'
 import { isNetworkErrorMessage, otpRateLimit } from '../lib/errorMessages'
 import { setErrorReportUser } from '../lib/errorReport'
@@ -21,7 +16,13 @@ import {
   signOutThisDevice,
 } from '../lib/supabase'
 import { useTaskStore } from '../store/taskStore'
-import { googleCanWriteHint, rememberGoogleConnected, wasGoogleConnected, wasGoogleConnectionLost } from '../lib/googleConnectedHint'
+import {
+  googleCanWriteHint,
+  markGoogleConnectionLost,
+  rememberGoogleConnected,
+  wasGoogleConnected,
+  wasGoogleConnectionLost,
+} from '../lib/googleConnectedHint'
 import { noteSignedOut, noteUserSignOut } from '../lib/signedOutNotice'
 import { clearDeletedAccount, clearLocalAccountState, isAccountGone } from '../lib/accountBoundary'
 import { readFunctionErrorBody } from '../lib/functionError'
@@ -85,7 +86,7 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent, userId: strin
     try {
       const handled = await handleGoogleOAuthCallback()
       if (handled) {
-        const connected = await isGoogleCalendarConnected()
+        const connected = (await googleConnectionState()) === 'connected'
         useTaskStore.getState().setGoogleConnected(connected)
         useTaskStore.getState().setGoogleConnectionError(connected ? null : useTaskStore.getState().googleConnectionError)
         if (connected) {
@@ -121,14 +122,16 @@ async function handleGoogleAuthSideEffects(event: AuthChangeEvent, userId: strin
   // Google でログインしただけではカレンダーはつながらない（連携は設定から別に許可する）。
   // ログインの方法によらず、サーバーに連携があるかだけを見る
   try {
-    const connected = await isGoogleCalendarConnected()
+    const state = await googleConnectionState()
+    const connected = state === 'connected'
     useTaskStore.getState().setGoogleConnected(connected)
     if (connected) {
       useTaskStore.getState().setGoogleConnectionError(null)
       rememberGoogleConnected(userId)
-    } else if (wasGoogleConnectionLost(userId)) {
-      // 前に切れたまま。つなぎ直すまで「もう一度つなぐ」を出し続ける
+    } else if (state === 'lost' || wasGoogleConnectionLost(userId)) {
+      // 切れている（この端末で初めて分かったときも）。つなぎ直すまで「もう一度つなぐ」を出し続ける
       useTaskStore.getState().setGoogleReconnectNeeded(true)
+      markGoogleConnectionLost(userId)
     }
   } catch {
     useTaskStore.getState().setGoogleConnected(false)
