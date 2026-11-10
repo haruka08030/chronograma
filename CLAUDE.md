@@ -19,7 +19,7 @@
 - **先に Issue**: 方針が決まったら、すぐ作る場合でも、着手する前に GitHub の Issue にする（本文に「完了条件」。ラベルは bug / enhancement / documentation / verify / security）。まだ形になっていない方向性は `doc/IDEAS.md`。Issue にしたら IDEAS からは消す
 - **worktree で 1 機能 1 ブランチ**: `git worktree add .claude/worktrees/<名前> -b <種類>/<番号>-<名前> dev` → worktree の中で `ln -s <リポジトリ>/node_modules node_modules` → 作業・確かめる → コミット → リポジトリで `git merge --ff-only <ブランチ>` → `git worktree remove` と `git branch -d`。ほかの作業も同じ dev で動いているので、マージの前に dev の最新を取り込み、作業ツリーの未コミットの変更（ほかの作業のもの）には触らない
 - **コミット**: `feat(範囲): 何をどうしたか（日本語）, fix #番号`。種類は feat / fix / refactor / chore / docs / test。1 つの機能を 1 つのコミットにまとめる
-- **テスト**: 途中は `npx vitest related <変えたファイル> --run`。コミットの前に `npx vitest run --maxWorkers=50%` を 1 回と `npx eslint .`・`npx tsc --noEmit -p tsconfig.app.json`。時刻を扱うところを変えたら `npm run test:tz`（詳しくは RULES.md の「テスト」）
+- **テスト**: 途中は `npx vitest related <変えたファイル> --run`。コミットの前に `npx vitest run --maxWorkers=50%` を 1 回と `npx eslint .`・`npx tsc --noEmit -p tsconfig.app.json`。時刻を扱うところを変えたら `npm run test:tz`。`git push` は hook が e2e なども流すので 1〜2 分かかる（詳しくは RULES.md の「テスト」）
 - **UX の点検**: まとめて見直すときは `/ux-screen`、機能を足す・画面を変える中では `/ux-screen 最小`
 - **画面を見る**: UI を変えたら `npm run shots` で PC / スマホ × ライト / ダークを撮って自分で見てから終わりにする（`scripts/shots/README.md`）
 - **ドキュメントも同じ作業で直す**: 挙動を変えたら `doc/RULES.md`、共通部品を足した・変えたら `doc/UI_CONSISTENCY.md`、ファイルの構成・DB・環境変数・scripts を変えたら `doc/ARCHITECTURE.md`

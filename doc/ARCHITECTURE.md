@@ -137,6 +137,7 @@
 | `.github/workflows/` | `ci.yml`（static・test・test-tz・check・functions・database）・`test-tz.yml` |
 | `tsconfig.json` | `tsconfig.app.json`（`src/`）と `tsconfig.node.json`（`vite.config.ts`・`vitest.config.ts`・`playwright.config.ts`・`e2e/`）を束ねる |
 | `.githooks/pre-commit` | ステージしたファイルを Prettier で確かめる（`npm install` の `prepare` が `core.hooksPath` に設定） |
+| `.githooks/pre-push`・`scripts/ci/pre-push.mjs` | push するコミットを一時的な worktree に出し、CI のうちコミット前の確認に入っていない項目を、変えたファイルに応じて流す（e2e のポートは `E2E_PORT` で空きを使う） |
 
 ## 保存（IndexedDB）
 
