@@ -1,0 +1,3 @@
+#!/bin/sh
+# push する前に、コミット前の確認に入っていない CI の項目を手元で流す。落ちたら push を止める
+exec node scripts/ci/pre-push.mjs

@@ -41,16 +41,20 @@
   <ul>
     <li><strong>メールアドレス</strong>：ログイン用のリンクを送り、アカウントを識別するため。</li>
     <li><strong>Google でログインした場合</strong>：Google アカウントのメールアドレス・名前・プロフィール画像の URL と、Google のアカウント ID。アカウントを識別するためだけに使います。</li>
-    <li><strong>入力した内容</strong>：リスト、タスク（タイトル・メモ・日付・時刻・場所・タグ・色など）、時間の記録、睡眠の記録、習慣とその達成日。複数の端末で同じデータを使うため。</li>
+    <li><strong>入力した内容</strong>：リスト、タスク（タイトル・メモ・日付・時刻・場所・タグ・色など）、時間の記録、睡眠の記録、習慣とその達成日、その日の気分、時間割・学期・授業・欠席の数、引き落としや期限の日、予定のテンプレート、追加機能と画面の設定。複数の端末で同じデータを使うため。</li>
     <li><strong>お問い合わせ・フィードバック</strong>：設定から送った文面と、アプリの版・ブラウザの種類。お返事と改善のため。アカウントを削除すると消えます。</li>
     <li><strong>通知の設定</strong>：通知を有効にした端末のプッシュ通知の宛先（ブラウザが発行する購読情報）、タイムゾーン、表示言語、通知の時刻、その日に通知済みのタスクの ID。通知を送るため。</li>
+    <li><strong>エラーの報告</strong>：アプリで不具合が起きたときの内容（エラーの文面と発生箇所、開いていた画面の種類、アプリの版、ブラウザの種類）をアカウントに結びつけて保存します。不具合を直すためだけに使い、運営者が読みます。トークンなどの秘密の値は送る前に取り除きます。</li>
+    <li><strong>アプリの版の記録</strong>：同期しているアプリの版と、それを最初・最後に見た日時。古い版が動いていないかを確かめるため。</li>
   </ul>
 
   <h3>Google カレンダーと連携する場合</h3>
   <ul>
-    <li>Google が発行するリフレッシュトークンと、許可された範囲（スコープ）をサーバーに保存します。ブラウザからは読み出せないようにしています。</li>
-    <li>予定は、画面に表示するときにその都度 Google から取得し、サーバーには保存しません。</li>
-    <li>利用者が本サービスの画面で予定を作成・変更・削除したときだけ、Google カレンダーに書き込みます。</li>
+    <li>Google が発行するリフレッシュトークンとアクセストークン、許可された範囲（スコープ）を、暗号化してサーバーに保存します。ブラウザからは読み出せないようにしています。</li>
+    <li>予定の一覧は、画面に表示するときにその都度 Google から取得し、サーバーには保存しません。すばやく表示するため、取得した予定は端末の中に最長 7 日保存し、ログアウトと連携の解除のときに消します。</li>
+    <li>次の情報だけは、複数の端末で同じ表示にするためにサーバーに保存します：時間が過ぎてから消した予定（題名・日時・色など。「やらなかった予定」として残すため）、予定にアプリで付けた色（予定の ID・題名・色）、予定を動かして記録した自分の時間（予定の ID・時刻）、授業の科目とつないだ予定の名前。</li>
+    <li>Google カレンダーに書き込むのは、利用者が本サービスで予定を作成・変更・削除したとき（Google に送る設定の予定だけ）です。それ以外の予定は変更しません。読み書きするのはメインのカレンダーだけです。</li>
+    <li>Google カレンダーで消された予定のうち、本サービスから送った予定は、本サービスでもゴミ箱に入れます。</li>
   </ul>
 
   <h3>Notion と連携する場合</h3>
@@ -59,38 +63,39 @@
     <li>設定したデータベースから「要アクション」の行を読み取り、タスクを完了にしたときにその行のステータスを更新します。</li>
   </ul>
 
-  <h3>Canvas と連携する場合</h3>
+  <h3>Canvas・Moodle と連携する場合</h3>
   <ul>
-    <li>利用者が入力した学校の Canvas の URL と、アクセストークンまたはカレンダーフィードの URL をサーバーに保存します。トークンとフィードの URL はブラウザに返しません。</li>
-    <li>課題の名前・締切・コース名・リンクを読み取りタスクにします。トークンで連携した場合は、タスクを完了にしたときに Canvas の課題も完了にします。</li>
+    <li>利用者が入力した学校の Canvas または Moodle の URL と、アクセストークンまたはカレンダーフィードの URL をサーバーに暗号化して保存します。トークンとフィードの URL はブラウザに返しません。</li>
+    <li>課題の名前・締切・コース名・リンクを読み取りタスクにします。Canvas をトークンで連携した場合は、タスクを完了にしたときに Canvas の課題も完了にします。Moodle とカレンダーフィードの連携は読み取りだけです。</li>
   </ul>
 
   <h2>2. Google ユーザーデータの扱い</h2>
-  <p>本サービスが Google API から受け取った情報の使用と他のアプリへの転送は、<a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>（Limited Use の要件を含む）に従います。Google カレンダーの情報は、利用者に予定を表示し、利用者の操作どおりに予定を書き込むためだけに使います。広告に使ったり、第三者に提供・販売したり、人が読んだりすることはありません（利用者の同意がある場合、セキュリティ上の目的、法令に基づく場合を除く）。AI モデルの学習にも使いません。</p>
+  <p>本サービスが Google API から受け取った情報の使用と他のアプリへの転送は、<a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>（Limited Use の要件を含む）に従います。Google カレンダーの情報は、利用者に予定を表示し、利用者の操作どおりに予定を書き込み、上の「Google カレンダーと連携する場合」に書いた機能を提供するためだけに使います。広告に使ったり、第三者に提供・販売したり、人が読んだりすることはありません（利用者の同意がある場合、セキュリティ上の目的、法令に基づく場合を除く）。AI モデルの学習にも使いません。</p>
 
   <h2>3. 外部のサービス</h2>
   <p>本サービスは次のサービスを使います。それぞれのサービスに必要な範囲で情報が送られます。</p>
   <ul>
-    <li><strong>Supabase</strong>（データベース・ログイン・サーバー処理）：保存先リージョンは【Supabase のリージョン】です。</li>
-    <li><strong>【ホスティング事業者】</strong>（本サービスの配信）</li>
+    <li><strong>Supabase</strong>（データベース・ログイン・ログイン用メールの送信・サーバー処理）：保存先は米国（オハイオ州）です。</li>
+    <li><strong>Vercel</strong>（本サービスの配信）</li>
     <li><strong>Google</strong>：Google カレンダー API（連携した場合）、Google Fonts（文字の表示。読み込み時に IP アドレスなどが Google に送られます）。</li>
     <li><strong>Notion</strong>（連携した場合）</li>
-    <li><strong>利用者の学校の Canvas</strong>（連携した場合）</li>
+    <li><strong>利用者の学校の Canvas・Moodle</strong>（連携した場合）</li>
     <li><strong>ブラウザのプッシュ通知サービス</strong>（Apple、Google、Mozilla、Microsoft など。通知を有効にした場合。通知の文面が経由します）</li>
   </ul>
+  <p>Supabase・Vercel・Google・Notion は米国の事業者で、ログインして同期するデータは米国のサーバーに保存されます。米国の個人情報保護の制度は日本と異なります。これらの事業者には、本サービスの提供に必要な範囲でだけ情報を預けています。</p>
 
   <h2>4. 保存期間と削除</h2>
   <ul>
-    <li>クラウドのデータは、利用者が削除するかアカウントを削除するまで保存します。</li>
+    <li>クラウドのデータ（エラーの報告とアプリの版の記録を含む）は、利用者が削除するかアカウントを削除するまで保存します。</li>
     <li><strong>アカウントの削除</strong>：設定 → アカウント の「アカウントを削除」から、アカウントとクラウドのデータ（連携の情報を含む）をすべて削除できます。Google のトークンはそのときに無効にします。</li>
-    <li>Google カレンダー・Notion・Canvas の連携は設定からいつでも解除できます。Canvas のトークンは解除・アカウントの削除のときに無効にします。Google のアクセス権は <a href="https://myaccount.google.com/permissions" rel="noopener">Google アカウントの設定</a> からも取り消せます。</li>
+    <li>Google カレンダー・Notion・Canvas・Moodle の連携は設定からいつでも解除できます。Google のトークンと Canvas のアクセストークンは解除・アカウントの削除のときに無効にします。Google のアクセス権は <a href="https://myaccount.google.com/permissions" rel="noopener">Google アカウントの設定</a> からも取り消せます。連携を解除しても、同期のために保存した「やらなかった予定」などは残ります。アカウントの削除で消えるほか、ご連絡いただければ削除します。</li>
     <li>Notion の統合トークンは本サービスからは無効にできません。連携の解除やアカウントの削除のあとも Notion 側でのアクセスを止めたい場合は、Notion の設定でそのインテグレーションを削除してください。</li>
     <li>ログアウトすると、その端末のデータは消えます（送れていなかった変更に備えて、端末内に自動バックアップを残します。この控えは同じアカウントでログインしたときだけ見られます）。</li>
     <li>データは設定 → データ からいつでも JSON で書き出せます。記録は CSV（表計算用）・ICS（カレンダー用）でも書き出せます。書き出しは端末の中で作り、サーバーには送りません。統計のふりかえりを画像にして共有・保存するときも、画像は端末の中で作り（日付・時間・ラベル名だけで、題名・メモは入りません）、サーバーには送りません。</li>
   </ul>
 
   <h2>5. 安全管理</h2>
-  <p>通信は HTTPS で暗号化します。データベースは行単位のアクセス制御で、本人以外は読み書きできません。連携のトークンはサーバー側だけで扱い、暗号化して保存します。</p>
+  <p>通信は HTTPS で暗号化します。データベースは行単位のアクセス制御で、本人以外は読み書きできません（運営者は、不具合の調査とお問い合わせへの対応に必要な場合に、サーバーの管理の権限で確認することがあります）。連携のトークンはサーバー側だけで扱い、暗号化して保存します。</p>
 
   <h2>6. 開示・訂正・削除のご依頼、お問い合わせ</h2>
   <p>保有する個人データの開示・訂正・利用停止・削除のご依頼や、このポリシーについてのお問い合わせは、【連絡先メールアドレス】までご連絡ください。</p>
@@ -105,22 +110,22 @@
 
     <h2>1. Information we handle</h2>
     <p><strong>Without signing in</strong>, everything you enter stays in your browser (localStorage and IndexedDB) and is never sent to us. Automatic backups also stay on the device.</p>
-    <p><strong>When you sign in to sync</strong>, we store: your email address (to send sign-in links and identify your account); if you sign in with Google, your Google account's email address, name, profile picture URL and account ID (used only to identify your account); the content you enter (lists, tasks with their notes, dates, times, places, tags and colors, time records, sleep records, habits and the dates you completed them); messages you send from Settings → Contact &amp; feedback, with the app version and browser (to reply and improve the Service; deleted with your account); and, if you turn on notifications, the device's push subscription, time zone, language, reminder times and the IDs of tasks already notified that day.</p>
-    <p><strong>Google Calendar (optional)</strong>: we store the refresh token Google issues and the granted scopes on the server; the browser cannot read them. Events are fetched from Google each time they are shown and are not stored on our server. We write to your calendar only when you create, edit or delete an event in the Service.</p>
+    <p><strong>When you sign in to sync</strong>, we store: your email address (to send sign-in links and identify your account); if you sign in with Google, your Google account's email address, name, profile picture URL and account ID (used only to identify your account); the content you enter (lists, tasks with their notes, dates, times, places, tags and colors, time records, sleep records, habits and the dates you completed them, daily moods, timetables, terms, classes and absence counts, payment and deadline dates, event templates, add-on and display settings); messages you send from Settings → Contact &amp; feedback, with the app version and browser (to reply and improve the Service; deleted with your account); if you turn on notifications, the device's push subscription, time zone, language, reminder times and the IDs of tasks already notified that day; error reports linked to your account (the error message and location, the type of screen, app version and browser, read by the operator only to fix problems, with secrets such as tokens removed before sending); and the app versions used for sync with when they were first and last seen (to check that outdated versions are not running).</p>
+    <p><strong>Google Calendar (optional)</strong>: we store the refresh token and access token Google issues and the granted scopes, encrypted, on the server; the browser cannot read them. The list of events is fetched from Google each time it is shown and is not stored on our server. To show events quickly, fetched events are kept on your device for up to 7 days and removed when you sign out or disconnect. Only the following is stored on our server so that your devices show the same thing: events deleted after their start time (title, time, color and similar, to keep them as "skipped" events), colors you give events in the app (event ID, title, color), your own times for events you moved (event ID, times), and the names of events you link to a class. We write to your calendar only when you create, edit or delete an event in the Service (only events set to be sent to Google), and we read and write only your primary calendar. Events the Service sent to Google that are deleted in Google Calendar are also moved to the trash in the Service.</p>
     <p><strong>Notion (optional)</strong>: we store the integration token, database ID and status settings you enter, server-side only. We read the rows that need action and update a row's status when you complete its task.</p>
-    <p><strong>Canvas (optional)</strong>: we store your school's Canvas URL and the access token or calendar feed URL you enter, server-side only. We read assignment names, due dates, course names and links to create tasks; with a token, completing a task also marks the assignment complete in Canvas.</p>
+    <p><strong>Canvas and Moodle (optional)</strong>: we store your school's Canvas or Moodle URL and the access token or calendar feed URL you enter, encrypted and server-side only. We read assignment names, due dates, course names and links to create tasks; with a Canvas token, completing a task also marks the assignment complete in Canvas. Moodle and calendar feed connections are read-only.</p>
 
     <h2>2. Google user data</h2>
-    <p>The Service's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements. Calendar data is used only to show your events and to write the changes you make. It is not used for advertising, not sold or shared with third parties, not read by humans (except with your consent, for security purposes or as required by law), and not used to train AI models.</p>
+    <p>The Service's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements. Calendar data is used only to show your events, to write the changes you make, and to provide the features described under "Google Calendar" above. It is not used for advertising, not sold or shared with third parties, not read by humans (except with your consent, for security purposes or as required by law), and not used to train AI models.</p>
 
     <h2>3. Third-party services</h2>
-    <p>Supabase (database, sign-in and server functions; region: [Supabase region]), [hosting provider] (serving the app), Google (Calendar API if connected; Google Fonts, which receives your IP address when fonts load), Notion (if connected), your school's Canvas (if connected), and your browser's push service (Apple, Google, Mozilla, Microsoft and others, if notifications are on).</p>
+    <p>Supabase (database, sign-in, sign-in emails and server functions; data is stored in the United States, Ohio), Vercel (serving the app), Google (Calendar API if connected; Google Fonts, which receives your IP address when fonts load), Notion (if connected), your school's Canvas or Moodle (if connected), and your browser's push service (Apple, Google, Mozilla, Microsoft and others, if notifications are on). Supabase, Vercel, Google and Notion are United States companies, and data you sync is stored on servers in the United States, whose privacy laws differ from Japan's. We entrust them with information only as needed to provide the Service.</p>
 
     <h2>4. Retention and deletion</h2>
-    <p>Cloud data is kept until you delete it or your account. You can delete your account and all cloud data, including connections, from Settings → Account → Delete account; the Google token is revoked at that time. You can disconnect Google Calendar, Notion or Canvas at any time (the Canvas token is revoked when you disconnect or delete your account), and revoke Google access from your <a href="https://myaccount.google.com/permissions" rel="noopener">Google Account</a>. The Service cannot revoke Notion integration tokens; to stop Notion access after disconnecting or deleting your account, remove the integration in Notion's settings. Signing out removes the data from that device, keeping an automatic backup on the device in case some changes were not yet synced. You can export your data as JSON from Settings → Data, and your records as CSV (for spreadsheets) or ICS (for calendars); these files are made on your device and are not sent to our servers. When you share or save the statistics review as an image, the image is also made on your device (it contains only dates, times and label names, never titles or notes) and is not sent to our servers.</p>
+    <p>Cloud data, including error reports and app version records, is kept until you delete it or your account. You can delete your account and all cloud data, including connections, from Settings → Account → Delete account; the Google token is revoked at that time. You can disconnect Google Calendar, Notion, Canvas or Moodle at any time (Google and Canvas access tokens are revoked when you disconnect or delete your account), and revoke Google access from your <a href="https://myaccount.google.com/permissions" rel="noopener">Google Account</a>. Disconnecting does not remove data already stored for sync, such as skipped events; it is removed when you delete your account, or on request. The Service cannot revoke Notion integration tokens; to stop Notion access after disconnecting or deleting your account, remove the integration in Notion's settings. Signing out removes the data from that device, keeping an automatic backup on the device in case some changes were not yet synced. You can export your data as JSON from Settings → Data, and your records as CSV (for spreadsheets) or ICS (for calendars); these files are made on your device and are not sent to our servers. When you share or save the statistics review as an image, the image is also made on your device (it contains only dates, times and label names, never titles or notes) and is not sent to our servers.</p>
 
     <h2>5. Security</h2>
-    <p>Traffic is encrypted with HTTPS. Row-level access control means only you can read or write your data. Connection tokens are handled only on the server.</p>
+    <p>Traffic is encrypted with HTTPS. Row-level access control means only you can read or write your data through the app (the operator may check data with server administration rights when needed to investigate a problem or answer an inquiry). Connection tokens are handled only on the server and stored encrypted.</p>
 
     <h2>6. Requests and contact</h2>
     <p>For requests to access, correct, stop using or delete your personal data, or questions about this policy, contact [contact email].</p>

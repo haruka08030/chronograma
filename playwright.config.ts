@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const PORT = 5190
+const PORT = Number(process.env.E2E_PORT) || 5190
 
 /**
  * 画面を通しで動かすテスト（e2e/）。この作業ツリーの dev サーバーを起こして開く。

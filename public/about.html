@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chronograma — 予定と実際のずれが見える時間割</title>
+  <meta name="description" content="予定と実際を同じタイムラインに並べて、時間がどこに溶けたか分かる時間割。" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    :root { --bg: #ffffff; --fg: #18181b; --muted: #52525b; --line: #e4e4e7; --accent: #4f46e5; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #18181b; --fg: #f4f4f5; --muted: #a1a1aa; --line: #3f3f46; --accent: #a5b4fc; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.8 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 40px 16px 80px; }
+    h1 { font-size: 1.6rem; line-height: 1.4; margin: 0 0 4px; }
+    h2 { font-size: 1.1rem; margin: 2.2em 0 .4em; padding-top: 1em; border-top: 1px solid var(--line); }
+    .lead { color: var(--muted); }
+    a { color: var(--accent); }
+    ul { padding-left: 1.3em; }
+    nav { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 32px; font-size: .9rem; }
+    .lang { margin-top: 64px; }
+  </style>
+</head>
+<body>
+<main>
+  <nav><a href="/">Chronograma を開く</a><a href="/privacy.html">プライバシーポリシー</a><a href="/terms.html">利用規約</a><a href="#en">English</a></nav>
+
+  <h1>Chronograma</h1>
+  <p class="lead">予定と実際を同じタイムラインに並べて、時間がどこに溶けたか分かる時間割です。学生向けの、1 日を計画して・記録して・ふりかえる Web アプリです。無料で、広告はありません。</p>
+
+  <h2>できること</h2>
+  <ul>
+    <li>To-Do と予定を 1 日のタイムラインに置いて計画する</li>
+    <li>実際に使った時間を記録し、予定と比べてふりかえる</li>
+    <li>習慣・時間割・授業の欠席・課題の締切をまとめて見る</li>
+    <li>ログインすると、複数の端末で同じデータを使える（ログインしなくても、その端末だけで使えます）</li>
+  </ul>
+
+  <h2>Google カレンダーとの連携（任意）</h2>
+  <p>連携は設定からいつでも始められ、いつでも解除できます。連携すると、次のことのために Google カレンダーへのアクセスを求めます。</p>
+  <ul>
+    <li><strong>予定の表示</strong>：メインのカレンダーの予定を、To-Do や記録と同じ画面に並べます。</li>
+    <li><strong>予定の書き込み</strong>：Chronograma で作成・変更・削除した予定を、メインのカレンダーに反映します。</li>
+    <li><strong>カレンダーの色の読み取り</strong>：色を指定していない予定を、Google カレンダーと同じ色で表示します。</li>
+  </ul>
+  <p>Google カレンダーの情報を広告に使ったり、販売したり、AI の学習に使ったりすることはありません。詳しくは<a href="/privacy.html">プライバシーポリシー</a>をご覧ください。</p>
+
+  <section class="lang" id="en" lang="en">
+    <h1>Chronograma</h1>
+    <p class="lead">A timetable that puts your plans and what you actually did on one timeline, so you can see where your time went. It is a web app for students to plan, record and review each day. It is free and has no ads.</p>
+
+    <h2>What it does</h2>
+    <ul>
+      <li>Plan the day by placing tasks and events on a timeline</li>
+      <li>Record the time you actually spent and compare it with the plan</li>
+      <li>Keep habits, your class timetable, absences and assignment deadlines in one place</li>
+      <li>Sign in to use the same data on several devices, or use it on one device without an account</li>
+    </ul>
+
+    <h2>Google Calendar connection (optional)</h2>
+    <p>You can connect from Settings and disconnect at any time. When connected, Chronograma requests access to Google Calendar for these purposes:</p>
+    <ul>
+      <li><strong>Showing events</strong>: events on your primary calendar appear next to your tasks and records.</li>
+      <li><strong>Writing events</strong>: events you create, change or delete in Chronograma are applied to your primary calendar.</li>
+      <li><strong>Reading the calendar color</strong>: events without their own color appear in the same color as in Google Calendar.</li>
+    </ul>
+    <p>Google Calendar data is never used for advertising, sold, or used to train AI models. See the <a href="/privacy.html">Privacy Policy</a> for details.</p>
+    <nav><a href="/">Open Chronograma</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a></nav>
+  </section>
+</main>
+</body>
+</html>

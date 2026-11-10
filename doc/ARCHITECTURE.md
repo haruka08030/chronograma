@@ -133,10 +133,11 @@
 | `supabase/metrics/` | 運用で見る SQL（`health.sql`・`usage.sql`・`versions.sql`） |
 | `scripts/` | `build/startup-size.mjs`（起動時に読む JS の上限）・`lint/unchecked-index.mjs`・`og/render.mjs`（OGP 画像）・`shots/`（画面の撮影、`README.md`） |
 | `e2e/` | Playwright（`*.spec.ts`、文言は `i18n.ts` の `t()`、保存データの用意は `savedData.ts`） |
-| `public/` | `sw.js`・`manifest.webmanifest`・`icons/`・`og.png`・`privacy.html`・`terms.html` |
+| `public/` | `sw.js`・`manifest.webmanifest`・`icons/`・`og.png`・`privacy.html`・`terms.html`・`about.html`（Google の同意画面に出すホームページ） |
 | `.github/workflows/` | `ci.yml`（static・test・test-tz・check・functions・database）・`test-tz.yml` |
 | `tsconfig.json` | `tsconfig.app.json`（`src/`）と `tsconfig.node.json`（`vite.config.ts`・`vitest.config.ts`・`playwright.config.ts`・`e2e/`）を束ねる |
 | `.githooks/pre-commit` | ステージしたファイルを Prettier で確かめる（`npm install` の `prepare` が `core.hooksPath` に設定） |
+| `.githooks/pre-push`・`scripts/ci/pre-push.mjs` | push するコミットを一時的な worktree に出し、CI のうちコミット前の確認に入っていない項目を、変えたファイルに応じて流す（e2e のポートは `E2E_PORT` で空きを使う） |
 
 ## 保存（IndexedDB）
 
