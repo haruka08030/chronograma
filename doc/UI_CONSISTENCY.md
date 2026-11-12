@@ -23,7 +23,7 @@
 | やらなかった予定 | 開始を過ぎてから消した Google の予定は、薄く・取り消し線（`gc-missed` に重ねる）。タイムラインの枠・終日の行・月のマス・予定一覧・日パネルで同じ | `components/ui/rowStateClass.ts` `SKIPPED_EVENT_CLASS` |
 | 記録の無い時間（棒） | ふりかえりの日別の棒の一番上の灰の斜線。ほかの意味には使わない | `gc-unrecorded`（`index.css`） |
 | 優先度の色 | 高＝赤・中＝黄・低＝青。なしは丸に色を付けず、選ぶ場所の文字はグレー。完了の丸・詳細・右クリックメニュー・追加欄の詳細のチップで共通 | `lib/priorityColor.ts`（`PRIORITY_RING_CLASS`・`PRIORITY_TEXT_CLASS`） |
-| 睡眠の色 | 夜の色 1 つ（ライト #5c6bc0、ダーク #7986cb）。`text-sleep`・`bg-sleep`・`.gc-sleep` | `index.css`（`--color-sleep`） |
+| 睡眠の色 | 夜の色 1 つ（ライト #3d5a80、ダーク #8aa4c8。ラベルのパレット・日付の藍色と重ならない色）。`text-sleep`・`bg-sleep`・`.gc-sleep` | `index.css`（`--color-sleep`） |
 | 習慣の丸 | 線画で、塗るのは達成だけ。まだ＝習慣の色の細い輪（`gc-mark`）、達成＝薄い塗り＋その色の輪＋✓（`gc-mark-done`）、時間外＝その色の点線の輪＋✓（`gc-mark-off`）、過ぎた予定の日でやらなかった＝灰の細い輪（`gc-mark-missed`、習慣画面の週の表だけ）。丸の下にグレーで「時間外」（習慣画面の週のマスは小さく）。時刻はツールチップ。押せる丸は `aria-pressed`、週のマスの読み上げ名は「10月3日 (土) 達成」「10月3日 (土) 達成（時間外 21:00〜21:30）」。今日の計画のまだの丸は To-Do と同じ灰色（`COMPLETION_RING_IDLE`）。カレンダーの習慣の段・その日の一覧も同じ `gc-mark*`（`calendar/HabitDotMark`。先の日・まだの時刻は輪を薄く、時間外はヒント・読み上げ名に「（時間外）」、名前の出る所は題名の横に「時間外」）。段の丸は押すと ✓、題名はカード | `lib/habitMark.ts`・`index.css`（`.gc-mark*`）・`components/calendar/HabitDotMark.tsx` |
 | 色の丸の名前 | ヒント・読み上げは「ラベル名（色名）」、名前の無い色は色名。記録・予定のパレット・To-Do リストの色で同じ。パレットに名前は並べない | `hooks/useLabeledSwatches.ts` |
 | メニュー・候補の行のハイライト | ↑↓ で選んでいる行とホバーは同じ薄いグレー（ダーク zinc-700）、押している間も同じ色（`MENU_ROW_PRESS`）。メニューと時刻の候補で共通。今の値は ✓ | `components/ui/surface.ts`（`MENU_ROW_ACTIVE`・`MENU_ROW_HOVER`・`MENU_ROW_PRESS`） |

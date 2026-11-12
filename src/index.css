@@ -25,7 +25,7 @@
   --color-date-600: #4f46e5;
   --color-date-700: #4338ca;
   /* 睡眠（夜の色）。睡眠の行の月・睡眠のグラフの棒・タイムラインの睡眠の帯で共通（`text-sleep` / `bg-sleep` / `.gc-sleep`） */
-  --color-sleep: #5c6bc0;
+  --color-sleep: #3d5a80;
   /* 塗りのアクセントの上に載せる文字色（ダークでは塗りが明るくなるので暗い文字） */
   --color-on-accent: #ffffff;
 
@@ -220,7 +220,7 @@
   --color-accent-900: #f1f3f4;
   --color-accent-950: #f8f9fa;
   --color-on-accent: #202124;
-  --color-sleep: #7986cb;
+  --color-sleep: #8aa4c8;
 }
 
 /*
