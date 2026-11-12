@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore, INBOX_LIST_ID } from '../../store/taskStore'
 import { displayListName } from '../../lib/displayListName'
 import { unplannedListIds } from '../../lib/listKind'
-import { colorVars } from '../../lib/logCategoryColors'
+import { categoryHex, colorVars, logLabelFromTask, type LogLabel } from '../../lib/logCategoryColors'
+import { planColorForTitle, planTitleSuggestions } from '../../lib/eventSuggestions'
+import type { LogSuggestion } from '../../lib/logSuggestions'
 import { isAnchoredSheet, useAnchoredCard, type AnchorRect } from './anchoredCard'
 import { TimeLogTagField } from '../TimeLogTagField'
 import { LogTitleInput } from '../LogTitleInput'
@@ -27,7 +29,6 @@ import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { endKeepingLength, minutesToTime, toMinutes } from '../../lib/clockTime'
 import { CardTimeRange } from './CardTimeRange'
-import { TITLE_MAX_LENGTH } from '../../lib/textLimits'
 import { compareByOrder } from '../../lib/orderCompare'
 import { pickTodoForSlot } from '../../lib/slotFitTodo'
 import { formatDuration } from '../../lib/timeGrid'
@@ -126,6 +127,27 @@ export function QuickCreatePopover({
   )
   const inferredGoogle = inferred?.kind === 'google' && googleWritable
   const toGoogle = asEvent && googleWritable && (inferred ? inferredGoogle : choice.eventToGoogle)
+  // 予定・To-Do の名前の候補と、同じ名前の一番新しいものの色（ラベル）。自分でラベルを選んだらそちらのまま（#704）
+  const presets = useTaskStore((s) => s.timeLogTagPresets)
+  const labelColors = useTaskStore((s) => s.logCategoryColors)
+  const planKind = asEvent ? 'event' : 'todo'
+  const planSuggestions = useMemo<LogSuggestion[] | undefined>(
+    () =>
+      asLog
+        ? undefined
+        : planTitleSuggestions(planKind, title, tasks, calendarEvents).map((p) => {
+            const label = logLabelFromTask(p, presets, labelColors)
+            return { title: p.title, category: label.tags[0] ?? null, color: label.color, typicalMinutes: null, source: 'log' }
+          }),
+    [asLog, planKind, title, tasks, calendarEvents, presets, labelColors],
+  )
+  const autoColor = useMemo(
+    () => (asLog ? null : planColorForTitle(planKind, title, tasks, calendarEvents)),
+    [asLog, planKind, title, tasks, calendarEvents],
+  )
+  const [chosenLabel, setChosenLabel] = useState<LogLabel | null>(null)
+  const planLabel = chosenLabel ?? logLabelFromTask({ color: autoColor }, presets, labelColors)
+  const planHex = planLabel.tags[0] ? categoryHex(planLabel.tags[0], labelColors) : planLabel.color
   const [editingTime, setEditingTime] = useState(false)
   /** 別のタイムゾーンで作る（Google と同じく、時刻の数字はそのままでそのタイムゾーンの時刻になる）。記録はいつも手元の時刻 */
   const [zone, setZone] = useState<string | null>(null)
@@ -196,6 +218,7 @@ export function QuickCreatePopover({
         defaultDate: dateKey,
         defaultTime: { startTime, endTime },
         kind: asEvent ? 'event' : undefined,
+        color: planHex ?? undefined,
       })
       const created = useTaskStore.getState().tasks.find((x) => x.id === id)
       if (!id || !zone || !created?.scheduledDate || !created.startTime || !created.endTime) return
@@ -311,11 +334,14 @@ export function QuickCreatePopover({
           className={TITLE_INPUT}
         />
       ) : (
-        <input
-          ref={inputRef}
+        // 打つと前の同じ種類（予定 / To-Do）の名前を候補に出す。選ぶと名前が入り、その色（ラベル）が下の欄に付く
+        <LogTitleInput
+          inputRef={inputRef}
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={TITLE_MAX_LENGTH}
+          onChange={setTitle}
+          onPick={(s) => setTitle(s.title)}
+          suggestions={planSuggestions}
+          emptySuggestions={false}
           onKeyDown={onTitleKeyDown}
           placeholder={t('quickCreate.titlePlaceholder')}
           className={TITLE_INPUT}
@@ -440,6 +466,12 @@ export function QuickCreatePopover({
             {asEvent && googleWritable && <option value={GOOGLE_TARGET}>{t('googleEdit.destGoogle')}</option>}
           </select>
         </label>
+      )}
+      {!asLog && !toGoogle && (
+        // 色＝ラベル。名前から先に選んだものを、ここで選び直せる
+        <div className="mt-2">
+          <TimeLogTagField value={planLabel.tags[0] ?? ''} color={planLabel.color} onChange={setChosenLabel} compact />
+        </div>
       )}
       <div className="mt-4 flex items-center justify-end gap-2">
         {!toGoogle && (

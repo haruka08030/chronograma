@@ -1026,6 +1026,15 @@ const SCREENS = [
       { fill: { selector: '[role=dialog] input[placeholder="タイトルを追加"] >> visible=true', text: 'ジム' } },
     ],
   },
+  // 作成カードで題名を打つと、前の同じ種類の名前を色の点つきで候補に出し、下のラベルの欄に同じ名前の色が付く（#704）
+  {
+    name: 'calendar-quick-create-suggest',
+    view: 'calendar',
+    steps: [
+      { dragTime: { from: '07:00', to: '08:00' } },
+      { fill: { selector: '[role=dialog] input[placeholder="タイトルを追加"] >> visible=true', text: 'バイト' } },
+    ],
+  },
   // 祝日の名前（灰色の文字だけ。週・1 日は終日の行、月は日付の横、スケジュールは日の行）。
   // 撮る日（2026/10）の次の週の 10/12 スポーツの日。スマホは月のマスの祝日を押してその日の 1 日表示へ
   { name: 'calendar-holiday', view: 'calendar', desktopOnly: true, click: 'button[aria-label="次の週"] >> visible=true' },
