@@ -25,7 +25,6 @@ import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { useEventTemplateStamp } from '../hooks/useEventTemplateStamp'
 import { EventTemplateButton, EventTemplateStampBar } from './calendar/EventTemplateControls'
-import { TimetableButton } from './calendar/TimetableButton'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -59,13 +58,8 @@ export function CalendarHubView() {
   // よく入れる予定を選んで日を押している間（月表示だけ。ほかの表示に移ったら抜ける）
   const stamp = useEventTemplateStamp()
   if (stamp.template && calendarMode !== 'month') stamp.stop()
-  // 月表示は「よく入れる予定」、週・3 日表示は「時間割」（授業を毎週の予定でまとめて入れる、#279）
-  const templateButton =
-    calendarMode === 'month' ? (
-      <EventTemplateButton activeId={stamp.activeId} onPick={stamp.start} />
-    ) : calendarMode === 'week' || calendarMode === 'threeDay' ? (
-      <TimetableButton />
-    ) : null
+  // 月表示だけ「よく入れる予定」。時間割は追加機能「学校」のページから開く（#702）
+  const templateButton = calendarMode === 'month' ? <EventTemplateButton activeId={stamp.activeId} onPick={stamp.start} /> : null
 
   const setMode = (mode: CalendarMode) => {
     setCalendarMode(mode)

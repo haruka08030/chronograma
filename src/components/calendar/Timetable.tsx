@@ -16,9 +16,8 @@ import {
   type TimetablePeriod,
 } from '../../lib/timetable'
 import { seriesDates } from '../../lib/eventSeries'
-import { courseAttendance, defaultTerm, termCourses, type ClassAttendance, type Term } from '../../lib/schoolTerms'
+import { courseAttendance, termCourses, type ClassAttendance, type Term } from '../../lib/schoolTerms'
 import { useSchool } from '../../hooks/useSchool'
-import { SchoolTermBar } from '../addons/SchoolTermBar'
 import { courseKey, lmsCourses } from '../../lib/courseLinks'
 import { NOTICE_TONE_CLASS } from '../ui/dueTone'
 import { colorVars } from '../../lib/logCategoryColors'
@@ -45,33 +44,6 @@ import { useDialogDraft } from '../../hooks/useDialogDraft'
 import { Switch } from '../settings/SettingsPrimitives'
 import { FirstUseHint } from '../ui/FirstUseHint'
 import { openHelp } from '../../lib/overlays'
-
-/**
- * 時間割（#279）。週表示の見出しの「時間割」で開くダイアログ。上で学期を選び（最初は今日の学期）、中身は追加機能「学校」のページと同じ
- */
-export function TimetableDialog({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation()
-  const today = useAppTodayKey()
-  const school = useSchool()
-  const [termId, setTermId] = useState<string | null>(null)
-  const term = school.terms.find((x) => x.id === termId) ?? defaultTerm(school, today)
-  return (
-    <Modal onClose={onClose} labelledBy="timetable-title" width="lg" className="flex max-h-[min(90vh,820px)] flex-col overflow-hidden">
-      <div className="border-b border-zinc-200 px-4 pb-3 pt-5 dark:border-zinc-700 sm:px-6">
-        <ModalTitle id="timetable-title">{t('timetable.title')}</ModalTitle>
-        <div className="mt-2">
-          <SchoolTermBar term={term} onSelect={setTermId} />
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6">{term && <TimetableBody term={term} />}</div>
-      <div className="flex justify-end border-t border-zinc-200 px-4 py-3 dark:border-zinc-700 sm:px-6">
-        <button type="button" onClick={onClose} className={buttonClass({ variant: 'primary', size: 'md' })}>
-          {t('timetable.done')}
-        </button>
-      </div>
-    </Modal>
-  )
-}
 
 /**
  * 学期の時間割の中身。曜日（月〜土）× 時限のマスを押して授業を入れると、学期の間の毎週の予定ができる。

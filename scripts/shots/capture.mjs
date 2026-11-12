@@ -61,8 +61,10 @@ const SEED_TEMPLATES = [
   { id: 'tpl-late', title: 'バイト 遅番', startTime: '17:00', endTime: '22:00', color: '#7986CB' },
   { id: 'tpl-class', title: 'ゼミ', startTime: '13:00', endTime: '14:30', color: null },
 ]
-/** 週表示の見出しの「時間割」（#279）。マスを押して授業名を書いて保存する手順 */
-const TIMETABLE_BUTTON = 'button:has-text("時間割") >> visible=true'
+/** 時間割は追加機能「学校」のページから開く（#702） */
+const OPEN_SCHOOL = { click: '[data-addon="school"] button:has-text("学校")' }
+/** 学校のページで授業を入れたあと、カレンダーへ移る */
+const GO_CALENDAR = { click: 'nav button:has-text("カレンダー") >> visible=true' }
 /** TIMEZONE の今日から n 日後の日付キー */
 const tzDayKey = (n) => {
   const [y, m, d] = new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE }).format(new Date()).split('-').map(Number)
@@ -877,13 +879,13 @@ const SCREENS = [
     ],
   },
   // 時間割（#279）: 授業を入れたマス・空きのマスを押して授業名を入れるところ・入れた授業が毎週の予定として出る次の週（スマホは翌日）
-  { name: 'calendar-timetable', view: 'calendar', click: TIMETABLE_BUTTON, state: TIMETABLE_ON, steps: SEED_CLASSES },
+  { name: 'calendar-timetable', view: 'addons', state: TIMETABLE_ON, steps: [OPEN_SCHOOL, ...SEED_CLASSES] },
   {
     name: 'calendar-timetable-cell',
-    view: 'calendar',
-    click: TIMETABLE_BUTTON,
+    view: 'addons',
     state: TIMETABLE_ON,
     steps: [
+      OPEN_SCHOOL,
       ...SEED_CLASSES,
       { click: '[data-timetable-cell="2:1"]' },
       { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: 'ミクロ経済学' } },
@@ -959,27 +961,25 @@ const SCREENS = [
   // 欠席の数（#452）: 休んだ授業のマスに数・使い切った授業は赤、マスの授業の休める回数、授業の予定のカード（今日の 4 限に入れて押す）
   {
     name: 'calendar-timetable-absence',
-    view: 'calendar',
-    click: TIMETABLE_BUTTON,
+    view: 'addons',
     state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
-    steps: SEED_CLASSES,
+    steps: [OPEN_SCHOOL, ...SEED_CLASSES],
   },
   {
     name: 'calendar-timetable-limit',
-    view: 'calendar',
-    click: TIMETABLE_BUTTON,
+    view: 'addons',
     state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
-    steps: [...SEED_CLASSES, { click: '[data-timetable-cell="5:2"]' }],
+    steps: [OPEN_SCHOOL, ...SEED_CLASSES, { click: '[data-timetable-cell="5:2"]' }],
   },
   {
     name: 'calendar-class-card',
-    view: 'calendar',
-    click: TIMETABLE_BUTTON,
+    view: 'addons',
     state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
     // 日曜は時間割に無いので、日曜に撮るときは次の月曜の回（週表示は次の週・スマホは翌日へ）
     steps: [
+      OPEN_SCHOOL,
       ...addClass(`${TODAY_WEEKDAY === 0 ? 1 : TODAY_WEEKDAY}:3`, '経済学入門'),
-      { click: '[role=dialog] button:has-text("閉じる")' },
+      GO_CALENDAR,
       { wait: 400 },
       ...(TODAY_WEEKDAY === 0 ? [{ press: 'n' }, { wait: 400 }] : []),
       { click: '[data-block-id]:has-text("経済学入門") >> visible=true' },
@@ -987,12 +987,13 @@ const SCREENS = [
   },
   {
     name: 'calendar-week-classes',
-    view: 'calendar',
-    click: TIMETABLE_BUTTON,
+    view: 'addons',
     state: TIMETABLE_ON,
     steps: [
+      OPEN_SCHOOL,
       ...SEED_CLASSES,
-      { click: '[role=dialog] button:has-text("閉じる")' },
+      GO_CALENDAR,
+      { wait: 400 },
       // 次の週へ（スマホ幅は 1 日ずつなので翌日）
       { press: 'n' },
     ],

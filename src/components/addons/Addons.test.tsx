@@ -6,7 +6,6 @@ import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_ADDONS } from '../../lib/addons'
 import { AddonsView } from './AddonsView'
 import { AddonsSettingsGroup } from './AddonsSettingsGroup'
-import { TimetableButton } from '../calendar/TimetableButton'
 import { OverlayHost } from '../OverlayHost'
 import { useOverlays } from '../../lib/overlays'
 
@@ -16,24 +15,17 @@ beforeEach(async () => {
 })
 
 describe('追加機能の画面と設定（#453）', () => {
-  it('学校は最初はオフで、カレンダーの「時間割」ボタンも出ない。オンにするとカードからページへ進め、ボタンも出る（#617）', async () => {
+  it('学校は最初はオフ。オンにするとカードから学校のページへ進め、時間割はそこで開く（#617・#702）', async () => {
     const user = userEvent.setup()
-    render(
-      <>
-        <AddonsView />
-        <TimetableButton />
-      </>,
-    )
+    render(<AddonsView />)
     expect(screen.queryByRole('switch', { name: '時間割・欠席を使う' })).toBeNull()
     const sw = screen.getByRole('switch', { name: '学校を使う' })
     expect(sw.getAttribute('aria-checked')).toBe('false')
-    expect(screen.queryByRole('button', { name: '時間割' })).toBeNull()
     expect(screen.queryByRole('button', { name: '学校' })).toBeNull()
 
     await user.click(sw)
     expect(useTaskStore.getState().addons.enabled).toEqual({ school: true })
     expect(useTaskStore.getState().addonsUpdatedAt).not.toBeNull()
-    expect(screen.getByRole('button', { name: '時間割' })).toBeTruthy()
 
     // 中身のページ: 時間割と授業の欠席が 1 ページに。戻ると一覧
     await user.click(screen.getByRole('button', { name: '学校' }))
