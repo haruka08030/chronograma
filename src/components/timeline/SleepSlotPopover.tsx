@@ -17,9 +17,8 @@ import { sleepEndingOn, sleepMinutes } from '../../lib/sleep'
 import { logLimitAt } from '../../lib/timelineBlockEdit'
 import { formatDuration, timeToMinutes } from '../../lib/timeGrid'
 import { shortDate } from '../../lib/moveToast'
-import { TimeInput } from '../TimeInput'
-import { fieldClass } from '../ui/fieldClass'
-import { SleepBar, SleepMoonIcon } from '../SleepTimesField'
+import { SleepMoonIcon } from '../SleepTimesField'
+import { TimeRangeFields } from '../TimeRangeFields'
 import { CardActions } from './CardActions'
 import { timeRange } from '../../lib/timeRange'
 
@@ -60,7 +59,6 @@ export function SleepSlotPopover({ wakeDate, anchor, onClose }: { wakeDate: stri
   // タイムラインの ✓ と同じ: 起きる時刻を過ぎてから（寝ている間に先の時刻まで睡眠にしない）
   const limit = logLimitAt(now)(wakeDate)
   const woke = limit === null || (limit > 0 && timeToMinutes(plan.wake) <= limit)
-  const inputClass = `w-[4.5rem] ${fieldClass({ size: 'sm' })}`
 
   return (
     <div ref={exitRef} role="dialog" aria-label={t('sleep.title')} tabIndex={-1} className={anchoredCardClass(sheet)} style={style}>
@@ -94,20 +92,22 @@ export function SleepSlotPopover({ wakeDate, anchor, onClose }: { wakeDate: stri
         <div className="min-w-0">
           <p className="text-lg leading-snug text-zinc-900 dark:text-zinc-100">{t('sleep.title')}</p>
           <p className={`mt-0.5 ${SUBTLE_TEXT}`}>{t('sleepPage.morningOf', { day: df.monthDayWeekdayLong(wakeDate) })}</p>
-          <div role="group" aria-label={t('sleepSlot.times')} className="mt-2 flex flex-wrap items-center gap-1.5 text-xs tabular-nums">
-            <span className="sr-only">{t('sleep.bedAria')}</span>
-            <TimeInput value={plan.bed} onChange={(v) => v && setTimes(v, plan.wake)} className={inputClass} />
-            <SleepBar />
-            <span className="sr-only">{t('sleep.wakeAria')}</span>
-            <TimeInput
-              value={plan.wake}
-              onChange={(v) => v && setTimes(plan.bed, v)}
-              durationFrom={plan.bed}
-              overnight
-              className={inputClass}
-            />
-            <span className="text-zinc-400 dark:text-zinc-500">{formatDuration(sleepMinutes(plan.bed, plan.wake))}</span>
-          </div>
+          <TimeRangeFields
+            kind="log"
+            separator="sleep"
+            required
+            startTime={plan.bed}
+            endTime={plan.wake}
+            onChange={(next) => setTimes(next.startTime, next.endTime)}
+            startLabel={t('sleep.bedAria')}
+            endLabel={t('sleep.wakeAria')}
+            groupLabel={t('sleepSlot.times')}
+            className="mt-2"
+          >
+            <span className="text-xs tabular-nums text-zinc-400 dark:text-zinc-500">
+              {formatDuration(sleepMinutes(plan.bed, plan.wake))}
+            </span>
+          </TimeRangeFields>
           {changed && usual && (
             <button
               type="button"

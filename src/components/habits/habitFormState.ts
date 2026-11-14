@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { mostCommon } from '../../lib/mostCommon'
 import { hexForGoogleKey } from '../../lib/googleColors'
 import { useDialogDraft } from '../../hooks/useDialogDraft'
 import { canSubmitHabitDraft, habitFrequencyFromDraft, type HabitDraftFields } from '../../lib/habitDraft'
@@ -115,16 +116,7 @@ export function formWeekdayTime(f: HabitFormState, d: HabitWeekday): { startTime
  */
 export function sameTimeFormPatch(f: HabitFormState): Partial<HabitFormState> {
   const times = formTimeDays(f).map((d) => formWeekdayTime(f, d))
-  const key = (w: { startTime: string; endTime: string }) => (f.timeMode === 'range' ? `${w.startTime}-${w.endTime}` : w.startTime)
-  let best: { startTime: string; endTime: string } = f
-  let bestCount = 0
-  for (const w of times) {
-    const count = times.filter((x) => key(x) === key(w)).length
-    if (count > bestCount) {
-      best = w
-      bestCount = count
-    }
-  }
+  const best = mostCommon(times, (w) => (f.timeMode === 'range' ? `${w.startTime}-${w.endTime}` : w.startTime)) ?? f
   return { perWeekday: false, startTime: best.startTime, endTime: best.endTime, weekdayTimes: {} }
 }
 

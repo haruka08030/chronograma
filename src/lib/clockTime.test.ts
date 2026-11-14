@@ -46,4 +46,11 @@ describe('clockTime', () => {
     expect(endAfterStartEdit('10:00', '', '09:00', 45)).toBe('09:45')
     expect(endAfterStartEdit(null, null, '23:30', 60)).toBe('23:59')
   })
+
+  it('endAfterStartEdit（overnight）: 日をまたげる時間帯は 24 時間で回し、空なら長さで埋める', () => {
+    expect(endAfterStartEdit('22:00', '23:30', '23:00', 60, true)).toBe('00:30')
+    expect(endAfterStartEdit('23:00', '07:00', '23:30', 60, true)).toBe('07:30')
+    expect(endAfterStartEdit('10:00', '10:00', '11:00', 45, true)).toBe('11:45')
+    expect(endAfterStartEdit('10:00', '', '23:30', 60, true)).toBe('00:30')
+  })
 })

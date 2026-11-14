@@ -65,8 +65,8 @@
 | `TaskDetail.tsx`・`detail/` | タスクの詳細と欄ごとの部品（題名・メモ・場所・繰り返し・見積もり・記録の時刻など） |
 | `QuickAdd.tsx`・`QuickAddDetails.tsx`・`QuickAddReading.tsx` | クイック追加と読み取りのチップ |
 | `TodayPlannerView.tsx`・`today/` | 今日の計画（見出し・やり残し・To-Do・習慣・期限の日・候補・締め・気分・はじめての案内） |
-| `RecordPanel.tsx`・`FloatingTimer.tsx`・`RecordPromptHost.tsx`・`CompleteWithLogModal.tsx`・`LogTimeRow.tsx`・`LogTitleInput.tsx`・`RecentLogChips.tsx`・`TimeLogTagField.tsx`・`UntaggedLogList.tsx`・`TimerDropZone.tsx` | 記録（タイマー・後から記録・予定のあとの確認・ラベルなしの記録） |
-| `SleepRow.tsx`・`SleepTimesField.tsx`・`SleepStatsCard.tsx` | 睡眠 |
+| `RecordPanel.tsx`・`FloatingTimer.tsx`・`RecordPromptHost.tsx`・`CompleteWithLogModal.tsx`・`LogTitleInput.tsx`・`RecentLogChips.tsx`・`TimeLogTagField.tsx`・`UntaggedLogList.tsx`・`TimerDropZone.tsx` | 記録（タイマー・後から記録・予定のあとの確認・ラベルなしの記録） |
+| `SleepRow.tsx`・`SleepTimesField.tsx`・`SleepBar.tsx`・`SleepStatsCard.tsx` | 睡眠 |
 | `CalendarHubView.tsx`・`CalendarView.tsx`・`WeekCalendarView.tsx`・`CalendarScheduleView.tsx`・`CalendarDayPanel.tsx`・`CalendarTaskDock.tsx`・`CalendarDateNav.tsx`・`CalendarMobileHeader.tsx`・`CalendarInlineTaskAdd.tsx` | カレンダー（月・週・3 日・予定の一覧、選択日パネル、下の To-Do） |
 | `calendar/` | カレンダーの部品（`TimeBlock`・週の列と見出し・終日の行・習慣の行・時間割・よく入れる予定・空き時間） |
 | `timeline/` | タイムラインのカードとポップオーバー（`EventPopover`・`GoogleEventPopover`・`QuickCreatePopover`・`HabitSlotPopover`・`TimeGutter`・授業の欠席と課題） |
@@ -79,7 +79,7 @@
 | `help/` | 使い方（`HelpGuide`。検索・記事の一覧・記事。`openHelp` で開き、中身は文言の `help.sections`） |
 | `labels/` | ラベル（色に付けた名前）の選び方・パレット・ラベルの画面 |
 | `ui/` | 共有の部品（`Menu`・`Modal`・`SideSheet`・`ConfirmDialog`・`CompletionCircle`・`DueChip`・`DayRow`・`Segmented`・`Tooltip`・`ErrorBoundary`・`OverlaySuspense` と `*Class.ts` の見た目） |
-| `TaskContextMenu.tsx`・`ListContextMenu.tsx`・`TimeSlotMenu.tsx`・`DueDatePopover.tsx`・`DueDateTimeMenu.tsx`・`DateField.tsx`・`DatePickerBody.tsx`・`TimeInput.tsx`・`TimeZonePicker.tsx`・`TaskTimeZoneField.tsx`・`TaskRemindersField.tsx`・`RepeatWeekdays.tsx`・`ListKindPicker.tsx`・`ListSectionHeading.tsx` | メニューと入力の部品 |
+| `TaskContextMenu.tsx`・`ListContextMenu.tsx`・`TimeSlotMenu.tsx`・`DueDatePopover.tsx`・`DueDateTimeMenu.tsx`・`DateField.tsx`・`DatePickerBody.tsx`・`TimeInput.tsx`・`TimeRangeFields.tsx`・`TimeZonePicker.tsx`・`TaskTimeZoneField.tsx`・`TaskRemindersField.tsx`・`RepeatWeekdays.tsx`・`ListKindPicker.tsx`・`ListSectionHeading.tsx` | メニューと入力の部品 |
 | `AccountSync.tsx`・`AccountSyncLoader.tsx`・`SyncIndicator.tsx`・`syncIndicatorLabel.ts`・`MobileSyncNotice.tsx`・`StorageFullBanner.tsx`・`SignedOutNotice.tsx` | 同期・保存の状態 |
 | `GoogleConnectLine.tsx`・`GoogleStatusDot.tsx`・`IntegrationReconnectLines.tsx`・`ReconnectLine.tsx`・`CanvasSubmittedToast.tsx` | 連携の状態 |
 | `UndoToast.tsx`・`MoveToast.tsx`・`CanvasSubmittedToast.tsx`（どれも `ui/Toast.tsx` の `Toast`、置き場は `ToastStack`）・`ShortcutsHelp.tsx`・`OverlayHost.tsx`・`lazyOverlays.ts`・`icons.tsx`・`PathIcon.tsx` | 画面の周り |

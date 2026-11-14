@@ -11,9 +11,8 @@ import {
 import { toggleHabitWeekdaySelection } from '../../lib/habitDraft'
 import { HABIT_ON_TIME_TOLERANCE_MIN } from '../../lib/habitTiming'
 import { labelForHex } from '../../lib/logCategoryColors'
-import { addClockMinutes, toMinutes } from '../../lib/clockTime'
 import { isCancelEscape, isSubmitEnter } from '../../lib/keyboard'
-import { TimeInput } from '../TimeInput'
+import { TimeRangeFields, type TimeRange } from '../TimeRangeFields'
 import { ColorPalette } from '../labels/ColorPalette'
 import { PillToggle } from '../ui/PillToggle'
 import { Segmented } from '../ui/Segmented'
@@ -123,73 +122,13 @@ function TimesPerWeekPicker({ count, onChange }: { count: number; onChange: (cou
   )
 }
 
-const TIME_FIELD = fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')
-
-/**
- * 時間帯の開始を動かしたあとの終わり。長さを保ってずらす（習慣は日をまたげるので 23:59 で止めない）。
- * 終わりが空なら既定の予定の長さで埋める
- */
-function habitEndAfterStartEdit(startTime: string, endTime: string, nextStart: string, fillMinutes: number): string {
-  const s = toMinutes(startTime)
-  const e = toMinutes(endTime)
-  if (toMinutes(nextStart) === null) return endTime
-  if (e === null) return addClockMinutes(nextStart, fillMinutes)
-  if (s === null || nextStart === startTime) return endTime
-  return addClockMinutes(nextStart, (e - s + 1440) % 1440 || fillMinutes)
-}
-
-/** 開始（と時間帯なら終了）の欄 */
-export function TimeRangeInputs({
-  mode,
-  startTime,
-  endTime,
-  onTimesChange,
-}: {
-  mode: 'fixed' | 'range'
-  startTime: string
-  endTime: string
-  onTimesChange: (patch: { startTime?: string; endTime?: string }) => void
-}) {
-  const { t } = useTranslation()
-  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
-  return (
-    <>
-      {/* 時間帯は開始を動かしたら長さを保って終わりもずらす（予定の欄と同じ。日をまたいでもよい） */}
-      <TimeInput
-        value={startTime}
-        onChange={(v) =>
-          onTimesChange(
-            mode === 'range'
-              ? { startTime: v, endTime: habitEndAfterStartEdit(startTime, endTime, v, defaultBlockMinutes) }
-              : { startTime: v },
-          )
-        }
-        className={TIME_FIELD}
-      />
-      {mode === 'range' ? (
-        <>
-          <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
-          <TimeInput
-            value={endTime}
-            onChange={(v) => onTimesChange({ endTime: v })}
-            pickerDefault={startTime ? addClockMinutes(startTime, defaultBlockMinutes) : undefined}
-            durationFrom={startTime || undefined}
-            overnight
-            className={TIME_FIELD}
-          />
-        </>
-      ) : null}
-    </>
-  )
-}
-
 /** 曜日ごとの時間の行（曜日を指定した習慣は選んだ曜日だけ、ほかは 7 日、月曜から） */
 function WeekdayTimeRows({ form, onChange }: { form: HabitFormState; onChange: (patch: Partial<HabitFormState>) => void }) {
   const { t } = useTranslation()
   const labels = t('habits.weekdays', { returnObjects: true }) as string[]
+  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   const mode = form.timeMode === 'range' ? 'range' : 'fixed'
-  const set = (d: HabitWeekday, patch: Partial<{ startTime: string; endTime: string }>) =>
-    onChange({ weekdayTimes: { ...form.weekdayTimes, [d]: { ...formWeekdayTime(form, d), ...patch } } })
+  const set = (d: HabitWeekday, next: TimeRange) => onChange({ weekdayTimes: { ...form.weekdayTimes, [d]: next } })
   return (
     <div className="space-y-2">
       {formTimeDays(form).map((d) => {
@@ -197,7 +136,14 @@ function WeekdayTimeRows({ form, onChange }: { form: HabitFormState; onChange: (
         return (
           <div key={d} role="group" aria-label={labels[d - 1]} className="flex flex-wrap items-center gap-3 text-sm">
             <span className="w-6 text-zinc-500 dark:text-zinc-400">{labels[d - 1]}</span>
-            <TimeRangeInputs mode={mode} startTime={time.startTime} endTime={time.endTime} onTimesChange={(patch) => set(d, patch)} />
+            <TimeRangeFields
+              startTime={time.startTime}
+              endTime={time.endTime}
+              withEnd={mode === 'range'}
+              overnight
+              fillMinutes={defaultBlockMinutes}
+              onChange={(next) => set(d, next)}
+            />
           </div>
         )
       })}
@@ -215,6 +161,7 @@ function HabitTimeFields({ form, onChange }: { form: HabitFormState; onChange: (
   const routine = form.kind === 'routine'
   const mode = form.timeMode
   const linkClass = buttonClass({ variant: 'link', size: 'xs' })
+  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   const split = usesWeekdayTimes(form)
   // 曜日を 1 つだけ指定した習慣は変える相手が無い（分けていれば戻せるように出す）
   const canSplit = split || formTimeDays(form).length > 1
@@ -236,9 +183,14 @@ function HabitTimeFields({ form, onChange }: { form: HabitFormState; onChange: (
       {split ? (
         <WeekdayTimeRows form={form} onChange={onChange} />
       ) : (
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <TimeRangeInputs mode={mode} startTime={form.startTime} endTime={form.endTime} onTimesChange={onChange} />
-        </div>
+        <TimeRangeFields
+          startTime={form.startTime}
+          endTime={form.endTime}
+          withEnd={mode === 'range'}
+          overnight
+          fillMinutes={defaultBlockMinutes}
+          onChange={onChange}
+        />
       )}
       {/* 曜日の行に分ける・戻すは 1 行に単独で（睡眠の予定と同じ）。文字の頭を欄の頭にそろえる */}
       {canSplit ? (

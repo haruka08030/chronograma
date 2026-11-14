@@ -23,7 +23,7 @@ import { NOTICE_TONE_CLASS } from '../ui/dueTone'
 import { colorVars } from '../../lib/logCategoryColors'
 import { planHex } from '../../lib/planVisual'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
+import { addClockMinutes } from '../../lib/clockTime'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 import { useAppTodayKey } from '../../hooks/useAppClock'
@@ -31,7 +31,7 @@ import { useDateFormat } from '../../hooks/useDateFormat'
 import { usePlanColorText } from '../../hooks/usePlanColorText'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { DisclosureButton } from '../ui/Disclosure'
-import { TimeInput } from '../TimeInput'
+import { TimeRangeFields } from '../TimeRangeFields'
 import { ColorLabelSelect } from '../labels/ColorLabelSelect'
 import { PlusIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
@@ -211,7 +211,6 @@ function TimetableSettings({ timetable }: { timetable: Timetable }) {
     setPeriods(next)
     if (next.every(isValidPeriod)) saveTimetable({ ...timetable, periods: next })
   }
-  const timeClass = fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')
 
   return (
     <div className="mb-2 space-y-4 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
@@ -221,22 +220,15 @@ function TimetableSettings({ timetable }: { timetable: Timetable }) {
           {periods.map((p, i) => (
             <li key={i} className="flex items-center gap-2 text-sm">
               <span className="w-10 shrink-0 text-xs text-zinc-500 dark:text-zinc-400">{t('timetable.periodName', { n: i + 1 })}</span>
-              <TimeInput
-                value={p.start}
-                onChange={(v) =>
-                  commitPeriods(periods.map((x, j) => (j === i ? { ...x, start: v, end: endAfterStartEdit(x.start, x.end, v, 90) } : x)))
+              <TimeRangeFields
+                startTime={p.start}
+                endTime={p.end}
+                fillMinutes={90}
+                startLabel={t('timetable.periodStartAria', { n: i + 1 })}
+                endLabel={t('timetable.periodEndAria', { n: i + 1 })}
+                onChange={(next) =>
+                  commitPeriods(periods.map((x, j) => (j === i ? { ...x, start: next.startTime, end: next.endTime } : x)))
                 }
-                ariaLabel={t('timetable.periodStartAria', { n: i + 1 })}
-                className={timeClass}
-              />
-              <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
-              <TimeInput
-                value={p.end}
-                onChange={(v) => commitPeriods(periods.map((x, j) => (j === i ? { ...x, end: v } : x)))}
-                ariaLabel={t('timetable.periodEndAria', { n: i + 1 })}
-                pickerDefault={p.start ? addClockMinutes(p.start, 90) : undefined}
-                durationFrom={p.start || undefined}
-                className={timeClass}
               />
               <button
                 type="button"

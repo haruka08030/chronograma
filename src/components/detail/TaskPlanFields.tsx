@@ -2,11 +2,11 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { isEventTask, type Priority, type Task } from '../../types/task'
 import { PillToggle } from '../ui/PillToggle'
-import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
 import { PRIORITY_TEXT_CLASS } from '../../lib/priorityColor'
 import { useDateFormat } from '../../hooks/useDateFormat'
 import { DueDatePopover } from '../DueDatePopover'
 import { TimeInput } from '../TimeInput'
+import { TimeRangeFields } from '../TimeRangeFields'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from '../TaskTimeZoneField'
 import { TaskRemindersField } from '../TaskRemindersField'
 import { CalendarIcon, DueIcon } from '../icons'
@@ -71,32 +71,25 @@ export function TaskPlanFields({ task }: { task: Task }) {
           )}
         />
         {tv.scheduledDate && (
-          <div className="mt-2 flex items-center gap-2">
-            <TimeInput
-              value={tv.startTime ?? ''}
-              // 開始を動かしたら長さを保って終わりもずらす（タイムラインのカード・Google と同じ）。終わりが空なら見積もり（無ければ既定の長さ）で埋める
-              onChange={(v) =>
-                updateTimes(
-                  v
-                    ? {
-                        startTime: v,
-                        endTime: endAfterStartEdit(tv.startTime, tv.endTime, v, task.estimateMinutes ?? defaultBlockMinutes) || null,
-                      }
-                    : { startTime: null },
-                )
-              }
-              className={fieldClass({}, TIME_FIELD_WIDTH)}
-            />
-            <span className="text-zinc-400 text-sm">{t('common.timeRangeSeparator')}</span>
-            <TimeInput
-              value={tv.endTime ?? ''}
-              onChange={(v) => updateTimes({ endTime: v || null })}
-              durationFrom={tv.startTime ?? undefined}
-              pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, task.estimateMinutes ?? defaultBlockMinutes) : undefined}
-              className={fieldClass({}, TIME_FIELD_WIDTH)}
-            />
+          <TimeRangeFields
+            size="md"
+            startTime={tv.startTime ?? ''}
+            endTime={tv.endTime ?? ''}
+            // 終わりが空なら見積もり（無ければ既定の長さ）で埋める
+            fillMinutes={task.estimateMinutes ?? defaultBlockMinutes}
+            onChange={(next) =>
+              updateTimes(
+                next.startTime !== (tv.startTime ?? '')
+                  ? next.startTime
+                    ? { startTime: next.startTime, endTime: next.endTime || null }
+                    : { startTime: null }
+                  : { endTime: next.endTime || null },
+              )
+            }
+            className="mt-2"
+          >
             {tzOnScheduled && <TaskTimeZoneButton task={task} view={tv} />}
-          </div>
+          </TimeRangeFields>
         )}
         {tzOnScheduled && <TaskTimeZoneNote task={task} />}
       </div>

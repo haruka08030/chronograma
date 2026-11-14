@@ -10,7 +10,7 @@ import { DateField } from '../DateField'
 import { buttonClass } from '../ui/buttonClass'
 import { fieldClass } from '../ui/fieldClass'
 import { META_TEXT } from '../ui/textClass'
-import { TimeRangeInputs } from '../habits/HabitFormFields'
+import { TimeRangeFields } from '../TimeRangeFields'
 
 type Scope = 'day' | 'weekday'
 type Until = 'forever' | 'date'
@@ -22,6 +22,7 @@ type Until = 'forever' | 'date'
 export function HabitTimeEditor({ habit, dateKey, onDone }: { habit: Habit; dateKey: string; onDone: () => void }) {
   const { t } = useTranslation()
   const setHabitTime = useTaskStore((s) => s.setHabitTime)
+  const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   const current = habitTimesOn(habit, dateKey)
   const [startTime, setStartTime] = useState(current?.startTime ?? '09:00')
   const [endTime, setEndTime] = useState(current?.endTime ?? '')
@@ -47,17 +48,17 @@ export function HabitTimeEditor({ habit, dateKey, onDone }: { habit: Habit; date
 
   return (
     <div className="mt-3 space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <TimeRangeInputs
-          mode={ranged ? 'range' : 'fixed'}
-          startTime={startTime}
-          endTime={endTime}
-          onTimesChange={(p) => {
-            if (p.startTime !== undefined) setStartTime(p.startTime)
-            if (p.endTime !== undefined) setEndTime(p.endTime)
-          }}
-        />
-      </div>
+      <TimeRangeFields
+        startTime={startTime}
+        endTime={endTime}
+        withEnd={ranged}
+        overnight
+        fillMinutes={defaultBlockMinutes}
+        onChange={(next) => {
+          setStartTime(next.startTime)
+          setEndTime(next.endTime)
+        }}
+      />
       {/* 時間を決めていない習慣（その日だけ格子に置いた）・この日もやる日は、その日だけ */}
       {habit.timeMode === 'none' || isHabitExtraOn(habit, dateKey) ? null : (
         <div>

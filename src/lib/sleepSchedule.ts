@@ -2,6 +2,7 @@ import { isoWeekdayOf } from './habitTiming'
 import { intervalSegmentClockOnDay } from './taskTimeRange'
 import { dateKeyOfDayIndex, dayIndexOf, wallMinutes } from './wallTime'
 import { timeToMinutes } from './clockTime'
+import { mostCommon } from './mostCommon'
 
 /**
  * 睡眠の予定（#652）。睡眠のページで決める、曜日ごとの寝る・起きる時刻。
@@ -58,18 +59,8 @@ export function sameSleepPlan(schedule: SleepSchedule): SleepPlan | null {
 
 /** 「毎日同じ時間にする」で 7 日に入れる時刻: いちばん多い時刻、同じ数なら月曜に近い曜日の時刻 */
 export function commonSleepPlan(schedule: SleepSchedule): SleepPlan | null {
-  let best: SleepPlan | null = null
-  let bestCount = 0
-  for (const d of ISO_WEEKDAYS) {
-    const p = schedule[d]
-    if (!p) continue
-    const count = ISO_WEEKDAYS.filter((x) => schedule[x]?.bed === p.bed && schedule[x]?.wake === p.wake).length
-    if (count > bestCount) {
-      best = p
-      bestCount = count
-    }
-  }
-  return best
+  const plans = ISO_WEEKDAYS.flatMap((d) => (schedule[d] ? [schedule[d]] : []))
+  return mostCommon(plans, (p) => `${p.bed}-${p.wake}`) ?? null
 }
 
 /** 7 日とも同じ時刻の予定 */

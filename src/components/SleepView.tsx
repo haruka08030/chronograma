@@ -24,8 +24,9 @@ import { useDateFormat } from '../hooks/useDateFormat'
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { useRememberScroll } from '../hooks/useRememberScroll'
 import { SleepStatsCard } from './SleepStatsCard'
-import { NapPlus, SleepBar, SleepDayEditor } from './SleepTimesField'
-import { TimeInput } from './TimeInput'
+import { NapPlus, SleepDayEditor } from './SleepTimesField'
+import { SleepBar } from './SleepBar'
+import { TimeRangeFields } from './TimeRangeFields'
 import { ShowMoreButton } from './ui/ShowMoreButton'
 import { SettingsRow } from './settings/SettingsPrimitives'
 import { fieldClass } from './ui/fieldClass'
@@ -385,25 +386,23 @@ function SleepPlanRow({
   onAdd?: () => void
 }) {
   const { t } = useTranslation()
-  const inputClass = `w-[4.5rem] ${fieldClass({ size: 'sm' })}`
   return (
     <li className="flex min-h-11 items-center gap-2 py-1.5 text-xs tabular-nums">
       <span className="w-20 shrink-0 text-zinc-600 dark:text-zinc-300">{label}</span>
       {plan ? (
         <>
-          <span role="group" aria-label={label} className="inline-flex items-center gap-1.5">
-            <span className="sr-only">{t('sleep.bedAria')}</span>
-            <TimeInput value={plan.bed} onChange={(v) => v && v !== plan.wake && onChange({ ...plan, bed: v })} className={inputClass} />
-            <SleepBar />
-            <span className="sr-only">{t('sleep.wakeAria')}</span>
-            <TimeInput
-              value={plan.wake}
-              onChange={(v) => v && v !== plan.bed && onChange({ ...plan, wake: v })}
-              durationFrom={plan.bed}
-              overnight
-              className={inputClass}
-            />
-          </span>
+          <TimeRangeFields
+            kind="log"
+            separator="sleep"
+            required
+            startTime={plan.bed}
+            endTime={plan.wake}
+            onChange={(next) => next.startTime !== next.endTime && onChange({ ...plan, bed: next.startTime, wake: next.endTime })}
+            startLabel={t('sleep.bedAria')}
+            endLabel={t('sleep.wakeAria')}
+            groupLabel={label}
+            wrap={false}
+          />
           <span className="hidden text-zinc-400 sm:inline dark:text-zinc-500">{formatDuration(sleepMinutes(plan.bed, plan.wake))}</span>
           <button
             type="button"

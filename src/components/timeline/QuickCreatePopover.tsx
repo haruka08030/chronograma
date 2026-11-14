@@ -27,8 +27,8 @@ import { shortcutTip, tip } from '../../lib/tooltip'
 import { iconButtonClass } from '../ui/iconButtonClass'
 import { addTaskFromQuickText } from '../../lib/quickAddTask'
 import { useDateFormat } from '../../hooks/useDateFormat'
-import { endKeepingLength, minutesToTime, toMinutes } from '../../lib/clockTime'
-import { CardTimeRange } from './CardTimeRange'
+import { minutesToTime, toMinutes } from '../../lib/clockTime'
+import { TimeRangeFields } from '../TimeRangeFields'
 import { compareByOrder } from '../../lib/orderCompare'
 import { pickTodoForSlot } from '../../lib/slotFitTodo'
 import { formatDuration } from '../../lib/timeGrid'
@@ -392,14 +392,16 @@ export function QuickCreatePopover({
           <div className="min-w-0">
             <p>{df.monthDayWeekdayLong(dateKey)}</p>
             <div className="mt-1.5">
-              <CardTimeRange
+              <TimeRangeFields
+                required
                 startTime={startTime}
                 endTime={endTime}
-                onStart={(v) => v !== startTime && onTimesChange(v, endKeepingLength(startTime, endTime, v))}
-                // 終わりは開始より後だけ（この日の中の枠）
-                onEnd={(v) => toMinutes(v)! > toMinutes(startTime)! && onTimesChange(startTime, v)}
-                startLabel={t('common.start')}
-                endLabel={t('common.end')}
+                onChange={(next) =>
+                  next.startTime !== startTime
+                    ? onTimesChange(next.startTime, next.endTime)
+                    : // 終わりは開始より後だけ（この日の中の枠）
+                      toMinutes(next.endTime)! > toMinutes(startTime)! && onTimesChange(startTime, next.endTime)
+                }
               />
             </div>
           </div>

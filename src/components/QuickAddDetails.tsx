@@ -8,10 +8,11 @@ import { colorVars } from '../lib/logCategoryColors'
 import { colorLabelText } from '../lib/todoColorLabels'
 import { ESTIMATE_OPTIONS } from '../lib/estimate'
 import { formatDuration } from '../lib/timeGrid'
-import { endAfterStartEdit, endWithinDay, toMinutes } from '../lib/clockTime'
+import { endWithinDay, toMinutes } from '../lib/clockTime'
 import { NEUTRAL_HEX } from '../lib/googleColors'
 import { DatePickerBody } from './DatePickerBody'
 import { TimeInput } from './TimeInput'
+import { TimeRangeFields } from './TimeRangeFields'
 import { ColorPalette } from './labels/ColorPalette'
 import { ArrowRightIcon, CalendarIcon, ClockIcon, DreamIcon, DueIcon, FlagIcon, HourglassIcon, TagIcon } from './icons'
 import { PRIORITY_TEXT_CLASS } from '../lib/priorityColor'
@@ -229,23 +230,17 @@ export function QuickAddDetails({
       pick({ time: { startTime, endTime: typedEnd ? endTime : endWithinDay(startTime, length) } }, false)
     }
     body = (
-      <div className="flex flex-wrap items-center gap-2">
-        <TimeInput
-          ariaLabel={t('quickAdd.chip.start')}
-          value={draft.startTime ?? ''}
-          onChange={(v) => (v ? setTime(v, endAfterStartEdit(draft.startTime, draft.endTime, v)) : pick({ time: null }, false))}
-          className={fieldClass({ size: 'sm' }, 'w-[6rem]')}
-        />
-        <span className="text-sm text-zinc-400">{t('common.timeRangeSeparator')}</span>
-        <TimeInput
-          ariaLabel={t('quickAdd.chip.end')}
-          value={draft.endTime ?? ''}
-          disabled={!draft.startTime}
-          pickerDefault={draft.startTime ? endWithinDay(draft.startTime, length) : undefined}
-          durationFrom={draft.startTime ?? undefined}
-          onChange={(v) => draft.startTime && v && setTime(draft.startTime, v)}
-          className={fieldClass({ size: 'sm' }, 'w-[6rem]')}
-        />
+      <TimeRangeFields
+        startTime={draft.startTime ?? ''}
+        endTime={draft.endTime ?? ''}
+        fillMinutes={length}
+        endNeedsStart
+        startLabel={t('quickAdd.chip.start')}
+        endLabel={t('quickAdd.chip.end')}
+        onChange={(next) =>
+          next.startTime ? setTime(next.startTime, next.endTime) : next.startTime !== (draft.startTime ?? '') && pick({ time: null }, false)
+        }
+      >
         <button
           type="button"
           onClick={() => {
@@ -257,7 +252,7 @@ export function QuickAddDetails({
           {t('quickAdd.chip.done')}
         </button>
         {draft.startTime && clear({ time: null })}
-      </div>
+      </TimeRangeFields>
     )
   } else if (panel === 'estimate') {
     body = (

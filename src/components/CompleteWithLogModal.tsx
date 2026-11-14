@@ -9,7 +9,7 @@ import { useTextAreaEntry } from '../hooks/useTextEntry'
 import { useDateFormat } from '../hooks/useDateFormat'
 import { ERROR_TEXT } from './ui/textClass'
 import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from '../lib/textLimits'
-import { LogTimeRow } from './LogTimeRow'
+import { TimeRangeFields } from './TimeRangeFields'
 import { TimeLogTagField } from './TimeLogTagField'
 
 export interface CompleteWithLogDraft {
@@ -67,11 +67,12 @@ export function CompleteWithLogModal({
           placeholder={t('records.laterPlaceholder')}
           className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
         />
-        <LogTimeRow
-          start={draft.startTime}
-          end={draft.endTime}
-          onStartChange={(v) => setTimes(v, draft.endTime)}
-          onEndChange={(v) => setTimes(draft.startTime, v)}
+        <TimeRangeFields
+          kind="log"
+          startTime={draft.startTime}
+          endTime={draft.endTime}
+          fillMinutes={60}
+          onChange={(next) => setTimes(next.startTime, next.endTime)}
         >
           {!valid ? (
             <span className={ERROR_TEXT}>{t('alert.endAfterStart')}</span>
@@ -82,7 +83,7 @@ export function CompleteWithLogModal({
               </span>
             )
           )}
-        </LogTimeRow>
+        </TimeRangeFields>
         <TimeLogTagField value={draft.tags[0] ?? ''} color={draft.color} onChange={onChange} compact />
         <textarea
           value={draft.memo}

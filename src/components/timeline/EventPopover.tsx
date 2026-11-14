@@ -26,10 +26,9 @@ import { sourceLinkOf } from '../../lib/sourceLink'
 import { TaskSourceLink } from '../ui/TaskSourceLink'
 import { MemoPreview } from '../ui/MemoPreview'
 import { isEventTask, isLogTask, type Task } from '../../types/task'
-import { endKeepingLength } from '../../lib/clockTime'
 import { isOvernightTimeLog } from '../../lib/taskTimeRange'
 import { useTaskTimes } from '../detail/useTaskTimes'
-import { CardTimeRange } from './CardTimeRange'
+import { TimeRangeFields } from '../TimeRangeFields'
 import { TaskCardMeta } from './TaskCardMeta'
 import { nudgeBlockByKey } from '../../lib/timelineBlockEdit'
 import { deleteTaskAsking } from '../../lib/seriesScope'
@@ -127,15 +126,6 @@ function EventPopoverBody({
   const memo = sourceLink ? '' : task.description.trim()
   // 時刻はカードでそのまま分単位に直せる（詳細まで行かずに）。日をまたぐ記録は終わりの日付もあるので詳細で
   const editableTimes = !!tv.startTime && !!tv.endTime && !isOvernightTimeLog(task)
-  /** To-Do・予定は開始を動かすと長さを保って終わりもずらす（Google と同じ。23:59 まで）。記録は実際の時刻なので開始だけ直す */
-  const commitStart = (v: string) => {
-    if (v === tv.startTime) return
-    if (isLog) {
-      updateTimes({ startTime: v })
-      return
-    }
-    updateTimes({ startTime: v, endTime: endKeepingLength(tv.startTime!, tv.endTime!, v) })
-  }
   const { style, sheet } = useAnchoredCard(ref, anchor, WIDTH)
   // 始まった予定は「記録して完了」が主役（予定どおり / ずれた時刻を選ぶ画面）。完了だけは控えめに。予定（完了の無いもの）は「記録にする」
   const recordAndComplete = () => {
@@ -190,14 +180,17 @@ function EventPopoverBody({
             <>
               <p className={`mt-0.5 ${SUBTLE_TEXT}`}>{dateText}</p>
               <div className="mt-1.5">
-                <CardTimeRange
+                <TimeRangeFields
+                  kind={isLog ? 'log' : 'plan'}
+                  required
                   startTime={tv.startTime!}
                   endTime={tv.endTime!}
-                  onStart={commitStart}
-                  onEnd={(v) => v !== tv.endTime && updateTimes({ endTime: v })}
-                  overnight={isLog}
-                  startLabel={t('common.start')}
-                  endLabel={t('common.end')}
+                  // 予定は長さを保って終わりもずらし、記録は開始だけ直す（`TimeRangeFields`）
+                  onChange={(next) =>
+                    updateTimes(
+                      next.startTime !== tv.startTime ? (isLog ? { startTime: next.startTime } : next) : { endTime: next.endTime },
+                    )
+                  }
                 />
               </div>
             </>

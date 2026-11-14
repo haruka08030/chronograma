@@ -11,7 +11,7 @@ import { isActiveTask } from '../lib/taskLifecycle'
 import { minutesOfLogOnCalendarDay } from '../lib/taskTimeRange'
 import { minutesByRecordLabel } from '../lib/recordLabelMinutes'
 import { TimeLogTagField } from './TimeLogTagField'
-import { LogTimeRow } from './LogTimeRow'
+import { TimeRangeFields } from './TimeRangeFields'
 import { zonedNow } from '../lib/timeZone'
 import { ChevronRightIcon, PlayIcon, PlusIcon } from './icons'
 import { buttonClass } from './ui/buttonClass'
@@ -267,13 +267,22 @@ export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: str
             className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
           />
           {mode === 'manual' && (
-            <LogTimeRow start={start} end={end} onStartChange={setStart} onEndChange={setEnd}>
+            <TimeRangeFields
+              kind="log"
+              startTime={start}
+              endTime={end}
+              fillMinutes={60}
+              onChange={(next) => {
+                setStart(next.startTime)
+                setEnd(next.endTime)
+              }}
+            >
               {inFuture ? (
                 <span className={ERROR_TEXT}>{t('records.noFuture')}</span>
               ) : (
                 overnight && <span className="text-xs">{t('records.nextDay')}</span>
               )}
-            </LogTimeRow>
+            </TimeRangeFields>
           )}
           {/* 今日は「今まで◯分」で入れられる。日付をまたぐ長さ（0 時台の 2 時間など）は出さない */}
           {mode === 'manual' && viewingToday && (

@@ -8,12 +8,12 @@ import { useTaskStore } from '../store/taskStore'
 import { useDismiss } from '../hooks/useDismiss'
 import { useIsCoarsePointer, useIsDesktop } from '../hooks/useMediaQuery'
 import { busySpans, findFreeSlots } from '../lib/freeSlots'
-import { endAfterStartEdit, minutesToTime, toMinutes } from '../lib/clockTime'
+import { minutesToTime, toMinutes } from '../lib/clockTime'
 import { useAppTodayKey, useNowMinutes } from '../hooks/useAppClock'
 import { toastTitle } from '../lib/undoWindow'
 import { anchoredCardClass, MENU_ROW_HOVER, MENU_ROW_PRESS } from './ui/surface'
 import { Segmented } from './ui/Segmented'
-import { TimeInput } from './TimeInput'
+import { TimeRangeFields } from './TimeRangeFields'
 import { buttonClass } from './ui/buttonClass'
 import { MenuLabel } from './ui/Menu'
 import { formatDuration } from '../lib/timeGrid'
@@ -223,24 +223,18 @@ export function TimeSlotMenu({
         )}
         <div className="my-1 border-t border-zinc-100 dark:border-zinc-700" />
         {custom ? (
-          <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">
-            <TimeInput
-              value={start}
-              onChange={(v) => {
-                setEnd(endAfterStartEdit(start, end, v, duration))
-                setStart(v)
-              }}
-              ariaLabel={t('timeSlot.start')}
-              className="w-[5.5rem]"
-            />
-            <span aria-hidden>–</span>
-            <TimeInput
-              value={end}
-              onChange={setEnd}
-              durationFrom={start || undefined}
-              ariaLabel={t('timeSlot.end')}
-              className="w-[5.5rem]"
-            />
+          <TimeRangeFields
+            startTime={start}
+            endTime={end}
+            fillMinutes={duration}
+            startLabel={t('timeSlot.start')}
+            endLabel={t('timeSlot.end')}
+            onChange={(next) => {
+              setStart(next.startTime)
+              setEnd(next.endTime)
+            }}
+            className="px-3 py-2"
+          >
             <button
               type="button"
               disabled={!customOk}
@@ -249,7 +243,7 @@ export function TimeSlotMenu({
             >
               {t('timeSlot.place')}
             </button>
-          </div>
+          </TimeRangeFields>
         ) : (
           <button type="button" data-slot-item className={`${row} text-zinc-600 dark:text-zinc-300`} onClick={() => setCustom(true)}>
             {t('timeSlot.custom')}
