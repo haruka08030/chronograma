@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
@@ -441,5 +441,53 @@ describe('TodayPlannerView: 足したばかりの行の締切（#533）', () => 
     unmount()
     render(<TodayPlannerView />)
     expect(row()).not.toHaveTextContent(/Due /)
+  })
+})
+
+describe('TodayPlannerView: 日付を外す帯（#706）', () => {
+  it('PC: 実行日のある行をつかむと左の下に帯を出し、落とすと実行日を外す', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('min-width: 768px'),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    })) as unknown as typeof window.matchMedia
+    onTestFinished(() => {
+      window.matchMedia = original
+      vi.useRealTimers()
+    })
+    vi.useFakeTimers()
+    useTaskStore.setState({ onboardingDone: true })
+    planToday()
+    const id = useTaskStore.getState().tasks.find((x) => x.title === 'Read paper')!.id
+    render(<TodayPlannerView />)
+    expect(screen.queryByText('Drop here to unschedule')).toBeNull()
+
+    const data = new Map<string, string>()
+    const dataTransfer = {
+      setData: (type: string, value: string) => void data.set(type, value),
+      getData: (type: string) => data.get(type) ?? '',
+      get types() {
+        return [...data.keys()]
+      },
+      setDragImage() {},
+      effectAllowed: 'all',
+      dropEffect: 'none',
+    }
+    fireEvent.dragStart(document.querySelector(`[data-task-row="${id}"]`)!, { dataTransfer })
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+    const strip = screen.getByText('Drop here to unschedule')
+
+    fireEvent.dragOver(strip, { dataTransfer })
+    fireEvent.drop(strip, { dataTransfer })
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+    const task = useTaskStore.getState().tasks.find((x) => x.id === id)!
+    expect(task.scheduledDate).toBeNull()
+    expect(screen.queryByText('Drop here to unschedule')).toBeNull()
   })
 })

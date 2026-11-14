@@ -12,6 +12,8 @@ import { unplannedListIds } from '../lib/listKind'
 import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
+import { UnscheduleDropStrip } from './calendar/UnscheduleDrop'
+import { useCalendarItemDrag } from '../lib/calendarItemDrag'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CheckIcon, PostponeIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
@@ -397,6 +399,9 @@ export function TodayPlannerView() {
         )}
 
         <PlannerWrapUp showMood={showMood} dateKey={dateKey} focusKey={wrapUpFocus} totalCount={totalCount} />
+
+        {/* To-Do（右のタイムライン・左の行）をつかんでいる間だけ、下に「日付を外す」帯（カレンダーの置き場と同じ） */}
+        {isDesktop && <PlannerUnscheduleStrip />}
       </section>
 
       {/* タイムラインは PC だけ横に並べる。スマホはカレンダーの 1 日表示で見る（同じものを 2 か所に置かない） */}
@@ -410,6 +415,18 @@ export function TodayPlannerView() {
       <OverlaySuspense>
         <CalendarCards cards={cards} />
       </OverlaySuspense>
+    </div>
+  )
+}
+
+/** 左の一覧の下に貼り付ける帯。つかんでいないときは出さない（並びを動かさない） */
+function PlannerUnscheduleStrip() {
+  const { active } = useCalendarItemDrag()
+  if (!active) return null
+  // 光らせる色（落とせるとき）と重ならないよう、地の色は外側に
+  return (
+    <div className="sticky bottom-0 mt-auto bg-white dark:bg-zinc-900">
+      <UnscheduleDropStrip />
     </div>
   )
 }
