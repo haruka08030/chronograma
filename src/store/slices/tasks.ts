@@ -174,7 +174,7 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
         tasks: s.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
       }))
     },
-    rescheduleTasks: (all, dateKey, label) => {
+    rescheduleTasks: (all, dateKey, label, opts) => {
       const patch = { scheduledDate: dateKey, startTime: null, endTime: null }
       const ids = all.filter((id) => {
         const task = get().tasks.find((t) => t.id === id)
@@ -184,7 +184,11 @@ export function createTasksSlice({ set, get, undo }: SliceContext): TasksActions
       pushUndo(label)
       const selected = new Set(ids)
       set((s) => ({
-        tasks: s.tasks.map((t) => (selected.has(t.id) ? applyTaskPatch(t, patch) : t)),
+        tasks: s.tasks.map((t) => {
+          if (!selected.has(t.id)) return t
+          const next = applyTaskPatch(t, patch)
+          return opts?.freshStart && next.carriedDays ? { ...next, carriedDays: 0 } : next
+        }),
       }))
     },
     completeTasks: (ids) => {

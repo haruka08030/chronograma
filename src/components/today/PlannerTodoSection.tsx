@@ -89,6 +89,8 @@ export function PlannerTodoSection({
       leftOver.map((x) => x.id),
       dateKey,
       leftOver.length > 1 ? t('undo.tasksMovedToToday', { count: leftOver.length }) : undefined,
+      // まとめて戻すのは決め直し。溜まった「N日目」を持ち越さない（#710）
+      { freshStart: true },
     )
 
   return (
