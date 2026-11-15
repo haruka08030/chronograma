@@ -25,6 +25,8 @@ import { colorVars, recordLabelKey, recordLabelKeyHex } from '../lib/logCategory
 import { recordLabelKeyText } from '../lib/todoColorLabels'
 import { hoursText, periodTargetMinutes, validTargetMinutes } from '../lib/labelTargets'
 import { DayNav } from './ui/DayNav'
+import { DisclosureButton } from './ui/Disclosure'
+import { timeRange } from '../lib/timeRange'
 import { dateFnsLocale, fromDateKey, toDateKey } from '../lib/dateKey'
 import { formatDuration, formatDurationShort } from '../lib/timeGrid'
 import { useDateFormat } from '../hooks/useDateFormat'
@@ -199,6 +201,9 @@ export function WeekReviewCard() {
   const insight = insightOf(insightValue)
   // 画像にして共有（#283）。記録の無い期間は画像にするものが無いので押せない
   const [sharing, setSharing] = useState(false)
+  // 「予定 N 件中 M 件」の残り（記録・完了の無かった予定）。数字だけでは次に何を変えるか決められないので、開いて辿れる（#713）
+  const [showMissed, setShowMissed] = useState(false)
+  const missedPlans = useMemo(() => review.days.flatMap((d) => d.missed.map((m) => ({ ...m, dateKey: d.dateKey }))), [review.days])
   const shareTip = review.loggedMinutes > 0 ? t('weekReview.shareImage') : t('weekReview.shareImageEmpty')
 
   // 使っていないものの枠は出さない: 時間に置いた予定が無い期間は「計画どおり実行」（一言が予定の立て方を言う）、
@@ -317,6 +322,36 @@ export function WeekReviewCard() {
           </div>
         ))}
       </dl>
+
+      {missedPlans.length > 0 && (
+        <div className="mt-2">
+          <DisclosureButton open={showMissed} onToggle={() => setShowMissed((v) => !v)} className="-mx-3 text-xs">
+            {t('weekReview.missedTitle', { count: missedPlans.length })}
+          </DisclosureButton>
+          {showMissed && (
+            <ul aria-label={t('weekReview.missedTitle', { count: missedPlans.length })} className="mt-1 max-h-64 overflow-y-auto">
+              {missedPlans.map((m, i) => (
+                <li key={`${m.dateKey}|${m.startTime}|${i}`}>
+                  {/* 押すとその日の今日の計画を開く（ふりかえりの日ごとの棒と同じ） */}
+                  <button
+                    type="button"
+                    onClick={() => openDay(m.dateKey)}
+                    className="flex w-full items-center gap-3 rounded-md px-1 py-1.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+                  >
+                    <span className="shrink-0 tabular-nums text-zinc-500 sm:w-24 dark:text-zinc-400">
+                      {df.monthDayWeekday(fromDateKey(m.dateKey))}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-zinc-500 sm:w-24 dark:text-zinc-400">
+                      {timeRange(m.startTime, m.endTime)}
+                    </span>
+                    <span className="min-w-0 truncate text-zinc-700 dark:text-zinc-300">{m.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {insightLine}
 

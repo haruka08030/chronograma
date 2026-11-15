@@ -347,6 +347,7 @@ export default {
     habits: 'この週の習慣の達成',
     habitsThisWeek: '今週の習慣の達成',
     followCount: '予定 {{total}} 件中 {{followed}} 件',
+    missedTitle: '記録・完了の無かった予定 {{count}} 件',
     loggedPerDay: '日ごとの記録時間',
     dayTooltip: '{{day}}: 記録 {{logged}}{{plan}} / 完了 {{done}}/{{total}}',
     dayTooltipPlan: ' / 予定 {{planned}} 件中 {{followed}} 件（{{time}}）',

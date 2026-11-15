@@ -1172,6 +1172,8 @@ const SCREENS = [
     rightClick: 'li:has-text("日記を書く")',
   },
   { name: 'stats', view: 'stats' },
+  // ふりかえりの「記録・完了の無かった予定」を開いたところ（#713）
+  { name: 'stats-missed', view: 'stats', click: 'button:has-text("記録・完了の無かった予定") >> visible=true' },
   // ふりかえりを画像にして共有する前の見本（#283。画像は共有先で読みやすいライトで作る）
   { name: 'stats-share', view: 'stats', click: 'button[aria-label="画像にして共有"] >> visible=true' },
   {

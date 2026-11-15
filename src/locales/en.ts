@@ -361,6 +361,8 @@ export default {
     habits: 'Habits kept that week',
     habitsThisWeek: 'Habits kept this week',
     followCount: '{{followed}} of {{total}} time-blocked plans',
+    missedTitle_one: '{{count}} plan with no record or check',
+    missedTitle_other: '{{count}} plans with no record or check',
     loggedPerDay: 'Time logged per day',
     dayTooltip: '{{day}}: logged {{logged}}{{plan}} / done {{done}}/{{total}}',
     dayTooltipPlan: ' / {{followed}} of {{planned}} plans ({{time}})',

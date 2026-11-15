@@ -27,6 +27,13 @@ function plannedItemMinutes(p: PlannedItem): number {
   return Math.max(0, end - start)
 }
 
+/** 記録・完了の無かった予定 1 件 */
+export interface MissedPlan {
+  title: string
+  startTime: string
+  endTime: string
+}
+
 export interface WeekReviewDay {
   dateKey: string
   plannedMinutes: number
@@ -42,6 +49,8 @@ export interface WeekReviewDay {
   followed: number
   /** 予定に無かった記録（どの予定とも組にならなかった記録）の時間（#275） */
   unplannedMinutes: number
+  /** 「計画どおり実行」に数えた予定のうち、記録・完了の無かったもの（時刻順。枠を押すと一覧で出す・#713） */
+  missed: MissedPlan[]
 }
 
 /**
@@ -282,6 +291,7 @@ function collectReviewDays(
       timedPlanned: 0,
       followed: 0,
       unplannedMinutes: 0,
+      missed: [],
     }
     days.push(day)
 
@@ -334,6 +344,9 @@ function collectReviewDays(
     day.timedPlanned = result.planned
     day.followed = result.followed
     day.unplannedMinutes = result.unplannedMinutes
+    day.missed = result.missed
+      .map((p) => ({ title: p.summary, startTime: p.startTime, endTime: p.endTime }))
+      .sort((a, b) => (a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0))
     for (const pair of result.counted) onCountedPair?.(date, pair)
     // 予定に無かった記録（どの予定とも組にならなかった記録）。ラベルと題名でまとめる
     for (const log of result.unplannedLogs) {

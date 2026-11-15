@@ -51,6 +51,7 @@ const day = (dateKey: string, over: Partial<WeekReviewDay> = {}): WeekReviewDay 
   timedPlanned: 0,
   followed: 0,
   unplannedMinutes: 0,
+  missed: [],
   ...over,
 })
 

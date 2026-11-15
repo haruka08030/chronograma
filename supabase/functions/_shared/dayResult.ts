@@ -272,6 +272,8 @@ export interface DayResult<P extends PlanSlot, A extends LogSlot> {
   counted: MatchedPair<P, A>[]
   /** 予定外の記録 */
   unplannedLogs: A[]
+  /** 数えた予定のうち、記録・完了の無かったもの（ふりかえりの「予定 N 件中 M 件」の残り） */
+  missed: P[]
 }
 
 /**
@@ -293,7 +295,7 @@ export function countDayResult<P extends PlanSlot, A extends LogSlot>(
     logMinutes: (log: A) => number
   },
 ): DayResult<P, A> {
-  const out: DayResult<P, A> = { planned: 0, followed: 0, unplannedMinutes: 0, counted: [], unplannedLogs: [] }
+  const out: DayResult<P, A> = { planned: 0, followed: 0, unplannedMinutes: 0, counted: [], unplannedLogs: [], missed: [] }
   for (const pair of matchPlanAndActual(planned, logs)) {
     if (pair.status === 'actual-only' && pair.actual) {
       out.unplannedLogs.push(pair.actual)
@@ -310,6 +312,7 @@ export function countDayResult<P extends PlanSlot, A extends LogSlot>(
     if (!planEnded(dateKey, todayKey, nowHm, pair.planned) && !followed) continue
     out.planned++
     if (followed) out.followed++
+    else out.missed.push(pair.planned)
     out.counted.push(pair)
   }
   return out

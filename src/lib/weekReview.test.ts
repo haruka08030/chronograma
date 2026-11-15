@@ -57,6 +57,12 @@ describe('getReview（週） followRate', () => {
     expect(review.followRate).toBe(0)
   })
 
+  it('記録・完了の無かった予定を、その日の missed に題名と時刻で残す（#713）', () => {
+    const review = getReview(tasks, [], 'week', at('17:00'), new Set(), at('17:00'))
+    const day = review.days.find((d) => d.dateKey === '2026-10-03')!
+    expect(day.missed).toEqual([{ title: 'ゼミ', startTime: '15:00', endTime: '16:30' }])
+  })
+
   it('counts a plan already recorded before it ends', () => {
     const log = task('log', { title: 'ゼミ', kind: 'log', dueDate: '2026-10-03', startTime: '15:00', endTime: '15:40' })
     const review = getReview([...tasks, log], [], 'week', at('15:45'), new Set(), at('15:45'))
