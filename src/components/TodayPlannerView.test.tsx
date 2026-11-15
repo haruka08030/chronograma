@@ -491,3 +491,22 @@ describe('TodayPlannerView: 日付を外す帯（#706）', () => {
     expect(screen.queryByText('Drop here to unschedule')).toBeNull()
   })
 })
+
+describe('TodayPlannerView: Google のつながりが切れたとき（#708）', () => {
+  it('切れた間は「もう一度接続する」の 1 行を出し、未接続の案内は出さない', () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client')
+    onTestFinished(() => {
+      vi.unstubAllEnvs()
+      useTaskStore.setState({ googleReconnectNeeded: false, googleConnected: false })
+    })
+    useTaskStore.setState({ tasks: [], googleConnected: false, googleReconnectNeeded: false })
+    const { unmount } = render(<TodayPlannerView />)
+    expect(screen.queryByRole('button', { name: 'Reconnect' })).toBeNull()
+    expect(screen.queryByText(/Google Calendar/)).toBeNull()
+    unmount()
+
+    useTaskStore.setState({ googleReconnectNeeded: true })
+    render(<TodayPlannerView />)
+    expect(screen.getByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
+  })
+})

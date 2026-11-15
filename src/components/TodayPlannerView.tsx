@@ -17,6 +17,7 @@ import { useCalendarItemDrag } from '../lib/calendarItemDrag'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CheckIcon, PostponeIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
+import { GoogleConnectLine } from './GoogleConnectLine'
 import { DayNav } from './ui/DayNav'
 import { SelectionBar } from './ui/SelectionBar'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
@@ -320,6 +321,9 @@ export function TodayPlannerView() {
                     md:w-[380px] md:flex-none md:shrink-0 md:border-r"
       >
         <PlannerHeader date={date} dateKey={dateKey} viewingToday={viewingToday} dayNav={dayNav} load={dayLoad} reviewing={showResult} />
+
+        {/* Google のつながりが切れた・送れなかった予定があるときだけ（未接続の案内は出さない）。予定が黙って消えたように見せない（#708） */}
+        <GoogleConnectLine hideInvite />
 
         <PlannerDues dateKey={dateKey} />
 

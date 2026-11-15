@@ -10,7 +10,7 @@ import { ReconnectLine } from './ReconnectLine'
 import { retryGooglePush } from '../hooks/useGooglePush'
 
 /**
- * カレンダー上の Google カレンダー連携の 1 行。
+ * カレンダー上の Google カレンダー連携の 1 行。今日の計画では `hideInvite` で、問題があるときだけ出す。
  * 未接続なら「並べて比べられます · 接続する ×」。× で閉じたら出さない（接続は設定の「Google カレンダー」から）。
  * 接続中は何も出さず（日付バーの点で示す）、問題があるときだけ赤い 1 行を出す（切断は設定から）。
  * 何度送っても Google に送れなかったアプリの予定があれば、その数と「もう一度送る」を灰色の 1 行で出す。
@@ -19,7 +19,7 @@ import { retryGooglePush } from '../hooks/useGooglePush'
 export function GoogleConnectLine({
   hideInvite = false,
 }: {
-  /** 未接続の案内だけ出さない（エラーの 1 行は出す）。スマホ幅で下に時間未定のタスクを開いている間 */
+  /** 未接続の案内（と開発中の設定不足の案内）を出さない（エラーの 1 行は出す）。今日の計画・スマホ幅で下に時間未定のタスクを開いている間 */
   hideInvite?: boolean
 } = {}) {
   const { t } = useTranslation()
@@ -31,7 +31,7 @@ export function GoogleConnectLine({
 
   if (!clientId) {
     // 環境変数の不足はデプロイ側の問題なので、エンドユーザーには何も見せない
-    if (!import.meta.env.DEV) return null
+    if (!import.meta.env.DEV || hideInvite) return null
     return (
       <div className="mx-4 my-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-500/30 text-sm text-amber-700 dark:text-amber-300 md:mx-6">
         <p className="font-medium">{t('planVsActual.googleUnavailableHeading')}</p>
