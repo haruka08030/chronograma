@@ -1020,6 +1020,12 @@ const SCREENS = [
       { fill: { selector: '[role=dialog] input[placeholder="タイトルを追加"] >> visible=true', text: 'ジム' } },
     ],
   },
+  // 今日の計画の追加欄に習慣と同じ名前を打つと「To-Do にせず習慣「ジム」にする」（#711）
+  {
+    name: 'planner-add-habit',
+    view: 'planner',
+    steps: [{ fill: { selector: 'input[data-quickadd] >> visible=true', text: 'ジム' } }],
+  },
   // 作成カードで題名を打つと、前の同じ種類の名前を色の点つきで候補に出し、下のラベルの欄に同じ名前の色が付く（#704）
   {
     name: 'calendar-quick-create-suggest',

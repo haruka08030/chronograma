@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { INBOX_LIST_ID, useTaskStore } from '../../store/taskStore'
 import { taskPlacementDate } from '../../lib/taskTimeRange'
@@ -10,6 +10,16 @@ import { InlineAddInput } from '../ui/InlineAddInput'
 import { ExampleChips } from '../ui/ExampleChips'
 import { QuickAddDetails } from '../QuickAddDetails'
 import { openTaskDetail } from '../../lib/overlays'
+import { habitsMatchingTitle } from '../../lib/habitSuggest'
+import { buildHabitRecordIndex } from '../../lib/habitTiming'
+import { isHabitDueOnDate } from '../../lib/habitSchedule'
+import { placeHabitAt } from '../../lib/timelineBlockEdit'
+import { courseKey } from '../../lib/courseLinks'
+import { fromDateKey } from '../../lib/dateKey'
+import { colorVars } from '../../lib/logCategoryColors'
+import { notify } from '../../lib/notify'
+import { isLogTask } from '../../types/task'
+import { MENU_ROW_HOVER, MENU_ROW_PRESS } from '../ui/surface'
 
 /** はじめの案内の間、追加欄の薄い文字の例を入れ替える間隔 */
 export const GUIDE_PLACEHOLDER_MS = 2600
@@ -66,6 +76,30 @@ export function PlannerAddInput({
     flyIntoTimeline(inputRef.current, id)
   }
 
+  // 打った名前と同じ名前の習慣（To-Do で作ると習慣と 2 つ並び、持ち越しにも数えられる・#711）。
+  // その日がもともと習慣の日ならそのまま（To-Do を作らない）、そうでなければ習慣の時刻でその日もやる日にする
+  const habits = useTaskStore((s) => s.habits)
+  const tasks = useTaskStore((s) => s.tasks)
+  const habitMatch = useMemo(() => {
+    const q = courseKey(draft)
+    if (!q) return null
+    const records = buildHabitRecordIndex(tasks.filter(isLogTask))
+    const h = habitsMatchingTitle(habits, draft, dateKey, records).find((x) => courseKey(x.title) === q)
+    if (!h) return null
+    const due = isHabitDueOnDate(h, fromDateKey(dateKey), records)
+    // 習慣の日でなく時刻も無ければ、その日に置けないので出さない
+    return due || (h.startTime && h.endTime) ? { habit: h, due } : null
+  }, [draft, habits, tasks, dateKey])
+  const useHabit = () => {
+    if (!habitMatch) return
+    const { habit, due } = habitMatch
+    if (due) notify(t('planner.habitAlreadyOnDay', { title: habit.title }))
+    else placeHabitAt(habit.id, dateKey, habit.startTime!, habit.endTime!)
+    change('')
+    inputRef.current?.focus()
+  }
+  const habitText = t('planner.useHabit', { title: '\u0000' }).split('\u0000')
+
   // 1 件でもあれば置かない（↓ や 1 文字のショートカットを邪魔しない）
   useEffect(() => {
     if (guide && !isCoarse) inputRef.current?.focus({ preventScroll: true })
@@ -110,6 +144,20 @@ export function PlannerAddInput({
           }}
           className="ml-11 mt-2"
         />
+      )}
+      {habitMatch && (
+        <button
+          type="button"
+          onClick={useHabit}
+          className={`ml-9 mt-1.5 flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm text-zinc-600 transition-colors dark:text-zinc-300 ${MENU_ROW_HOVER} ${MENU_ROW_PRESS}`}
+        >
+          <span className="gc-dot h-2 w-2 shrink-0 rounded-full" style={colorVars(habitMatch.habit.color)} aria-hidden />
+          <span className="flex min-w-0 items-center">
+            <span className="shrink-0 whitespace-pre">{habitText[0]}</span>
+            <span className="min-w-0 truncate font-medium text-zinc-800 dark:text-zinc-100">{habitMatch.habit.title}</span>
+            <span className="shrink-0 whitespace-pre">{habitText[1]}</span>
+          </span>
+        </button>
       )}
       {/* 入力中だけ、足したら付く値のチップ（見ている日が既定のやる日）。押して選べる */}
       <QuickAddDetails

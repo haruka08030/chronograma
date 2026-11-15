@@ -181,6 +181,8 @@ export default {
     remove: '{{name}} の絞り込みを外す',
   },
   planner: {
+    useHabit: 'To-Do にせず習慣「{{title}}」にする',
+    habitAlreadyOnDay: '「{{title}}」はこの日の習慣にあります',
     timedHeading: '時間を決めた',
     todayTitle: '今日',
     prevDay: '前の日',

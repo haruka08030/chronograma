@@ -193,6 +193,8 @@ export default {
     remove: 'Remove the {{name}} filter',
   },
   planner: {
+    useHabit: 'Use the habit “{{title}}” instead of a to-do',
+    habitAlreadyOnDay: '“{{title}}” is already a habit on this day',
     timedHeading: 'Scheduled',
     todayTitle: 'Today',
     prevDay: 'Previous day',

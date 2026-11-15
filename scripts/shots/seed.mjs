@@ -115,7 +115,10 @@ export function buildSeedState({ theme = 'light', now = new Date(), instant = no
       },
       instant,
     ),
-    task({ id: 's7', title: 'ジム', scheduledDate: today, startTime: '19:00', endTime: '20:00', order: 6, carriedDays: 2 }, instant),
+    task(
+      { id: 's7', title: '英語のプレゼン準備', scheduledDate: today, startTime: '19:00', endTime: '20:00', order: 6, carriedDays: 2 },
+      instant,
+    ),
     // 記録（色が付く主役）。完了済みのタイムログ
     task(
       {
