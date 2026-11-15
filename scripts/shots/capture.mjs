@@ -255,8 +255,6 @@ const ABSENCE_TIMETABLE = (() => {
 })()
 /** ラベルの週の目安（分、#291）。種データのラベル名 */
 const SEED_TARGETS = { 授業: 600, 課題: 480, 就活: 180 }
-/** スマホの今日の画面の「やること」のタブ（夜はタイムラインが開いているので、睡眠の行を撮るときに切り替える） */
-const PLANNER_LIST_TAB = 'button:has-text("やること") >> visible=true'
 /** ふりかえりのラベル別の時間の行（スマホでも行が見えるところまで送る） */
 const TARGET_ROWS = 'ul[aria-labelledby="review-by-label"]'
 /** 習慣の表の「朝に 10 分ストレッチ」の水曜のマス */
@@ -399,12 +397,11 @@ const SCREENS = [
   { name: 'first-run-signin', fresh: true, view: 'settings', click: 'button:has-text("ログイン") >> visible=true' },
   { name: 'planner', view: 'planner' },
   // 睡眠のタイマー（#519）: 夜は睡眠の行に寝る（▶）、押すと ☾ 23:40 ▬╌ と起きた（☀）
-  { name: 'sleep-bedtime', view: 'planner', at: '22:30', mobileClick: PLANNER_LIST_TAB },
+  { name: 'sleep-bedtime', view: 'planner', at: '22:30' },
   {
     name: 'sleep-sleeping',
     view: 'planner',
     at: '23:40',
-    mobileClick: PLANNER_LIST_TAB,
     click: 'button[aria-label="寝る"] >> visible=true',
   },
   // 睡眠の行の残りの形: 朝まだ記録が無い（入力欄）・夜更かし中（月と ▶ だけ）・寝たまま 16 時間を過ぎた（起きた時刻を聞く）
@@ -412,27 +409,24 @@ const SCREENS = [
     name: 'sleep-morning-empty',
     view: 'planner',
     at: '08:00',
-    mobileClick: PLANNER_LIST_TAB,
     taskPatch: { s10: { dueDate: '2000-01-01', endDate: '2000-01-02' } },
   },
   {
     name: 'sleep-late-night',
     view: 'planner',
     at: '01:30',
-    mobileClick: PLANNER_LIST_TAB,
     taskPatch: { s10: { dueDate: '2000-01-01', endDate: '2000-01-02' } },
   },
   // 昼寝（#645）: 夜の睡眠の右に「＋昼寝」、行を押すと夜の睡眠の欄の下に昼寝の欄と「昼寝を追加」
-  { name: 'sleep-nap', view: 'planner', mobileClick: PLANNER_LIST_TAB, extraTasks: [TODAY_NAP] },
+  { name: 'sleep-nap', view: 'planner', extraTasks: [TODAY_NAP] },
   {
     name: 'sleep-nap-edit',
     view: 'planner',
     extraTasks: [TODAY_NAP],
     click: 'button[aria-label^="睡眠の時刻を編集"] >> visible=true',
-    mobileClick: PLANNER_LIST_TAB,
   },
-  { name: 'sleep-row-narrow', view: 'planner', at: '22:30', mobileOnly: true, mobileWidth: 320, mobileClick: PLANNER_LIST_TAB },
-  { name: 'sleep-row-en', view: 'planner', at: '22:30', lang: 'en', mobileClick: 'button:has-text("To do") >> visible=true' },
+  { name: 'sleep-row-narrow', view: 'planner', at: '22:30', mobileOnly: true, mobileWidth: 320 },
+  { name: 'sleep-row-en', view: 'planner', at: '22:30', lang: 'en' },
   // 浮いているタイマーの「あと何分」（#290）: 残り時間・長さを選ぶ並び・時間を過ぎた（`timer` は撮る瞬間からの分で動いているタイマーを置く）
   { name: 'timer-remaining', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 12.4, endsIn: 12.6 } },
   {

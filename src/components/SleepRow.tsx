@@ -9,7 +9,7 @@ import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
 import { clockOf } from '../lib/clockTime'
 import { toAppWall } from '../lib/timeZone'
-import { CloseIcon, PencilIcon, PlayIcon, SunriseIcon } from './icons'
+import { CloseIcon, PencilIcon, SunriseIcon } from './icons'
 import type { Task } from '../types/task'
 import { NapPlus, SLEEP_ICON_BUTTON, SleepDayEditor, SleepMoonIcon, SleepTimesField } from './SleepTimesField'
 import { SleepBar } from './SleepBar'
@@ -24,7 +24,7 @@ const PROMPT_FROM_MIN = 5 * 60
  * 文字で説明せず形で見せる（#575）: 行頭の月・寝た時刻・睡眠の色の帯・起きた時刻・長さ。操作はアイコンのボタン（名前はホバーと読み上げ）。
  * まだ無ければ前回の時刻を入れた入力欄（同じなら ✓ のワンタップで記録）、あれば時刻と長さだけを薄く出す。
  * 今日の分は朝 5 時を過ぎてから聞く。
- * 今日は寝る（▶）を出し、押すと睡眠のタイマー（#519）。寝ている間は起きた（日の出）で睡眠にする。昼に押せば昼寝になる（#645）。
+ * 今日は「寝る」（文字のボタン）を出し、押すと睡眠のタイマー（#519）。寝ている間は起きた（日の出）で睡眠にする。昼に押せば昼寝になる（#645）。
  * 昼寝は夜の睡眠の長さの右に「＋昼寝 3時間」と分けて出し、行を押すと夜の睡眠の欄の下で直す・足す（SleepDayEditor）。
  * 寝ている間もその朝の記録の行は上に残す。記録の行は ✎ で直せると見せ、まだ記録の無い朝の欄は前回の時刻を下書きとして薄く出す（#627）。
  * 入力欄は睡眠のページの図・一覧と同じ部品（SleepTimesField）。月のアイコンは行頭の 1 つだけで、押すと睡眠のページ（#628）。
@@ -46,12 +46,17 @@ export function SleepRow({ dateKey }: { dateKey: string }) {
   const isToday = dateKey === todayKey
 
   const bedButton = isToday && (
-    <button type="button" onClick={goToBed} {...tip(t('sleep.goToBed'), { name: true })} className={SLEEP_ICON_BUTTON}>
-      <PlayIcon className="ml-px h-3 w-3" />
+    // ▶ は「記録を開始」の意味なので使わず、文字で出す（ホバーできないスマホでも分かる・#714）
+    <button
+      type="button"
+      onClick={goToBed}
+      className="relative isolate inline-flex h-8 shrink-0 items-center px-1 text-xs font-medium whitespace-nowrap text-sleep before:absolute before:inset-x-0 before:inset-y-1 before:-z-10 before:rounded-full before:border before:border-zinc-200 before:transition-colors hover:before:bg-zinc-100 md:h-6 md:before:inset-y-0 dark:before:border-zinc-700 dark:hover:before:bg-zinc-800"
+    >
+      <span className="px-1.5">{t('sleep.goToBed')}</span>
     </button>
   )
 
-  // 夜更かし中でまだ今日の記録が無い: 月と寝る（▶）だけ
+  // 夜更かし中でまだ今日の記録が無い: 月と「寝る」だけ
   if (isToday && !record && nowMin < PROMPT_FROM_MIN)
     return bedButton ? (
       <div className="flex items-center gap-1.5">
