@@ -582,7 +582,8 @@ export function pickReviewInsight(
     if (d.dateKey >= opts.todayKey || d.timedPlanned < INSIGHT_MIN_PLANS || d.followed > 0) continue
     add(d.plannedMinutes, { kind: 'missedDay', dateKey: d.dateKey, count: d.timedPlanned }, d.dateKey)
   }
-  if (opts.loggedDiff != null) {
+  // 記録の量の差は、時間の使い方の話（上の候補）が無いときだけ（記録をつけ始めた週に、いつもこの一言にならないように・#712）
+  if (candidates.length === 0 && opts.loggedDiff != null) {
     const prev = review.loggedMinutes - opts.loggedDiff
     const diff = Math.abs(opts.loggedDiff)
     if (diff >= INSIGHT_MIN_MINUTES && diff >= prev * INSIGHT_DIFF_RATIO) add(diff, { kind: 'loggedDiff', diff: opts.loggedDiff }, '')

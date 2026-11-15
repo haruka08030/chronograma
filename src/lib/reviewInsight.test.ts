@@ -150,6 +150,16 @@ describe('pickReviewInsight: いちばん大きいずれ 1 つを名指しする
     expect(pick(r).kind).toBe('follow')
   })
 
+  it('記録の量の差は、時間の使い方の候補が無いときだけ（差がもっと大きくても、予定に無かった記録を先に出す・#712）', () => {
+    const r = review({
+      plannedMinutes: 300,
+      loggedMinutes: 1200,
+      labelMinutes: [{ tag: '', minutes: 1200 }],
+      unplanned: [{ tag: '', title: 'YouTube', minutes: 90 }],
+    })
+    expect(pick(r, 705).kind).toBe('unplanned')
+  })
+
   it('前の期間より記録が増えた・減ったを、週・月と今・過ぎた期間で呼び分ける', () => {
     const r = review({ loggedMinutes: 600, labelMinutes: [{ tag: '勉強', minutes: 600 }] })
     const more = pick(r, 180)
