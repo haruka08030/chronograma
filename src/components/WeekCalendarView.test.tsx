@@ -131,7 +131,7 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
         },
       ],
     })
-    useTaskStore.getState().addTimeLog('ゼミ', '2026-10-07', '15:05', '16:30', [])
+    useTaskStore.getState().addTimeLog('ゼミ', '2026-10-07', '15:05', '16:30', [], undefined, null, '#E67C73')
     const log = useTaskStore.getState().tasks.find((x) => x.title === 'ゼミ' && x.id !== 'seminar')!
     const view = () => render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />).container
     const open = view()
@@ -142,6 +142,10 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     const done = view()
     expect(done.querySelector(`[data-datekey="2026-10-07"] [data-block-id="${log.id}"]`)).toBeNull()
     expect(planBlock(done, 'seminar').style.width).toBe('calc(100% - 4px)')
+    // 過ぎた予定でも灰色にせず、隠した記録の色で記録と同じ塗り（#707）
+    expect(planBlock(done, 'seminar').className).toContain('gc-plan')
+    expect(planBlock(done, 'seminar').className).not.toContain('gc-missed')
+    expect(planBlock(done, 'seminar').style.getPropertyValue('--c')).toBe('#E67C73')
   })
 
   it('今日の計画（1 日表示）は 予定 / 記録 の 2 列のまま', () => {
