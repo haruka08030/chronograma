@@ -96,6 +96,19 @@ export function TimeBlock({
   const tight = height < 20
   const bare = height < 13
   const timeLabel = `${task.title}  ${timeRange(task.startTime, endLabel)}`
+  // 読み上げは種類（予定・記録・睡眠）と状態も（題名と時刻だけでは、左右の列や色で見分けているものが伝わらない・#718）
+  const kindLabel = t(sleep ? 'timeBlock.kindSleep' : isLog ? 'timeBlock.kindLog' : 'timeBlock.kindPlan')
+  const stateLabel =
+    isLog || sleep
+      ? null
+      : skipped
+        ? t('timeBlock.skipped')
+        : recorded
+          ? t('timeBlock.followed')
+          : state === 'done'
+            ? t('timeBlock.done')
+            : null
+  const ariaLabel = [kindLabel, task.title, timeRange(task.startTime, endLabel), stateLabel].filter(Boolean).join(t('common.listSeparator'))
 
   return (
     <button
@@ -120,7 +133,7 @@ export function TimeBlock({
         cursor-grab select-none touch-none pointer-coarse:touch-auto ring-1 ring-[var(--gc-surface)] transition-shadow hover:z-30! hover:shadow-md active:cursor-grabbing
         `}
       data-block-id={task.id}
-      aria-label={bare ? timeLabel : undefined}
+      aria-label={ariaLabel}
       {...tip(timeLabel)}
       style={{
         top,

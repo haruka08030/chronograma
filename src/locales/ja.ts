@@ -2,6 +2,14 @@ import { BUILTIN_NAMES } from './builtinNames'
 
 /** 既定 UI 言語（日本語） */
 export default {
+  timeBlock: {
+    kindPlan: '予定',
+    kindLog: '記録',
+    kindSleep: '睡眠',
+    done: '完了',
+    followed: '予定どおり記録あり',
+    skipped: 'やらなかった',
+  },
   common: {
     syncedAt: '{{time}} に同期',
     add: '追加',

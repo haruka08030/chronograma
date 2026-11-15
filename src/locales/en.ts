@@ -2,6 +2,14 @@ import { BUILTIN_NAMES } from './builtinNames'
 
 /** English UI strings */
 export default {
+  timeBlock: {
+    kindPlan: 'Plan',
+    kindLog: 'Record',
+    kindSleep: 'Sleep',
+    done: 'done',
+    followed: 'recorded as planned',
+    skipped: 'skipped',
+  },
   common: {
     syncedAt: 'Synced at {{time}}',
     add: 'Add',

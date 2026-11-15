@@ -146,6 +146,8 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     expect(planBlock(done, 'seminar').className).toContain('gc-plan')
     expect(planBlock(done, 'seminar').className).not.toContain('gc-missed')
     expect(planBlock(done, 'seminar').style.getPropertyValue('--c')).toBe('#E67C73')
+    // 読み上げは種類・題名・時刻・状態（#718）
+    expect(planBlock(done, 'seminar').getAttribute('aria-label')).toMatch(/^Plan, .+, \d\d:\d\d–\d\d:\d\d, recorded as planned$/)
   })
 
   it('今日の計画（1 日表示）は 予定 / 記録 の 2 列のまま', () => {

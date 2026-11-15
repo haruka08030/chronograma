@@ -20,14 +20,27 @@ export function ToastStack({ children }: { children: ReactNode }) {
 
 /**
  * トースト 1 枚（濃い色の面・角・文字の大きさ・出入りの動き・読み上げ `role="status"` を共通にする）。
- * `closing` は `usePresence` の閉じる動きの間（押せないようにして沈める）
+ * `closing` は `usePresence` の閉じる動きの間（押せないようにして沈める）。
+ * `onHoldChange` はマウスを乗せている・中にフォーカスがある間 true（その間は消さない、読み終える前に消えないように）
  */
-export function Toast({ closing, children }: { closing: boolean; children: ReactNode }) {
+export function Toast({
+  closing,
+  onHoldChange,
+  children,
+}: {
+  closing: boolean
+  onHoldChange?: (held: boolean) => void
+  children: ReactNode
+}) {
   return (
     <div
       role="status"
       data-toast
       inert={closing}
+      onMouseEnter={onHoldChange && (() => onHoldChange(true))}
+      onMouseLeave={onHoldChange && (() => onHoldChange(false))}
+      onFocus={onHoldChange && (() => onHoldChange(true))}
+      onBlur={onHoldChange && ((e) => !e.currentTarget.contains(e.relatedTarget) && onHoldChange(false))}
       className={`pointer-events-auto flex w-max max-w-[min(100vw-1.5rem,32rem)] items-center gap-3 rounded-xl px-4 py-3 text-sm ${INVERSE_SURFACE} ${
         closing ? 'animate-toast-out' : 'animate-toast-in'
       }`}
