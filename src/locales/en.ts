@@ -120,6 +120,12 @@ export default {
     missingParent: '{{count}} subtask(s) have a parent task not in the file (e.g. "{{example}}").',
     missingParent_one: '{{count}} subtask has a parent task not in the file (e.g. "{{example}}").',
   },
+  integrationPending: {
+    title: "{{count}} changes haven't reached {{target}}",
+    title_one: "{{count}} change hasn't reached {{target}}",
+    help: "They're retried automatically. Anything still not sent after {{days}} days is dropped.",
+    retry: 'Send now',
+  },
   sync: {
     syncing: 'Syncing to the cloud',
     syncingWithLast: 'Syncing to the cloud (last synced {{when}})',

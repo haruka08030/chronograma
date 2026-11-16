@@ -16,6 +16,7 @@ import { requestNotionSync, useNotionSyncState } from '../../hooks/useNotionSync
 import { SettingsGroup, SettingsRow, SettingsLoadingRow } from './SettingsPrimitives'
 import { fieldClass } from '../ui/fieldClass'
 import { buttonClass } from '../ui/buttonClass'
+import { IntegrationPendingRow } from './IntegrationPendingRow'
 import { askConfirm } from '../../lib/confirmDialog'
 import { ERROR_TEXT, STEPS_LIST_CLASS } from '../ui/textClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
@@ -139,6 +140,7 @@ export function NotionSettings() {
           </button>
         </SettingsRow>
       )}
+      {status?.connected && <IntegrationPendingRow name="notion" />}
       {shownError && <p className={`px-4 py-3 ${ERROR_TEXT}`}>{shownError}</p>}
     </SettingsGroup>
   )

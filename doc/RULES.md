@@ -926,6 +926,7 @@ main に出すとき（DB と Edge Function は main へのマージでは出な
 
 ### 連携
 
+- 連携への書き戻し（Notion のステータスを進める・Canvas の完了）で送れなかったものは、この端末に置いて間隔をあけて送り直し（30 秒から倍にして 1 時間まで）、7 日（`WRITE_BACK_KEEP_DAYS`）たっても送れなければ外す（`lib/writeBackQueue.ts`）。待っている間は設定のその連携の所に「◯◯ に送れていない変更 N 件」と「今すぐ送る」を出す（`settings/IntegrationPendingRow.tsx`。0 件なら出さない）
 - 学校の LMS は「Canvas・Moodle」の欄で LMS を選んでつなぐ
   - Canvas はアクセストークンかカレンダーフィードの URL（`…/feeds/calendars/….ics`）、Moodle はカレンダーの書き出しの URL（`…/calendar/export_execute.php?userid=…&authtoken=…`、サブパスに置いた Moodle も可）
   - フィードと書き出しは読むだけで、Canvas のフィードと同じ間隔で取り込む

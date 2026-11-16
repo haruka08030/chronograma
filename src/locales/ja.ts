@@ -108,6 +108,11 @@ export default {
     missingSection: 'ファイルにないか別のリストのセクションに入った To-Do が {{count}} 件あります（例:「{{example}}」）',
     missingParent: '親の To-Do がファイルにないサブタスクが {{count}} 件あります（例:「{{example}}」）',
   },
+  integrationPending: {
+    title: '{{target}} に送れていない変更 {{count}} 件',
+    help: '送れるまで自動でやり直します。{{days}} 日たっても送れないものは、送らずに外します。',
+    retry: '今すぐ送る',
+  },
   sync: {
     syncing: 'クラウドに同期しています',
     syncingWithLast: 'クラウドに同期しています（最後の同期: {{when}}）',
