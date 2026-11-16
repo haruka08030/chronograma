@@ -40,6 +40,25 @@ const openLater = () => {
   return input
 }
 
+describe('後から記録の開始（#720）', () => {
+  it('直前の記録があれば、名前の候補を選んでも開始はその終わりのまま', () => {
+    useTaskStore.getState().addTimeLog('昼ごはん', '2026-10-08', '12:00', '12:40', [])
+    const input = openLater()
+    fireEvent.change(input, { target: { value: 'st' } })
+    fireEvent.click(screen.getByRole('option', { name: /STAT 勉強/ }))
+    fireEvent.click(screen.getByRole('button', { name: '記録する' }))
+    expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ title: 'STAT 勉強', startTime: '12:40', endTime: '15:00' })
+  })
+
+  it('今を丸めて切り下がっても、止めたばかりの記録の終わりから開く', () => {
+    vi.setSystemTime(new Date('2026-10-08T06:02:00.000Z')) // 東京 15:02 → 丸めると 15:00
+    useTaskStore.getState().addTimeLog('読書', '2026-10-08', '14:00', '15:01', [])
+    openLater()
+    fireEvent.click(screen.getByRole('button', { name: '記録する' }))
+    expect(useTaskStore.getState().tasks.at(-1)).toMatchObject({ startTime: '15:01', endTime: '15:02' })
+  })
+})
+
 describe('記録の名前の候補', () => {
   it('打つと過去の記録が出て、選ぶとラベルが入り、始まりはいつもの長さだけ前になる', () => {
     const input = openLater()

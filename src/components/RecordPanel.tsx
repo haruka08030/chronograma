@@ -73,6 +73,8 @@ export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: str
   const { title, category, taskId, color, setTitle, setLabel, pick, reset } = useLogDraft()
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  /** 後から記録の開始を直前の記録の終わりで入れたか（名前を選んでも開始を動かさない） */
+  const [startFromPrev, setStartFromPrev] = useState(false)
   const recent = useMemo(() => frequentLogs(tasks, 2), [tasks])
   /** スマホで分類ごとの時間（帯の下の一覧）をすべて開いているか */
   const [showBreakdown, setShowBreakdown] = useState(false)
@@ -114,17 +116,20 @@ export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: str
     // 今日なら「直前の記録の終わり → 今」を初期値にして、空いた時間をそのまま埋められるように
     if (viewingToday) {
       const e = nowRounded()
-      // 夜から続く記録（睡眠など）も、今日終わったならその終わりから
+      const nowHm = clockOf(zonedNow())
+      // 夜から続く記録（睡眠など）も、今日終わったならその終わりから。丸めた今より後に終わった記録（止めたばかりのタイマー）も入れる
       const prevEnd = dayLogs
-        .filter((x) => (x.endDate ?? x.dueDate) === dateKey && x.endTime && timeToMinutes(x.endTime) < timeToMinutes(e))
+        .filter((x) => (x.endDate ?? x.dueDate) === dateKey && x.endTime && timeToMinutes(x.endTime) <= timeToMinutes(nowHm))
         .map((x) => x.endTime!)
         .sort()
         .at(-1)
       setStart(prevEnd ?? addClockMinutes(e, -60))
-      setEnd(e)
+      setEnd(prevEnd && timeToMinutes(prevEnd) >= timeToMinutes(e) ? nowHm : e)
+      setStartFromPrev(Boolean(prevEnd))
     } else {
       setStart('')
       setEnd('')
+      setStartFromPrev(false)
     }
     setMode('manual')
   }
@@ -257,8 +262,8 @@ export function RecordPanel({ dateKey, viewingToday, reviewing }: { dateKey: str
             onPick={(s) => {
               pick(s)
               if (mode !== 'manual' || !end) return
-              if (s.typicalMinutes) {
-                // 後から記録は、いつもの長さで始まりを入れる（終わりはそのまま。0 時より前にはしない）
+              if (s.typicalMinutes && !startFromPrev) {
+                // 直前の記録が無いときだけ、いつもの長さで始まりを入れる（終わりはそのまま。0 時より前にはしない）
                 setStart(addClockMinutes('00:00', Math.max(0, timeToMinutes(end) - s.typicalMinutes)))
               }
             }}
