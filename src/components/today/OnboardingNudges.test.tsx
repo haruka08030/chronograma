@@ -223,7 +223,7 @@ describe('案内のあとの通知の誘い（予定のあとの確認）', () =
 })
 
 describe('案内のあとのログインの誘い（ログインしていない人）', () => {
-  const card = () => screen.queryByRole('region', { name: 'Your to-dos and records are saved only in this browser' })
+  const card = () => screen.queryByRole('region', { name: 'Your to-dos and logs are saved only in this browser' })
   const recordCard = () => screen.queryByRole('region', { name: /When a plan ends, get a notification/ })
 
   beforeEach(() => {

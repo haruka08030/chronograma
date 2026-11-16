@@ -6,10 +6,9 @@ import { newId } from '../../lib/id'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
-import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
 import { usePlanColorText } from '../../hooks/usePlanColorText'
 import { Modal, ModalTitle } from '../ui/Modal'
-import { TimeInput } from '../TimeInput'
+import { TimeRangeFields } from '../TimeRangeFields'
 import { ColorLabelSelect } from '../labels/ColorLabelSelect'
 import { ClockIcon, PlusIcon, TrashIcon } from '../icons'
 import { EmptyState } from '../ui/EmptyState'
@@ -42,7 +41,6 @@ function TemplateRow({
   const defaultBlockMinutes = useTaskStore((s) => s.defaultBlockMinutes)
   const colorText = usePlanColorText(row.color)
   const invalid = Boolean(row.startTime && row.endTime) && !rangeOk(row)
-  const timeClass = fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')
   return (
     <li className="space-y-2 border-b border-zinc-100 pb-3 last:border-b-0 dark:border-zinc-700/60">
       <div className="flex items-center gap-2">
@@ -63,23 +61,14 @@ function TemplateRow({
         </button>
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-        <div className="flex items-center gap-2">
-          <TimeInput
-            value={row.startTime}
-            onChange={(v) => onChange({ startTime: v, endTime: endAfterStartEdit(row.startTime, row.endTime, v, defaultBlockMinutes) })}
-            ariaLabel={t('eventTemplates.startAria')}
-            className={timeClass}
-          />
-          <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
-          <TimeInput
-            value={row.endTime}
-            onChange={(v) => onChange({ endTime: v })}
-            ariaLabel={t('eventTemplates.endAria')}
-            pickerDefault={row.startTime ? addClockMinutes(row.startTime, defaultBlockMinutes) : undefined}
-            durationFrom={row.startTime || undefined}
-            className={timeClass}
-          />
-        </div>
+        <TimeRangeFields
+          startTime={row.startTime}
+          endTime={row.endTime}
+          fillMinutes={defaultBlockMinutes}
+          startLabel={t('eventTemplates.startAria')}
+          endLabel={t('eventTemplates.endAria')}
+          onChange={onChange}
+        />
         <ColorLabelSelect
           current={row.color}
           currentText={colorText}

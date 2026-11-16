@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useTaskStore } from '../store/taskStore'
-import { useSyncProblem } from '../hooks/useSyncProblem'
+import { useSyncProblem, useSyncProblemAction } from '../hooks/useSyncProblem'
 import { relativeSyncKey } from './syncIndicatorLabel'
 import { tip } from '../lib/tooltip'
 
@@ -25,6 +25,7 @@ export function SyncIndicator() {
   const syncState = useTaskStore((s) => s.syncState)
   const lastSyncedAt = useTaskStore((s) => s.lastSyncedAt)
   const problem = useSyncProblem()
+  const action = useSyncProblemAction(problem)
 
   // すぐ終わる同期で点がチカッと出ないよう、0.4 秒以上かかっているときだけ出す
   const [slowSync, setSlowSync] = useState(false)
@@ -59,17 +60,18 @@ export function SyncIndicator() {
 
   if (!problem) return null
 
-  // アプリの版が同期の下限より古い: 送らずに止めている。押すと新しい版を読み込む
-  if (problem.kind === 'outdated') {
+  // 次にできることがある問題（版が古い・ログインの期限切れ・サーバーの不調）はボタンにして、押すとそれをする
+  if (action) {
+    const label = problem.kind === 'error' && problem.reason === 'server' ? t('sync.errorShortServer') : action.label
     return (
       <button
         type="button"
-        onClick={() => window.location.reload()}
+        onClick={action.run}
         className="flex shrink-0 items-center gap-1 rounded text-amber-600 hover:underline dark:text-amber-500"
         {...tip(problem.detail)}
       >
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-        <span className="truncate text-[11px]">{t('sync.outdatedShort')}</span>
+        <span className="truncate text-[11px]">{label}</span>
       </button>
     )
   }

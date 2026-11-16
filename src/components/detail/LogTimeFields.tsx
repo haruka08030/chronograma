@@ -1,13 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import { useMemo } from 'react'
 import type { Task } from '../../types/task'
-import { addClockMinutes } from '../../lib/clockTime'
 import { formatDuration } from '../../lib/timeGrid'
 import { durationMinutesForTaskSlot, endDateAfterStartDateEdit, isOvernightTimeLog } from '../../lib/taskTimeRange'
 import { DateField } from '../DateField'
-import { TimeInput } from '../TimeInput'
+import { TimeRangeFields } from '../TimeRangeFields'
 import { TaskTimeZoneButton, TaskTimeZoneNote } from '../TaskTimeZoneField'
-import { fieldClass, TIME_FIELD_WIDTH } from '../ui/fieldClass'
+import { fieldClass } from '../ui/fieldClass'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 import { META_TEXT } from '../ui/textClass'
 import { timeToMinutes } from '../../lib/timeGrid'
@@ -45,24 +44,23 @@ export function LogTimeFields({ task }: { task: Task }) {
         inline
         className={fieldClass()}
       />
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <TimeInput
-          value={tv.startTime ?? ''}
-          onChange={(v) => updateTimes({ startTime: v || null })}
-          ariaLabel={t('common.start')}
-          className={fieldClass({}, TIME_FIELD_WIDTH)}
-        />
-        <span className="text-zinc-400 text-sm">{t('common.timeRangeSeparator')}</span>
-        <TimeInput
-          value={tv.endTime ?? ''}
-          onChange={(v) => updateTimes({ endTime: v || null })}
-          pickerDefault={tv.startTime ? addClockMinutes(tv.startTime, 60) : undefined}
-          ariaLabel={t('common.end')}
-          className={fieldClass({}, TIME_FIELD_WIDTH)}
-        />
+      <TimeRangeFields
+        kind="log"
+        size="md"
+        startTime={tv.startTime ?? ''}
+        endTime={tv.endTime ?? ''}
+        fillMinutes={60}
+        // 終了日を別に選ぶ（日をまたぐ）記録はふつうの候補。ほかは終わりが開始以前なら翌日なので 1 周・長さつき
+        overnight={!overnight}
+        durations={!overnight}
+        onChange={(next) =>
+          updateTimes(next.startTime !== (tv.startTime ?? '') ? { startTime: next.startTime || null } : { endTime: next.endTime || null })
+        }
+        className="mt-2"
+      >
         {(task.startTime || zone) && <TaskTimeZoneButton task={task} view={tv} />}
         {logDurationLabel && <span className={META_TEXT}>{logDurationLabel}</span>}
-      </div>
+      </TimeRangeFields>
       {overnight && (
         <div className="mt-2 flex items-center gap-2">
           <span className={sectionLabelClass('field')}>{t('taskDetail.logEndDate')}</span>

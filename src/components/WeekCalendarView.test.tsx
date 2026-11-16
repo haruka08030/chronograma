@@ -131,7 +131,7 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
         },
       ],
     })
-    useTaskStore.getState().addTimeLog('ゼミ', '2026-10-07', '15:05', '16:30', [])
+    useTaskStore.getState().addTimeLog('ゼミ', '2026-10-07', '15:05', '16:30', [], undefined, null, '#E67C73')
     const log = useTaskStore.getState().tasks.find((x) => x.title === 'ゼミ' && x.id !== 'seminar')!
     const view = () => render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />).container
     const open = view()
@@ -142,6 +142,12 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     const done = view()
     expect(done.querySelector(`[data-datekey="2026-10-07"] [data-block-id="${log.id}"]`)).toBeNull()
     expect(planBlock(done, 'seminar').style.width).toBe('calc(100% - 4px)')
+    // 過ぎた予定でも灰色にせず、隠した記録の色で記録と同じ塗り（#707）
+    expect(planBlock(done, 'seminar').className).toContain('gc-plan')
+    expect(planBlock(done, 'seminar').className).not.toContain('gc-missed')
+    expect(planBlock(done, 'seminar').style.getPropertyValue('--c')).toBe('#E67C73')
+    // 読み上げは種類・題名・時刻・状態（#718）
+    expect(planBlock(done, 'seminar').getAttribute('aria-label')).toMatch(/^Plan, .+, \d\d:\d\d–\d\d:\d\d, logged as planned$/)
   })
 
   it('今日の計画（1 日表示）は 予定 / 記録 の 2 列のまま', () => {
@@ -256,7 +262,7 @@ describe('WeekCalendarView: 見出しの空き時間', () => {
     expect(lines[1]).toHaveAttribute('data-day-free', 'over')
     expect(lines[1]).toHaveTextContent('Free 1h / 4h')
     // 色だけでなく、読み上げでも分かる
-    expect(lines[1]).toHaveTextContent('To-Dos placed on this day (4h) are more than the free time (1h)')
+    expect(lines[1]).toHaveTextContent('To-Dos on this day (4h) are more than the free time (1h)')
   })
 })
 
@@ -284,9 +290,9 @@ describe('WeekCalendarView: 記録の無い時間（点線の枠）', () => {
     const gaps = gapsIn(container, '2026-10-07')
     // 7:00–9:00、10:00–11:00、11:20–16:00（今まで）
     expect(gaps.map((g) => g.getAttribute('aria-label'))).toEqual([
-      'Unrecorded 07:00–09:00 (click to record this time)',
-      'Unrecorded 10:00–11:00 (click to record this time)',
-      'Unrecorded 11:20–16:00 (click to record this time)',
+      'Not logged 07:00–09:00 (click to log this time)',
+      'Not logged 10:00–11:00 (click to log this time)',
+      'Not logged 11:20–16:00 (click to log this time)',
     ])
     expect(gaps[0]!.style.top).toBe(`${7 * HOUR_HEIGHT + 1}px`)
     expect(gaps[0]!.style.height).toBe(`${2 * HOUR_HEIGHT - 2}px`)
@@ -294,7 +300,7 @@ describe('WeekCalendarView: 記録の無い時間（点線の枠）', () => {
     expect(gaps[0]!.style.left).toBe('calc(50% + 2px)')
     expect(gaps[0]!.className).toContain('border-dashed')
     expect(gaps[0]!.className).not.toContain('gc-plan')
-    expect(gaps[1]!.textContent).toBe('+ 1h unrecorded')
+    expect(gaps[1]!.textContent).toBe('+ 1h not logged')
   })
 
   it('押すと、その時間のままの後から記録のカードが開き、保存すると記録になる', async () => {

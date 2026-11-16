@@ -22,7 +22,8 @@ export type WriteBackEntry<P> = {
 const FIRST_RETRY_MS = 30_000
 const MAX_RETRY_MS = 60 * 60_000
 /** これより古いものは捨てる（その間に Canvas・Notion 側で直されているはず） */
-const MAX_AGE_MS = 7 * 86_400_000
+export const WRITE_BACK_KEEP_DAYS = 7
+const MAX_AGE_MS = WRITE_BACK_KEEP_DAYS * 86_400_000
 
 export function retryDelayMs(attempts: number): number {
   return Math.min(MAX_RETRY_MS, FIRST_RETRY_MS * 2 ** Math.max(0, attempts - 1))
@@ -43,6 +44,16 @@ export type WriteBackQueue<P> = {
   nextDueAt(now?: number): number | null
 }
 
+const listeners = new Set<() => void>()
+
+/** どれかの送り待ちが変わったら呼ぶ（設定の「送れていない変更」の件数を出し直す）。外す関数を返す */
+export function subscribeWriteBackQueues(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
 export function writeBackQueue<P>(key: string): WriteBackQueue<P> {
   const load = (): Record<string, WriteBackEntry<P>> => {
     try {
@@ -59,6 +70,8 @@ export function writeBackQueue<P>(key: string): WriteBackQueue<P> {
     } catch {
       /* 覚えられなければ、このタブを開いている間だけの送り直しになる */
     }
+    // 件数を読む途中（古いものを捨てた保存）から画面を描き直さないよう、後で知らせる
+    queueMicrotask(() => listeners.forEach((l) => l()))
   }
   const fresh = (now: number) => {
     const q = load()

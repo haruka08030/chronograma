@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useSyncProblem } from '../hooks/useSyncProblem'
+import { useSyncProblem, useSyncProblemAction } from '../hooks/useSyncProblem'
 
 /** 回線が一瞬切れただけで出たり消えたりしないよう、「未同期」はこれだけ続いたら出す */
 const ERROR_GRACE_MS = 30_000
@@ -11,8 +10,8 @@ const ERROR_GRACE_MS = 30_000
  * 問題があるときだけ出し、説明は乗せなくても読めるよう文で出す
  */
 export function MobileSyncNotice() {
-  const { t } = useTranslation()
   const problem = useSyncProblem()
+  const action = useSyncProblemAction(problem)
   const kind = problem?.kind ?? null
   const [errorLasted, setErrorLasted] = useState(false)
   useEffect(() => {
@@ -32,9 +31,9 @@ export function MobileSyncNotice() {
     >
       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
       <span className="min-w-0 flex-1 whitespace-pre-line">{problem.detail}</span>
-      {problem.kind === 'outdated' && (
-        <button type="button" onClick={() => window.location.reload()} className="shrink-0 font-medium underline">
-          {t('sync.outdatedShort')}
+      {action && (
+        <button type="button" onClick={action.run} className="shrink-0 font-medium underline">
+          {action.label}
         </button>
       )}
     </div>

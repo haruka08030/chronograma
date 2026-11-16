@@ -16,15 +16,14 @@ import {
   type TimetablePeriod,
 } from '../../lib/timetable'
 import { seriesDates } from '../../lib/eventSeries'
-import { courseAttendance, defaultTerm, termCourses, type ClassAttendance, type Term } from '../../lib/schoolTerms'
+import { courseAttendance, termCourses, type ClassAttendance, type Term } from '../../lib/schoolTerms'
 import { useSchool } from '../../hooks/useSchool'
-import { SchoolTermBar } from '../addons/SchoolTermBar'
 import { courseKey, lmsCourses } from '../../lib/courseLinks'
 import { NOTICE_TONE_CLASS } from '../ui/dueTone'
 import { colorVars } from '../../lib/logCategoryColors'
 import { planHex } from '../../lib/planVisual'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { addClockMinutes, endAfterStartEdit } from '../../lib/clockTime'
+import { addClockMinutes } from '../../lib/clockTime'
 import { isSubmitEnter } from '../../lib/keyboard'
 import { tip } from '../../lib/tooltip'
 import { useAppTodayKey } from '../../hooks/useAppClock'
@@ -32,7 +31,7 @@ import { useDateFormat } from '../../hooks/useDateFormat'
 import { usePlanColorText } from '../../hooks/usePlanColorText'
 import { Modal, ModalTitle } from '../ui/Modal'
 import { DisclosureButton } from '../ui/Disclosure'
-import { TimeInput } from '../TimeInput'
+import { TimeRangeFields } from '../TimeRangeFields'
 import { ColorLabelSelect } from '../labels/ColorLabelSelect'
 import { PlusIcon, TrashIcon } from '../icons'
 import { buttonClass } from '../ui/buttonClass'
@@ -45,33 +44,6 @@ import { useDialogDraft } from '../../hooks/useDialogDraft'
 import { Switch } from '../settings/SettingsPrimitives'
 import { FirstUseHint } from '../ui/FirstUseHint'
 import { openHelp } from '../../lib/overlays'
-
-/**
- * 時間割（#279）。週表示の見出しの「時間割」で開くダイアログ。上で学期を選び（最初は今日の学期）、中身は追加機能「学校」のページと同じ
- */
-export function TimetableDialog({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation()
-  const today = useAppTodayKey()
-  const school = useSchool()
-  const [termId, setTermId] = useState<string | null>(null)
-  const term = school.terms.find((x) => x.id === termId) ?? defaultTerm(school, today)
-  return (
-    <Modal onClose={onClose} labelledBy="timetable-title" width="lg" className="flex max-h-[min(90vh,820px)] flex-col overflow-hidden">
-      <div className="border-b border-zinc-200 px-4 pb-3 pt-5 dark:border-zinc-700 sm:px-6">
-        <ModalTitle id="timetable-title">{t('timetable.title')}</ModalTitle>
-        <div className="mt-2">
-          <SchoolTermBar term={term} onSelect={setTermId} />
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6">{term && <TimetableBody term={term} />}</div>
-      <div className="flex justify-end border-t border-zinc-200 px-4 py-3 dark:border-zinc-700 sm:px-6">
-        <button type="button" onClick={onClose} className={buttonClass({ variant: 'primary', size: 'md' })}>
-          {t('timetable.done')}
-        </button>
-      </div>
-    </Modal>
-  )
-}
 
 /**
  * 学期の時間割の中身。曜日（月〜土）× 時限のマスを押して授業を入れると、学期の間の毎週の予定ができる。
@@ -239,7 +211,6 @@ function TimetableSettings({ timetable }: { timetable: Timetable }) {
     setPeriods(next)
     if (next.every(isValidPeriod)) saveTimetable({ ...timetable, periods: next })
   }
-  const timeClass = fieldClass({ size: 'sm' }, 'w-[5.5rem] tabular-nums')
 
   return (
     <div className="mb-2 space-y-4 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
@@ -249,22 +220,15 @@ function TimetableSettings({ timetable }: { timetable: Timetable }) {
           {periods.map((p, i) => (
             <li key={i} className="flex items-center gap-2 text-sm">
               <span className="w-10 shrink-0 text-xs text-zinc-500 dark:text-zinc-400">{t('timetable.periodName', { n: i + 1 })}</span>
-              <TimeInput
-                value={p.start}
-                onChange={(v) =>
-                  commitPeriods(periods.map((x, j) => (j === i ? { ...x, start: v, end: endAfterStartEdit(x.start, x.end, v, 90) } : x)))
+              <TimeRangeFields
+                startTime={p.start}
+                endTime={p.end}
+                fillMinutes={90}
+                startLabel={t('timetable.periodStartAria', { n: i + 1 })}
+                endLabel={t('timetable.periodEndAria', { n: i + 1 })}
+                onChange={(next) =>
+                  commitPeriods(periods.map((x, j) => (j === i ? { ...x, start: next.startTime, end: next.endTime } : x)))
                 }
-                ariaLabel={t('timetable.periodStartAria', { n: i + 1 })}
-                className={timeClass}
-              />
-              <span className="text-zinc-400">{t('common.timeRangeSeparator')}</span>
-              <TimeInput
-                value={p.end}
-                onChange={(v) => commitPeriods(periods.map((x, j) => (j === i ? { ...x, end: v } : x)))}
-                ariaLabel={t('timetable.periodEndAria', { n: i + 1 })}
-                pickerDefault={p.start ? addClockMinutes(p.start, 90) : undefined}
-                durationFrom={p.start || undefined}
-                className={timeClass}
               />
               <button
                 type="button"

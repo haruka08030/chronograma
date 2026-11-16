@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { useTaskStore } from '../store/taskStore'
@@ -8,6 +8,13 @@ import { addDays } from 'date-fns'
 import { TASK_DEFAULTS } from '../lib/taskDefaults'
 import type { Task } from '../types/task'
 import { TodayPlannerView } from './TodayPlannerView'
+
+/** ログイン中かどうか（Google の 1 行はログイン中だけ読む）。既定はログインしていない */
+const auth = vi.hoisted(() => ({ user: null as { id: string } | null }))
+vi.mock('../contexts/AuthContext', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('../contexts/AuthContext')>()
+  return { ...orig, useAuth: () => ({ ...orig.useAuth(), user: auth.user }) }
+})
 
 beforeAll(() => {
   // jsdom には無いもの（タイムラインの大きさ・候補の続きの読み込み・枠の行を見える所へ送る）
@@ -441,5 +448,75 @@ describe('TodayPlannerView: 足したばかりの行の締切（#533）', () => 
     unmount()
     render(<TodayPlannerView />)
     expect(row()).not.toHaveTextContent(/Due /)
+  })
+})
+
+describe('TodayPlannerView: 日付を外す帯（#706）', () => {
+  it('PC: 実行日のある行をつかむと左の下に帯を出し、落とすと実行日を外す', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('min-width: 768px'),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    })) as unknown as typeof window.matchMedia
+    onTestFinished(() => {
+      window.matchMedia = original
+      vi.useRealTimers()
+    })
+    vi.useFakeTimers()
+    useTaskStore.setState({ onboardingDone: true })
+    planToday()
+    const id = useTaskStore.getState().tasks.find((x) => x.title === 'Read paper')!.id
+    render(<TodayPlannerView />)
+    expect(screen.queryByText('Drop here to unschedule')).toBeNull()
+
+    const data = new Map<string, string>()
+    const dataTransfer = {
+      setData: (type: string, value: string) => void data.set(type, value),
+      getData: (type: string) => data.get(type) ?? '',
+      get types() {
+        return [...data.keys()]
+      },
+      setDragImage() {},
+      effectAllowed: 'all',
+      dropEffect: 'none',
+    }
+    fireEvent.dragStart(document.querySelector(`[data-task-row="${id}"]`)!, { dataTransfer })
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+    const strip = screen.getByText('Drop here to unschedule')
+
+    fireEvent.dragOver(strip, { dataTransfer })
+    fireEvent.drop(strip, { dataTransfer })
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+    const task = useTaskStore.getState().tasks.find((x) => x.id === id)!
+    expect(task.scheduledDate).toBeNull()
+    expect(screen.queryByText('Drop here to unschedule')).toBeNull()
+  })
+})
+
+describe('TodayPlannerView: Google のつながりが切れたとき（#708）', () => {
+  it('切れた間は「もう一度接続する」の 1 行を出し、未接続の案内は出さない', async () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client')
+    auth.user = { id: 'u1' }
+    onTestFinished(() => {
+      auth.user = null
+      vi.unstubAllEnvs()
+      useTaskStore.setState({ googleReconnectNeeded: false, googleConnected: false })
+    })
+    useTaskStore.setState({ tasks: [], googleConnected: false, googleReconnectNeeded: false })
+    const { unmount } = render(<TodayPlannerView />)
+    await act(async () => {})
+    expect(screen.queryByRole('button', { name: 'Reconnect' })).toBeNull()
+    expect(screen.queryByText(/Google Calendar/)).toBeNull()
+    unmount()
+
+    useTaskStore.setState({ googleReconnectNeeded: true })
+    render(<TodayPlannerView />)
+    expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
   })
 })

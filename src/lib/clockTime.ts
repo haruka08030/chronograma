@@ -47,18 +47,24 @@ export function endKeepingLength(startTime: string, endTime: string, nextStart: 
 /**
  * 時間帯の欄で開始を打ち直したときの終わり。開始・終わり・新しい開始がそろっていれば長さを保ってずらし
  * （`endKeepingLength`）、どれかが欠けている・開始が同じならそのまま。
- * `fillMinutes` を渡すと、終わりが空のときは新しい開始からその長さで埋める（`endWithinDay`）
+ * `fillMinutes` を渡すと、終わりが空のときは新しい開始からその長さで埋める（`endWithinDay`）。
+ * `overnight`（日をまたげる習慣の時間帯）なら 23:59 で止めず 24 時間で回し、長さ 0 は `fillMinutes`（無ければ 60 分）
  */
 export function endAfterStartEdit(
   startTime: string | null | undefined,
   endTime: string | null | undefined,
   nextStart: string,
   fillMinutes?: number,
+  overnight = false,
 ): string {
   const end = endTime ?? ''
-  if (!end && fillMinutes != null && toMinutes(nextStart) !== null) return endWithinDay(nextStart, fillMinutes)
+  if (!end && fillMinutes != null && toMinutes(nextStart) !== null)
+    return overnight ? addClockMinutes(nextStart, fillMinutes) : endWithinDay(nextStart, fillMinutes)
   if (!startTime || !end || nextStart === startTime) return end
-  if (toMinutes(startTime) === null || toMinutes(end) === null || toMinutes(nextStart) === null) return end
+  const s = toMinutes(startTime)
+  const e = toMinutes(end)
+  if (s === null || e === null || toMinutes(nextStart) === null) return end
+  if (overnight) return addClockMinutes(nextStart, (e - s + 1440) % 1440 || (fillMinutes ?? 60))
   return endKeepingLength(startTime, end, nextStart)
 }
 

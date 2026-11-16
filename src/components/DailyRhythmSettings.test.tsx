@@ -128,6 +128,6 @@ describe('設定「計画」の 1 日に使える時間（#275）', () => {
     } as Task
     useTaskStore.setState({ tasks: [log] })
     render(<DailyRhythmSettings />)
-    expect(screen.getByText('Last 2 weeks: 3h 30m logged on average on days with records (1 day)')).toBeInTheDocument()
+    expect(screen.getByText('Last 2 weeks: 3h 30m logged on average on days with logs (1 day)')).toBeInTheDocument()
   })
 })

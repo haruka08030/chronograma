@@ -92,6 +92,7 @@ export const TRANSIENT_KEYS = [
   'lastSyncedAt',
   'cloudPulledAt',
   'syncRejected',
+  'syncErrorReason',
   'quickAddRequested',
   'quickAddPrefill',
   'recordPromptTaskId',

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { isAnchoredSheet, useAnchoredCard, type AnchorRect } from './anchoredCard'
-import { CardTimeRange } from './CardTimeRange'
+import { TimeRangeFields } from '../TimeRangeFields'
 import { googleEventTiming, movedGoogleEventTiming, requestGoogleWriteAccess } from '../../lib/googleCalendar'
 import {
   canEditGoogleEvent,
@@ -276,13 +276,16 @@ export function GoogleEventPopover({ eventId, anchor, onClose }: { eventId: stri
                 />
               </div>
               {event.startTime && event.endTime && (
-                <CardTimeRange
+                <TimeRangeFields
+                  required
                   startTime={event.startTime}
                   endTime={event.endTime}
-                  onStart={(v) => commitTiming({ startTime: v })}
-                  onEnd={(v) => commitTiming({ endTime: v })}
-                  startLabel={t('common.start')}
-                  endLabel={t('common.end')}
+                  // 開始を動かしたら Google の予定の長さのままずらす（`movedGoogleEventTiming`）
+                  onChange={(next) =>
+                    next.startTime !== event.startTime
+                      ? commitTiming({ startTime: next.startTime })
+                      : commitTiming({ endTime: next.endTime })
+                  }
                 />
               )}
             </div>

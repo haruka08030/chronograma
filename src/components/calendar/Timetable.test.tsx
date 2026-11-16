@@ -7,7 +7,7 @@ import { makeTask } from '../../store/taskHelpers'
 import { INBOX_LIST_ID } from '../../store/storeConstants'
 import { DEFAULT_TIMETABLE } from '../../lib/timetable'
 import { DEFAULT_ADDONS } from '../../lib/addons'
-import { TimetableDialog } from './TimetableDialog'
+import { SchoolPage } from '../addons/SchoolBody'
 import { EventPopover } from '../timeline/EventPopover'
 import { EventRepeatField } from '../detail/EventRepeatField'
 
@@ -46,7 +46,7 @@ const live = () =>
 describe('時間割のマス（#279）', () => {
   it('学期が無ければ学期を足してから。マスは「月曜 1限 空き」と読むボタンで、押して授業名を入れると学期の毎週の予定ができる', async () => {
     const user = userEvent.setup({ advanceTimers: () => {} })
-    render(<TimetableDialog onClose={() => {}} />)
+    render(<SchoolPage onBack={() => {}} />)
     expect(screen.queryByRole('button', { name: '月曜 1限 空き' })).toBeNull()
     await user.click(screen.getByRole('button', { name: '学期を追加' }))
     // 案は今日の学期（後期 10/1〜1/31）
@@ -70,7 +70,7 @@ describe('時間割のマス（#279）', () => {
     const user = userEvent.setup({ advanceTimers: () => {} })
     useTaskStore.setState({ timetable: { ...DEFAULT_TIMETABLE, termStart: '2026-10-01', termEnd: '2026-11-30' } })
     S().addTimetableClass({ weekday: 3, startTime: '10:40', endTime: '12:10', title: '英語', color: null }, termOf())
-    render(<TimetableDialog onClose={() => {}} />)
+    render(<SchoolPage onBack={() => {}} />)
     await user.click(screen.getByRole('button', { name: '水曜 2限 英語' }))
     const editor = screen.getByRole('dialog', { name: '水曜 2限' })
     const name = within(editor).getByLabelText('授業名')
@@ -212,7 +212,7 @@ describe('授業の欠席（#452）', () => {
     S().saveTimetable({ ...S().timetable, termStart: '2026-10-01', termEnd: '2027-01-31' })
     S().addTimetableClass({ weekday: 4, startTime: '09:00', endTime: '10:30', title: '経済学入門', color: null }, termOf())
     S().setClassAbsent(live()[0]!.id, true)
-    render(<TimetableDialog onClose={() => {}} />)
+    render(<SchoolPage onBack={() => {}} />)
     await user.click(screen.getByRole('button', { name: '木曜 1限 経済学入門 欠席 1 / 5 回' }))
     const editor = screen.getByRole('dialog', { name: '木曜 1限' })
     await user.type(within(editor).getByLabelText(/^休める回数（学期 \d+ 回）$/), '2')

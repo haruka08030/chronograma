@@ -225,6 +225,8 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   // To-Do は完了しているときだけ（完了していなければ予定と記録を左右に並べる）
   const fullPlanIds = new Set<string>()
   const hiddenLogIds = new Set<string>()
+  /** 全幅にした予定の、隠した記録の色（予定は過ぎると灰色なので、記録の色で塗る） */
+  const recordedHexOf = new Map<string, string>()
   if (splitLanes && !singleDay) {
     const planned: PlannedItem[] = [
       ...dayTimed
@@ -247,6 +249,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
       if (pair.status !== 'matched') continue
       fullPlanIds.add(pair.planned!.id)
       hiddenLogIds.add(pair.actual!.id)
+      recordedHexOf.set(pair.planned!.id, recordHex(pair.actual!, logCategoryColors))
     }
   }
   const shownLogs = dayLogs.filter((l) => !hiddenLogIds.has(l.id))
@@ -483,6 +486,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               onOpenDetail={() => openCard(t.id)}
               hStyle={planStyle(t.id)}
               colorHex={planHex(t)}
+              recordedHex={recordedHexOf.get(t.id)}
               withCheck={canCheck}
             />
             {canCheck && (
@@ -604,6 +608,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               dayKey={key}
               hStyle={planStyle(slot.id)}
               colorHex={habit.color}
+              recordedHex={recordedHexOf.get(slot.id)}
               onPointerDown={(evt) => {
                 // まだの枠は動かす・伸ばすと、その日だけの時間になる（済んだ枠は記録のほうを動かす）
                 if (fixed) {
@@ -658,6 +663,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
               dayKey={key}
               hStyle={planStyle(`event-${e.id}`)}
               colorHex={e.color ?? DEFAULT_GOOGLE_EVENT_HEX}
+              recordedHex={recordedHexOf.get(`event-${e.id}`)}
               onPointerDown={(evt) => {
                 if (!editable) {
                   evt.preventDefault()

@@ -12,9 +12,13 @@ import { unplannedListIds } from '../lib/listKind'
 import { useDayLoads } from '../hooks/useDayLoads'
 import { useNow } from '../hooks/useAppClock'
 import { WeekCalendarView } from './WeekCalendarView'
+import { UnscheduleDropStrip } from './calendar/UnscheduleDrop'
+import { useCalendarItemDrag } from '../lib/calendarItemDrag'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CheckIcon, PostponeIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
+import { lazyNamed } from '../lib/lazyComponent'
+import { useAuth } from '../contexts/AuthContext'
 import { DayNav } from './ui/DayNav'
 import { SelectionBar } from './ui/SelectionBar'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
@@ -44,6 +48,8 @@ import { CalendarCards } from './calendar/CalendarCards'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { minutesOfDay } from '../lib/clockTime'
 
+const GoogleConnectLine = lazyNamed(() => import('./GoogleConnectLine'), 'GoogleConnectLine')
+
 /** 気分の記号と見出しのその日の結果を出し始める時刻（朝から出さない）。設定の夜のまとめの時刻があればその時刻から */
 const WRAP_UP_FROM_HOUR = 17
 
@@ -60,6 +66,7 @@ const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
  */
 export function TodayPlannerView() {
   const { t, i18n } = useTranslation()
+  const { user } = useAuth()
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore(selectHabitsByDay)
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
@@ -319,6 +326,14 @@ export function TodayPlannerView() {
       >
         <PlannerHeader date={date} dateKey={dateKey} viewingToday={viewingToday} dayNav={dayNav} load={dayLoad} reviewing={showResult} />
 
+        {/* Google のつながりが切れた・送れなかった予定があるときだけ（未接続の案内は出さない）。予定が黙って消えたように見せない（#708）。
+            Google はログインしてからつなぐので、ログイン中だけ遅れて読む（起動時の読み込みに Google の処理を入れない） */}
+        {user && (
+          <OverlaySuspense>
+            <GoogleConnectLine hideInvite />
+          </OverlaySuspense>
+        )}
+
         <PlannerDues dateKey={dateKey} />
 
         <PlannerTodoSection
@@ -397,6 +412,9 @@ export function TodayPlannerView() {
         )}
 
         <PlannerWrapUp showMood={showMood} dateKey={dateKey} focusKey={wrapUpFocus} totalCount={totalCount} />
+
+        {/* To-Do（右のタイムライン・左の行）をつかんでいる間だけ、下に「日付を外す」帯（カレンダーの置き場と同じ） */}
+        {isDesktop && <PlannerUnscheduleStrip />}
       </section>
 
       {/* タイムラインは PC だけ横に並べる。スマホはカレンダーの 1 日表示で見る（同じものを 2 か所に置かない） */}
@@ -410,6 +428,18 @@ export function TodayPlannerView() {
       <OverlaySuspense>
         <CalendarCards cards={cards} />
       </OverlaySuspense>
+    </div>
+  )
+}
+
+/** 左の一覧の下に貼り付ける帯。つかんでいないときは出さない（並びを動かさない） */
+function PlannerUnscheduleStrip() {
+  const { active } = useCalendarItemDrag()
+  if (!active) return null
+  // 光らせる色（落とせるとき）と重ならないよう、地の色は外側に
+  return (
+    <div className="sticky bottom-0 mt-auto bg-white dark:bg-zinc-900">
+      <UnscheduleDropStrip />
     </div>
   )
 }

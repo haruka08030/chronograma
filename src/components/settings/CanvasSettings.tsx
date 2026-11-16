@@ -23,6 +23,7 @@ import { buttonClass } from '../ui/buttonClass'
 import { Segmented } from '../ui/Segmented'
 import { askConfirm } from '../../lib/confirmDialog'
 import { ERROR_TEXT, STEPS_LIST_CLASS } from '../ui/textClass'
+import { IntegrationPendingRow } from './IntegrationPendingRow'
 import { sectionLabelClass } from '../ui/sectionLabelClass'
 
 const field = fieldClass({}, 'w-full')
@@ -154,6 +155,7 @@ export function CanvasSettings() {
   return (
     <SettingsGroup id="settings-canvas" title={t('canvas.title')}>
       {body}
+      {connections.length > 0 && <IntegrationPendingRow name="canvas" />}
       {syncError && <p className={errorClass}>{syncError}</p>}
     </SettingsGroup>
   )

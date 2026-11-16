@@ -54,7 +54,7 @@ describe('設定「記録を書き出す」', () => {
   it('期間に記録が無ければ「0 records」で、どちらのボタンも押せない', () => {
     useTaskStore.setState({ tasks: [task('old', { kind: 'log', dueDate: lastMonthDay(), startTime: '09:00', endTime: '10:00' })] })
     render(<RecordExportSettings />)
-    expect(within(exportRow()).getByText('0 records')).toBeInTheDocument()
+    expect(within(exportRow()).getByText('0 logs')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Export ICS' })).toBeDisabled()
   })
@@ -70,7 +70,7 @@ describe('設定「記録を書き出す」', () => {
     })
     render(<RecordExportSettings />)
     await user.click(screen.getByRole('radio', { name: 'Last month' }))
-    expect(within(exportRow()).getByText('1 record · 1 sleep record')).toBeInTheDocument()
+    expect(within(exportRow()).getByText('1 log · 1 sleep log')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Export CSV' }))
     expect(download).toHaveBeenCalledTimes(1)
@@ -78,7 +78,7 @@ describe('設定「記録を書き出す」', () => {
     expect(csvName).toBe(`chronograma-records-${today}.csv`)
     expect(csvType).toBe('text/csv;charset=utf-8')
     expect(csv.startsWith('\uFEFFkind,date,start,end,end_date,minutes,label,title,tags,plan\r\n')).toBe(true)
-    expect(csv).toContain('Record,')
+    expect(csv).toContain('Log,')
     expect(csv).toContain('Sleep,')
 
     await user.click(screen.getByRole('button', { name: 'Export ICS' }))
@@ -99,7 +99,7 @@ describe('設定「記録を書き出す」', () => {
     expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled()
 
     await user.click(screen.getByRole('switch', { name: 'Also put plans and checked-off to-dos in the CSV' }))
-    expect(within(exportRow()).getByText('0 records · 1 plan or to-do')).toBeInTheDocument()
+    expect(within(exportRow()).getByText('0 logs · 1 plan or to-do')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export ICS' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Export CSV' }))
     expect(download.mock.calls[0]![0]).toContain('Plan,')

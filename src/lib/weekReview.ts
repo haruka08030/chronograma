@@ -27,6 +27,13 @@ function plannedItemMinutes(p: PlannedItem): number {
   return Math.max(0, end - start)
 }
 
+/** 記録・完了の無かった予定 1 件 */
+export interface MissedPlan {
+  title: string
+  startTime: string
+  endTime: string
+}
+
 export interface WeekReviewDay {
   dateKey: string
   plannedMinutes: number
@@ -42,6 +49,8 @@ export interface WeekReviewDay {
   followed: number
   /** 予定に無かった記録（どの予定とも組にならなかった記録）の時間（#275） */
   unplannedMinutes: number
+  /** 「計画どおり実行」に数えた予定のうち、記録・完了の無かったもの（時刻順。枠を押すと一覧で出す・#713） */
+  missed: MissedPlan[]
 }
 
 /**
@@ -282,6 +291,7 @@ function collectReviewDays(
       timedPlanned: 0,
       followed: 0,
       unplannedMinutes: 0,
+      missed: [],
     }
     days.push(day)
 
@@ -334,6 +344,9 @@ function collectReviewDays(
     day.timedPlanned = result.planned
     day.followed = result.followed
     day.unplannedMinutes = result.unplannedMinutes
+    day.missed = result.missed
+      .map((p) => ({ title: p.summary, startTime: p.startTime, endTime: p.endTime }))
+      .sort((a, b) => (a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0))
     for (const pair of result.counted) onCountedPair?.(date, pair)
     // 予定に無かった記録（どの予定とも組にならなかった記録）。ラベルと題名でまとめる
     for (const log of result.unplannedLogs) {
@@ -582,7 +595,8 @@ export function pickReviewInsight(
     if (d.dateKey >= opts.todayKey || d.timedPlanned < INSIGHT_MIN_PLANS || d.followed > 0) continue
     add(d.plannedMinutes, { kind: 'missedDay', dateKey: d.dateKey, count: d.timedPlanned }, d.dateKey)
   }
-  if (opts.loggedDiff != null) {
+  // 記録の量の差は、時間の使い方の話（上の候補）が無いときだけ（記録をつけ始めた週に、いつもこの一言にならないように・#712）
+  if (candidates.length === 0 && opts.loggedDiff != null) {
     const prev = review.loggedMinutes - opts.loggedDiff
     const diff = Math.abs(opts.loggedDiff)
     if (diff >= INSIGHT_MIN_MINUTES && diff >= prev * INSIGHT_DIFF_RATIO) add(diff, { kind: 'loggedDiff', diff: opts.loggedDiff }, '')

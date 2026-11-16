@@ -42,6 +42,9 @@ export function UndoToast() {
   const clearDeletedTasks = useTaskStore((s) => s.clearDeletedTasks)
   const clearUndoBanner = useTaskStore((s) => s.clearUndoBanner)
   const [visible, setVisible] = useState(false)
+  // マウスを乗せている・フォーカスがある間は消さない（離れたら 5 秒を数え直す）。
+  // Google の予定の削除は、同じ時間で Google に送るので止めない
+  const [held, setHeld] = useState(false)
 
   const deletedIds = recentDeletes.flatMap((b) => b.ids)
   const deletedCount = deletedIds.length
@@ -56,6 +59,7 @@ export function UndoToast() {
       return
     }
     queueMicrotask(() => setVisible(true))
+    if (held && kind !== 'google') return
     const timer = setTimeout(() => {
       setVisible(false)
       if (kind === 'google') setGoogleUndo(null)
@@ -63,7 +67,7 @@ export function UndoToast() {
       else clearUndoBanner()
     }, UNDO_WINDOW_MS)
     return () => clearTimeout(timer)
-  }, [kind, deletedCount, bannerAt, clearDeletedTasks, clearUndoBanner, setGoogleUndo])
+  }, [kind, deletedCount, bannerAt, held, clearDeletedTasks, clearUndoBanner, setGoogleUndo])
 
   const open = visible && kind !== null
   const message = !open
@@ -91,7 +95,7 @@ export function UndoToast() {
   }
 
   return (
-    <Toast closing={toast.closing}>
+    <Toast closing={toast.closing} onHoldChange={setHeld}>
       <span className="min-w-0 line-clamp-2">{toast.shown}</span>
       <button
         onClick={() => {
@@ -110,6 +114,7 @@ export function UndoToast() {
             clearUndoBanner()
           }
           setVisible(false)
+          setHeld(false)
         }}
         className={toastButtonClass()}
       >

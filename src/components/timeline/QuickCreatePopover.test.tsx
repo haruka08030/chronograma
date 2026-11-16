@@ -143,7 +143,7 @@ describe('QuickCreatePopover: 予定の作成先を名前から選ぶ（#626）'
     )
   const google = () => i18n.t('googleEdit.destGoogle')
   const selectedText = (view: ReturnType<typeof openCard>) => {
-    const select = view.getByRole('combobox') as HTMLSelectElement
+    const select = view.container.querySelector('select')!
     return select.options[select.selectedIndex].textContent
   }
 
@@ -165,7 +165,7 @@ describe('QuickCreatePopover: 予定の作成先を名前から選ぶ（#626）'
     const view = openCard()
     const input = view.getByPlaceholderText(i18n.t('quickCreate.titlePlaceholder'))
     fireEvent.change(input, { target: { value: '移動' } })
-    const select = view.getByRole('combobox') as HTMLSelectElement
+    const select = view.container.querySelector('select')!
     fireEvent.change(select, { target: { value: '__google__' } })
     expect(selectedText(view)).toBe(google())
   })
@@ -220,5 +220,60 @@ describe('QuickCreatePopover: 習慣の名前の候補（#667）', () => {
     expect(useTaskStore.getState().habits[0]!.timeOverrides?.[today()]).toEqual({ startTime: '07:00', endTime: '08:00', extra: true })
     expect(useTaskStore.getState().tasks).toHaveLength(0)
     expect(onClose).toHaveBeenCalled()
+  })
+})
+
+describe('QuickCreatePopover: 予定・To-Do の名前の候補と色（#704）', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    localStorage.setItem('chronograma-quick-create-v1', JSON.stringify({ kind: 'event', eventToGoogle: false }))
+    useTaskStore.setState({
+      googleConnected: false,
+      calendarEvents: [],
+      tasks: [
+        {
+          ...makeTask(
+            { title: 'バイト 渋谷', listId: INBOX_LIST_ID, scheduledDate: '2026-10-01', startTime: '17:00', endTime: '21:00' },
+            0,
+          ),
+          id: 'b',
+          kind: 'event',
+          color: '#F4511E',
+        },
+      ],
+    })
+  })
+
+  const openCard = () =>
+    render(
+      <QuickCreatePopover
+        anchor={anchor}
+        dateKey={today()}
+        startTime="17:00"
+        endTime="21:00"
+        onTimesChange={() => {}}
+        onClose={() => {}}
+        onCreated={() => {}}
+      />,
+    )
+
+  it('打つと前の予定の名前を候補に出し、選んで保存すると同じ色の予定になる', () => {
+    const view = openCard()
+    const input = view.getByPlaceholderText(i18n.t('quickCreate.titlePlaceholder'))
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'バイト' } })
+    fireEvent.click(view.getByRole('option', { name: /バイト 渋谷/ }))
+    expect((input as HTMLInputElement).value).toBe('バイト 渋谷')
+    fireEvent.click(view.getByRole('button', { name: i18n.t('common.save') }))
+    const created = useTaskStore.getState().tasks.filter((x) => x.title === 'バイト 渋谷' && x.id !== 'b')
+    expect(created).toHaveLength(1)
+    expect(created[0]).toMatchObject({ kind: 'event', color: '#F4511E', scheduledDate: today(), startTime: '17:00' })
+  })
+
+  it('同じ名前の予定が無ければ色を付けない', () => {
+    const view = openCard()
+    fireEvent.change(view.getByPlaceholderText(i18n.t('quickCreate.titlePlaceholder')), { target: { value: '面接' } })
+    fireEvent.click(view.getByRole('button', { name: i18n.t('common.save') }))
+    expect(useTaskStore.getState().tasks.find((x) => x.title === '面接')?.color ?? null).toBeNull()
   })
 })

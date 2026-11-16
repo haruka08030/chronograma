@@ -51,6 +51,7 @@ const day = (dateKey: string, over: Partial<WeekReviewDay> = {}): WeekReviewDay 
   timedPlanned: 0,
   followed: 0,
   unplannedMinutes: 0,
+  missed: [],
   ...over,
 })
 
@@ -98,7 +99,7 @@ describe('pickReviewInsight: いちばん大きいずれ 1 つを名指しする
     const insight = pick(busy)
     expect(insight).toEqual({ kind: 'unplanned', tag: '', title: 'YouTube', minutes: 250 })
     expect(text(insight)).toBe('予定に無かった記録では「YouTube」がいちばん長く、4時間10分でした。')
-    expect(text(insight, 'en')).toBe('The longest record not in the plan was “YouTube”: 4h 10m.')
+    expect(text(insight, 'en')).toBe('The longest log not in the plan was “YouTube”: 4h 10m.')
   })
 
   it('ラベルの予定と記録の差がいちばん大きければ、ラベル名と両方の時間を出す（矢印は使わない）', () => {
@@ -139,7 +140,7 @@ describe('pickReviewInsight: いちばん大きいずれ 1 つを名指しする
     const insight = pick(r)
     expect(insight).toEqual({ kind: 'missedDay', dateKey: '2026-10-07', count: 3 })
     expect(text(insight)).toBe('10-07（水）は、時間を決めた予定 3 件のどれにも記録がありませんでした。')
-    expect(text(insight, 'en')).toBe('On Wed, 10-07, none of the 3 time-blocked plans had a record.')
+    expect(text(insight, 'en')).toBe('On Wed, 10-07, none of the 3 time-blocked plans were logged.')
   })
 
   it('今日と、予定が 2 件以下の日は「記録が無かった日」にしない', () => {
@@ -148,6 +149,16 @@ describe('pickReviewInsight: いちばん大きいずれ 1 つを名指しする
       days: [day('2026-10-07', { timedPlanned: 2, plannedMinutes: 300 }), day(TODAY, { timedPlanned: 3, plannedMinutes: 300 })],
     })
     expect(pick(r).kind).toBe('follow')
+  })
+
+  it('記録の量の差は、時間の使い方の候補が無いときだけ（差がもっと大きくても、予定に無かった記録を先に出す・#712）', () => {
+    const r = review({
+      plannedMinutes: 300,
+      loggedMinutes: 1200,
+      labelMinutes: [{ tag: '', minutes: 1200 }],
+      unplanned: [{ tag: '', title: 'YouTube', minutes: 90 }],
+    })
+    expect(pick(r, 705).kind).toBe('unplanned')
   })
 
   it('前の期間より記録が増えた・減ったを、週・月と今・過ぎた期間で呼び分ける', () => {

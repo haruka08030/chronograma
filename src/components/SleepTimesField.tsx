@@ -5,11 +5,10 @@ import { useTaskStore } from '../store/taskStore'
 import { sleepPlanOn } from '../lib/sleepSchedule'
 import { defaultSleepTimes, napsEndingOn, sleepEndingOn, sleepMinutes } from '../lib/sleep'
 import type { Task } from '../types/task'
-import { TimeInput } from './TimeInput'
+import { TimeRangeFields } from './TimeRangeFields'
 import { useNow } from '../hooks/useAppClock'
 import { CheckIcon, CloseIcon, MoonSolidIcon, PlusIcon, SunriseIcon, TrashIcon } from './icons'
 import { useDateFormat } from '../hooks/useDateFormat'
-import { FIELD_FOCUS_RING } from './ui/fieldClass'
 import { isCancelEscape, isSubmitEnter } from '../lib/keyboard'
 import { tip } from '../lib/tooltip'
 import { toDateKey } from '../lib/dateKey'
@@ -20,20 +19,6 @@ import { chipClass } from './ui/chipClass'
 export const SleepMoonIcon = () => <MoonSolidIcon className="h-3.5 w-3.5 shrink-0 text-sleep" />
 /** 起きた時刻の印（日の出。☀ は「今日」に使うので使わない）。統計・睡眠のページで ☾ と組にする */
 export const SleepWakeIcon = () => <SunriseIcon className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
-
-/**
- * 寝た時刻と起きた時刻の間に置く、睡眠の色の細い線（「睡眠」「〜」の文字の代わり）。
- * 中抜きの帯にすると空のバーや入力欄に見えるので、塗りの線 1 本にする（#624）。
- * `open` は寝ている途中（続きを点線にして、まだ続いていることを見せる）
- */
-export function SleepBar({ open = false }: { open?: boolean }) {
-  return (
-    <span className="inline-flex shrink-0 items-center" aria-hidden>
-      <span className={`h-0.5 bg-sleep ${open ? 'w-4 rounded-l-full' : 'w-7 rounded-full'}`} />
-      {open && <span className="w-3 border-t-2 border-dotted border-sleep/60" />}
-    </span>
-  )
-}
 
 /**
  * 睡眠の行のアイコンだけのボタン（寝る ▶・起きた（日の出）・保存 ✓）。枠でボタンと分かる形にする。
@@ -123,8 +108,6 @@ export function SleepTimesField({
     logSleep(dateKey, bed, wake, record?.id)
     onSaved()
   }
-  // 行に溶け込む小さな欄なので fieldClass は使わないが、フォーカスは他の入力欄と同じリングで見せる
-  const inputClass = `w-[3.75rem] rounded-md bg-zinc-50 px-1.5 py-1 text-xs tabular-nums text-zinc-900 outline-none dark:bg-zinc-800 dark:text-zinc-100 ${FIELD_FOCUS_RING}`
 
   return (
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- 中の入力欄の Enter・Esc をまとめて受ける
@@ -139,20 +122,21 @@ export function SleepTimesField({
         {icon && <SleepMoonIcon />}
         {label}
       </span>
-      <span className="inline-flex items-center gap-1.5" role="group">
-        <span className="sr-only">{t('sleep.bedAria')}</span>
-        <TimeInput value={bed} onChange={setBed} pickerDefault={usual.bed} className={inputClass} />
-        <SleepBar />
-        <span className="sr-only">{t('sleep.wakeAria')}</span>
-        <TimeInput
-          value={wake}
-          onChange={setWake}
-          pickerDefault={usual.wake}
-          durationFrom={bed || undefined}
-          overnight
-          className={inputClass}
-        />
-      </span>
+      <TimeRangeFields
+        kind="log"
+        size="inline"
+        separator="sleep"
+        startTime={bed}
+        endTime={wake}
+        onChange={(next) => {
+          setBed(next.startTime)
+          setWake(next.endTime)
+        }}
+        startLabel={t('sleep.bedAria')}
+        endLabel={t('sleep.wakeAria')}
+        startPickerDefault={usual.bed}
+        endPickerDefault={usual.wake}
+      />
       {inFuture ? (
         <span className={ERROR_TEXT}>{t('sleep.noFuture')}</span>
       ) : (

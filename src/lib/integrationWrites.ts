@@ -4,6 +4,7 @@
  * 送るのは各連携のフック（`useGooglePush`・`useNotionSync`・`useCanvasSync`）で、動いている間だけここに登録する。
  */
 import i18n from '../i18n/config'
+import { WRITE_BACK_PREFIX, subscribeWriteBackQueues } from './writeBackQueue'
 
 export type IntegrationName = 'google' | 'notion' | 'canvas'
 
@@ -15,13 +16,50 @@ type Writer = {
 }
 
 const writers = new Map<IntegrationName, Writer>()
+const listeners = new Set<() => void>()
+const notify = () => listeners.forEach((l) => l())
 
 /** 登録する。外すときの関数を返す（同じ名前で後から登録したものは消さない） */
 export function registerIntegrationWrites(name: IntegrationName, writer: Writer): () => void {
   writers.set(name, writer)
+  notify()
   return () => {
-    if (writers.get(name) === writer) writers.delete(name)
+    if (writers.get(name) !== writer) return
+    writers.delete(name)
+    notify()
   }
+}
+
+/**
+ * 送り待ちの数が変わりうるとき（登録・送り待ちの出し入れ・ほかのタブの出し入れ）に呼ぶ。外す関数を返す。
+ * 設定の「送れていない変更」の件数（`IntegrationPendingRow`）が使う
+ */
+export function subscribeIntegrationWrites(listener: () => void): () => void {
+  listeners.add(listener)
+  const offQueues = subscribeWriteBackQueues(listener)
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === null || e.key.startsWith(WRITE_BACK_PREFIX)) listener()
+  }
+  window.addEventListener('storage', onStorage)
+  return () => {
+    listeners.delete(listener)
+    offQueues()
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
+/** いま待っている数（連携が動いていなければ 0） */
+export function pendingIntegrationWrites(name: IntegrationName): number {
+  try {
+    return writers.get(name)?.count() ?? 0
+  } catch {
+    return 0
+  }
+}
+
+/** 待っているものを、次に送ってよい時刻を待たずに今すぐ送る（送れなかったものは待ちに残る） */
+export async function retryIntegrationWrites(name: IntegrationName): Promise<void> {
+  await writers.get(name)?.flush()
 }
 
 /** 送るのを待つ長さ。回線が無いときにログアウトを長く止めない */

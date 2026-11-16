@@ -103,7 +103,7 @@ describe('WeekReviewCard: 画像にして共有（#283）', () => {
     const img = await screen.findByRole('img')
     expect(img).toHaveAttribute('src', 'blob:preview')
     expect(img.getAttribute('alt')).toMatch(/^Logged this week: 2h \(Job hunt 2h\)$/)
-    expect(dialog).toHaveTextContent('To-do and record titles and notes are never included')
+    expect(dialog).toHaveTextContent('To-do and log titles and notes are never included')
 
     const model = rendered.at(-1)!
     expect(JSON.stringify(model)).not.toContain(SECRET)

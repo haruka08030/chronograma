@@ -180,6 +180,7 @@ export const useTaskStore = create<TaskState>()(
         lastSyncedAt: null as string | null,
         cloudPulledAt: null as string | null,
         syncRejected: [],
+        syncErrorReason: null,
         dataOwner: null as string | null,
         quickAddRequested: false,
         quickAddPrefill: null,

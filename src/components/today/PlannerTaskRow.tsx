@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../store/taskStore'
 import type { Task } from '../../types/task'
 import { startTaskDrag } from '../../lib/taskDrag'
+import { beginCalendarItemNativeDrag } from '../../lib/calendarItemDrag'
 import { startNativeTaskDragGhost } from '../../lib/nativeTaskDragGhost'
 import { openTaskMenu } from '../../lib/overlays'
 import { tip } from '../../lib/tooltip'
@@ -113,6 +114,8 @@ export function PlannerTaskRow({
         onDragStart: (e) => {
           startTaskDrag(e, task.id)
           startNativeTaskDragGhost(e, task.title)
+          // 実行日のある行は、つかんでいる間だけ左の下に「日付を外す」帯を出す（カレンダーの置き場と同じ）
+          if (task.scheduledDate) beginCalendarItemNativeDrag()
         },
         // To-Do 一覧と同じタスクのメニュー（選んでいる行なら選んでいる全部に）
         onContextMenu: (e) => {

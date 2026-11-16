@@ -13,19 +13,16 @@ import { CalendarScheduleView } from './CalendarScheduleView'
 import { CalendarMobileHeader } from './CalendarMobileHeader'
 import { Segmented } from './ui/Segmented'
 import { useNavShortcut } from '../lib/shortcuts'
-import { readDraggedTaskIds } from '../lib/useTimelineDrop'
-import { setUnscheduleHover, UNSCHEDULE_DROP_ATTR, UNSCHEDULE_PATCH, useCalendarItemDrag } from '../lib/calendarItemDrag'
+import { UnscheduleDropStrip } from './calendar/UnscheduleDrop'
+import { useUnscheduleDrop } from '../hooks/useUnscheduleDrop'
 import { appToday } from '../lib/timeZone'
 import { tip } from '../lib/tooltip'
-import { acceptTaskDrag, DROP_HIGHLIGHT_CLASS } from '../lib/taskDrag'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
-import { isTodoTask } from '../types/task'
 import type { CalendarMode } from '../store/storeTypes'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useAppTodayKey } from '../hooks/useAppClock'
 import { useEventTemplateStamp } from '../hooks/useEventTemplateStamp'
 import { EventTemplateButton, EventTemplateStampBar } from './calendar/EventTemplateControls'
-import { TimetableButton } from './calendar/TimetableButton'
 
 export function CalendarHubView() {
   const { t } = useTranslation()
@@ -59,13 +56,8 @@ export function CalendarHubView() {
   // よく入れる予定を選んで日を押している間（月表示だけ。ほかの表示に移ったら抜ける）
   const stamp = useEventTemplateStamp()
   if (stamp.template && calendarMode !== 'month') stamp.stop()
-  // 月表示は「よく入れる予定」、週・3 日表示は「時間割」（授業を毎週の予定でまとめて入れる、#279）
-  const templateButton =
-    calendarMode === 'month' ? (
-      <EventTemplateButton activeId={stamp.activeId} onPick={stamp.start} />
-    ) : calendarMode === 'week' || calendarMode === 'threeDay' ? (
-      <TimetableButton />
-    ) : null
+  // 月表示だけ「よく入れる予定」。時間割は追加機能「学校」のページから開く（#702）
+  const templateButton = calendarMode === 'month' ? <EventTemplateButton activeId={stamp.activeId} onPick={stamp.start} /> : null
 
   const setMode = (mode: CalendarMode) => {
     setCalendarMode(mode)
@@ -128,33 +120,7 @@ export function CalendarHubView() {
   useNavShortcut({ today: onGoToday, prev: onPrevPeriod, next: onNextPeriod })
 
   // カレンダーの ToDo を下（ToDo 一覧 / 閉じているときの帯）に落とす = 日付と時刻をはずして ToDo に戻す
-  const itemDrag = useCalendarItemDrag()
-  const unscheduleDropProps = {
-    [UNSCHEDULE_DROP_ATTR]: '',
-    onDragOver: (e: React.DragEvent) => {
-      if (!itemDrag.active || !acceptTaskDrag(e)) return
-      setUnscheduleHover(true)
-    },
-    onDragLeave: (e: React.DragEvent) => {
-      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
-      setUnscheduleHover(false)
-    },
-    onDrop: (e: React.DragEvent) => {
-      if (!itemDrag.active) return
-      e.preventDefault()
-      setUnscheduleHover(false)
-      const { tasks, updateTask, asOneUndo } = useTaskStore.getState()
-      const ids = readDraggedTaskIds(e.dataTransfer).filter((id) => {
-        const task = tasks.find((x) => x.id === id)
-        // 記録と予定は To-Do の置き場に戻さない
-        return !!task && isTodoTask(task)
-      })
-      asOneUndo(() => {
-        for (const id of ids) updateTask(id, UNSCHEDULE_PATCH)
-      })
-    },
-  }
-  const unscheduleHighlight = itemDrag.overUnschedule ? DROP_HIGHLIGHT_CLASS : ''
+  const { itemDrag, dropProps: unscheduleDropProps, highlightClass: unscheduleHighlight } = useUnscheduleDrop()
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
@@ -264,16 +230,7 @@ export function CalendarHubView() {
               <CalendarTaskDock />
             </div>
           ) : (
-            itemDrag.active &&
-            !itemDrag.fromGrid && (
-              <div
-                {...unscheduleDropProps}
-                className={`flex h-14 shrink-0 items-center justify-center border-t-2 border-dashed border-zinc-300 text-xs text-zinc-500 transition-colors
-                dark:border-zinc-700 dark:text-zinc-400 ${unscheduleHighlight}`}
-              >
-                {t('calendarHub.dropToUnschedule')}
-              </div>
-            )
+            itemDrag.active && !itemDrag.fromGrid && <UnscheduleDropStrip />
           )}
         </div>
         <aside className="hidden h-full w-[360px] shrink-0 border-l border-zinc-200 dark:border-zinc-800 lg:block">

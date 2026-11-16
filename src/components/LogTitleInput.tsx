@@ -30,6 +30,7 @@ export function LogTitleInput({
   dropUp = false,
   when = null,
   emptySuggestions = true,
+  suggestions,
   className,
   ...inputProps
 }: {
@@ -40,6 +41,8 @@ export function LogTitleInput({
   when?: LogWindow | null
   /** 空欄のときも候補を出す（1 タップで記録するチップを別に並べる画面では false） */
   emptySuggestions?: boolean
+  /** 記録でない名前の欄（作成カードの予定・To-Do）で、記録の候補の代わりに出す候補 */
+  suggestions?: LogSuggestion[]
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void
   onBlur?: () => void
   inputRef?: Ref<HTMLInputElement>
@@ -62,20 +65,23 @@ export function LogTitleInput({
   // 時間は中身で比べる（タイマーは毎秒描き直すので、作り直した同じ時間で数え直さない）
   const whenStart = when?.start ?? null
   const whenEnd = when?.end ?? null
-  const items = useMemo(
+  const logItems = useMemo(
     () =>
-      logSuggestions({
-        tasks,
-        query: value,
-        window: dateKey && whenStart && whenEnd ? { dateKey, start: whenStart, end: whenEnd } : null,
-        todos,
-        labelOf: (item) => {
-          const label = logLabelFromTask(item, presets, colors)
-          return { category: label.tags[0] ?? null, color: label.color }
-        },
-      }),
-    [tasks, value, dateKey, whenStart, whenEnd, todos, presets, colors],
+      suggestions
+        ? []
+        : logSuggestions({
+            tasks,
+            query: value,
+            window: dateKey && whenStart && whenEnd ? { dateKey, start: whenStart, end: whenEnd } : null,
+            todos,
+            labelOf: (item) => {
+              const label = logLabelFromTask(item, presets, colors)
+              return { category: label.tags[0] ?? null, color: label.color }
+            },
+          }),
+    [suggestions, tasks, value, dateKey, whenStart, whenEnd, todos, presets, colors],
   )
+  const items = suggestions ?? logItems
   const [focused, setFocused] = useState(false)
   // Esc・選んだあとは、次に打つまで閉じておく
   const [dismissed, setDismissed] = useState(false)

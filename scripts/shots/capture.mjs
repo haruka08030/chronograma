@@ -61,8 +61,10 @@ const SEED_TEMPLATES = [
   { id: 'tpl-late', title: 'バイト 遅番', startTime: '17:00', endTime: '22:00', color: '#7986CB' },
   { id: 'tpl-class', title: 'ゼミ', startTime: '13:00', endTime: '14:30', color: null },
 ]
-/** 週表示の見出しの「時間割」（#279）。マスを押して授業名を書いて保存する手順 */
-const TIMETABLE_BUTTON = 'button:has-text("時間割") >> visible=true'
+/** 時間割は追加機能「学校」のページから開く（#702） */
+const OPEN_SCHOOL = { click: '[data-addon="school"] button:has-text("学校")' }
+/** 学校のページで授業を入れたあと、カレンダーへ移る */
+const GO_CALENDAR = { click: 'nav button:has-text("カレンダー") >> visible=true' }
 /** TIMEZONE の今日から n 日後の日付キー */
 const tzDayKey = (n) => {
   const [y, m, d] = new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE }).format(new Date()).split('-').map(Number)
@@ -253,8 +255,6 @@ const ABSENCE_TIMETABLE = (() => {
 })()
 /** ラベルの週の目安（分、#291）。種データのラベル名 */
 const SEED_TARGETS = { 授業: 600, 課題: 480, 就活: 180 }
-/** スマホの今日の画面の「やること」のタブ（夜はタイムラインが開いているので、睡眠の行を撮るときに切り替える） */
-const PLANNER_LIST_TAB = 'button:has-text("やること") >> visible=true'
 /** ふりかえりのラベル別の時間の行（スマホでも行が見えるところまで送る） */
 const TARGET_ROWS = 'ul[aria-labelledby="review-by-label"]'
 /** 習慣の表の「朝に 10 分ストレッチ」の水曜のマス */
@@ -397,12 +397,11 @@ const SCREENS = [
   { name: 'first-run-signin', fresh: true, view: 'settings', click: 'button:has-text("ログイン") >> visible=true' },
   { name: 'planner', view: 'planner' },
   // 睡眠のタイマー（#519）: 夜は睡眠の行に寝る（▶）、押すと ☾ 23:40 ▬╌ と起きた（☀）
-  { name: 'sleep-bedtime', view: 'planner', at: '22:30', mobileClick: PLANNER_LIST_TAB },
+  { name: 'sleep-bedtime', view: 'planner', at: '22:30' },
   {
     name: 'sleep-sleeping',
     view: 'planner',
     at: '23:40',
-    mobileClick: PLANNER_LIST_TAB,
     click: 'button[aria-label="寝る"] >> visible=true',
   },
   // 睡眠の行の残りの形: 朝まだ記録が無い（入力欄）・夜更かし中（月と ▶ だけ）・寝たまま 16 時間を過ぎた（起きた時刻を聞く）
@@ -410,27 +409,24 @@ const SCREENS = [
     name: 'sleep-morning-empty',
     view: 'planner',
     at: '08:00',
-    mobileClick: PLANNER_LIST_TAB,
     taskPatch: { s10: { dueDate: '2000-01-01', endDate: '2000-01-02' } },
   },
   {
     name: 'sleep-late-night',
     view: 'planner',
     at: '01:30',
-    mobileClick: PLANNER_LIST_TAB,
     taskPatch: { s10: { dueDate: '2000-01-01', endDate: '2000-01-02' } },
   },
   // 昼寝（#645）: 夜の睡眠の右に「＋昼寝」、行を押すと夜の睡眠の欄の下に昼寝の欄と「昼寝を追加」
-  { name: 'sleep-nap', view: 'planner', mobileClick: PLANNER_LIST_TAB, extraTasks: [TODAY_NAP] },
+  { name: 'sleep-nap', view: 'planner', extraTasks: [TODAY_NAP] },
   {
     name: 'sleep-nap-edit',
     view: 'planner',
     extraTasks: [TODAY_NAP],
     click: 'button[aria-label^="睡眠の時刻を編集"] >> visible=true',
-    mobileClick: PLANNER_LIST_TAB,
   },
-  { name: 'sleep-row-narrow', view: 'planner', at: '22:30', mobileOnly: true, mobileWidth: 320, mobileClick: PLANNER_LIST_TAB },
-  { name: 'sleep-row-en', view: 'planner', at: '22:30', lang: 'en', mobileClick: 'button:has-text("To do") >> visible=true' },
+  { name: 'sleep-row-narrow', view: 'planner', at: '22:30', mobileOnly: true, mobileWidth: 320 },
+  { name: 'sleep-row-en', view: 'planner', at: '22:30', lang: 'en' },
   // 浮いているタイマーの「あと何分」（#290）: 残り時間・長さを選ぶ並び・時間を過ぎた（`timer` は撮る瞬間からの分で動いているタイマーを置く）
   { name: 'timer-remaining', view: 'planner', timer: { title: 'レポート', tags: ['課題'], startedAgo: 12.4, endsIn: 12.6 } },
   {
@@ -546,7 +542,7 @@ const SCREENS = [
   // 追加欄を押した状態（書き方のヒントは浮かせて出し、下の行を動かさない）
   { name: 'planner-add-hint', view: 'planner', click: 'input[data-quickadd]' },
   // タイムラインの予定の ✓ を押したとき（記録は足さず完了だけ）
-  { name: 'planner-timeline-check', view: 'planner', click: 'button[aria-label="タスクを完了にする"] >> visible=true >> nth=-1' },
+  { name: 'planner-timeline-check', view: 'planner', click: 'button[aria-label="To-Do を完了にする"] >> visible=true >> nth=-1' },
   // やり残しを開いた状態（行ごとの「今日やる」アイコン）
   // 指で行を押したときの短いシート（題名の下にメモ）
   { name: 'planner-row-sheet', view: 'planner', mobileOnly: true, click: 'button:has-text("ES 書く（第一志望）") >> visible=true' },
@@ -877,13 +873,13 @@ const SCREENS = [
     ],
   },
   // 時間割（#279）: 授業を入れたマス・空きのマスを押して授業名を入れるところ・入れた授業が毎週の予定として出る次の週（スマホは翌日）
-  { name: 'calendar-timetable', view: 'calendar', click: TIMETABLE_BUTTON, state: TIMETABLE_ON, steps: SEED_CLASSES },
+  { name: 'calendar-timetable', view: 'addons', state: TIMETABLE_ON, steps: [OPEN_SCHOOL, ...SEED_CLASSES] },
   {
     name: 'calendar-timetable-cell',
-    view: 'calendar',
-    click: TIMETABLE_BUTTON,
+    view: 'addons',
     state: TIMETABLE_ON,
     steps: [
+      OPEN_SCHOOL,
       ...SEED_CLASSES,
       { click: '[data-timetable-cell="2:1"]' },
       { fill: { selector: '[role=dialog] input[placeholder="例: 経済学入門"]', text: 'ミクロ経済学' } },
@@ -959,27 +955,25 @@ const SCREENS = [
   // 欠席の数（#452）: 休んだ授業のマスに数・使い切った授業は赤、マスの授業の休める回数、授業の予定のカード（今日の 4 限に入れて押す）
   {
     name: 'calendar-timetable-absence',
-    view: 'calendar',
-    click: TIMETABLE_BUTTON,
+    view: 'addons',
     state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
-    steps: SEED_CLASSES,
+    steps: [OPEN_SCHOOL, ...SEED_CLASSES],
   },
   {
     name: 'calendar-timetable-limit',
-    view: 'calendar',
-    click: TIMETABLE_BUTTON,
+    view: 'addons',
     state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
-    steps: [...SEED_CLASSES, { click: '[data-timetable-cell="5:2"]' }],
+    steps: [OPEN_SCHOOL, ...SEED_CLASSES, { click: '[data-timetable-cell="5:2"]' }],
   },
   {
     name: 'calendar-class-card',
-    view: 'calendar',
-    click: TIMETABLE_BUTTON,
+    view: 'addons',
     state: { ...LEGACY_SCHOOL_ON, timetable: ABSENCE_TIMETABLE },
     // 日曜は時間割に無いので、日曜に撮るときは次の月曜の回（週表示は次の週・スマホは翌日へ）
     steps: [
+      OPEN_SCHOOL,
       ...addClass(`${TODAY_WEEKDAY === 0 ? 1 : TODAY_WEEKDAY}:3`, '経済学入門'),
-      { click: '[role=dialog] button:has-text("閉じる")' },
+      GO_CALENDAR,
       { wait: 400 },
       ...(TODAY_WEEKDAY === 0 ? [{ press: 'n' }, { wait: 400 }] : []),
       { click: '[data-block-id]:has-text("経済学入門") >> visible=true' },
@@ -987,12 +981,13 @@ const SCREENS = [
   },
   {
     name: 'calendar-week-classes',
-    view: 'calendar',
-    click: TIMETABLE_BUTTON,
+    view: 'addons',
     state: TIMETABLE_ON,
     steps: [
+      OPEN_SCHOOL,
       ...SEED_CLASSES,
-      { click: '[role=dialog] button:has-text("閉じる")' },
+      GO_CALENDAR,
+      { wait: 400 },
       // 次の週へ（スマホ幅は 1 日ずつなので翌日）
       { press: 'n' },
     ],
@@ -1023,6 +1018,21 @@ const SCREENS = [
     steps: [
       { dragTime: { from: '07:00', to: '08:00' } },
       { fill: { selector: '[role=dialog] input[placeholder="タイトルを追加"] >> visible=true', text: 'ジム' } },
+    ],
+  },
+  // 今日の計画の追加欄に習慣と同じ名前を打つと「To-Do にせず習慣「ジム」にする」（#711）
+  {
+    name: 'planner-add-habit',
+    view: 'planner',
+    steps: [{ fill: { selector: 'input[data-quickadd] >> visible=true', text: 'ジム' } }],
+  },
+  // 作成カードで題名を打つと、前の同じ種類の名前を色の点つきで候補に出し、下のラベルの欄に同じ名前の色が付く（#704）
+  {
+    name: 'calendar-quick-create-suggest',
+    view: 'calendar',
+    steps: [
+      { dragTime: { from: '07:00', to: '08:00' } },
+      { fill: { selector: '[role=dialog] input[placeholder="タイトルを追加"] >> visible=true', text: 'バイト' } },
     ],
   },
   // 祝日の名前（灰色の文字だけ。週・1 日は終日の行、月は日付の横、スケジュールは日の行）。
@@ -1085,7 +1095,7 @@ const SCREENS = [
     view: 'all',
     click: [
       'button[data-task-title]:has-text("ES 書く（第一志望）") >> visible=true',
-      '[role=dialog] button[aria-label="タスクのメニュー"] >> visible=true',
+      '[role=dialog] button[aria-label="To-Do のメニュー"] >> visible=true',
     ],
   },
   { name: 'habits', view: 'habits' },
@@ -1168,6 +1178,8 @@ const SCREENS = [
     rightClick: 'li:has-text("日記を書く")',
   },
   { name: 'stats', view: 'stats' },
+  // ふりかえりの「記録・完了の無かった予定」を開いたところ（#713）
+  { name: 'stats-missed', view: 'stats', click: 'button:has-text("記録・完了の無かった予定") >> visible=true' },
   // ふりかえりを画像にして共有する前の見本（#283。画像は共有先で読みやすいライトで作る）
   { name: 'stats-share', view: 'stats', click: 'button[aria-label="画像にして共有"] >> visible=true' },
   {
@@ -1397,7 +1409,7 @@ const SCREENS = [
     list: 'seed-someday',
     click: [
       'section[aria-label="人生で"] [data-task-row] button >> nth=0',
-      '[role=dialog] button[aria-label="タスクのメニュー"] >> visible=true',
+      '[role=dialog] button[aria-label="To-Do のメニュー"] >> visible=true',
     ],
   },
   { name: 'checklist-menu', list: 'seed-shopping', rightClick: '[data-task-row="s24"]' },
