@@ -99,12 +99,12 @@ describe('今日の計画の「予定 / 空き」', () => {
     })
     const planner = plannerLine()
     expect(planner).toHaveAttribute('data-day-free', 'over')
-    expect(planner).toHaveTextContent('1h 30m placed / 1h free (over)')
-    expect(planner).toHaveTextContent('To-Dos planned (1h 30m) are more than the free time (1h)')
+    expect(planner).toHaveTextContent('To-Dos 1h 30m / 1h free (over)')
+    expect(planner).toHaveTextContent('To-Dos on this day (1h 30m) are more than the free time (1h)')
 
     const week = weekLine()
     expect(week).toHaveAttribute('data-day-free', 'over')
-    expect(week).toHaveTextContent('To-Dos placed on this day (1h 30m) are more than the free time (1h)')
+    expect(week).toHaveTextContent('To-Dos on this day (1h 30m) are more than the free time (1h)')
   })
 
   it('予定の無い日は目安のまま。時刻つきは長さ、時刻なしは見積もりを足す', () => {
@@ -113,7 +113,7 @@ describe('今日の計画の「予定 / 空き」', () => {
     })
     const planner = plannerLine()
     expect(planner).toHaveAttribute('data-day-free', 'ok')
-    expect(planner).toHaveTextContent('2h 45m placed / 8h free')
+    expect(planner).toHaveTextContent('To-Dos 2h 45m / 8h free')
     expect(planner).not.toHaveTextContent('(over)')
     expect(weekLine()).toHaveTextContent('8h free this day')
   })
@@ -123,7 +123,7 @@ describe('今日の計画の「予定 / 空き」', () => {
     useTaskStore.setState({ tasks: [todo('report', { estimateMinutes: 180 })] })
     const planner = plannerLine()
     expect(planner).toHaveAttribute('data-day-free', 'over')
-    expect(planner).toHaveTextContent('3h placed / 2h free (over)')
+    expect(planner).toHaveTextContent('To-Dos 3h / 2h free (over)')
     expect(weekLine()).toHaveTextContent('Free 2h / 3h')
   })
 
@@ -134,7 +134,7 @@ describe('今日の計画の「予定 / 空き」', () => {
     })
     const { container } = render(<TodayPlannerView />)
     const header = container.querySelector('header')!
-    expect(header).not.toHaveTextContent('placed')
+    expect(header).not.toHaveTextContent(/To-Dos \d/)
     expect(header).not.toHaveTextContent('free')
     expect(header.querySelector('[data-day-free]')).toBeNull()
   })

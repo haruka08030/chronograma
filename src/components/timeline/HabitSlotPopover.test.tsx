@@ -85,21 +85,21 @@ describe('済んだ枠のカードのその日の記録（#661）', () => {
   it('記録の行を押すとその記録のカードを開く', async () => {
     const onOpenRecord = openDone()
     const id = record()!.id
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Open record 07:00–08:00' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Open log 07:00–08:00' }))
     expect(onOpenRecord).toHaveBeenCalledWith(id)
   })
 
   it('🗑 で記録を消すと未達成に戻る', async () => {
     openDone()
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Delete record' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Delete log' }))
     expect(record()).toBeUndefined()
-    expect(screen.queryByRole('button', { name: /Open record/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Open log/ })).toBeNull()
   })
 
   it('まだの枠には記録の行を出さない', () => {
     useTaskStore.setState({ habits: [timed], tasks: [] })
     render(<HabitSlotPopover habitId="gym" dateKey="2026-10-20" anchor={anchor} onClose={() => {}} />)
-    expect(screen.queryByRole('button', { name: /Open record/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Open log/ })).toBeNull()
   })
 })
 

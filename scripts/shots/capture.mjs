@@ -542,7 +542,7 @@ const SCREENS = [
   // 追加欄を押した状態（書き方のヒントは浮かせて出し、下の行を動かさない）
   { name: 'planner-add-hint', view: 'planner', click: 'input[data-quickadd]' },
   // タイムラインの予定の ✓ を押したとき（記録は足さず完了だけ）
-  { name: 'planner-timeline-check', view: 'planner', click: 'button[aria-label="タスクを完了にする"] >> visible=true >> nth=-1' },
+  { name: 'planner-timeline-check', view: 'planner', click: 'button[aria-label="To-Do を完了にする"] >> visible=true >> nth=-1' },
   // やり残しを開いた状態（行ごとの「今日やる」アイコン）
   // 指で行を押したときの短いシート（題名の下にメモ）
   { name: 'planner-row-sheet', view: 'planner', mobileOnly: true, click: 'button:has-text("ES 書く（第一志望）") >> visible=true' },
@@ -1095,7 +1095,7 @@ const SCREENS = [
     view: 'all',
     click: [
       'button[data-task-title]:has-text("ES 書く（第一志望）") >> visible=true',
-      '[role=dialog] button[aria-label="タスクのメニュー"] >> visible=true',
+      '[role=dialog] button[aria-label="To-Do のメニュー"] >> visible=true',
     ],
   },
   { name: 'habits', view: 'habits' },
@@ -1409,7 +1409,7 @@ const SCREENS = [
     list: 'seed-someday',
     click: [
       'section[aria-label="人生で"] [data-task-row] button >> nth=0',
-      '[role=dialog] button[aria-label="タスクのメニュー"] >> visible=true',
+      '[role=dialog] button[aria-label="To-Do のメニュー"] >> visible=true',
     ],
   },
   { name: 'checklist-menu', list: 'seed-shopping', rightClick: '[data-task-row="s24"]' },

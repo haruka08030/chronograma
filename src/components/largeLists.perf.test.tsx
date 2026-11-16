@@ -97,7 +97,7 @@ describe(`${N} 件の一覧は先頭の ${LIST_PAGE_SIZE} 行だけ描く`, { ti
     expect(open.rows).toBe(LIST_PAGE_SIZE)
     expect(edited.rows).toBe(LIST_PAGE_SIZE)
     expect(screen.getByText('“数学 ” · 3000 to-dos')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '2000 records' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '2000 logs' })).toBeInTheDocument()
   })
 })
 
@@ -156,11 +156,11 @@ describe('検索の記録', { timeout: 120_000 }, () => {
     const options = screen.getAllByRole('option')
     expect(options).toHaveLength(1)
     expect(options[0]).toHaveTextContent('数学の宿題')
-    expect(screen.getByRole('heading', { name: '2 records' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '2 logs' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /数学 記録/ })).toBeNull()
 
-    await user.click(screen.getByRole('button', { name: 'Show records' }))
-    const records = within(screen.getByRole('region', { name: 'Records' })).getAllByRole('button', { name: /数学 記録/ })
+    await user.click(screen.getByRole('button', { name: 'Show logs' }))
+    const records = within(screen.getByRole('region', { name: 'Logs' })).getAllByRole('button', { name: /数学 記録/ })
     expect(records).toHaveLength(2)
     expect(records[0]).toHaveTextContent('数学 記録 1')
     expect(records[1]).toHaveTextContent('数学 記録 0')
@@ -174,7 +174,7 @@ describe('検索の記録', { timeout: 120_000 }, () => {
     render(<SearchResults />)
     expect(screen.getByText('No matching to-dos')).toBeInTheDocument()
     expect(screen.queryByRole('listbox')).toBeNull()
-    expect(screen.getByRole('heading', { name: '3 records' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '3 logs' })).toBeInTheDocument()
   })
 })
 
