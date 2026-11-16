@@ -24,6 +24,7 @@ type DataActions = Pick<
   | 'setSyncState'
   | 'setCloudPulledAt'
   | 'setSyncRejected'
+  | 'setSyncErrorReason'
   | 'setDataOwner'
   | 'resetLocalData'
   | 'backupJson'
@@ -193,6 +194,7 @@ export function createDataSlice({ set, get, undo }: SliceContext): DataActions {
     setCloudPulledAt: (at) => set({ cloudPulledAt: at }),
 
     setSyncRejected: (rows) => set({ syncRejected: rows }),
+    setSyncErrorReason: (reason) => set({ syncErrorReason: reason }),
 
     setDataOwner: (userId) => set({ dataOwner: userId }),
 

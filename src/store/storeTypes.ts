@@ -23,7 +23,7 @@ import type { SeriesRule, SeriesScope } from '../lib/eventSeries'
 import type { DayMoods, Mood } from '../lib/dayMood'
 import type { CandidateView } from '../lib/plannerCandidates'
 import type { CompletedFilter, TodoFilter } from '../lib/taskFilter'
-import type { SyncState } from '../types/sync'
+import type { SyncErrorReason, SyncState } from '../types/sync'
 import type { WeekStartDay } from '../lib/weekStart'
 import type { QuickAddPrefill } from '../lib/shareTarget'
 
@@ -702,6 +702,9 @@ export interface TaskState {
   /** 最後の同期でサーバーに受け付けられなかった行（永続化しない）。手元には残っている */
   syncRejected: SyncRejectedRow[]
   setSyncRejected: (rows: SyncRejectedRow[]) => void
+  /** 同期が `error` のときの理由（永続化しない）。説明の文と次にできることを分ける */
+  syncErrorReason: SyncErrorReason | null
+  setSyncErrorReason: (reason: SyncErrorReason | null) => void
   /**
    * 手元のタスク・リスト・習慣が誰のものか（ユーザー ID）。null はログインせずに作ったデータ。
    * 以前は記録が無く、ログアウト後に別の人がログインすると前の人のデータがその人のアカウントに混ざった

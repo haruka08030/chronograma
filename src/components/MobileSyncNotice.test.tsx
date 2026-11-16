@@ -11,7 +11,7 @@ const { MobileSyncNotice } = await import('./MobileSyncNotice')
 
 beforeEach(() => {
   vi.useFakeTimers()
-  useTaskStore.setState({ syncState: 'idle', syncRejected: [], lastSyncedAt: null })
+  useTaskStore.setState({ syncState: 'idle', syncRejected: [], lastSyncedAt: null, syncErrorReason: null })
 })
 afterEach(() => vi.useRealTimers())
 
@@ -46,5 +46,37 @@ describe('MobileSyncNotice', () => {
     useTaskStore.setState({ syncState: 'outdated' })
     render(<MobileSyncNotice />)
     expect(screen.getByRole('button')).toBeTruthy()
+  })
+
+  it('回線のときは待てば送ると言い、ボタンは出さない（#716）', () => {
+    useTaskStore.setState({ syncState: 'error', syncErrorReason: 'offline' })
+    render(<MobileSyncNotice />)
+    act(() => {
+      vi.advanceTimersByTime(30_000)
+    })
+    expect(screen.getByRole('status').textContent).toMatch(/接続が戻ると|connection is back/)
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('ログインの期限切れなら、そう言って「ログインし直す」で設定のアカウントを開く（#716）', () => {
+    const open = vi.fn()
+    useTaskStore.setState({ syncState: 'error', syncErrorReason: 'auth', openSettingsWithScroll: open })
+    render(<MobileSyncNotice />)
+    act(() => {
+      vi.advanceTimersByTime(30_000)
+    })
+    expect(screen.getByRole('status').textContent).toMatch(/有効期限|sign-in has expired/)
+    act(() => screen.getByRole('button', { name: /ログインし直す|Sign in again/ }).click())
+    expect(open).toHaveBeenCalledWith('account')
+  })
+
+  it('サーバーの不調なら、そう言って再読み込みのボタンを出す（#716）', () => {
+    useTaskStore.setState({ syncState: 'error', syncErrorReason: 'server' })
+    render(<MobileSyncNotice />)
+    act(() => {
+      vi.advanceTimersByTime(30_000)
+    })
+    expect(screen.getByRole('status').textContent).toMatch(/サーバー|sync server/)
+    expect(screen.getByRole('button', { name: /再読み込み|Reload/ })).toBeTruthy()
   })
 })

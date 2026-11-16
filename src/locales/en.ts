@@ -124,10 +124,19 @@ export default {
     syncing: 'Syncing to the cloud',
     syncingWithLast: 'Syncing to the cloud (last synced {{when}})',
     errorShort: 'Not synced',
+    errorShortServer: 'Not synced · Reload',
     outdatedShort: 'Load the new version',
     outdated: 'Sync is paused because this version of the app is too old. Click to load the new version (your data stays on this device).',
     error: "Changes aren't synced to the cloud yet. They'll be sent once the connection is back.",
     errorWithLast: "Changes aren't synced to the cloud yet (last synced {{when}}). They'll be sent once the connection is back.",
+    errorAuth:
+      "Your sign-in has expired, so changes aren't synced to the cloud. They're kept on this device and will be sent after you sign in again.",
+    errorServer:
+      "Couldn't reach the sync server, so changes aren't synced to the cloud. They're kept on this device and will be retried automatically. If this keeps happening, reload.",
+    errorServerWithLast:
+      "Couldn't reach the sync server, so changes aren't synced to the cloud (last synced {{when}}). They're kept on this device and will be retried automatically. If this keeps happening, reload.",
+    signInAgain: 'Sign in again',
+    reload: 'Reload',
     limit:
       "You've reached the maximum number of items, so new items can't be sent to the cloud. They're still on this device and will be sent once you delete items you no longer need.",
     rejectedShort: '{{count}} not saved',

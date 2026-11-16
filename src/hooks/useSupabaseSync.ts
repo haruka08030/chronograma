@@ -64,6 +64,7 @@ import {
 import { backupNow } from './useAutoBackup'
 import { asIncomingChange } from '../lib/changeOrigin'
 import { reportSyncError } from '../lib/errorReport'
+import { classifySyncError } from '../lib/syncErrorReason'
 import { labelBaseIds, normalizeLabelBase, planLabelSync, settledLabelAdds } from '../lib/labelSync'
 import { fillLabelIds, labelIndex, relabelTasks, resolveIncomingLabels } from '../lib/labelIds'
 import { noteMergeConflicts } from '../lib/mergeConflictReport'
@@ -285,6 +286,8 @@ export function useSupabaseSync() {
     let limitHit = false
     /** アプリの版が同期の下限より古い（送らない） */
     let outdated = false
+    /** この回の同期を失敗にした値（理由の文を分けるのに使う） */
+    let failure: unknown = null
     /** 前回取得したサーバーの内容と、差分の取得の目印（前に開いたときに残したものから。無ければ最初の同期は全部を取る、#258） */
     const pull = loadPullState(userId)
     /** この同期の 1 往復（`sync_changes_since`）で分かったこと（設定の版・1 日の気分）。関数が無い DB では null */
@@ -650,6 +653,7 @@ export function useSupabaseSync() {
       if (cancelled) return true
       if ('error' in pulled) {
         console.error('[sync]', pulled.error)
+        failure = pulled.error
         reportSyncError('pull', pulled.error)
         return false
       }
@@ -658,6 +662,7 @@ export function useSupabaseSync() {
       if (cancelled) return true
       if (typeof min !== 'number') {
         console.error('[sync]', min.error)
+        failure = min.error
         reportSyncError('min-version', min.error)
         return false
       }
@@ -681,6 +686,7 @@ export function useSupabaseSync() {
           if (cancelled) return true
           if ('error' in again) {
             console.error('[sync]', again.error)
+            failure = again.error
             reportSyncError('pull', again.error, { full: true })
             return false
           }
@@ -864,6 +870,7 @@ export function useSupabaseSync() {
         console.error('[sync]', res.error)
         limitHit = res.error.includes('row_limit_exceeded')
         if (isAppOutdatedError(res.error)) outdated = true
+        failure = res.error
         reportSyncError('push', res.error)
         // 途中まで届いた行・消えた行がある。次は全部を取り直す
         pull.forceFull = true
@@ -918,6 +925,7 @@ export function useSupabaseSync() {
       staleRetries = 0
       limitHit = false
       outdated = false
+      failure = null
       const { setSyncState } = useTaskStore.getState()
       // 60 秒ごとのポーリングでドットが点滅しないよう、
       // 「送信中」を出すのは一度失敗して未送信が残っている間だけにする
@@ -931,6 +939,7 @@ export function useSupabaseSync() {
       } catch (err) {
         // 想定外の例外でも「失敗」として表示し、再送の予約に進む（以前は黙って止まっていた）
         console.error('[sync]', err)
+        failure = err
         reportSyncError('unexpected', err)
         ok = false
       } finally {
@@ -945,9 +954,11 @@ export function useSupabaseSync() {
         // 前回取得したサーバーの内容と目印を残す（開き直したときも差分で取る）。本体を保存できていない間は残さない
         if (!useTaskStore.getState().storageFull && !outdated) savePullState(userId, pull)
         noteSyncedByThisTab(userId)
+        useTaskStore.getState().setSyncErrorReason(null)
         setSyncState('idle', new Date().toISOString())
         return
       }
+      useTaskStore.getState().setSyncErrorReason(classifySyncError(failure, navigator.onLine))
       setSyncState(outdated ? 'outdated' : limitHit ? 'limit' : 'error')
       // 10s → 30s → 60s で打ち切り（以降は 60s ごと）。復帰は online / focus でも拾う
       retryMs = retryMs === 0 ? 10_000 : Math.min(retryMs * 3, 60_000)
