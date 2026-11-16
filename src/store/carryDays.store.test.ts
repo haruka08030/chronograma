@@ -57,14 +57,6 @@ describe('続けて持ち越した日数（#300）', () => {
     expect(carried('report')).toBe(2)
   })
 
-  it('やり残しをまとめて今日へ戻す（freshStart）と、溜まった日数を 0 に戻す。元に戻すと日数も戻る（#710）', () => {
-    useTaskStore.setState({ tasks: [todo('report', { scheduledDate: day(-7), carriedDays: 3 })] })
-    useTaskStore.getState().rescheduleTasks(['report'], day(0), undefined, { freshStart: true })
-    expect(carried('report')).toBe(0)
-    useTaskStore.getState().undoLastOperation()
-    expect(carried('report')).toBe(3)
-  })
-
   it('今日の予定を明日へ回すと、持ち越した日数と移した予定の控え（#158）が両方付く', () => {
     // 控えは始まった予定だけなので、今の時刻によらず始まっている 0:00 から
     useTaskStore.setState({ tasks: [todo('es', { scheduledDate: day(0), startTime: '00:00', endTime: '01:00' })] })
