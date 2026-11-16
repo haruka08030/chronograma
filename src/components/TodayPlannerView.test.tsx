@@ -9,6 +9,13 @@ import { TASK_DEFAULTS } from '../lib/taskDefaults'
 import type { Task } from '../types/task'
 import { TodayPlannerView } from './TodayPlannerView'
 
+/** ログイン中かどうか（Google の 1 行はログイン中だけ読む）。既定はログインしていない */
+const auth = vi.hoisted(() => ({ user: null as { id: string } | null }))
+vi.mock('../contexts/AuthContext', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('../contexts/AuthContext')>()
+  return { ...orig, useAuth: () => ({ ...orig.useAuth(), user: auth.user }) }
+})
+
 beforeAll(() => {
   // jsdom には無いもの（タイムラインの大きさ・候補の続きの読み込み・枠の行を見える所へ送る）
   Element.prototype.scrollIntoView = () => {}
@@ -493,20 +500,23 @@ describe('TodayPlannerView: 日付を外す帯（#706）', () => {
 })
 
 describe('TodayPlannerView: Google のつながりが切れたとき（#708）', () => {
-  it('切れた間は「もう一度接続する」の 1 行を出し、未接続の案内は出さない', () => {
+  it('切れた間は「もう一度接続する」の 1 行を出し、未接続の案内は出さない', async () => {
     vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client')
+    auth.user = { id: 'u1' }
     onTestFinished(() => {
+      auth.user = null
       vi.unstubAllEnvs()
       useTaskStore.setState({ googleReconnectNeeded: false, googleConnected: false })
     })
     useTaskStore.setState({ tasks: [], googleConnected: false, googleReconnectNeeded: false })
     const { unmount } = render(<TodayPlannerView />)
+    await act(async () => {})
     expect(screen.queryByRole('button', { name: 'Reconnect' })).toBeNull()
     expect(screen.queryByText(/Google Calendar/)).toBeNull()
     unmount()
 
     useTaskStore.setState({ googleReconnectNeeded: true })
     render(<TodayPlannerView />)
-    expect(screen.getByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
   })
 })

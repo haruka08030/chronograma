@@ -17,7 +17,8 @@ import { useCalendarItemDrag } from '../lib/calendarItemDrag'
 import { isAppToday, appToday } from '../lib/timeZone'
 import { CalendarArrowIcon, CheckIcon, PostponeIcon } from './icons'
 import { useTodayToggle } from '../hooks/useTodayToggle'
-import { GoogleConnectLine } from './GoogleConnectLine'
+import { lazyNamed } from '../lib/lazyComponent'
+import { useAuth } from '../contexts/AuthContext'
 import { DayNav } from './ui/DayNav'
 import { SelectionBar } from './ui/SelectionBar'
 import { fromDateKey, toDateKey } from '../lib/dateKey'
@@ -47,6 +48,8 @@ import { CalendarCards } from './calendar/CalendarCards'
 import { OverlaySuspense } from './ui/OverlaySuspense'
 import { minutesOfDay } from '../lib/clockTime'
 
+const GoogleConnectLine = lazyNamed(() => import('./GoogleConnectLine'), 'GoogleConnectLine')
+
 /** 気分の記号と見出しのその日の結果を出し始める時刻（朝から出さない）。設定の夜のまとめの時刻があればその時刻から */
 const WRAP_UP_FROM_HOUR = 17
 
@@ -63,6 +66,7 @@ const sectionHeading = `pb-2 ${SECTION_HEADING_CLASS}`
  */
 export function TodayPlannerView() {
   const { t, i18n } = useTranslation()
+  const { user } = useAuth()
   const tasks = useTaskStore((s) => s.tasks)
   const habits = useTaskStore(selectHabitsByDay)
   const rescheduleTasks = useTaskStore((s) => s.rescheduleTasks)
@@ -322,8 +326,13 @@ export function TodayPlannerView() {
       >
         <PlannerHeader date={date} dateKey={dateKey} viewingToday={viewingToday} dayNav={dayNav} load={dayLoad} reviewing={showResult} />
 
-        {/* Google のつながりが切れた・送れなかった予定があるときだけ（未接続の案内は出さない）。予定が黙って消えたように見せない（#708） */}
-        <GoogleConnectLine hideInvite />
+        {/* Google のつながりが切れた・送れなかった予定があるときだけ（未接続の案内は出さない）。予定が黙って消えたように見せない（#708）。
+            Google はログインしてからつなぐので、ログイン中だけ遅れて読む（起動時の読み込みに Google の処理を入れない） */}
+        {user && (
+          <OverlaySuspense>
+            <GoogleConnectLine hideInvite />
+          </OverlaySuspense>
+        )}
 
         <PlannerDues dateKey={dateKey} />
 
