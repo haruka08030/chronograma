@@ -131,6 +131,8 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
         },
       ],
     })
+    // 0:00–15:00 は記録で埋めておく（記録なしの点線の枠が予定の横に並ばないように）
+    useTaskStore.getState().addTimeLog('ねる', '2026-10-07', '00:00', '15:00', [])
     useTaskStore.getState().addTimeLog('ゼミ', '2026-10-07', '15:05', '16:30', [], undefined, null, '#E67C73')
     const log = useTaskStore.getState().tasks.find((x) => x.title === 'ゼミ' && x.id !== 'seminar')!
     const view = () => render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />).container

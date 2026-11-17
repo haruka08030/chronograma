@@ -208,7 +208,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const limitMin = logLimitMin(key)
   /** 始まった（記録にできる）時間か */
   const hasStarted = (start: string) => limitMin === null || timeToMinutes(start) < limitMin
-  // 過ぎた時間の「記録の無い時間」（起きてから寝るまで・今日は今まで、30 分以上）。記録の列に点線の枠で出し、押すとその時間で記録を作る
+  // 過ぎた時間の「記録の無い時間」（0:00〜24:00・今日は今まで、30 分以上）。記録の列に点線の枠で出し、押すとその時間で記録を作る
   // 過ぎた予定（授業・バイト）は出たものとして抜けを埋める（欠席にした回・記録した予定は埋めない。見出し・ふりかえりの「記録なし」と同じ）
   const gaps = splitLanes
     ? unrecordedGapsForDay(dayLogs, key, limitMin, activeTimer, eventSpansOnDay(dayTimed, key, absentOn, undefined, dayLogs))

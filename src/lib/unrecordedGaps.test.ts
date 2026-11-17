@@ -21,70 +21,69 @@ const hm = (s: string) => {
 const span = (a: string, b: string) => ({ start: hm(a), end: b === '24:00' ? 24 * 60 : hm(b) })
 
 describe('unrecordedGaps', () => {
-  it('過ぎた日: 起きてから寝るまでのうち、記録の無い 30 分以上の所', () => {
+  it('過ぎた日: 0:00〜24:00 のうち、記録・睡眠の無い 30 分以上の所', () => {
     const gaps = unrecordedGaps({
       records: [span('08:00', '09:00'), span('11:00', '12:00'), span('12:20', '18:00')],
       sleeps: [span('00:00', '07:00'), span('23:00', '24:00')],
       limitMin: null,
     })
-    // 7:00–8:00（起きてから最初の記録まで）、9:00–11:00、18:00–23:00（寝るまで）。12:00–12:20 は 30 分未満で出さない
+    // 7:00–8:00、9:00–11:00、18:00–23:00。12:00–12:20 は 30 分未満で出さない
     expect(gaps).toEqual([span('07:00', '08:00'), span('09:00', '11:00'), span('18:00', '23:00')])
     expect(unrecordedMinutes(gaps)).toBe(60 + 120 + 300)
   })
 
   it('ちょうど 30 分の抜けは出し、29 分は出さない', () => {
-    const base = { sleeps: [], limitMin: null }
+    const base = { sleeps: [span('00:00', '09:00'), span('11:00', '24:00')], limitMin: null }
     expect(unrecordedGaps({ ...base, records: [span('09:00', '10:00'), span('10:30', '11:00')] })).toEqual([span('10:00', '10:30')])
     expect(unrecordedGaps({ ...base, records: [span('09:00', '10:00'), span('10:29', '11:00')] })).toEqual([])
   })
 
-  it('睡眠の記録が無ければ、記録の最初〜最後の間だけ（朝・夜の何もない時間は出さない）', () => {
+  it('睡眠の記録が無ければ、朝・夜も記録なし（睡眠で範囲を切らない）', () => {
     const gaps = unrecordedGaps({ records: [span('10:00', '11:00'), span('14:00', '15:00')], sleeps: [], limitMin: null })
-    expect(gaps).toEqual([span('11:00', '14:00')])
+    expect(gaps).toEqual([span('00:00', '10:00'), span('11:00', '14:00'), span('15:00', '24:00')])
   })
 
-  it('記録も睡眠も無い日は出さない', () => {
+  it('記録も睡眠もタイマーも無い日（使っていない日）は出さない', () => {
     expect(unrecordedGaps({ records: [], sleeps: [], limitMin: null })).toEqual([])
     expect(unrecordedGaps({ records: [], sleeps: [], limitMin: hm('16:00') })).toEqual([])
   })
 
-  it('今日は今まで（今・これからの時間には出さない）。起きていれば記録が無くても起きてから今まで', () => {
+  it('今日は今まで（今・これからの時間には出さない）', () => {
     expect(unrecordedGaps({ records: [span('09:00', '10:00')], sleeps: [span('00:00', '07:00')], limitMin: hm('16:00') })).toEqual([
       span('07:00', '09:00'),
       span('10:00', '16:00'),
     ])
-    expect(unrecordedGaps({ records: [], sleeps: [span('00:30', '07:00')], limitMin: hm('08:00') })).toEqual([span('07:00', '08:00')])
+    expect(unrecordedGaps({ records: [], sleeps: [span('00:30', '07:00')], limitMin: hm('08:00') })).toEqual([
+      span('00:00', '00:30'),
+      span('07:00', '08:00'),
+    ])
     // 起きたばかり（30 分たっていない）
-    expect(unrecordedGaps({ records: [], sleeps: [span('00:30', '07:00')], limitMin: hm('07:20') })).toEqual([])
-  })
-
-  it('今日で睡眠が無ければ、最初の記録から今まで', () => {
-    expect(unrecordedGaps({ records: [span('09:00', '10:00')], sleeps: [], limitMin: hm('12:00') })).toEqual([span('10:00', '12:00')])
+    expect(unrecordedGaps({ records: [], sleeps: [span('00:00', '07:00')], limitMin: hm('07:20') })).toEqual([])
   })
 
   it('先の日（limitMin 0）は出さない', () => {
     expect(unrecordedGaps({ records: [span('09:00', '10:00'), span('14:00', '15:00')], sleeps: [], limitMin: 0 })).toEqual([])
   })
 
-  it('昼寝は記録と同じく埋まっている扱い（寝た時刻にはしない）', () => {
+  it('昼寝も埋まっている扱い', () => {
     const gaps = unrecordedGaps({
-      records: [span('09:00', '10:00'), span('16:00', '17:00')],
+      records: [span('09:00', '10:00'), span('16:00', '24:00')],
       sleeps: [span('00:00', '08:00'), span('13:00', '14:00')],
       limitMin: null,
     })
     expect(gaps).toEqual([span('08:00', '09:00'), span('10:00', '13:00'), span('14:00', '16:00')])
   })
 
-  it('夜中に始まった睡眠の前（前の晩の夜ふかし）は出さず、起きた時刻から', () => {
+  it('日をまたいで起きていた夜（寝る前の 0 時台）も記録なしに出す', () => {
     const gaps = unrecordedGaps({
-      records: [span('00:00', '00:30'), span('10:00', '11:00')],
-      sleeps: [span('01:30', '08:00')],
+      records: [span('00:00', '00:30'), span('10:00', '24:00')],
+      sleeps: [span('02:00', '08:00')],
       limitMin: null,
     })
-    expect(gaps).toEqual([span('08:00', '10:00')])
+    expect(gaps).toEqual([span('00:30', '02:00'), span('08:00', '10:00')])
   })
 
-  it('重なった記録・寝る前に終わらない記録もまとめて埋まっている扱い', () => {
+  it('重なった記録もまとめて埋まっている扱い', () => {
     const gaps = unrecordedGaps({
       records: [span('09:00', '12:00'), span('10:00', '11:00'), span('22:00', '24:00')],
       sleeps: [span('00:00', '07:00'), span('23:30', '24:00')],
@@ -116,7 +115,7 @@ describe('unrecordedGapsForDay', () => {
     ...extra,
   })
 
-  it('日をまたぐ睡眠は、その日にかかる区間で起きた・寝た時刻を決める', () => {
+  it('日をまたぐ睡眠は、その日にかかる区間で埋める', () => {
     const logs = [
       log('sleep1', '2026-10-06', '23:30', '07:00', { kind: 'sleep', endDate: '2026-10-07' }),
       log('work', '2026-10-07', '09:00', '12:00'),
@@ -201,10 +200,9 @@ describe('予定（授業・バイト）は出たものとして記録の無い�
     expect(unrecordedMinutesOnDay(all, D, pastDay)).toBe(180 + 300 + 240)
   })
 
-  it('予定は起きた・寝た時刻には使わない（記録の前後に広げない）', () => {
+  it('予定だけの所も埋める。範囲は睡眠・記録によらず 0:00〜24:00', () => {
     const all = [log('work', '10:00', '11:00'), event('バイト', '17:00', '22:00')]
-    // 過ぎた日は最後の記録で終わる
-    expect(unrecordedMinutesOnDay(all, D, pastDay)).toBe(0)
+    expect(unrecordedMinutesOnDay(all, D, pastDay)).toBe(600 + 360 + 120)
   })
 })
 

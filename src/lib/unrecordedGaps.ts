@@ -15,16 +15,12 @@ export type MinuteSpan = { start: number; end: number }
 export const MIN_UNRECORDED_GAP_MINUTES = 30
 
 const DAY_END = 24 * 60
-/** この時刻より前に始まった睡眠は「夜の睡眠（朝に起きた）」とみなす */
-const MORNING_END = 12 * 60
-/** この時刻以降に始まった睡眠（と日の終わりまで続く睡眠）は「寝た」とみなす。それより前の昼の睡眠は昼寝（記録と同じ扱い） */
-const NIGHT_START = 18 * 60
 
 /**
- * その日の「記録の無い時間」。起きてから寝るまで（今日は今まで）のうち、記録・睡眠・動いているタイマー・
+ * その日の「記録の無い時間」。0:00〜24:00（今日は今まで）のうち、記録・睡眠・動いているタイマー・
  * 過ぎた予定（授業・バイト。出たものとして扱う、`busy`）のどれにもかからない `minMinutes` 分以上の所。
- * - 起きた時刻: 朝（12 時より前に始まった）の睡眠のうち最初のものの終わり。無ければ記録の最初
- * - 寝た時刻: 夜（18 時以降に始まった・日の終わりまで続く）の睡眠のうち最初のものの始まり。無ければ記録の最後（今日は今）
+ * 睡眠は埋まった時間として数えるだけで、起きた・寝た時刻で範囲を切らない（日をまたいで起きていた夜も出す）。
+ * 記録も睡眠もタイマーも無い日（使っていない日）は出さない。
  * - `limitMin` は記録に使える最後の分（今日は今、過ぎた日は null、先の日は 0）。今・これからの時間には出さない
  */
 export function unrecordedGaps(
@@ -40,24 +36,15 @@ export function unrecordedGaps(
     limitMin: number | null
     /** 動いているタイマーの、その日にかかる区間（今まで記録している所） */
     timer?: MinuteSpan | null
-    /** 予定（授業・バイト）の区間。抜けを埋めるだけで、起きた・寝た時刻には使わない */
+    /** 予定（授業・バイト）の区間。抜けを埋めるだけ */
     busy?: readonly MinuteSpan[]
   },
   minMinutes = MIN_UNRECORDED_GAP_MINUTES,
 ): MinuteSpan[] {
   if (limitMin !== null && limitMin <= 0) return []
-  const morning = sleeps.filter((s) => s.start < MORNING_END).sort((a, b) => a.start - b.start)[0]
-  const night = sleeps
-    .filter((s) => s.start >= NIGHT_START || (s.end >= DAY_END && s.start >= MORNING_END))
-    .sort((a, b) => a.start - b.start)[0]
-  const firstRecord = records.length > 0 ? Math.min(...records.map((r) => r.start)) : null
-  const lastRecord = records.length > 0 ? Math.max(...records.map((r) => r.end)) : null
-
-  const from = morning?.end ?? firstRecord
-  if (from === null) return []
-  let until = night?.start ?? (limitMin === null ? lastRecord : DAY_END)
-  if (until === null) return []
-  if (limitMin !== null) until = Math.min(until, limitMin)
+  if (records.length === 0 && sleeps.length === 0 && !timer) return []
+  const from = 0
+  const until = limitMin === null ? DAY_END : Math.min(DAY_END, limitMin)
   if (until - from < minMinutes) return []
 
   const covered = [...records, ...sleeps, ...busy, ...(timer ? [timer] : [])]

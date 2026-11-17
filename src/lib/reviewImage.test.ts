@@ -107,13 +107,13 @@ describe('buildReviewImageModel', () => {
     const m = model()
     expect(m.days).toHaveLength(7)
     expect(m.days.map((d) => d.label).join('')).toBe('月火水木金土日')
-    // 火曜: 就活 90 分・ゼミ 60 分（多い順）、一番上に記録の無い 11:30–13:00 の記録なし
+    // 火曜: 就活 90 分・ゼミ 60 分（多い順）、一番上に記録なし（睡眠の記録が無いので 0:00–10:00・11:30–13:00・14:00–24:00）
     expect(m.days[1]!.segments).toEqual([
       { hex: '#F6BF26', minutes: 90 },
       { hex: '#7986CB', minutes: 60 },
-      { hex: '#a6a6a6', minutes: 90, unrecorded: true },
+      { hex: '#a6a6a6', minutes: 600 + 90 + 600, unrecorded: true },
     ])
-    // 棒の上の合計は記録の 150 分だけ（記録なしの 90 分を足すと 4h）
+    // 棒の上の合計は記録の 150 分だけ（記録なしは足さない）
     expect(m.days[1]!.totalText).toBe('2h')
     // 未来の日（日曜）は空
     expect(m.days[6]!.segments).toEqual([])
