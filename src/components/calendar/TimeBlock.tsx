@@ -4,7 +4,7 @@ import { getResizeCursor, type CreatePopup } from '../../lib/useTimelineDrag'
 import { useNowMinutes } from '../../hooks/useAppClock'
 import { colorVars } from '../../lib/logCategoryColors'
 import { NEUTRAL_HEX } from '../../lib/googleColors'
-import { isUnlabeledHex, planTileClass, planVisualState } from '../../lib/planVisual'
+import { planTileClass, planVisualState } from '../../lib/planVisual'
 import { CalendarCheck } from '../timeline/CalendarCheck'
 import { DueIcon, MoonSolidIcon } from '../icons'
 import { tip } from '../../lib/tooltip'
@@ -34,11 +34,11 @@ export function TimeBlock({
   withCheck,
   skipped,
   running,
-  recordedHex,
+  planned,
 }: {
   task: TimeBlockTask
-  /** 予定どおりの記録があり、記録の代わりに全幅で出す予定のときの記録の色。記録と同じ塗りにする（過ぎても灰色にしない。ラベルの無い記録なら予定の色） */
-  recordedHex?: string
+  /** 記録した予定と 1 つにまとめた記録のタイル（#724）の、元の予定の時刻。記録と違えば小さく添える */
+  planned?: { startTime: string; endTime: string }
   /** 記録中（タイマーが動いている）。題名の前に赤い点、終わりの代わりに「記録中」 */
   running?: boolean
   /** やらなかった予定（#528）。灰色に重ねて薄く・取り消し線 */
@@ -75,10 +75,11 @@ export function TimeBlock({
   // 記録（実績）は分類の色、予定はその色で、どちらも薄い塗り＋枠。予定は終わったら（完了・未完了とも）グレー
   // Google の予定（外部）も予定と同じ見せ方
   const state = !isLog && dayKey ? planVisualState(task, dayKey) : 'upcoming'
-  // 予定どおりの記録で全幅にした予定は記録の色（ラベルの無い記録なら予定の色。習慣の記録など）で、過ぎても灰色にしない
-  const recorded = recordedHex !== undefined
-  const fillHex = recorded && !isUnlabeledHex(recordedHex) ? recordedHex : colorHex
-  const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : planTileClass(recorded ? 'upcoming' : state, fillHex)
+  const fillHex = colorHex
+  const variant = sleep ? 'gc-sleep' : isLog ? 'gc-plan' : planTileClass(state, fillHex)
+  const plannedRange = planned ? timeRange(planned.startTime, planned.endTime) : null
+  // 予定と記録の時刻が違うときだけ、予定の時刻を添える
+  const showPlanned = plannedRange !== null && plannedRange !== timeRange(task.startTime, task.endTime)
   const moon = sleep && <MoonSolidIcon className="mr-1 inline h-3 w-3 -translate-y-px" />
   // 締切がこの日まで（過ぎた・この予定では間に合わなければ赤、当日は黄）の予定は、題名の前に締切の →| を付ける（先の締切は出さない）（予定を入れても締切を見失わない）
   const dueTone =
@@ -99,12 +100,14 @@ export function TimeBlock({
   // 読み上げは種類（予定・記録・睡眠）と状態も（題名と時刻だけでは、左右の列や色で見分けているものが伝わらない・#718）
   const kindLabel = t(sleep ? 'timeBlock.kindSleep' : isLog ? 'timeBlock.kindLog' : 'timeBlock.kindPlan')
   const stateLabel =
-    isLog || sleep
-      ? null
-      : skipped
-        ? t('timeBlock.skipped')
-        : recorded
-          ? t('timeBlock.followed')
+    plannedRange !== null
+      ? showPlanned
+        ? t('timeBlock.plannedAt', { range: plannedRange })
+        : t('timeBlock.followed')
+      : isLog || sleep
+        ? null
+        : skipped
+          ? t('timeBlock.skipped')
           : state === 'done'
             ? t('timeBlock.done')
             : null
@@ -176,6 +179,11 @@ export function TimeBlock({
               {endLabel}
             </span>
           </span>
+          {showPlanned && (
+            <span className="block truncate text-[10px] opacity-60 @max-[5rem]:hidden">
+              {t('timeBlock.plannedAt', { range: plannedRange })}
+            </span>
+          )}
         </span>
       )}
     </button>
@@ -184,6 +192,7 @@ export function TimeBlock({
 
 /**
  * 予定ブロックの右上に重ねる ✓。意味は「終わった」（#638）: To-Do は完了、習慣は予定どおりやった、予定・Google の予定は記録にする。
+ * 予定と 1 つにまとめた記録のタイル（#724）にも、その予定の ✓ として重ねる。
  * ブロック自体が button なので入れ子にせず、同じ位置に重ねる。
  */
 export function SlotCheck({

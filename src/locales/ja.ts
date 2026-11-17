@@ -7,6 +7,7 @@ export default {
     kindLog: '記録',
     kindSleep: '睡眠',
     done: '完了',
+    plannedAt: '予定 {{range}}',
     followed: '予定どおり記録あり',
     skipped: 'やらなかった',
   },

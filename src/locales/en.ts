@@ -7,6 +7,7 @@ export default {
     kindLog: 'Log',
     kindSleep: 'Sleep',
     done: 'done',
+    plannedAt: 'planned {{range}}',
     followed: 'logged as planned',
     skipped: 'skipped',
   },
