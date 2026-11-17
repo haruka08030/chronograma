@@ -10,11 +10,12 @@ import { isEventTask, isSleepTask, type Task } from '../../types/task'
 import { layoutPlanAndLog } from '../../lib/overlapLayout'
 import { logLabelFromTask, recordHex } from '../../lib/logCategoryColors'
 import { checkRecordTimes, planRecordOn } from '../../lib/planCheck'
+import { endDateFor } from '../../lib/completeWithLogDraft'
 import { DEFAULT_GOOGLE_EVENT_HEX } from '../../lib/googleColors'
 import { planHex } from '../../lib/planVisual'
 import { habitSlotsOnDay } from '../../lib/habitSlots'
 import { habitDayStatus, type HabitRecordIndex } from '../../lib/habitTiming'
-import { fromAppWall, isAppToday, isNowOnDay } from '../../lib/timeZone'
+import { appTimeZone, fromAppWall, instantFromWall, isAppToday, isNowOnDay } from '../../lib/timeZone'
 import { SELECTED_COLUMN, TODAY_COLUMN } from '../../lib/dayMarker'
 import { toDateKey } from '../../lib/dateKey'
 import { formatDate } from '../../lib/dateFormat'
@@ -155,8 +156,6 @@ export const WeekDayColumn = memo(function WeekDayColumn({
   const logSleep = useTaskStore((s) => s.logSleep)
   const deleteTasks = useTaskStore((s) => s.deleteTasks)
   const df = useDateFormat()
-  const toggleTask = useTaskStore((s) => s.toggleTask)
-  const addCompletedTaskWithTime = useTaskStore((s) => s.addCompletedTaskWithTime)
   const addTimeLog = useTaskStore((s) => s.addTimeLog)
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const activeTimer = useTaskStore((s) => s.activeTimer)
@@ -469,7 +468,7 @@ export const WeekDayColumn = memo(function WeekDayColumn({
         // ✓ は「終わった」（#638）。To-Do はいつも出して完了。予定（バイト・授業）は始まってから出して記録にする（Google の予定と同じ）
         const event = isEventTask(t)
         const seg = { startTime: t.startTime!, endTime: t.endTime! }
-        const record = event ? planRecordOn(dayLogs, t.title, seg) : undefined
+        const record = planRecordOn(dayLogs, t.title, seg)
         // 日をまたぐ予定は列ごとに区間しか描いていないので ✓ は出さない（カードの「記録にする」で記録にする）
         const canCheck = event ? !!record || (hasStarted(seg.startTime) && (!t.endDate || t.endDate === key)) : true
         const done = event ? !!record : t.completed
@@ -503,10 +502,12 @@ export const WeekDayColumn = memo(function WeekDayColumn({
                       : tr('weekCalendar.eventToRecord')
                     : t.completed
                       ? tr('taskItem.markIncomplete')
-                      : tr('taskItem.markComplete')
+                      : hasStarted(seg.startTime) && !record
+                        ? tr('weekCalendar.todoDoneAsPlanned')
+                        : tr('taskItem.markComplete')
                 }
                 onCheck={() => {
-                  if (!event) return toggleTask(t.id)
+                  if (!event) return checkTodoOnTimeline(t, key, seg, limitMin, record)
                   if (record) return deleteTask(record.id)
                   // 途中で押したら今まで（#638）。ラベルはカードの「記録にする」と同じく予定のラベル
                   const times = checkRecordTimes(seg, limitMin)
@@ -695,7 +696,13 @@ export const WeekDayColumn = memo(function WeekDayColumn({
                   if (record) return deleteTask(record.id)
                   // 今より先までの予定は、今までの分だけ記録にする。日をまたぐ予定はこの日の区間（24:00 までは 0:00 終わり）
                   const times = checkRecordTimes(seg, limitMin)
-                  addCompletedTaskWithTime(e.summary, key, times.startTime, times.endTime, e.color ?? DEFAULT_GOOGLE_EVENT_HEX)
+                  // ラベルはアプリの予定と同じく予定の色から（ラベルの色なら そのラベル、違えば色だけ）
+                  const label = logLabelFromTask(
+                    { color: e.color ?? DEFAULT_GOOGLE_EVENT_HEX },
+                    useTaskStore.getState().timeLogTagPresets,
+                    logCategoryColors,
+                  )
+                  addTimeLog(e.summary, key, times.startTime, times.endTime, label.tags, undefined, null, label.color)
                 }}
               />
             )}
@@ -740,3 +747,35 @@ export const WeekDayColumn = memo(function WeekDayColumn({
     </div>
   )
 })
+
+/**
+ * タイムラインの To-Do の ✓（「予定どおりやった」、#723）。予定・習慣・睡眠の ✓ と同じく記録も残す。
+ * - 完了にするとき: 始まっていれば予定の時刻（途中なら今まで）の記録を作る。同じ題名で重なる記録がもうあれば作らない。
+ *   完了の時刻は記録の終わり（過ぎた日の To-Do が今日へ移らない）。始まる前なら完了だけ
+ * - 完了を外すとき: その記録（同じ題名で重なる記録）も外す
+ * どちらも元に戻すは 1 回
+ */
+function checkTodoOnTimeline(
+  t: Task,
+  dateKey: string,
+  seg: { startTime: string; endTime: string },
+  limitMin: number | null,
+  record: Task | undefined,
+) {
+  const store = useTaskStore.getState()
+  store.asOneUndo(() => {
+    if (t.completed) {
+      store.toggleTask(t.id)
+      if (record) store.deleteTask(record.id)
+      return
+    }
+    const started = limitMin === null || timeToMinutes(seg.startTime) < limitMin
+    if (!started || record) return store.toggleTask(t.id)
+    const times = checkRecordTimes(seg, limitMin)
+    const label = logLabelFromTask(t, store.timeLogTagPresets, store.logCategoryColors)
+    store.addTimeLog(t.title, dateKey, times.startTime, times.endTime, label.tags, undefined, null, label.color, t.id)
+    const endKey = endDateFor(dateKey, times.startTime, times.endTime)
+    const end = Math.min(instantFromWall(endKey, times.endTime, appTimeZone()), Date.now())
+    store.toggleTask(t.id, new Date(end).toISOString())
+  })
+}

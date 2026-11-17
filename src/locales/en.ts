@@ -2141,6 +2141,7 @@ export default {
     freeTimeOverShort: '{{free}}/{{planned}}',
     freeTimeHint: '{{free}} free this day (hours available per day minus events and Google events)',
     freeTimeOverHint: 'To-Dos on this day ({{planned}}) are more than the free time ({{free}})',
+    todoDoneAsPlanned: 'Done as planned (log it)',
     habitDoneAsPlanned: 'Done as planned (log it)',
     dueMark: '“{{title}}” is due',
     dueMarkTime: '“{{title}}” is due by {{time}}',

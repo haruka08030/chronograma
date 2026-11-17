@@ -152,6 +152,34 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     expect(planBlock(done, 'seminar').getAttribute('aria-label')).toMatch(/^Plan, .+, \d\d:\d\d–\d\d:\d\d, logged as planned$/)
   })
 
+  it('タイムラインの To-Do の ✓ は完了にして予定どおりの記録も作り、もう一度押すと両方外す。始まる前は完了だけ（#723）', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '17:00', appTimeZone()))
+    desktop()
+    const todo = (id: string, startTime: string, endTime: string) => ({
+      ...makeTask({ title: id, listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime, endTime }, 0),
+      id,
+    })
+    useTaskStore.setState({ tasks: [todo('ゼミ', '15:00', '16:30'), todo('夜', '18:00', '19:00')] })
+    render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
+    fireEvent.click(screen.getByRole('button', { name: /Done as planned/ }))
+    const logs = () => useTaskStore.getState().tasks.filter((x) => x.kind === 'log' && !x.deletedAt)
+    expect(logs()).toEqual([expect.objectContaining({ title: 'ゼミ', startTime: '15:00', endTime: '16:30', sourceTaskId: 'ゼミ' })])
+    expect(useTaskStore.getState().tasks.find((x) => x.id === 'ゼミ')!.completed).toBe(true)
+    // 始まる前の To-Do は完了だけ（先の記録は作らない）
+    fireEvent.click(screen.getByRole('button', { name: 'Mark complete' }))
+    expect(useTaskStore.getState().tasks.find((x) => x.id === '夜')!.completed).toBe(true)
+    expect(logs()).toHaveLength(1)
+    // 外すと記録も外れる。元に戻すは 1 回で両方
+    useTaskStore.getState().toggleTask('夜')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Mark incomplete' })[0]!)
+    expect(useTaskStore.getState().tasks.find((x) => x.id === 'ゼミ')!.completed).toBe(false)
+    expect(logs()).toHaveLength(0)
+    act(() => void useTaskStore.getState().undoLastOperation())
+    expect(useTaskStore.getState().tasks.find((x) => x.id === 'ゼミ')!.completed).toBe(true)
+    expect(logs()).toHaveLength(1)
+  })
+
   it('今日の計画（1 日表示）は 予定 / 記録 の 2 列のまま', () => {
     seedOverlap()
     const { container } = render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)

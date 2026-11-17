@@ -2045,6 +2045,7 @@ export default {
     freeTimeOverShort: '{{free}}/{{planned}}',
     freeTimeHint: 'この日の空き {{free}}（1 日に使える時間から、予定と Google の予定を引いた時間）',
     freeTimeOverHint: 'この日の To-Do（{{planned}}）が空き（{{free}}）を超えています',
+    todoDoneAsPlanned: '予定どおり完了（記録する）',
     habitDoneAsPlanned: '予定どおり達成（記録する）',
     habitPlace: '時間に置く',
     habitChangeTime: '時間を変える',
