@@ -175,6 +175,17 @@ describe('予定（授業・バイト）は出たものとして記録の無い�
     expect(unrecordedMinutesOnDay(tasks(), D, pastDay)).toBe(180 + 300 + 240)
   })
 
+  it('別の時刻で記録した予定は埋めない（記録のほうを正とする、#721）', () => {
+    // 経済学の予定 13:00–14:30 を 14:00–16:00 に記録した → 13:00–14:00 は記録なし
+    const all = tasks(event('統計学', '09:00', '12:00'), event('経済学', '13:00', '14:30'), log('経済学', '14:00', '16:00'))
+    const dayLogs = all.filter((t) => t.kind === 'log' || t.kind === 'sleep')
+    expect(eventSpansOnDay(all, D, undefined, undefined, dayLogs)).toEqual([span('09:00', '12:00')])
+    expect(unrecordedMinutesOnDay(all, D, pastDay)).toBe(60 + 120 + 240)
+    // 予定と重ならない同じ題名の記録は別の回（予定はそのまま埋める）
+    const other = tasks(event('統計学', '09:00', '12:00'), event('経済学', '13:00', '14:30'), log('経済学', '15:00', '16:00'))
+    expect(unrecordedMinutesOnDay(other, D, pastDay)).toBe(30 + 120 + 240)
+  })
+
   it('欠席にした授業の回は埋めない（記録なしに戻る）', () => {
     const all = tasks(event('統計学', '09:00', '12:00'), event('経済学', '13:00', '14:30'))
     expect(unrecordedMinutesOnDay(all, D, pastDay, null, undefined, absentOnOf({ absences: {} }))).toBe(210 + 240)

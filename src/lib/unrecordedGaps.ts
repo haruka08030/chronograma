@@ -6,6 +6,7 @@ import { minutesOfDay, timeToMinutes } from './clockTime'
 import { toAppWall } from './timeZone'
 import { toDateKey } from './dateKey'
 import type { LogLimit } from './timelineBlockEdit'
+import { planRecordOn } from './planCheck'
 
 /** 0 時からの分で表した区間（終わりは含まない。日の終わりは 1440） */
 export type MinuteSpan = { start: number; end: number }
@@ -99,19 +100,23 @@ export type AbsentOn = (title: string, dateKey: string) => boolean
 
 /**
  * その日の予定（授業・バイト）のうち、出たものとして記録の抜けを埋める区間。時刻の無い（終日の）予定・欠席にした回・
- * ゴミ箱やアーカイブ・いつか / チェックリストのリストのものは入れない
+ * ゴミ箱やアーカイブ・いつか / チェックリストのリストのもの・記録した予定（✓ 済み。`dayLogs` の記録のほうを正とする）は入れない
  */
 export function eventSpansOnDay(
   tasks: readonly Task[],
   dateKey: string,
   absentOn?: AbsentOn,
   excludedListIds: ReadonlySet<string> = new Set(),
+  dayLogs: readonly Task[] = [],
 ): MinuteSpan[] {
   const out: MinuteSpan[] = []
   for (const t of tasks) {
     if (!isEventTask(t) || t.parentId || !t.startTime || !t.endTime || !isActiveTask(t) || excludedListIds.has(t.listId)) continue
+    const seg = logSegmentClockOnDay(t, dateKey)
     const span = segmentOnDay(t, dateKey)
-    if (!span) continue
+    if (!seg || !span) continue
+    // 別の時刻で記録した予定は、その記録が実際の時間（予定の時刻は埋めない）
+    if (planRecordOn(dayLogs, t.title, seg)) continue
     // 欠席は予定の日（始まった日）の回で見る
     const placed = t.scheduledDate ?? t.dueDate
     if (placed && absentOn?.(t.title, placed)) continue
@@ -158,13 +163,8 @@ export function unrecordedMinutesOnDay(
   excludedListIds?: ReadonlySet<string>,
   absentOn?: AbsentOn,
 ): number {
+  const dayLogs = logsOnDay(tasks, dateKey, excludedListIds)
   return unrecordedMinutes(
-    unrecordedGapsForDay(
-      logsOnDay(tasks, dateKey, excludedListIds),
-      dateKey,
-      logLimit(dateKey),
-      timer,
-      eventSpansOnDay(tasks, dateKey, absentOn, excludedListIds),
-    ),
+    unrecordedGapsForDay(dayLogs, dateKey, logLimit(dateKey), timer, eventSpansOnDay(tasks, dateKey, absentOn, excludedListIds, dayLogs)),
   )
 }
