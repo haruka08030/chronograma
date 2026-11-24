@@ -306,19 +306,19 @@ describe('getReview（週）: 記録なしの時間（#298）', () => {
   const log = (id: string, dueDate: string, startTime: string, endTime: string, over: Partial<Task> = {}) =>
     task(id, { kind: 'log', completed: true, dueDate, startTime, endTime, ...over })
 
-  it('過ぎた日は記録の最初〜最後（睡眠があれば起きてから寝るまで）、今日は今までの 30 分以上の抜けを足す', () => {
+  it('過ぎた日は 0:00〜24:00、今日は今までの 30 分以上の抜けを足す（睡眠で範囲を切らない）', () => {
     const tasks = [
-      // 10/2（金）: 睡眠の記録が無いので記録の最初〜最後。10:00–12:00 が抜け
+      // 10/2（金）: 睡眠の記録が無いので朝・夜も抜け。0:00–9:00・10:00–12:00・13:00–24:00
       log('a', '2026-10-02', '09:00', '10:00'),
       log('b', '2026-10-02', '12:00', '13:00'),
-      // 10/3（土・今日）: 7:00 に起きて 8:00–9:00 だけ記録。今は 10:00 → 7:00–8:00 と 9:00–10:00
+      // 10/3（土・今日）: 0:30–7:00 に寝て 8:00–9:00 だけ記録。今は 10:00 → 0:00–0:30・7:00–8:00・9:00–10:00
       log('s', '2026-10-03', '00:30', '07:00', { kind: 'sleep' }),
       log('c', '2026-10-03', '08:00', '09:00'),
     ]
     const review = getReview(tasks, [], 'week', at('10:00'), new Set(), at('10:00'))
-    expect(review.days.find((d) => d.dateKey === '2026-10-02')!.unrecordedMinutes).toBe(120)
-    expect(review.days.find((d) => d.dateKey === '2026-10-03')!.unrecordedMinutes).toBe(120)
-    expect(review.unrecordedMinutes).toBe(240)
+    expect(review.days.find((d) => d.dateKey === '2026-10-02')!.unrecordedMinutes).toBe(540 + 120 + 660)
+    expect(review.days.find((d) => d.dateKey === '2026-10-03')!.unrecordedMinutes).toBe(30 + 60 + 60)
+    expect(review.unrecordedMinutes).toBe(1320 + 150)
   })
 
   it('月のふりかえりでも、月の日ごとの記録なしを足す（前の週の日も同じ月なら入る）', () => {
@@ -332,7 +332,8 @@ describe('getReview（週）: 記録なしの時間（#298）', () => {
       log('d', '2026-10-02', '12:00', '13:00'),
     ]
     const review = getReview(tasks, [], 'month', at('10:00'), new Set(), at('10:00'))
-    expect(review.unrecordedMinutes).toBe(60 + 120)
+    // 10/1: 0:00–9:00・10:00–11:00・12:00–24:00、10/2: 0:00–9:00・10:00–12:00・13:00–24:00
+    expect(review.unrecordedMinutes).toBe(540 + 60 + 720 + (540 + 120 + 660))
   })
 })
 

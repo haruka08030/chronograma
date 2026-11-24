@@ -118,7 +118,7 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
     expect(planBlock(container, 'es').style.width).toBe('calc(100% - 18px)')
   })
 
-  it('カレンダーで予定どおりの記録があれば、記録は出さず完了した予定が全幅。完了していない To-Do は左右に並べる', () => {
+  it('記録した予定は記録と 1 つのタイルにし、予定と記録の 2 列にまたがる。完了していない To-Do は左右に並べる（#724）', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     // 予定の日のうちに完了する（ほかの日に終えると終日の行に移る）
     vi.setSystemTime(instantFromWall('2026-10-07', '17:00', appTimeZone()))
@@ -131,23 +131,58 @@ describe('WeekCalendarView: 重なった予定の横幅', () => {
         },
       ],
     })
-    useTaskStore.getState().addTimeLog('ゼミ', '2026-10-07', '15:05', '16:30', [], undefined, null, '#E67C73')
+    // 0:00–14:00 は記録で埋めておく（記録なしの点線の枠が横に並ばないように）
+    useTaskStore.getState().addTimeLog('ねる', '2026-10-07', '00:00', '14:00', [])
+    // 時刻がずれていても、かぶっていれば 1 つ
+    useTaskStore.getState().addTimeLog('ゼミ', '2026-10-07', '14:00', '16:00', [], undefined, null, '#E67C73')
     const log = useTaskStore.getState().tasks.find((x) => x.title === 'ゼミ' && x.id !== 'seminar')!
-    const view = () => render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" />).container
-    const open = view()
-    expect(planBlock(open, 'seminar').style.width).toBe('calc(50% - 4px)')
-    expect(planBlock(open, log.id).style.width).toBe('calc(50% - 4px)')
-    cleanup()
-    useTaskStore.getState().toggleTask('seminar')
-    const done = view()
-    expect(done.querySelector(`[data-datekey="2026-10-07"] [data-block-id="${log.id}"]`)).toBeNull()
-    expect(planBlock(done, 'seminar').style.width).toBe('calc(100% - 4px)')
-    // 過ぎた予定でも灰色にせず、隠した記録の色で記録と同じ塗り（#707）
-    expect(planBlock(done, 'seminar').className).toContain('gc-plan')
-    expect(planBlock(done, 'seminar').className).not.toContain('gc-missed')
-    expect(planBlock(done, 'seminar').style.getPropertyValue('--c')).toBe('#E67C73')
-    // 読み上げは種類・題名・時刻・状態（#718）
-    expect(planBlock(done, 'seminar').getAttribute('aria-label')).toMatch(/^Plan, .+, \d\d:\d\d–\d\d:\d\d, logged as planned$/)
+    for (const singleDay of [false, true]) {
+      const view = () =>
+        render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay={singleDay} />).container
+      if (useTaskStore.getState().tasks.find((x) => x.id === 'seminar')!.completed) useTaskStore.getState().toggleTask('seminar')
+      const open = view()
+      expect(planBlock(open, 'seminar').style.width).toBe('calc(50% - 4px)')
+      expect(planBlock(open, log.id).style.left).toBe('calc(50% + 2px)')
+      cleanup()
+      useTaskStore.getState().toggleTask('seminar')
+      const done = view()
+      expect(done.querySelector(`[data-datekey="2026-10-07"] [data-block-id="seminar"]`)).toBeNull()
+      expect(planBlock(done, log.id).style.width).toBe('calc(100% - 4px)')
+      expect(planBlock(done, log.id).style.getPropertyValue('--c')).toBe('#E67C73')
+      // どちらの表示でも同じ。予定の時刻が違えば添える。読み上げにも
+      expect(planBlock(done, log.id)).toHaveTextContent('planned 15:00–16:30')
+      expect(planBlock(done, log.id).getAttribute('aria-label')).toMatch(/^Log, ゼミ, 14:00–16:00, planned 15:00–16:30$/)
+      cleanup()
+    }
+  })
+
+  it('タイムラインの To-Do の ✓ は完了にして予定どおりの記録も作り、もう一度押すと両方外す。始まる前は完了だけ（#723）', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(instantFromWall('2026-10-07', '17:00', appTimeZone()))
+    desktop()
+    const todo = (id: string, startTime: string, endTime: string) => ({
+      ...makeTask({ title: id, listId: INBOX_LIST_ID, scheduledDate: '2026-10-07', startTime, endTime }, 0),
+      id,
+    })
+    useTaskStore.setState({ tasks: [todo('ゼミ', '15:00', '16:30'), todo('夜', '18:00', '19:00')] })
+    render(<WeekCalendarView anchor={fromDateKey('2026-10-07')} selectedDateKey="2026-10-07" singleDay />)
+    fireEvent.click(screen.getByRole('button', { name: /Done as planned/ }))
+    const logs = () => useTaskStore.getState().tasks.filter((x) => x.kind === 'log' && !x.deletedAt)
+    expect(logs()).toEqual([expect.objectContaining({ title: 'ゼミ', startTime: '15:00', endTime: '16:30', sourceTaskId: 'ゼミ' })])
+    expect(useTaskStore.getState().tasks.find((x) => x.id === 'ゼミ')!.completed).toBe(true)
+    // 始まる前の To-Do は完了だけ（先の記録は作らない）
+    fireEvent.click(screen.getByRole('button', { name: 'Mark complete' }))
+    expect(useTaskStore.getState().tasks.find((x) => x.id === '夜')!.completed).toBe(true)
+    expect(logs()).toHaveLength(1)
+    // 外すと記録も外れる。元に戻すは 1 回で両方
+    act(() => useTaskStore.getState().toggleTask('夜'))
+    // 記録した To-Do は記録と 1 つのタイルになり、✓ はそのタイルに付く（#724）
+    fireEvent.click(screen.getByRole('button', { name: 'Mark incomplete' }))
+    expect(useTaskStore.getState().tasks.find((x) => x.id === 'ゼミ')!.completed).toBe(false)
+    expect(logs()).toHaveLength(0)
+    act(() => void useTaskStore.getState().undoLastOperation())
+    expect(useTaskStore.getState().tasks.find((x) => x.id === 'ゼミ')!.completed).toBe(true)
+    expect(logs()).toHaveLength(1)
   })
 
   it('今日の計画（1 日表示）は 予定 / 記録 の 2 列のまま', () => {
